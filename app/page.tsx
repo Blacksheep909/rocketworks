@@ -4,13 +4,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import {
+  computeVehicleMassProperties,
   makeConstantThrustCurve,
   simulateVerticalFlight,
   type VerticalFlightResult,
+  type VehicleComponent,
 } from "../lib/physics/index.ts";
 
 type ComponentKey = "nose" | "body" | "fins" | "mount" | "recovery";
 type ViewKey = "design" | "flight";
+type MaterialKey = "kraft" | "fiberglass" | "carbon";
 
 const components: Array<{
   id: ComponentKey;
@@ -24,6 +27,110 @@ const components: Array<{
   { id: "mount", name: "Motor mount", detail: "29 mm", marker: "04" },
   { id: "recovery", name: "Recovery", detail: "450 mm chute", marker: "05" },
 ];
+
+const materialModels: Record<
+  MaterialKey,
+  Readonly<{ label: string; densityKgM3: number; wallThicknessM: number }>
+> = {
+  kraft: { label: "Kraft phenolic", densityKgM3: 850, wallThicknessM: 0.0012 },
+  fiberglass: { label: "Fiberglass", densityKgM3: 1850, wallThicknessM: 0.001 },
+  carbon: { label: "Carbon composite", densityKgM3: 1550, wallThicknessM: 0.0008 },
+};
+
+function makeDesignComponents({
+  lengthM,
+  diameterM,
+  material,
+  payloadMassKg,
+}: {
+  lengthM: number;
+  diameterM: number;
+  material: MaterialKey;
+  payloadMassKg: number;
+}): VehicleComponent[] {
+  const noseLengthM = 0.18;
+  const radiusM = diameterM / 2;
+  const airframe = materialModels[material];
+  return [
+    {
+      id: "nose",
+      name: "Nose cone",
+      stageId: "sustainer",
+      kind: "axisymmetric",
+      densityKgM3: 1150,
+      wallThicknessM: 0.002,
+      stations: [
+        { xM: 0, outerRadiusM: 0 },
+        { xM: noseLengthM * 0.35, outerRadiusM: radiusM * 0.62 },
+        { xM: noseLengthM, outerRadiusM: radiusM },
+      ],
+    },
+    {
+      id: "body",
+      name: "Airframe",
+      stageId: "sustainer",
+      kind: "axisymmetric",
+      densityKgM3: airframe.densityKgM3,
+      wallThicknessM: Math.min(airframe.wallThicknessM, radiusM),
+      positionM: { x: noseLengthM, y: 0, z: 0 },
+      stations: [
+        { xM: 0, outerRadiusM: radiusM },
+        { xM: lengthM, outerRadiusM: radiusM },
+      ],
+    },
+    {
+      id: "fins",
+      name: "Fin set",
+      stageId: "sustainer",
+      kind: "finSet",
+      count: 3,
+      axialPositionM: noseLengthM + Math.max(0, lengthM - 0.13),
+      bodyRadiusM: radiusM,
+      rootChordM: 0.13,
+      tipChordM: 0.055,
+      sweepM: 0.045,
+      spanM: 0.075,
+      thicknessM: 0.003,
+      densityKgM3: 600,
+    },
+    {
+      id: "motor",
+      name: "Motor and mount allowance",
+      stageId: "sustainer",
+      kind: "pointMass",
+      massKg: 0.16,
+      positionM: {
+        x: noseLengthM + Math.max(0, lengthM - 0.09),
+        y: 0,
+        z: 0,
+      },
+    },
+    {
+      id: "recovery",
+      name: "Recovery allowance",
+      stageId: "sustainer",
+      kind: "pointMass",
+      massKg: 0.06,
+      positionM: {
+        x: noseLengthM + Math.min(0.09, lengthM * 0.2),
+        y: 0,
+        z: 0,
+      },
+    },
+    {
+      id: "payload",
+      name: "Payload and avionics allowance",
+      stageId: "sustainer",
+      kind: "pointMass",
+      massKg: payloadMassKg,
+      positionM: {
+        x: noseLengthM + Math.min(0.22, lengthM * 0.38),
+        y: 0,
+        z: 0,
+      },
+    },
+  ];
+}
 
 function createFlightResult({
   mass,
@@ -154,7 +261,8 @@ export default function Home() {
   const [view, setView] = useState<ViewKey>("design");
   const [length, setLength] = useState(710);
   const [diameter, setDiameter] = useState(54);
-  const [mass, setMass] = useState(0.58);
+  const [payloadMass, setPayloadMass] = useState(0.16);
+  const [material, setMaterial] = useState<MaterialKey>("kraft");
   const [thrust, setThrust] = useState(22);
   const [burnTime, setBurnTime] = useState(1.65);
   const [dragCoefficient, setDragCoefficient] = useState(0.52);
@@ -165,6 +273,21 @@ export default function Home() {
   const [running, setRunning] = useState(false);
   const [saved, setSaved] = useState(true);
   const [toast, setToast] = useState("");
+  const vehicleComponents = useMemo(
+    () =>
+      makeDesignComponents({
+        lengthM: length / 1000,
+        diameterM: diameter / 1000,
+        material,
+        payloadMassKg: payloadMass,
+      }),
+    [diameter, length, material, payloadMass],
+  );
+  const massProperties = useMemo(
+    () => computeVehicleMassProperties(vehicleComponents),
+    [vehicleComponents],
+  );
+  const mass = massProperties.massKg;
   const [result, setResult] = useState<VerticalFlightResult>(() =>
     createFlightResult({
       mass,
@@ -181,6 +304,11 @@ export default function Home() {
 
   const selectedComponent = components.find((component) => component.id === selected)!;
   const designLength = length + 180;
+  const centerOfMassMm = massProperties.centerOfMassM.x * 1000;
+  const centerMarkerPercent = Math.min(
+    96,
+    Math.max(4, (centerOfMassMm / designLength) * 100),
+  );
   const warning = useMemo(() => {
     const ratio = thrust / (mass * 9.80665);
     if (ratio < 3) return "Low launch thrust-to-weight ratio";
@@ -254,6 +382,7 @@ export default function Home() {
         <div className="design-summary">
           <div><span>Length</span><strong>{designLength} mm</strong></div>
           <div><span>Mass</span><strong>{Math.round(mass * 1000)} g</strong></div>
+          <div><span>CG from tip</span><strong>{Math.round(centerOfMassMm)} mm</strong></div>
         </div>
         <div className="component-list-heading">
           <span>Components</span>
@@ -304,6 +433,9 @@ export default function Home() {
               </div>
               <div className="rocket-tail">
                 <div className="fin fin-top" /><div className="fin fin-bottom" /><div className="nozzle" />
+              </div>
+              <div className="cg-marker" style={{ left: `${centerMarkerPercent}%` }}>
+                <span>CG</span>
               </div>
             </div>
             <div className="centerline" />
@@ -362,8 +494,19 @@ export default function Home() {
           <>
             <NumberField id="length" label="Airframe length" value={length} unit="mm" min={200} max={1600} onChange={(value) => { setLength(value); markChanged(); }} />
             <NumberField id="diameter" label="Outer diameter" value={diameter} unit="mm" min={20} max={200} onChange={(value) => { setDiameter(value); markChanged(); }} />
-            <NumberField id="mass" label="Launch mass" value={mass} unit="kg" min={0.1} max={20} step={0.01} onChange={(value) => { setMass(value); markChanged(); }} />
-            <div className="field-group"><label htmlFor="material">Material</label><select id="material" defaultValue="kraft"><option value="kraft">Kraft phenolic</option><option value="fiberglass">Fiberglass</option><option value="carbon">Carbon composite</option></select></div>
+            <NumberField id="payload-mass" label="Payload + avionics allowance" value={payloadMass} unit="kg" min={0.001} max={20} step={0.01} onChange={(value) => { setPayloadMass(value); markChanged(); }} />
+            <div className="field-group">
+              <label htmlFor="material">Airframe material model</label>
+              <select id="material" value={material} onChange={(event) => { setMaterial(event.target.value as MaterialKey); markChanged(); }}>
+                {Object.entries(materialModels).map(([key, model]) => <option value={key} key={key}>{model.label}</option>)}
+              </select>
+            </div>
+            <div className="mass-properties-card">
+              <div><span>Computed mass</span><strong>{mass.toFixed(3)} kg</strong></div>
+              <div><span>CG from nose</span><strong>{centerOfMassMm.toFixed(0)} mm</strong></div>
+              <div><span>Axial inertia</span><strong>{massProperties.inertiaAtCenterKgM2[0][0].toFixed(5)} kg·m²</strong></div>
+              <div><span>Pitch inertia</span><strong>{massProperties.inertiaAtCenterKgM2[1][1].toFixed(5)} kg·m²</strong></div>
+            </div>
           </>
         ) : (
           <>
