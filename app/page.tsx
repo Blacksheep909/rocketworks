@@ -3,17 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
+import {
+  makeConstantThrustCurve,
+  simulateVerticalFlight,
+  type VerticalFlightResult,
+} from "../lib/physics/index.ts";
 
 type ComponentKey = "nose" | "body" | "fins" | "mount" | "recovery";
 type ViewKey = "design" | "flight";
-type FlightPoint = { time: number; altitude: number; velocity: number };
-type FlightResult = {
-  apogee: number;
-  maxVelocity: number;
-  timeToApogee: number;
-  thrustToWeight: number;
-  points: FlightPoint[];
-};
 
 const components: Array<{
   id: ComponentKey;
@@ -28,64 +25,55 @@ const components: Array<{
   { id: "recovery", name: "Recovery", detail: "450 mm chute", marker: "05" },
 ];
 
-function runVerticalEstimate({
+function createFlightResult({
   mass,
   diameter,
   dragCoefficient,
   thrust,
   burnTime,
+  launchAltitude,
+  windSpeed,
+  recoveryEnabled,
+  recoveryDelay,
 }: {
   mass: number;
   diameter: number;
   dragCoefficient: number;
   thrust: number;
   burnTime: number;
-}): FlightResult {
-  const dt = 0.02;
-  const gravity = 9.80665;
-  const airDensity = 1.225;
-  const area = Math.PI * Math.pow(diameter / 2000, 2);
-  const propellantMass = Math.min(mass * 0.18, 0.085);
-  let altitude = 0;
-  let velocity = 0;
-  let time = 0;
-  let maxVelocity = 0;
-  const points: FlightPoint[] = [{ time, altitude, velocity }];
-
-  while (time < 60) {
-    const burning = time < burnTime;
-    const currentMass =
-      mass - (burning ? propellantMass * (time / burnTime) : propellantMass);
-    const motorForce = burning ? thrust : 0;
-    const drag =
-      0.5 *
-      airDensity *
-      dragCoefficient *
-      area *
-      velocity *
-      Math.abs(velocity);
-    const acceleration = (motorForce - currentMass * gravity - drag) / currentMass;
-    velocity += acceleration * dt;
-    altitude = Math.max(0, altitude + velocity * dt);
-    time += dt;
-    maxVelocity = Math.max(maxVelocity, velocity);
-    const previous = points.at(-1);
-    if (!previous || time - previous.time >= 0.18) {
-      points.push({ time, altitude, velocity });
-    }
-    if (!burning && velocity <= 0) break;
-  }
-
-  return {
-    apogee: altitude,
-    maxVelocity,
-    timeToApogee: time,
-    thrustToWeight: thrust / (mass * gravity),
-    points,
-  };
+  launchAltitude: number;
+  windSpeed: number;
+  recoveryEnabled: boolean;
+  recoveryDelay: number;
+}): VerticalFlightResult {
+  const propellantMassKg = Math.min(mass * 0.14, 0.08);
+  return simulateVerticalFlight({
+    vehicle: {
+      dryMassKg: mass - propellantMassKg,
+      propellantMassKg,
+      referenceAreaM2: Math.PI * Math.pow(diameter / 2000, 2),
+      dragCoefficient,
+    },
+    motor: { thrustCurve: makeConstantThrustCurve(thrust, burnTime) },
+    recovery: {
+      enabled: recoveryEnabled,
+      dragAreaM2: Math.PI * Math.pow(0.45 / 2, 2),
+      dragCoefficient: 0.75,
+      deploymentDelayAfterApogeeS: recoveryDelay,
+    },
+    environment: {
+      launchAltitudeM: launchAltitude,
+      windProfile: [
+        { altitudeM: 0, eastMps: windSpeed * 0.5, northMps: 0 },
+        { altitudeM: 500, eastMps: windSpeed, northMps: windSpeed * 0.2 },
+        { altitudeM: 2000, eastMps: windSpeed * 1.4, northMps: windSpeed * 0.4 },
+      ],
+    },
+    integration: { timeStepS: 0.02, maxTimeS: 180 },
+  });
 }
 
-function FlightChart({ result }: { result: FlightResult }) {
+function FlightChart({ result }: { result: VerticalFlightResult }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -104,8 +92,8 @@ function FlightChart({ result }: { result: FlightResult }) {
     const padding = { top: 22, right: 18, bottom: 28, left: 42 };
     const plotWidth = width - padding.left - padding.right;
     const plotHeight = height - padding.top - padding.bottom;
-    const maxTime = Math.max(...result.points.map((point) => point.time), 1);
-    const maxAltitude = Math.max(result.apogee, 1);
+    const maxTime = Math.max(result.totalFlightTimeS, 1);
+    const maxAltitude = Math.max(result.apogeeM, 1);
 
     context.clearRect(0, 0, width, height);
     context.font = "11px ui-monospace, SFMono-Regular, Consolas, monospace";
@@ -121,9 +109,12 @@ function FlightChart({ result }: { result: FlightResult }) {
       context.fillText(`${Math.round(maxAltitude * (1 - index / 4))} m`, 2, y + 4);
     }
 
-    const coordinates = result.points.map((point) => ({
-      x: padding.left + (point.time / maxTime) * plotWidth,
-      y: padding.top + plotHeight - (point.altitude / maxAltitude) * plotHeight,
+    const coordinates = result.trace.map((point) => ({
+      x: padding.left + (point.timeS / maxTime) * plotWidth,
+      y:
+        padding.top +
+        plotHeight -
+        (point.altitudeAglM / maxAltitude) * plotHeight,
     }));
     const gradient = context.createLinearGradient(0, padding.top, 0, height);
     gradient.addColorStop(0, "rgba(29, 123, 87, 0.24)");
@@ -167,11 +158,25 @@ export default function Home() {
   const [thrust, setThrust] = useState(22);
   const [burnTime, setBurnTime] = useState(1.65);
   const [dragCoefficient, setDragCoefficient] = useState(0.52);
+  const [launchAltitude, setLaunchAltitude] = useState(80);
+  const [windSpeed, setWindSpeed] = useState(4);
+  const [recoveryEnabled, setRecoveryEnabled] = useState(true);
+  const [recoveryDelay, setRecoveryDelay] = useState(0);
   const [running, setRunning] = useState(false);
   const [saved, setSaved] = useState(true);
   const [toast, setToast] = useState("");
-  const [result, setResult] = useState<FlightResult>(() =>
-    runVerticalEstimate({ mass, diameter, dragCoefficient, thrust, burnTime }),
+  const [result, setResult] = useState<VerticalFlightResult>(() =>
+    createFlightResult({
+      mass,
+      diameter,
+      dragCoefficient,
+      thrust,
+      burnTime,
+      launchAltitude,
+      windSpeed,
+      recoveryEnabled,
+      recoveryDelay,
+    }),
   );
 
   const selectedComponent = components.find((component) => component.id === selected)!;
@@ -182,6 +187,9 @@ export default function Home() {
     if (diameter < 30) return "Small diameter requires a structural review";
     return "No preliminary issues detected";
   }, [diameter, mass, thrust]);
+  const modelWarning =
+    result.warnings.find((item) => item.severity !== "info") ??
+    result.warnings[0];
 
   const notify = (message: string) => {
     setToast(message);
@@ -195,11 +203,26 @@ export default function Home() {
     setRunning(true);
     setView("flight");
     window.setTimeout(() => {
-      setResult(
-        runVerticalEstimate({ mass, diameter, dragCoefficient, thrust, burnTime }),
-      );
-      setRunning(false);
-      notify("Estimate complete");
+      try {
+        setResult(
+          createFlightResult({
+            mass,
+            diameter,
+            dragCoefficient,
+            thrust,
+            burnTime,
+            launchAltitude,
+            windSpeed,
+            recoveryEnabled,
+            recoveryDelay,
+          }),
+        );
+        notify("Model run complete");
+      } catch (error) {
+        notify(error instanceof Error ? error.message : "Unable to run the model");
+      } finally {
+        setRunning(false);
+      }
     }, 520);
   };
 
@@ -290,23 +313,40 @@ export default function Home() {
           <div className="flight-view">
             <div className="flight-heading">
               <div><span className="eyebrow">Preliminary estimate</span><h2>Vertical flight profile</h2></div>
-              <span className="model-badge">Equation model · v0.1</span>
+              <span className="model-badge">{result.modelVersion}</span>
             </div>
             <div className="metric-grid">
-              <div className="metric"><span>Apogee</span><strong>{running ? <Skeleton width={86} /> : `${result.apogee.toFixed(0)} m`}</strong><small>Above launch point</small></div>
-              <div className="metric"><span>Maximum speed</span><strong>{running ? <Skeleton width={96} /> : `${result.maxVelocity.toFixed(1)} m/s`}</strong><small>{(result.maxVelocity / 343).toFixed(2)} Mach</small></div>
-              <div className="metric"><span>Time to apogee</span><strong>{running ? <Skeleton width={74} /> : `${result.timeToApogee.toFixed(1)} s`}</strong><small>Powered + coast</small></div>
-              <div className="metric"><span>Thrust / weight</span><strong>{running ? <Skeleton width={62} /> : `${result.thrustToWeight.toFixed(1)} : 1`}</strong><small>At ignition</small></div>
+              <div className="metric"><span>Apogee</span><strong>{running ? <Skeleton width={86} /> : `${result.apogeeM.toFixed(0)} m`}</strong><small>Above launch point</small></div>
+              <div className="metric"><span>Maximum speed</span><strong>{running ? <Skeleton width={96} /> : `${result.maxSpeedMps.toFixed(1)} m/s`}</strong><small>{result.maxMach.toFixed(2)} Mach</small></div>
+              <div className="metric"><span>Time to apogee</span><strong>{running ? <Skeleton width={74} /> : `${result.timeToApogeeS.toFixed(1)} s`}</strong><small>{result.totalFlightTimeS.toFixed(1)} s total flight</small></div>
+              <div className="metric"><span>Thrust / weight</span><strong>{running ? <Skeleton width={62} /> : `${result.thrustToWeightAtIgnition.toFixed(1)} : 1`}</strong><small>{result.totalImpulseNs.toFixed(1)} N·s impulse</small></div>
             </div>
             <div className="chart-card">
               <div className="chart-title">
                 <div><strong>Altitude</strong><span>Estimated trajectory over time</span></div>
-                <span className="legend"><i /> Altitude AGL</span>
+                <span className="legend"><i /> Max q {Math.round(result.maxDynamicPressurePa)} Pa</span>
               </div>
               {running ? <div className="chart-loading"><Skeleton height={260} borderRadius={12} /></div> : <FlightChart result={result} />}
             </div>
+            <div className="event-card">
+              <div className="event-card-heading">
+                <div><strong>Flight events</strong><span>Detected by the numerical model</span></div>
+                <span>{result.events.length} events</span>
+              </div>
+              <div className="event-timeline">
+                {result.events.map((event) => (
+                  <div className="event-item" key={`${event.type}-${event.timeS}`}>
+                    <i />
+                    <strong>{event.label}</strong>
+                    <span>{event.timeS.toFixed(2)} s</span>
+                    <small>{event.altitudeAglM.toFixed(0)} m AGL</small>
+                  </div>
+                ))}
+              </div>
+            </div>
             <div className="assumption-strip">
-              <strong>Prototype assumptions</strong><span>Vertical launch</span><span>Constant sea-level density</span><span>Constant average thrust</span><span>No wind</span>
+              <strong>Model assumptions</strong>
+              {result.assumptions.slice(0, 4).map((assumption) => <span key={assumption}>{assumption}</span>)}
             </div>
           </div>
         )}
@@ -330,16 +370,29 @@ export default function Home() {
             <NumberField id="thrust" label="Average thrust" value={thrust} unit="N" min={1} max={5000} step={0.5} onChange={setThrust} />
             <NumberField id="burn-time" label="Burn time" value={burnTime} unit="s" min={0.1} max={30} step={0.05} onChange={setBurnTime} />
             <NumberField id="drag" label="Drag coefficient" value={dragCoefficient} unit="Cd" min={0.1} max={2} step={0.01} onChange={setDragCoefficient} />
+            <NumberField id="launch-altitude" label="Launch-site altitude" value={launchAltitude} unit="m" min={-400} max={10000} step={10} onChange={setLaunchAltitude} />
+            <NumberField id="wind-speed" label="Wind at 500 m" value={windSpeed} unit="m/s" min={0} max={80} step={0.5} onChange={setWindSpeed} />
+            <div className="field-group">
+              <label htmlFor="recovery-enabled">Recovery model</label>
+              <select id="recovery-enabled" value={recoveryEnabled ? "enabled" : "disabled"} onChange={(event) => setRecoveryEnabled(event.target.value === "enabled")}>
+                <option value="enabled">450 mm parachute at apogee</option>
+                <option value="disabled">Ballistic descent</option>
+              </select>
+            </div>
+            {recoveryEnabled && <NumberField id="recovery-delay" label="Deployment delay" value={recoveryDelay} unit="s" min={0} max={30} step={0.1} onChange={setRecoveryDelay} />}
             <button className="full-run-button" onClick={simulate}>Recalculate flight</button>
           </>
         )}
-        <div className={warning.startsWith("No ") ? "check-card good" : "check-card warn"}>
-          <span>{warning.startsWith("No ") ? "✓" : "!"}</span>
-          <div><strong>Design check</strong><p>{warning}</p></div>
+        <div className={(view === "design" ? warning.startsWith("No ") : modelWarning.severity === "info") ? "check-card good" : "check-card warn"}>
+          <span>{(view === "design" ? warning.startsWith("No ") : modelWarning.severity === "info") ? "✓" : "!"}</span>
+          <div>
+            <strong>{view === "design" ? "Design check" : modelWarning.title}</strong>
+            <p>{view === "design" ? warning : modelWarning.explanation}</p>
+          </div>
         </div>
         <div className="inspector-footnote">
-          <strong>Engineering status</strong>
-          <p>Results are exploratory and must not be used for flight safety decisions. Validation and uncertainty models are planned.</p>
+          <strong>{result.validationStatus}</strong>
+          <p>Analytical regression tests pass. Experimental and independent benchmark validation are still required; do not use these results for flight-safety decisions.</p>
         </div>
       </aside>
       {toast && <div className="toast">{toast}</div>}

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 async function render() {
@@ -32,6 +33,18 @@ test("server-renders the Kestrel Lab workbench", async () => {
   assert.match(html, /Clean-room prototype/);
   assert.match(html, /Run estimate/);
   assert.match(html, /Independent implementation/);
+  assert.match(html, /engineering-preview-unvalidated/);
   assert.doesNotMatch(html, /codex-preview/);
   assert.doesNotMatch(html, /OpenRocket/);
+});
+
+test("ships versioned flight results and explainable model UI", async () => {
+  const source = await readFile(
+    new URL("../app/page.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /result\.modelVersion/);
+  assert.match(source, /Flight events/);
+  assert.match(source, /modelWarning\.explanation/);
+  assert.match(source, /result\.assumptions/);
 });
