@@ -36,6 +36,18 @@ export function dot(a: Vector3, b: Vector3): number {
   return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
+export function cross(a: Vector3, b: Vector3): Vector3 {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  };
+}
+
+export function magnitude(value: Vector3): number {
+  return Math.sqrt(dot(value, value));
+}
+
 export function addMatrices(a: Matrix3, b: Matrix3): Matrix3 {
   return [
     [a[0][0] + b[0][0], a[0][1] + b[0][1], a[0][2] + b[0][2]],
@@ -76,6 +88,37 @@ export function multiplyMatrixVector(matrix: Matrix3, value: Vector3): Vector3 {
   };
 }
 
+export function determinant(matrix: Matrix3): number {
+  return (
+    matrix[0][0] *
+      (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) -
+    matrix[0][1] *
+      (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0]) +
+    matrix[0][2] *
+      (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0])
+  );
+}
+
+export function solveMatrix3(matrix: Matrix3, rightHandSide: Vector3): Vector3 {
+  const matrixDeterminant = determinant(matrix);
+  if (!Number.isFinite(matrixDeterminant) || Math.abs(matrixDeterminant) < 1e-18) {
+    throw new Error("matrix must be finite and non-singular");
+  }
+  const replaceColumn = (column: number): Matrix3 =>
+    matrix.map((row, rowIndex) =>
+      row.map((entry, columnIndex) =>
+        columnIndex === column
+          ? [rightHandSide.x, rightHandSide.y, rightHandSide.z][rowIndex]
+          : entry,
+      ),
+    ) as unknown as Matrix3;
+  return {
+    x: determinant(replaceColumn(0)) / matrixDeterminant,
+    y: determinant(replaceColumn(1)) / matrixDeterminant,
+    z: determinant(replaceColumn(2)) / matrixDeterminant,
+  };
+}
+
 export function outerProduct(value: Vector3): Matrix3 {
   return [
     [value.x * value.x, value.x * value.y, value.x * value.z],
@@ -93,4 +136,3 @@ export function rotationAboutX(angleRad: number): Matrix3 {
     [0, sine, cosine],
   ];
 }
-

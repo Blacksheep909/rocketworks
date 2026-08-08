@@ -13,7 +13,11 @@ export type AtmosphereState = {
   pressurePa: number;
   densityKgM3: number;
   speedOfSoundMps: number;
+  dynamicViscosityPaS: number;
+  kinematicViscosityM2S: number;
 };
+
+export const ATMOSPHERE_MODEL_VERSION = "kestrel-standard-atmosphere-0.3.0";
 
 const EARTH_GEOPOTENTIAL_RADIUS_M = 6_356_766;
 const SEA_LEVEL_TEMPERATURE_K = 288.15;
@@ -24,6 +28,47 @@ const LOWER_STRATOSPHERE_LIMIT_M = 20_000;
 const SPECIFIC_GAS_CONSTANT_AIR = 287.05287;
 const STANDARD_GRAVITY_MPS2 = 9.80665;
 const HEAT_CAPACITY_RATIO = 1.4;
+const SUTHERLAND_REFERENCE_TEMPERATURE_K = 273.15;
+const SUTHERLAND_REFERENCE_VISCOSITY_PA_S = 1.716e-5;
+const SUTHERLAND_TEMPERATURE_K = 110.4;
+
+export function dynamicViscosityAirPaS(temperatureK: number): number {
+  if (!Number.isFinite(temperatureK) || temperatureK <= 0) {
+    throw new Error("Air temperature must be a positive finite number.");
+  }
+  return (
+    SUTHERLAND_REFERENCE_VISCOSITY_PA_S *
+    Math.pow(temperatureK / SUTHERLAND_REFERENCE_TEMPERATURE_K, 1.5) *
+    ((SUTHERLAND_REFERENCE_TEMPERATURE_K + SUTHERLAND_TEMPERATURE_K) /
+      (temperatureK + SUTHERLAND_TEMPERATURE_K))
+  );
+}
+
+export function reynoldsNumber(input: Readonly<{
+  densityKgM3: number;
+  speedMps: number;
+  referenceLengthM: number;
+  dynamicViscosityPaS: number;
+}>): number {
+  if (
+    !Number.isFinite(input.densityKgM3) ||
+    input.densityKgM3 <= 0 ||
+    !Number.isFinite(input.speedMps) ||
+    input.speedMps < 0 ||
+    !Number.isFinite(input.referenceLengthM) ||
+    input.referenceLengthM <= 0 ||
+    !Number.isFinite(input.dynamicViscosityPaS) ||
+    input.dynamicViscosityPaS <= 0
+  ) {
+    throw new Error(
+      "Reynolds inputs require positive density, length, viscosity, and non-negative speed.",
+    );
+  }
+  return (
+    (input.densityKgM3 * input.speedMps * input.referenceLengthM) /
+    input.dynamicViscosityPaS
+  );
+}
 
 function pressureInGradientLayer(
   basePressurePa: number,
@@ -71,7 +116,7 @@ export function standardAtmosphere(
   }
   if (geometricAltitudeM < -500 || geometricAltitudeM > 20_000) {
     throw new Error(
-      "Kestrel atmosphere v0.2 supports altitudes from -500 m to 20,000 m.",
+      "Kestrel atmosphere v0.3 supports altitudes from -500 m to 20,000 m.",
     );
   }
 
@@ -109,6 +154,8 @@ export function standardAtmosphere(
   const speedOfSoundMps = Math.sqrt(
     HEAT_CAPACITY_RATIO * SPECIFIC_GAS_CONSTANT_AIR * temperatureK,
   );
+  const dynamicViscosityPaS = dynamicViscosityAirPaS(temperatureK);
+  const kinematicViscosityM2S = dynamicViscosityPaS / densityKgM3;
 
   return {
     geometricAltitudeM,
@@ -117,6 +164,8 @@ export function standardAtmosphere(
     pressurePa,
     densityKgM3,
     speedOfSoundMps,
+    dynamicViscosityPaS,
+    kinematicViscosityM2S,
   };
 }
 
@@ -126,4 +175,3 @@ export function gravityAtAltitude(geometricAltitudeM: number): number {
     (EARTH_GEOPOTENTIAL_RADIUS_M + geometricAltitudeM);
   return STANDARD_GRAVITY_MPS2 * radiusRatio * radiusRatio;
 }
-

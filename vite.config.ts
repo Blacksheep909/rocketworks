@@ -40,6 +40,17 @@ export default defineConfig(async () => {
   process.env.WRANGLER_LOG_PATH ??= ".wrangler/logs";
   process.env.MINIFLARE_REGISTRY_PATH ??= ".wrangler/registry";
 
+  // A dependency-free local preview is useful for browser QA in restricted
+  // environments; production builds retain the Cloudflare integration.
+  if (process.env.KESTREL_PLAIN_PREVIEW === "1") {
+    return {
+      server: isCodexSeatbeltSandbox
+        ? { watch: { useFsEvents: false, usePolling: true } }
+        : undefined,
+      plugins: [vinext(), sites()],
+    };
+  }
+
   // Wrangler snapshots its log path while the Cloudflare plugin is imported.
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
