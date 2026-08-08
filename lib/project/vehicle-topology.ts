@@ -1,0 +1,130 @@
+export const LOCAL_VEHICLE_TOPOLOGY_SCHEMA_ID = "dev.kestrel-lab.local-vehicle-topology";
+export const LOCAL_VEHICLE_TOPOLOGY_SCHEMA_VERSION = 1;
+export const LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY = "kestrel.project.arc54.vehicle-topology.v1";
+export const MAX_VEHICLE_STAGES = 8;
+
+export type VehicleStageRole = "core" | "upper" | "booster" | "payload";
+export type VehicleStageAttachment = "serial" | "parallel";
+
+export type VehicleStagePlan = Readonly<{
+  id: string;
+  name: string;
+  role: VehicleStageRole;
+  attachment: VehicleStageAttachment;
+  parentStageId?: string;
+  enabled: boolean;
+  repeatCount: number;
+  repeatRadiusM: number;
+}>;
+
+export type LocalVehicleTopology = Readonly<{
+  schema: typeof LOCAL_VEHICLE_TOPOLOGY_SCHEMA_ID;
+  schemaVersion: typeof LOCAL_VEHICLE_TOPOLOGY_SCHEMA_VERSION;
+  vehicleId: string;
+  stages: ReadonlyArray<VehicleStagePlan>;
+}>;
+
+const ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+const ROLES = new Set<VehicleStageRole>(["core", "upper", "booster", "payload"]);
+const ATTACHMENTS = new Set<VehicleStageAttachment>(["serial", "parallel"]);
+
+function objectValue(value: unknown, label: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${label} must be an object.`);
+  return value as Record<string, unknown>;
+}
+
+function validString(value: unknown, label: string): string {
+  if (typeof value !== "string" || !value.trim()) throw new Error(`${label} must be a non-empty string.`);
+  return value;
+}
+
+function validStage(value: unknown, index: number): VehicleStagePlan {
+  const stage = objectValue(value, `Stage ${index + 1}`);
+  const id = validString(stage.id, `Stage ${index + 1} id`);
+  if (!ID_PATTERN.test(id)) throw new Error(`Stage ${id} id may contain only letters, numbers, underscores, and hyphens.`);
+  const name = validString(stage.name, `Stage ${id} name`);
+  if (!ROLES.has(stage.role as VehicleStageRole)) throw new Error(`Stage ${id} role is invalid.`);
+  if (!ATTACHMENTS.has(stage.attachment as VehicleStageAttachment)) throw new Error(`Stage ${id} attachment is invalid.`);
+  if (typeof stage.enabled !== "boolean") throw new Error(`Stage ${id} enabled must be boolean.`);
+  if (!Number.isInteger(stage.repeatCount) || (stage.repeatCount as number) < 1 || (stage.repeatCount as number) > 8) {
+    throw new Error(`Stage ${id} repeatCount must be an integer from 1 through 8.`);
+  }
+  if (typeof stage.repeatRadiusM !== "number" || !Number.isFinite(stage.repeatRadiusM) || stage.repeatRadiusM < 0 || stage.repeatRadiusM > 2) {
+    throw new Error(`Stage ${id} repeatRadiusM must be a finite value from 0 through 2 m.`);
+  }
+  if (stage.parentStageId !== undefined && (typeof stage.parentStageId !== "string" || !ID_PATTERN.test(stage.parentStageId))) {
+    throw new Error(`Stage ${id} parentStageId is invalid.`);
+  }
+  return {
+    id,
+    name,
+    role: stage.role as VehicleStageRole,
+    attachment: stage.attachment as VehicleStageAttachment,
+    ...(stage.parentStageId ? { parentStageId: stage.parentStageId } : {}),
+    enabled: stage.enabled,
+    repeatCount: stage.repeatCount as number,
+    repeatRadiusM: stage.repeatRadiusM,
+  };
+}
+
+export function validateVehicleTopology(value: unknown): LocalVehicleTopology {
+  const topology = objectValue(value, "Vehicle topology");
+  if (topology.schema !== LOCAL_VEHICLE_TOPOLOGY_SCHEMA_ID) throw new Error("Unsupported vehicle topology schema.");
+  if (topology.schemaVersion !== LOCAL_VEHICLE_TOPOLOGY_SCHEMA_VERSION) throw new Error("Unsupported vehicle topology schema version.");
+  const vehicleId = validString(topology.vehicleId, "Vehicle topology vehicleId");
+  if (!ID_PATTERN.test(vehicleId)) throw new Error("Vehicle topology vehicleId is invalid.");
+  if (!Array.isArray(topology.stages) || topology.stages.length < 1 || topology.stages.length > MAX_VEHICLE_STAGES) {
+    throw new Error(`Vehicle topology requires 1 through ${MAX_VEHICLE_STAGES} stages.`);
+  }
+  const stages = topology.stages.map(validStage);
+  const ids = new Set<string>();
+  for (const [index, stage] of stages.entries()) {
+    if (ids.has(stage.id)) throw new Error(`Duplicate vehicle stage identifier ${stage.id}.`);
+    ids.add(stage.id);
+    if (index === 0 && stage.role !== "core") throw new Error("The first vehicle stage must have the core role.");
+    if (stage.attachment === "parallel" && !stage.parentStageId) throw new Error(`Parallel stage ${stage.id} requires a parent stage.`);
+    if (stage.parentStageId && !ids.has(stage.parentStageId)) throw new Error(`Stage ${stage.id} parent must appear earlier in the topology.`);
+  }
+  return { schema: LOCAL_VEHICLE_TOPOLOGY_SCHEMA_ID, schemaVersion: LOCAL_VEHICLE_TOPOLOGY_SCHEMA_VERSION, vehicleId, stages };
+}
+
+export function createDefaultVehicleTopology(): LocalVehicleTopology {
+  return {
+    schema: LOCAL_VEHICLE_TOPOLOGY_SCHEMA_ID,
+    schemaVersion: LOCAL_VEHICLE_TOPOLOGY_SCHEMA_VERSION,
+    vehicleId: "arc54",
+    stages: [{
+      id: "sustainer",
+      name: "Sustainer",
+      role: "core",
+      attachment: "serial",
+      enabled: true,
+      repeatCount: 1,
+      repeatRadiusM: 0,
+    }],
+  };
+}
+
+export function serializeVehicleTopology(topology: LocalVehicleTopology): string {
+  return `${JSON.stringify(validateVehicleTopology(topology), null, 2)}\n`;
+}
+
+export function parseVehicleTopology(serialized: string): LocalVehicleTopology {
+  try {
+    return validateVehicleTopology(JSON.parse(serialized));
+  } catch (error) {
+    throw new Error(`Could not read vehicle topology: ${error instanceof Error ? error.message : "invalid JSON"}`);
+  }
+}
+
+export function createStagePlan(input: Readonly<{
+  id: string;
+  name: string;
+  role: VehicleStageRole;
+  attachment: VehicleStageAttachment;
+  parentStageId?: string;
+  repeatCount?: number;
+  repeatRadiusM?: number;
+}>): VehicleStagePlan {
+  return validStage({ ...input, enabled: true, repeatCount: input.repeatCount ?? 1, repeatRadiusM: input.repeatRadiusM ?? 0 }, 0);
+}

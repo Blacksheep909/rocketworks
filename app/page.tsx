@@ -63,6 +63,17 @@ import {
   serializeLocalMotorLibrary,
   upsertLocalMotorRecord,
 } from "../lib/project/motor-library-state.ts";
+import {
+  LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY,
+  createDefaultVehicleTopology,
+  createStagePlan,
+  parseVehicleTopology,
+  serializeVehicleTopology,
+  type LocalVehicleTopology,
+  type VehicleStageAttachment,
+  type VehicleStagePlan,
+  type VehicleStageRole,
+} from "../lib/project/vehicle-topology.ts";
 
 type ComponentKey = "nose" | "body" | "fins" | "mount" | "recovery";
 type ViewKey = "design" | "flight";
@@ -308,6 +319,29 @@ function makeDesignComponents({
       },
     },
   ];
+}
+
+function makeAssemblyStageComponents(
+  stage: VehicleStagePlan,
+  baseComponents: readonly VehicleComponent[],
+  inputs: Readonly<{ lengthM: number; diameterM: number; material: MaterialKey; payloadMassKg: number }>,
+): VehicleComponent[] {
+  if (stage.id === "sustainer") return baseComponents.map((component) => ({ ...component, stageId: stage.id }));
+  const stageScale = stage.role === "booster" ? 0.72 : stage.role === "payload" ? 0.48 : 0.62;
+  const generated = makeDesignComponents({
+    lengthM: inputs.lengthM * stageScale,
+    diameterM: inputs.diameterM * (stage.role === "booster" ? 0.8 : 0.72),
+    material: inputs.material,
+    payloadMassKg: stage.role === "payload" ? inputs.payloadMassKg * 0.7 : inputs.payloadMassKg * 0.18,
+  });
+  const allowedKinds = stage.role === "booster"
+    ? new Set(["body", "fins", "motor"])
+    : stage.role === "payload"
+      ? new Set(["nose", "body", "payload", "recovery"])
+      : new Set(["nose", "body", "fins", "motor", "payload"]);
+  return generated
+    .filter((component) => allowedKinds.has(component.id))
+    .map((component) => ({ ...component, id: `${stage.id}-${component.id}`, stageId: stage.id }));
 }
 
 function createFlightConfig({
@@ -715,6 +749,11 @@ export default function Home() {
   const [selectedMotorId, setSelectedMotorId] = useState("synthetic");
   const [motorImportDraft, setMotorImportDraft] = useState<MotorImportDraft>(defaultMotorImportDraft);
   const [motorError, setMotorError] = useState("");
+  const [topologyOpen, setTopologyOpen] = useState(false);
+  const topologyCloseRef = useRef<HTMLButtonElement>(null);
+  const [vehicleTopology, setVehicleTopology] = useState<LocalVehicleTopology>(() => createDefaultVehicleTopology());
+  const topologyRef = useRef(vehicleTopology);
+  const [topologyError, setTopologyError] = useState("");
   const [experienceMode, setExperienceMode] = useState<ExperienceMode>("beginner");
   const [guideOpen, setGuideOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -758,27 +797,42 @@ export default function Home() {
       }),
     [diameter, length, material, payloadMass],
   );
-  const assembly = useMemo(
-    () =>
-      createVehicleAssemblyModel({
-        id: "arc54-assembly",
-        name: "ARC 54 assembly",
-        stages: [
-          {
-            id: "sustainer",
-            name: "Sustainer",
-            role: "core",
-            attachment: "serial",
-            children: vehicleComponents.map((component) => ({
-              id: `assembly-${component.id}`,
-              name: component.name,
-              kind: "component" as const,
-              component,
-            })),
+  const assemblyDefinition = useMemo(() => ({
+    id: "arc54-assembly",
+    name: "ARC 54 assembly",
+    stages: vehicleTopology.stages.map((stage) => {
+      const stageComponents = makeAssemblyStageComponents(stage, vehicleComponents, {
+        lengthM: length / 1000,
+        diameterM: diameter / 1000,
+        material,
+        payloadMassKg: payloadMass,
+      });
+      return {
+        id: stage.id,
+        name: stage.name,
+        role: stage.role,
+        attachment: stage.attachment,
+        ...(stage.parentStageId ? { parentStageId: stage.parentStageId } : {}),
+        enabled: stage.enabled,
+        ...(stage.repeatCount > 1 ? {
+          repeat: {
+            count: stage.repeatCount,
+            radiusM: stage.repeatRadiusM,
+            rotateInstances: true,
           },
-        ],
-      }).evaluate(),
-    [vehicleComponents],
+        } : {}),
+        children: stageComponents.map((component) => ({
+          id: `assembly-${component.id}`,
+          name: component.name,
+          kind: "component" as const,
+          component,
+        })),
+      };
+    }),
+  }), [diameter, length, material, payloadMass, vehicleComponents, vehicleTopology]);
+  const assembly = useMemo(
+    () => createVehicleAssemblyModel(assemblyDefinition).evaluate(),
+    [assemblyDefinition],
   );
   const massProperties = assembly.massProperties;
   const mass = massProperties.massKg;
@@ -934,6 +988,16 @@ export default function Home() {
       } catch {
         problems.push("the local motor library");
       }
+      try {
+        const serialized = window.localStorage.getItem(LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY);
+        if (serialized) {
+          const restoredTopology = parseVehicleTopology(serialized);
+          topologyRef.current = restoredTopology;
+          setVehicleTopology(restoredTopology);
+        }
+      } catch {
+        problems.push("the vehicle topology");
+      }
       const storedMode = window.localStorage.getItem(EXPERIENCE_MODE_STORAGE_KEY);
       if (storedMode === "beginner" || storedMode === "expert") setExperienceMode(storedMode);
       if (restoredSnapshot?.projectId === "arc54") {
@@ -1049,6 +1113,16 @@ export default function Home() {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [motorLibraryOpen]);
+
+  useEffect(() => {
+    if (!topologyOpen) return;
+    topologyCloseRef.current?.focus();
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setTopologyOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [topologyOpen]);
 
   const notify = (message: string) => {
     setToast(message);
@@ -1184,6 +1258,57 @@ export default function Home() {
       setMotorError(error instanceof Error ? error.message : "Unable to remove motor");
     }
   };
+  const persistVehicleTopology = (next: LocalVehicleTopology) => {
+    const serialized = serializeVehicleTopology(next);
+    window.localStorage.setItem(LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY, serialized);
+    topologyRef.current = next;
+    setVehicleTopology(next);
+    setTopologyError("");
+  };
+  const addTopologyStage = (role: Exclude<VehicleStageRole, "core">) => {
+    try {
+      const baseId = role === "booster" ? "booster" : role === "upper" ? "upper" : "payload";
+      let index = 1;
+      while (vehicleTopology.stages.some((stage) => stage.id === `${baseId}-${String(index).padStart(2, "0")}`)) index += 1;
+      const id = `${baseId}-${String(index).padStart(2, "0")}`;
+      const stage = createStagePlan({
+        id,
+        name: role === "booster" ? `Booster set ${index}` : role === "upper" ? `Upper stage ${index}` : `Payload stage ${index}`,
+        role,
+        attachment: role === "booster" ? "parallel" : "serial",
+        parentStageId: "sustainer",
+        repeatCount: role === "booster" ? 2 : 1,
+        repeatRadiusM: role === "booster" ? 0.09 : 0,
+      });
+      persistVehicleTopology({ ...vehicleTopology, stages: [...vehicleTopology.stages, stage] });
+      notify(`${stage.name} added`);
+    } catch (error) {
+      setTopologyError(error instanceof Error ? error.message : "Unable to add stage");
+    }
+  };
+  const updateTopologyStage = (id: string, patch: Partial<VehicleStagePlan>) => {
+    try {
+      const nextStages = vehicleTopology.stages.map((stage) => stage.id === id ? { ...stage, ...patch } : stage);
+      persistVehicleTopology({ ...vehicleTopology, stages: nextStages });
+    } catch (error) {
+      setTopologyError(error instanceof Error ? error.message : "Unable to update stage");
+    }
+  };
+  const removeTopologyStage = (id: string) => {
+    if (id === "sustainer") {
+      setTopologyError("The core sustainer cannot be removed.");
+      return;
+    }
+    try {
+      const nextStages = vehicleTopology.stages
+        .filter((stage) => stage.id !== id)
+        .map((stage) => stage.parentStageId === id ? { ...stage, parentStageId: "sustainer" } : stage);
+      persistVehicleTopology({ ...vehicleTopology, stages: nextStages });
+      notify("Stage removed from vehicle topology");
+    } catch (error) {
+      setTopologyError(error instanceof Error ? error.message : "Unable to remove stage");
+    }
+  };
   const exportArtifact = (format: ExportFormat) => {
     try {
       const generatedAtIso = new Date().toISOString();
@@ -1224,6 +1349,7 @@ export default function Home() {
               activeStageIds: assembly.activeStageIds,
               componentCount: assembly.componentInstances.length,
               motorMountCount: assembly.motorMounts.length,
+              topology: vehicleTopology,
             },
           } as unknown as JsonValue,
           simulations: {
@@ -1451,13 +1577,13 @@ export default function Home() {
           <div><span>Static margin</span><strong>{staticStability.staticMarginCalibers.toFixed(1)} cal</strong></div>
         </div>
         <div className="stage-summary" aria-label="Vehicle stage hierarchy">
-          <span className="stage-index">Stage 01</span>
-          <span><strong>Sustainer</strong><small>{assembly.componentInstances.length} placed parts · serial topology</small></span>
-          <em>Active</em>
+          <span className="stage-index">{vehicleTopology.stages.length > 1 ? `${vehicleTopology.stages.length} stages` : "Stage 01"}</span>
+          <span><strong>{vehicleTopology.stages[0]?.name ?? "Sustainer"}</strong><small>{assembly.componentInstances.length} placed parts · {vehicleTopology.stages.filter((stage) => stage.enabled).length} active · {vehicleTopology.stages.some((stage) => stage.attachment === "parallel") ? "parallel capable" : "serial topology"}</small></span>
+          <em>{vehicleTopology.stages.filter((stage) => stage.enabled).length} active</em>
         </div>
         <div className="component-list-heading">
-          <span>Components</span>
-          <button onClick={() => notify("Component library is coming next")}>+ Add</button>
+          <span>Components & stages</span>
+          <button onClick={() => setTopologyOpen(true)}>+ Add</button>
         </div>
         <nav className="component-list" aria-label="Rocket components">
           {components.map((component) => (
@@ -2035,6 +2161,73 @@ export default function Home() {
             <div className="history-notice">
               <span>DATA BOUNDARY</span>
               <p>Kestrel Lab stores the curve and provenance metadata locally. It does not download, bundle, or infer third-party motor databases, and it does not upgrade user-supplied data to certified status.</p>
+            </div>
+          </section>
+        </div>
+      )}
+      {topologyOpen && (
+        <div
+          className="export-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setTopologyOpen(false);
+          }}
+        >
+          <section
+            className="export-dialog topology-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="topology-title"
+            aria-describedby="topology-description"
+          >
+            <div className="export-heading">
+              <div>
+                <span className="eyebrow">Vehicle architecture</span>
+                <h2 id="topology-title">Stages, boosters & clusters</h2>
+                <p id="topology-description">Build an assembly topology from serial stages, parallel booster sets, and repeated radial instances. Mass and inertia update through the shared analytical assembly model.</p>
+              </div>
+              <button
+                ref={topologyCloseRef}
+                className="export-close"
+                aria-label="Close vehicle topology editor"
+                onClick={() => setTopologyOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="topology-toolbar">
+              <div><strong>{vehicleTopology.stages.length} / 8 stages</strong><span>First stage is the required core sustainer.</span></div>
+              <div className="topology-add-actions">
+                <button onClick={() => addTopologyStage("upper")} disabled={vehicleTopology.stages.length >= 8}>+ Upper stage</button>
+                <button onClick={() => addTopologyStage("booster")} disabled={vehicleTopology.stages.length >= 8}>+ Booster set</button>
+                <button onClick={() => addTopologyStage("payload")} disabled={vehicleTopology.stages.length >= 8}>+ Payload bay</button>
+              </div>
+            </div>
+            {topologyError && <p className="topology-error" role="alert">{topologyError}</p>}
+            <div className="topology-list" aria-label="Vehicle stages">
+              {vehicleTopology.stages.map((stage, index) => (
+                <article className={stage.enabled ? "topology-stage active" : "topology-stage"} key={stage.id}>
+                  <div className="topology-stage-index"><span>{String(index + 1).padStart(2, "0")}</span><small>{stage.attachment === "parallel" ? "PARALLEL" : "SERIAL"}</small></div>
+                  <div className="topology-stage-body">
+                    <div className="topology-stage-heading"><div><strong>{stage.name}</strong><small>{stage.role} · {stage.repeatCount > 1 ? `${stage.repeatCount} radial instances` : "single instance"}</small></div><label className="topology-enabled"><input type="checkbox" checked={stage.enabled} onChange={(event) => updateTopologyStage(stage.id, { enabled: event.target.checked })} /> Enabled</label></div>
+                    <div className="topology-stage-fields">
+                      <label>Stage name<input value={stage.name} onChange={(event) => updateTopologyStage(stage.id, { name: event.target.value })} /></label>
+                      <label>Role<select value={stage.role} disabled={stage.role === "core"} onChange={(event) => {
+                        const role = event.target.value as VehicleStageRole;
+                        updateTopologyStage(stage.id, { role, attachment: role === "booster" ? "parallel" : "serial", repeatCount: role === "booster" ? Math.max(2, stage.repeatCount) : 1, repeatRadiusM: role === "booster" ? Math.max(0.09, stage.repeatRadiusM) : 0 });
+                      }}><option value="core">Core</option><option value="upper">Upper</option><option value="booster">Booster</option><option value="payload">Payload</option></select></label>
+                      <label>Attachment<select value={stage.attachment} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { attachment: event.target.value as VehicleStageAttachment, parentStageId: event.target.value === "parallel" ? (stage.parentStageId ?? "sustainer") : stage.parentStageId })}><option value="serial">Serial</option><option value="parallel">Parallel</option></select></label>
+                      <label>Parent stage<select value={stage.parentStageId ?? ""} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { parentStageId: event.target.value || undefined })}>{vehicleTopology.stages.slice(0, index).map((candidate) => <option value={candidate.id} key={candidate.id}>{candidate.name}</option>)}</select></label>
+                      <label>Repeat count<input type="number" min="1" max="8" value={stage.repeatCount} onChange={(event) => updateTopologyStage(stage.id, { repeatCount: Number(event.target.value) })} /></label>
+                      <label>Radial radius (m)<input type="number" min="0" max="2" step="0.01" value={stage.repeatRadiusM} onChange={(event) => updateTopologyStage(stage.id, { repeatRadiusM: Number(event.target.value) })} /></label>
+                    </div>
+                    <div className="topology-stage-footer"><span>{stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="history-notice">
+              <span>MODEL BOUNDARY</span>
+              <p>Topology changes update analytical assembly mass, centre of gravity, inertia, and instance counts. The current browser flight panel remains a single-stage vertical preview; exact stage separation and ignition events are exposed in the independent multi-stage APIs and are the next integration boundary.</p>
             </div>
           </section>
         </div>
