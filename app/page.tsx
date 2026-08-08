@@ -20,6 +20,8 @@ import {
   analyzeVerticalFlightUncertainty,
   createLaunchEnvironmentModel,
   createMotorDataRecord,
+  exportMotorThrustCsv,
+  importMotorThrustCsv,
   createVehicleAssemblyModel,
   makeConstantThrustCurve,
   optimizeVerticalFlightDesign,
@@ -31,6 +33,7 @@ import {
   type VerticalFlightConfig,
   type VerticalFlightResult,
   type VehicleComponent,
+  type MotorDataRecord,
 } from "../lib/physics/index.ts";
 import {
   LOCAL_PROJECT_HISTORY_STORAGE_KEY,
@@ -54,6 +57,12 @@ import {
   type ExperienceMode,
   type ProjectTemplate,
 } from "../lib/project/templates.ts";
+import {
+  LOCAL_MOTOR_LIBRARY_STORAGE_KEY,
+  parseLocalMotorLibrary,
+  serializeLocalMotorLibrary,
+  upsertLocalMotorRecord,
+} from "../lib/project/motor-library-state.ts";
 
 type ComponentKey = "nose" | "body" | "fins" | "mount" | "recovery";
 type ViewKey = "design" | "flight";
@@ -65,6 +74,40 @@ type OptimizationPreview = Readonly<{
   baseThrustN: number;
   baseRecoveryDiameterM: number;
 }>;
+
+type MotorImportDraft = {
+  id: string;
+  manufacturer: string;
+  designation: string;
+  description: string;
+  diameterMm: string;
+  lengthMm: string;
+  launchMassKg: string;
+  dryMassKg: string;
+  sourceName: string;
+  dataVersion: string;
+  licenseIdentifier: string;
+  attribution: string;
+  sourceUrl: string;
+  csv: string;
+};
+
+const defaultMotorImportDraft: MotorImportDraft = {
+  id: "user.motor-01",
+  manufacturer: "User supplied",
+  designation: "Test curve 01",
+  description: "User-supplied thrust curve imported into Kestrel Lab.",
+  diameterMm: "29",
+  lengthMm: "95",
+  launchMassKg: "0.16",
+  dryMassKg: "0.10",
+  sourceName: "User test or published data",
+  dataVersion: "1",
+  licenseIdentifier: "User supplied",
+  attribution: "Provided by the project owner",
+  sourceUrl: "",
+  csv: "time_s,thrust_n\n0,0\n0.10,18\n0.80,18\n1.00,0",
+};
 
 function downloadTextArtifact(
   filename: string,
@@ -278,6 +321,7 @@ function createFlightConfig({
   recoveryEnabled,
   recoveryDelay,
   recoveryDiameter,
+  motorRecord,
 }: {
   mass: number;
   diameter: number;
@@ -289,12 +333,18 @@ function createFlightConfig({
   recoveryEnabled: boolean;
   recoveryDelay: number;
   recoveryDiameter: number;
+  motorRecord?: MotorDataRecord;
 }): VerticalFlightConfig {
-  const motor = createPreviewMotorRecord({ mass, thrust, burnTime });
+  const motor = motorRecord ?? createPreviewMotorRecord({ mass, thrust, burnTime });
   const propellantMassKg = motor.metrics.propellantMassKg;
+  const motorMassDeltaKg = motorRecord ? motor.launchMassKg - 0.16 : 0;
+  const launchMassKg = mass + motorMassDeltaKg;
+  if (!(propellantMassKg > 0 && propellantMassKg < launchMassKg)) {
+    throw new Error("Selected motor propellant mass must remain below the vehicle launch mass.");
+  }
   return {
     vehicle: {
-      dryMassKg: mass - propellantMassKg,
+      dryMassKg: launchMassKg - propellantMassKg,
       propellantMassKg,
       referenceAreaM2: Math.PI * Math.pow(diameter / 2000, 2),
       dragCoefficient,
@@ -445,12 +495,13 @@ function createLandingPrediction(
   flightResult: VerticalFlightResult,
 ): LandingDispersionResult | null {
   if (!(flightResult.apogeeM > 0)) return null;
-  const motor = createPreviewMotorRecord({
+  const motor = inputs.motorRecord ?? createPreviewMotorRecord({
     mass: inputs.mass,
     thrust: inputs.thrust,
     burnTime: inputs.burnTime,
   });
-  const descentMassKg = inputs.mass - motor.metrics.propellantMassKg;
+  const launchMassKg = inputs.mass + (inputs.motorRecord ? inputs.motorRecord.launchMassKg - 0.16 : 0);
+  const descentMassKg = launchMassKg - motor.metrics.propellantMassKg;
   const site = {
     name: "ARC 54 synthetic range",
     latitudeDeg: -36.85,
@@ -658,6 +709,12 @@ export default function Home() {
   const exportCloseRef = useRef<HTMLButtonElement>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const templatesCloseRef = useRef<HTMLButtonElement>(null);
+  const [motorLibraryOpen, setMotorLibraryOpen] = useState(false);
+  const motorLibraryCloseRef = useRef<HTMLButtonElement>(null);
+  const [userMotorRecords, setUserMotorRecords] = useState<MotorDataRecord[]>([]);
+  const [selectedMotorId, setSelectedMotorId] = useState("synthetic");
+  const [motorImportDraft, setMotorImportDraft] = useState<MotorImportDraft>(defaultMotorImportDraft);
+  const [motorError, setMotorError] = useState("");
   const [experienceMode, setExperienceMode] = useState<ExperienceMode>("beginner");
   const [guideOpen, setGuideOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -725,9 +782,13 @@ export default function Home() {
   );
   const massProperties = assembly.massProperties;
   const mass = massProperties.massKg;
-  const previewMotor = useMemo(
+  const syntheticMotor = useMemo(
     () => createPreviewMotorRecord({ mass, thrust, burnTime }),
     [burnTime, mass, thrust],
+  );
+  const previewMotor = useMemo(
+    () => userMotorRecords.find((record) => record.id === selectedMotorId) ?? syntheticMotor,
+    [selectedMotorId, syntheticMotor, userMotorRecords],
   );
   const previewEnvironment = useMemo(
     () => createPreviewEnvironment(launchAltitude, windSpeed),
@@ -761,6 +822,7 @@ export default function Home() {
       recoveryEnabled,
       recoveryDelay,
       recoveryDiameter,
+      motorRecord: previewMotor,
     }),
   );
   const [uncertainty, setUncertainty] = useState<UncertaintyAnalysisResult>(() =>
@@ -775,6 +837,7 @@ export default function Home() {
       recoveryEnabled,
       recoveryDelay,
       recoveryDiameter,
+      motorRecord: previewMotor,
     }),
   );
   const [landingPrediction, setLandingPrediction] =
@@ -791,6 +854,7 @@ export default function Home() {
           recoveryEnabled,
           recoveryDelay,
           recoveryDiameter,
+          motorRecord: previewMotor,
         },
         result,
       ),
@@ -863,6 +927,12 @@ export default function Home() {
         if (serialized) restoredHistory = parseLocalProjectHistory(serialized);
       } catch {
         problems.push("the checkpoint history");
+      }
+      try {
+        const serialized = window.localStorage.getItem(LOCAL_MOTOR_LIBRARY_STORAGE_KEY);
+        if (serialized) setUserMotorRecords(parseLocalMotorLibrary(serialized));
+      } catch {
+        problems.push("the local motor library");
       }
       const storedMode = window.localStorage.getItem(EXPERIENCE_MODE_STORAGE_KEY);
       if (storedMode === "beginner" || storedMode === "expert") setExperienceMode(storedMode);
@@ -970,6 +1040,16 @@ export default function Home() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [templatesOpen]);
 
+  useEffect(() => {
+    if (!motorLibraryOpen) return;
+    motorLibraryCloseRef.current?.focus();
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setMotorLibraryOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [motorLibraryOpen]);
+
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 2200);
@@ -1051,6 +1131,57 @@ export default function Home() {
       notify(`${template.name} template loaded`);
     } catch {
       setSaveError("This browser could not load the template. The current design was not changed.");
+    }
+  };
+  const persistMotorRecords = (records: MotorDataRecord[]) => {
+    window.localStorage.setItem(LOCAL_MOTOR_LIBRARY_STORAGE_KEY, serializeLocalMotorLibrary(records));
+    setUserMotorRecords(records);
+  };
+  const selectMotor = (id: string) => {
+    setSelectedMotorId(id);
+    setMotorLibraryOpen(false);
+    setMotorError("");
+    notify(id === "synthetic" ? "Synthetic preview selected; rerun the estimate" : "Motor selected; rerun the estimate");
+  };
+  const importUserMotor = () => {
+    try {
+      const draft = motorImportDraft;
+      const record = importMotorThrustCsv(draft.csv, {
+        id: draft.id.trim(),
+        manufacturer: draft.manufacturer.trim(),
+        designation: draft.designation.trim(),
+        description: draft.description.trim() || undefined,
+        diameterM: Number(draft.diameterMm) / 1000,
+        lengthM: Number(draft.lengthMm) / 1000,
+        launchMassKg: Number(draft.launchMassKg),
+        dryMassKg: Number(draft.dryMassKg),
+        provenance: {
+          sourceName: draft.sourceName.trim(),
+          sourceKind: "user-supplied",
+          dataVersion: draft.dataVersion.trim(),
+          licenseIdentifier: draft.licenseIdentifier.trim(),
+          attribution: draft.attribution.trim(),
+          sourceUrl: draft.sourceUrl.trim() || undefined,
+          validationStatus: "user-supplied-unvalidated",
+        },
+      });
+      const nextRecords = upsertLocalMotorRecord(userMotorRecords, record);
+      persistMotorRecords(nextRecords);
+      setSelectedMotorId(record.id);
+      setMotorError("");
+      notify(`${record.manufacturer} ${record.designation} imported; rerun the estimate`);
+    } catch (error) {
+      setMotorError(error instanceof Error ? error.message : "Unable to import motor curve");
+    }
+  };
+  const removeUserMotor = (id: string) => {
+    try {
+      const nextRecords = userMotorRecords.filter((record) => record.id !== id);
+      persistMotorRecords(nextRecords);
+      if (selectedMotorId === id) setSelectedMotorId("synthetic");
+      notify("User motor removed from this device");
+    } catch (error) {
+      setMotorError(error instanceof Error ? error.message : "Unable to remove motor");
     }
   };
   const exportArtifact = (format: ExportFormat) => {
@@ -1213,6 +1344,7 @@ export default function Home() {
           recoveryEnabled,
           recoveryDelay,
           recoveryDiameter,
+          motorRecord: previewMotor,
         };
         const nextResult = createFlightResult(inputs);
         setResult(nextResult);
@@ -1243,6 +1375,7 @@ export default function Home() {
           recoveryEnabled,
           recoveryDelay,
           recoveryDiameter,
+          motorRecord: previewMotor,
         };
         setOptimization({
           result: createOptimizationResult(inputs),
@@ -1289,9 +1422,10 @@ export default function Home() {
         </div>
         <div className="project-title">
           <button className="quiet-button" aria-label="Go back to projects">‹</button>
-          <div><strong>ARC 54</strong><span>{saveError ? "Local save unavailable" : saved ? "Saved locally" : "Saving changes…"}</span></div>
+          <div><strong>ARC 54</strong><span><i className="live-dot" />{saveError ? "Local save unavailable" : saved ? "Saved locally" : "Saving changes…"}</span></div>
         </div>
         <div className="top-actions">
+          <div className="mission-chip" aria-label="Mission status"><span>MISSION</span><strong>KST-01</strong><em>PRELIMINARY</em></div>
           <button className="quiet-button command-button" onClick={() => notify("Command search is planned next")}>
             <span>Search actions</span><kbd>⌘ K</kbd>
           </button>
@@ -1352,6 +1486,9 @@ export default function Home() {
           <div className="segmented-control" aria-label="Workspace view">
             <button className={view === "design" ? "active" : ""} onClick={() => setView("design")}>Design</button>
             <button className={view === "flight" ? "active" : ""} onClick={() => setView("flight")}>Flight</button>
+          </div>
+          <div className="workspace-status" aria-label="Current vehicle context">
+            <span>DESIGN LOOP</span><strong>ARC 54 / SUSTAINER</strong>
           </div>
           <div className="view-tools">
             {view === "design" ? (
@@ -1707,6 +1844,10 @@ export default function Home() {
             </div>
             {recoveryEnabled && <NumberField id="recovery-delay" label="Deployment delay" value={recoveryDelay} unit="s" min={0} max={30} step={0.1} onChange={setRecoveryDelay} />}
             {recoveryEnabled && <NumberField id="recovery-diameter" label="Canopy diameter" value={recoveryDiameter} unit="m" min={0.1} max={3} step={0.01} onChange={setRecoveryDiameter} />}
+            <button className="library-button" onClick={() => setMotorLibraryOpen(true)}>
+              <span><strong>Motor library</strong><small>{previewMotor.manufacturer} · {previewMotor.designation}</small></span>
+              <em>{userMotorRecords.length} saved · Manage</em>
+            </button>
             {experienceMode === "expert" ? (
               <>
                 <div className="property-section-label">
@@ -1809,6 +1950,91 @@ export default function Home() {
             <div className="history-notice">
               <span>PREVIEW DATA</span>
               <p>Template values are educational starting points. They are not motor certification, structural evidence, range approval, or flight-safety guidance.</p>
+            </div>
+          </section>
+        </div>
+      )}
+      {motorLibraryOpen && (
+        <div
+          className="export-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setMotorLibraryOpen(false);
+          }}
+        >
+          <section
+            className="export-dialog motor-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="motor-library-title"
+            aria-describedby="motor-library-description"
+          >
+            <div className="export-heading">
+              <div>
+                <span className="eyebrow">Data center</span>
+                <h2 id="motor-library-title">Motor library</h2>
+                <p id="motor-library-description">Use the synthetic preview or add a user-supplied thrust curve with explicit provenance. Records stay on this device and are never treated as certification.</p>
+              </div>
+              <button
+                ref={motorLibraryCloseRef}
+                className="export-close"
+                aria-label="Close motor library"
+                onClick={() => setMotorLibraryOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="motor-library-list" aria-label="Available motors">
+              <article className={selectedMotorId === "synthetic" ? "motor-record active" : "motor-record"}>
+                <div className="motor-record-main">
+                  <span className="motor-record-badge">SYNTHETIC</span>
+                  <div><strong>Kestrel Lab · Synthetic preview</strong><small>Parametric browser curve · not a commercial motor</small></div>
+                </div>
+                <div className="motor-record-actions">
+                  <span>CC0-1.0 · unvalidated</span>
+                  <button onClick={() => selectMotor("synthetic")}>{selectedMotorId === "synthetic" ? "Selected" : "Use motor"}</button>
+                </div>
+              </article>
+              {userMotorRecords.map((record) => (
+                <article className={selectedMotorId === record.id ? "motor-record active" : "motor-record"} key={record.id}>
+                  <div className="motor-record-main">
+                    <span className="motor-record-badge user">USER</span>
+                    <div><strong>{record.manufacturer} · {record.designation}</strong><small>{record.metrics.totalImpulseNs.toFixed(2)} N·s · {record.metrics.burnDurationS.toFixed(2)} s · {record.provenance.sourceName}</small></div>
+                  </div>
+                  <div className="motor-record-actions">
+                    <span>{record.provenance.licenseIdentifier} · {record.provenance.validationStatus}</span>
+                    <button onClick={() => downloadTextArtifact(`${record.id}.csv`, "text/csv;charset=utf-8", exportMotorThrustCsv(record))}>CSV</button>
+                    <button onClick={() => selectMotor(record.id)}>{selectedMotorId === record.id ? "Selected" : "Use motor"}</button>
+                    <button className="danger-button" onClick={() => removeUserMotor(record.id)}>Remove</button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="motor-import-section">
+              <div className="motor-import-heading"><div><span className="eyebrow">User-supplied data</span><h3>Import a thrust curve</h3></div><span>{userMotorRecords.length} / 24 saved</span></div>
+              <div className="motor-import-fields">
+                <label>Identifier<input value={motorImportDraft.id} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, id: event.target.value }))} /></label>
+                <label>Manufacturer<input value={motorImportDraft.manufacturer} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, manufacturer: event.target.value }))} /></label>
+                <label>Designation<input value={motorImportDraft.designation} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, designation: event.target.value }))} /></label>
+                <label>Diameter (mm)<input inputMode="decimal" value={motorImportDraft.diameterMm} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, diameterMm: event.target.value }))} /></label>
+                <label>Length (mm)<input inputMode="decimal" value={motorImportDraft.lengthMm} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, lengthMm: event.target.value }))} /></label>
+                <label>Launch mass (kg)<input inputMode="decimal" value={motorImportDraft.launchMassKg} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, launchMassKg: event.target.value }))} /></label>
+                <label>Dry mass (kg)<input inputMode="decimal" value={motorImportDraft.dryMassKg} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, dryMassKg: event.target.value }))} /></label>
+                <label>Data version<input value={motorImportDraft.dataVersion} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, dataVersion: event.target.value }))} /></label>
+              </div>
+              <div className="motor-import-fields motor-import-provenance">
+                <label>Source name<input value={motorImportDraft.sourceName} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, sourceName: event.target.value }))} /></label>
+                <label>License / permission<input value={motorImportDraft.licenseIdentifier} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, licenseIdentifier: event.target.value }))} /></label>
+                <label>Attribution<input value={motorImportDraft.attribution} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, attribution: event.target.value }))} /></label>
+                <label>Source URL (optional)<input inputMode="url" value={motorImportDraft.sourceUrl} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, sourceUrl: event.target.value }))} /></label>
+              </div>
+              <label className="motor-description-field">Description (optional)<input value={motorImportDraft.description} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, description: event.target.value }))} /></label>
+              <label className="motor-csv-field">Thrust curve CSV <small>Required header: time_s,thrust_n · SI units · first point at 0 s · final thrust 0 N</small><textarea value={motorImportDraft.csv} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, csv: event.target.value }))} spellCheck={false} /></label>
+              {motorError && <p className="motor-import-error" role="alert">{motorError}</p>}
+              <div className="motor-import-actions"><button className="primary-button" onClick={importUserMotor}>Validate and save motor</button><span>Strict parser · max 2 MB · user-supplied-unvalidated</span></div>
+            </div>
+            <div className="history-notice">
+              <span>DATA BOUNDARY</span>
+              <p>Kestrel Lab stores the curve and provenance metadata locally. It does not download, bundle, or infer third-party motor databases, and it does not upgrade user-supplied data to certified status.</p>
             </div>
           </section>
         </div>

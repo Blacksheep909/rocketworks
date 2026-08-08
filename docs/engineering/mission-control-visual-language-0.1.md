@@ -1,0 +1,28 @@
+# Mission-control visual language 0.1
+
+Status: implemented UI treatment; original Kestrel Lab design system.
+
+## Direction
+
+Kestrel Lab now uses a restrained launch-console language inspired by contemporary aerospace operations without copying any company’s interface, assets, typography, or source code:
+
+- near-black graphite surfaces and sharp, low-radius controls;
+- paper-white technical labels and compact monospace instrumentation;
+- telemetry blue for active state, links, selection, and live model context;
+- amber/terracotta only for caution, provenance, or unvalidated data;
+- thin grid lines, mission identifiers, stage context, and model-status badges;
+- generous workspace canvas with dense side inspectors, preserving a design-review rhythm.
+
+## Interaction hierarchy
+
+The top bar establishes mission identity (`KST-01`), persistence state, experience mode, template access, export, and the primary run action. The workspace toolbar establishes the current design/flight loop and vehicle topology. Side panels hold editable inputs and explainable diagnostics. Modal centers are reserved for templates, local history, motor data, and exports.
+
+This hierarchy is intentionally original. It borrows broad aerospace control-room conventions—status bands, telemetry labels, dark surfaces, and clear state transitions—not any protected visual asset or implementation.
+
+## Accessibility constraints
+
+Blue is not the only state signal: labels, button text, and dialog descriptions carry the meaning. Focus rings remain visible, modal buttons receive focus on open, Escape and backdrop dismissal are supported, and responsive breakpoints collapse data cards without hiding the primary run action. Beginner mode reduces secondary detail while preserving model warnings and validation status.
+
+## Engineering boundary
+
+Visual polish does not change model applicability. Every motor, flight, landing, stability, and optimization result continues to expose assumptions, version, provenance, and unvalidated status where appropriate.

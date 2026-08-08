@@ -275,3 +275,23 @@ test("ships beginner and expert workflows with original templates and guidance",
   assert.match(stylesheet, /\.template-grid/);
   assert.match(stylesheet, /\.mode-switch/);
 });
+
+test("ships a provenance-aware local motor library and mission-control visual language", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const motorState = await readFile(new URL("../lib/project/motor-library-state.ts", import.meta.url), "utf8");
+  const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(page, /Motor library/);
+  assert.match(page, /Validate and save motor/);
+  assert.match(page, /Required header: time_s,thrust_n/);
+  assert.match(page, /user-supplied-unvalidated/);
+  assert.match(page, /Selected motor/);
+  assert.match(page, /exportMotorThrustCsv/);
+  assert.match(page, /mission-chip/);
+  assert.match(page, /DESIGN LOOP/);
+  assert.match(motorState, /LOCAL_MOTOR_LIBRARY_SCHEMA_ID/);
+  assert.match(motorState, /LOCAL_MOTOR_LIBRARY_LIMIT = 24/);
+  assert.match(motorState, /parseLocalMotorLibrary/);
+  assert.match(stylesheet, /\.motor-dialog/);
+  assert.match(stylesheet, /\.mission-chip/);
+  assert.match(stylesheet, /\.workspace-status/);
+});
