@@ -15,6 +15,9 @@ export type VehicleStagePlan = Readonly<{
   enabled: boolean;
   repeatCount: number;
   repeatRadiusM: number;
+  ignitionDelayS: number;
+  separationDelayS: number;
+  ignitionFailure: boolean;
 }>;
 
 export type LocalVehicleTopology = Readonly<{
@@ -55,6 +58,16 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
   if (stage.parentStageId !== undefined && (typeof stage.parentStageId !== "string" || !ID_PATTERN.test(stage.parentStageId))) {
     throw new Error(`Stage ${id} parentStageId is invalid.`);
   }
+  const ignitionDelayS = stage.ignitionDelayS ?? 0;
+  if (typeof ignitionDelayS !== "number" || !Number.isFinite(ignitionDelayS) || ignitionDelayS < 0 || ignitionDelayS > 120) {
+    throw new Error(`Stage ${id} ignitionDelayS must be a finite value from 0 through 120 s.`);
+  }
+  const separationDelayS = stage.separationDelayS ?? 0.1;
+  if (typeof separationDelayS !== "number" || !Number.isFinite(separationDelayS) || separationDelayS < 0 || separationDelayS > 120) {
+    throw new Error(`Stage ${id} separationDelayS must be a finite value from 0 through 120 s.`);
+  }
+  const ignitionFailure = stage.ignitionFailure ?? false;
+  if (typeof ignitionFailure !== "boolean") throw new Error(`Stage ${id} ignitionFailure must be boolean.`);
   return {
     id,
     name,
@@ -64,6 +77,9 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     enabled: stage.enabled,
     repeatCount: stage.repeatCount as number,
     repeatRadiusM: stage.repeatRadiusM,
+    ignitionDelayS,
+    separationDelayS,
+    ignitionFailure,
   };
 }
 
@@ -101,6 +117,9 @@ export function createDefaultVehicleTopology(): LocalVehicleTopology {
       enabled: true,
       repeatCount: 1,
       repeatRadiusM: 0,
+      ignitionDelayS: 0,
+      separationDelayS: 0.1,
+      ignitionFailure: false,
     }],
   };
 }
@@ -125,6 +144,17 @@ export function createStagePlan(input: Readonly<{
   parentStageId?: string;
   repeatCount?: number;
   repeatRadiusM?: number;
+  ignitionDelayS?: number;
+  separationDelayS?: number;
+  ignitionFailure?: boolean;
 }>): VehicleStagePlan {
-  return validStage({ ...input, enabled: true, repeatCount: input.repeatCount ?? 1, repeatRadiusM: input.repeatRadiusM ?? 0 }, 0);
+  return validStage({
+    ...input,
+    enabled: true,
+    repeatCount: input.repeatCount ?? 1,
+    repeatRadiusM: input.repeatRadiusM ?? 0,
+    ignitionDelayS: input.ignitionDelayS ?? 0,
+    separationDelayS: input.separationDelayS ?? 0.1,
+    ignitionFailure: input.ignitionFailure ?? false,
+  }, 0);
 }

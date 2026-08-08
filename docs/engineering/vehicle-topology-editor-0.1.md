@@ -11,7 +11,9 @@ Kestrel Lab now exposes a local topology editor for:
 - serial payload bays;
 - parallel booster stages;
 - equal radial repetition of a stage up to eight instances;
-- parent-stage selection, enable/disable state, and editable names.
+- parent-stage selection, enable/disable state, and editable names;
+- per-stage ignition delay, separation delay, and an explicit deterministic
+  ignition-failure switch for the preview run.
 
 The editor produces a validated `LocalVehicleTopology` document with schema `dev.kestrel-lab.local-vehicle-topology`, version 1. It is stored under `kestrel.project.arc54.vehicle-topology.v1` and is bounded to eight stages. IDs, stage order, parent references, attachment type, roles, repeat count, and radius are checked before persistence.
 
@@ -19,11 +21,21 @@ The editor produces a validated `LocalVehicleTopology` document with schema `dev
 
 The browser maps the topology into the existing original `createVehicleAssemblyModel` API. The core stage receives the editable ARC 54 components. Additional stages receive generated preview structural components scaled by role: booster, upper, or payload. Parallel stages use the assembly model's radial repeat transform; the resulting component instances, centre of gravity, total mass, inertia, and active-stage counts flow into the existing inspector and design summary.
 
-This is intentionally a topology-first increment. The current flight panel still presents a single-stage vertical preview, and the exact stage-separation/ignition event schedule is not silently inferred from the editor. The independent multi-stage event solver remains the integration boundary for the next flight workflow increment.
+The Flight view now exposes a staged 6-DOF preview that consumes the saved event
+settings through the independent stage-flight adapter. A serial stage's ignition
+delay is measured from the preceding stage burnout event; separation delay is
+measured from that stage's own burnout. A forced ignition failure is applied as
+an explicit time-zero event and remains visible in the stage phase diagnostics.
+The preview still retains one vehicle body and does not silently model discarded
+stage trajectories or separation clearance.
 
 ## Safety and validation
 
-Generated additional-stage geometry is a conceptual preview, not a structural design, manufacturing drawing, or flight-ready configuration. The editor preserves the model-version and validation-status surfaces, and the topology modal explicitly states that exact staging events are not yet wired into the browser preview.
+Generated additional-stage geometry is a conceptual preview, not a structural
+design, manufacturing drawing, or flight-ready configuration. Event controls are
+deterministic inputs, not failure probabilities or certification data. The
+topology modal and staged Flight card preserve model versions, event topology,
+applicability warnings, and the retained-body/separation limitations.
 
 ## Clean-room boundary
 

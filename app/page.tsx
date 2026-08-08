@@ -21,6 +21,7 @@ import {
   createLaunchEnvironmentModel,
   createMotorDataRecord,
   createMultiStageVehicleModel,
+  createScheduledStageIgnitionFailureEvent,
   exportMotorThrustCsv,
   importMotorThrustCsv,
   combineMassProperties,
@@ -44,6 +45,7 @@ import {
   type LaunchEnvironmentProvider,
   type VehicleAssemblyEvaluation,
   type StateTriggeredRigidBodyEvent,
+  type ScheduledRigidBodyEvent,
 } from "../lib/physics/index.ts";
 import {
   LOCAL_PROJECT_HISTORY_STORAGE_KEY,
@@ -468,18 +470,28 @@ function createStageFlightPreviewInputs({
     return index === 0 || plan?.attachment === "parallel" || plan?.role === "booster";
   }).map((stage) => stage.id);
   const stateEvents: StateTriggeredRigidBodyEvent[] = [];
+  const events: ScheduledRigidBodyEvent[] = [];
+  for (const stage of stages) {
+    if (stageById.get(stage.id)?.ignitionFailure) {
+      events.push(createScheduledStageIgnitionFailureEvent({
+        stageId: stage.id,
+        timeS: 0,
+        label: `${stage.name} ignition failure (configured preview)`,
+      }));
+    }
+  }
   let serialSourceId = initialStage.id;
   for (const stage of stages.slice(1)) {
     const plan = stageById.get(stage.id);
     if (plan?.attachment === "parallel" || plan?.role === "booster") {
-      stateEvents.push(staging.createBurnoutSeparationEvent({ stageId: stage.id, delayS: 0.1 }));
+      stateEvents.push(staging.createBurnoutSeparationEvent({ stageId: stage.id, delayS: plan?.separationDelayS ?? 0.1 }));
       continue;
     }
-    stateEvents.push(staging.createBurnoutSeparationEvent({ stageId: stage.id, delayS: 0.1 }));
+    stateEvents.push(staging.createBurnoutSeparationEvent({ stageId: stage.id, delayS: plan?.separationDelayS ?? 0.1 }));
     stateEvents.push(staging.createBurnoutIgnitionEvent({
       sourceStageId: serialSourceId,
       targetStageId: stage.id,
-      delayS: 0,
+      delayS: plan?.ignitionDelayS ?? 0,
     }));
     serialSourceId = stage.id;
   }
@@ -487,7 +499,7 @@ function createStageFlightPreviewInputs({
     const plan = stageById.get(stage.id);
     if (plan?.role === "booster" || plan?.attachment === "parallel") {
       if (!stateEvents.some((event) => event.id === `staging-${stage.id}-burnout-separation`)) {
-        stateEvents.push(staging.createBurnoutSeparationEvent({ stageId: stage.id, delayS: 0.1 }));
+        stateEvents.push(staging.createBurnoutSeparationEvent({ stageId: stage.id, delayS: plan?.separationDelayS ?? 0.1 }));
       }
     }
   }
@@ -502,6 +514,7 @@ function createStageFlightPreviewInputs({
     environmentAt,
     alwaysActiveGeometryStageIds: [...geometryStageIds],
     separationTransitionWindowS: 0.2,
+    events,
     stateEvents,
   };
 }
@@ -2493,14 +2506,19 @@ export default function Home() {
                       <label>Repeat count<input type="number" min="1" max="8" value={stage.repeatCount} onChange={(event) => updateTopologyStage(stage.id, { repeatCount: Number(event.target.value) })} /></label>
                       <label>Radial radius (m)<input type="number" min="0" max="2" step="0.01" value={stage.repeatRadiusM} onChange={(event) => updateTopologyStage(stage.id, { repeatRadiusM: Number(event.target.value) })} /></label>
                     </div>
-                    <div className="topology-stage-footer"><span>{stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>
+                    <div className="topology-stage-events">
+                      <label>Ignition delay (s)<input type="number" min="0" max="120" step="0.01" value={stage.ignitionDelayS} onChange={(event) => updateTopologyStage(stage.id, { ignitionDelayS: Number(event.target.value) })} /></label>
+                      <label>Separation delay (s)<input type="number" min="0" max="120" step="0.01" value={stage.separationDelayS} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { separationDelayS: Number(event.target.value) })} /></label>
+                      <label className="topology-failure-toggle"><input type="checkbox" checked={stage.ignitionFailure} onChange={(event) => updateTopologyStage(stage.id, { ignitionFailure: event.target.checked })} /> Force ignition failure in preview</label>
+                    </div>
+                    <div className="topology-stage-footer"><span>{stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>
                   </div>
                 </article>
               ))}
             </div>
             <div className="history-notice">
               <span>MODEL BOUNDARY</span>
-              <p>Topology changes update analytical assembly mass, centre of gravity, inertia, and instance counts. The current browser flight panel remains a single-stage vertical preview; exact stage separation and ignition events are exposed in the independent multi-stage APIs and are the next integration boundary.</p>
+              <p>Topology changes update analytical assembly mass, centre of gravity, inertia, and instance counts. The staged Flight preview consumes these ignition/separation settings and reports event topology; separation clearance, discarded-body trajectories, and flight-safety validation remain outside this retained-body model.</p>
             </div>
           </section>
         </div>

@@ -313,6 +313,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /\+ Booster set/);
   assert.match(page, /Repeat count/);
   assert.match(page, /Radial radius/);
+  assert.match(page, /Ignition delay/);
+  assert.match(page, /Separation delay/);
+  assert.match(page, /Force ignition failure/);
   assert.match(page, /Topology-aware preview/);
   assert.match(page, /Run staged preview/);
   assert.match(page, /stageFlightResult\.validationStatus/);
@@ -326,5 +329,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stagePreview, /mathematical-regression-tests-only/);
   assert.match(stagePreview, /separated bodies/);
   assert.match(stylesheet, /\.topology-stage/);
+  assert.match(stylesheet, /\.topology-stage-events/);
+  assert.match(stylesheet, /\.topology-failure-toggle/);
   assert.match(stylesheet, /\.topology-add-actions/);
 });

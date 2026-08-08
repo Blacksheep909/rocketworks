@@ -143,6 +143,15 @@ flight performance.
   coupled multi-body constraint-force treatment beyond this topology reset:
   https://ntrs.nasa.gov/citations/20160010566
 
+## Browser integration
+
+The stage-flight preview adapter now composes this model with stage-aware
+aerodynamics, launch environment, preliminary loads, and the 6-DOF integrator.
+The browser topology editor supplies deterministic ignition and separation delay
+inputs plus an explicit ignition-failure preview switch. The resulting Flight
+card reports event topology and retains the status
+`mathematical-regression-tests-only`.
+
 ## Next work
 
 Add optional measured mass-flow histories, explicit separation impulses, and a

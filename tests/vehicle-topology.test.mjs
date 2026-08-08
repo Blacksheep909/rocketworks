@@ -15,6 +15,9 @@ test("default topology is a strict versioned single-core plan", () => {
   const topology = createDefaultVehicleTopology();
   assert.equal(topology.schema, LOCAL_VEHICLE_TOPOLOGY_SCHEMA_ID);
   assert.equal(topology.stages[0].role, "core");
+  assert.equal(topology.stages[0].ignitionDelayS, 0);
+  assert.equal(topology.stages[0].separationDelayS, 0.1);
+  assert.equal(topology.stages[0].ignitionFailure, false);
   assert.deepEqual(parseVehicleTopology(serializeVehicleTopology(topology)), topology);
 });
 
@@ -37,6 +40,9 @@ test("topology rejects unsafe structure edits explicitly", () => {
   assert.throws(() => validateVehicleTopology({ ...base, stages: [] }), /requires 1/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], role: "upper" }] }), /first vehicle stage/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], id: "bad id" }] }), /may contain only/);
+  assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], ignitionDelayS: -1 }] }), /ignitionDelayS/);
+  assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], separationDelayS: 121 }] }), /separationDelayS/);
+  assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], ignitionFailure: "yes" }] }), /ignitionFailure/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [...base.stages, { ...base.stages[0], id: "booster", role: "booster", attachment: "parallel", parentStageId: "missing" }] }), /parent must appear earlier/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: Array.from({ length: MAX_VEHICLE_STAGES + 1 }, (_, index) => ({ ...base.stages[0], id: index === 0 ? "sustainer" : `stage-${index}`, role: index === 0 ? "core" : "upper", parentStageId: index === 0 ? undefined : "sustainer" })) }), /requires 1 through/);
 });

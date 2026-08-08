@@ -969,6 +969,13 @@ kbd {
 .topology-stage-fields input, .topology-stage-fields select { width: 100%; min-height: 29px; padding: 0 6px; border: 1px solid var(--line); border-radius: 3px; background: #0b1116; color: var(--ink); font-size: 9px; }
 .topology-stage-fields input:focus, .topology-stage-fields select:focus { border-color: rgba(47,159,255,.52); outline: 0; box-shadow: 0 0 0 2px rgba(47,159,255,.12); }
 .topology-stage-fields input:disabled, .topology-stage-fields select:disabled { opacity: .55; }
+.topology-stage-events { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)) minmax(180px,1.45fr); gap: 7px; margin-top: 9px; padding-top: 9px; border-top: 1px solid rgba(117,153,180,.12); }
+.topology-stage-events label { display: flex; min-width: 0; flex-direction: column; gap: 4px; color: #8fa4b2; font-size: 7px; }
+.topology-stage-events input[type="number"] { width: 100%; min-height: 29px; padding: 0 6px; border: 1px solid var(--line); border-radius: 3px; background: #0b1116; color: var(--ink); font-size: 9px; }
+.topology-stage-events input[type="number"]:focus { border-color: rgba(47,159,255,.52); outline: 0; box-shadow: 0 0 0 2px rgba(47,159,255,.12); }
+.topology-stage-events input:disabled { opacity: .48; }
+.topology-failure-toggle { align-items: center; justify-content: center; flex-direction: row !important; gap: 7px !important; padding: 0 8px; border: 1px solid rgba(244,163,64,.2); border-radius: 3px; background: rgba(244,163,64,.045); color: #dcb47b !important; }
+.topology-failure-toggle input { accent-color: var(--signal-amber); }
 .topology-stage-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; color: #708391; font: 8px var(--font-geist-mono),monospace; }
 .history-toolbar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
@@ -1086,6 +1093,8 @@ kbd {
   .topology-stage { grid-template-columns: 38px minmax(0,1fr); gap: 8px; padding: 10px; }
   .topology-stage-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .topology-stage-fields label:first-child { grid-column: 1 / -1; }
+  .topology-stage-events { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .topology-failure-toggle { grid-column: 1 / -1; min-height: 29px; justify-content: flex-start; }
   .history-toolbar { align-items: flex-start; padding: 14px; }
   .history-list { padding: 12px 14px; }
   .history-notice { margin: 0 14px 14px; }
