@@ -306,18 +306,25 @@ test("ships a provenance-aware local motor library and mission-control visual la
 test("ships an interactive multi-stage, booster, and radial-topology editor", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const topology = await readFile(new URL("../lib/project/vehicle-topology.ts", import.meta.url), "utf8");
+  const stagePreview = await readFile(new URL("../lib/physics/stage-flight-preview.ts", import.meta.url), "utf8");
   const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(page, /Stages, boosters & clusters/);
   assert.match(page, /\+ Upper stage/);
   assert.match(page, /\+ Booster set/);
   assert.match(page, /Repeat count/);
   assert.match(page, /Radial radius/);
+  assert.match(page, /Topology-aware preview/);
+  assert.match(page, /Run staged preview/);
+  assert.match(page, /stageFlightResult\.validationStatus/);
   assert.match(page, /MODEL BOUNDARY/);
   assert.match(page, /LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY/);
   assert.match(page, /createVehicleAssemblyModel\(assemblyDefinition\)/);
   assert.match(topology, /MAX_VEHICLE_STAGES = 8/);
   assert.match(topology, /Parallel stage/);
   assert.match(topology, /parent must appear earlier/);
+  assert.match(stagePreview, /simulateStageFlightPreview/);
+  assert.match(stagePreview, /mathematical-regression-tests-only/);
+  assert.match(stagePreview, /separated bodies/);
   assert.match(stylesheet, /\.topology-stage/);
   assert.match(stylesheet, /\.topology-add-actions/);
 });

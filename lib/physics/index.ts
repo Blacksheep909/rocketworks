@@ -11,6 +11,7 @@ export * from "./recovery-system.ts";
 export * from "./rocket-loads.ts";
 export * from "./six-dof.ts";
 export * from "./stage-aware-aerodynamics.ts";
+export * from "./stage-flight-preview.ts";
 export * from "./static-aerodynamics.ts";
 export * from "./vehicle-components.ts";
 export * from "./vertical-flight.ts";

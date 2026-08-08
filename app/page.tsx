@@ -20,9 +20,13 @@ import {
   analyzeVerticalFlightUncertainty,
   createLaunchEnvironmentModel,
   createMotorDataRecord,
+  createMultiStageVehicleModel,
   exportMotorThrustCsv,
   importMotorThrustCsv,
+  combineMassProperties,
+  transformMassProperties,
   createVehicleAssemblyModel,
+  simulateStageFlightPreview,
   makeConstantThrustCurve,
   optimizeVerticalFlightDesign,
   simulateRecoveryDescent,
@@ -34,6 +38,12 @@ import {
   type VerticalFlightResult,
   type VehicleComponent,
   type MotorDataRecord,
+  type StageFlightPreviewResult,
+  type RocketStage,
+  type StageAerodynamicRegime,
+  type LaunchEnvironmentProvider,
+  type VehicleAssemblyEvaluation,
+  type StateTriggeredRigidBodyEvent,
 } from "../lib/physics/index.ts";
 import {
   LOCAL_PROJECT_HISTORY_STORAGE_KEY,
@@ -342,6 +352,158 @@ function makeAssemblyStageComponents(
   return generated
     .filter((component) => allowedKinds.has(component.id))
     .map((component) => ({ ...component, id: `${stage.id}-${component.id}`, stageId: stage.id }));
+}
+
+function createStageFlightPreviewInputs({
+  topology,
+  assembly,
+  stageComponents,
+  motor,
+  dragCoefficient,
+  environmentAt,
+}: {
+  topology: LocalVehicleTopology;
+  assembly: VehicleAssemblyEvaluation;
+  stageComponents: readonly VehicleComponent[];
+  motor: MotorDataRecord;
+  dragCoefficient: number;
+  environmentAt: LaunchEnvironmentProvider;
+}): Parameters<typeof simulateStageFlightPreview>[0] {
+  const stageById = new Map(topology.stages.map((stage) => [stage.id, stage]));
+  const activeStages = topology.stages.filter((stage) => stage.enabled);
+  const isMotorInstance = (instance: VehicleAssemblyEvaluation["componentInstances"][number]) =>
+    instance.sourceComponentId === "motor" || instance.sourceComponentId.endsWith("-motor");
+  const isRetainedComponent = (instance: VehicleAssemblyEvaluation["componentInstances"][number]) =>
+    instance.sourceComponentId === "recovery" || instance.sourceComponentId === "payload";
+  const retainedInstances = assembly.componentInstances.filter((instance) => {
+    const stage = stageById.get(instance.stageId);
+    return stage?.role === "payload" || isRetainedComponent(instance);
+  });
+  const retainedMassProperties = combineMassProperties(
+    retainedInstances.map((instance) => instance.massProperties),
+  );
+  if (!(retainedMassProperties.massKg > 0)) {
+    throw new Error("Stage preview needs a positive retained payload or recovery mass.");
+  }
+
+  const propulsivePlans = activeStages.filter((stage) => stage.role !== "payload");
+  const stages: RocketStage[] = propulsivePlans.map((stage) => {
+    const instances = assembly.componentInstances.filter((instance) => instance.stageId === stage.id);
+    const structuralMassProperties = combineMassProperties(
+      instances
+        .filter((instance) => !isMotorInstance(instance) && !isRetainedComponent(instance))
+        .map((instance) => instance.massProperties),
+    );
+    if (!(structuralMassProperties.massKg > 0)) {
+      throw new Error(`${stage.name} needs a positive structural mass for the stage preview.`);
+    }
+    const motors = instances
+      .filter(isMotorInstance)
+      .map((instance, index) => {
+        const center = instance.massProperties.centerOfMassM;
+        const originBodyM = {
+          x: center.x - (motor.dryCgFromAftM ?? motor.lengthM / 2),
+          y: center.y,
+          z: center.z,
+        };
+        return {
+          id: `${stage.id}-preview-motor-${instance.stageInstanceIndex}-${index}`,
+          name: `${stage.name} · ${motor.designation}`,
+          thrustCurve: motor.thrustCurve,
+          dryMassProperties: transformMassProperties(motor.dryMassPropertiesLocal, {
+            rotation: instance.transform.rotation,
+            translationM: originBodyM,
+          }),
+          initialPropellantMassProperties: transformMassProperties(
+            motor.propellantMassPropertiesLocal,
+            { rotation: instance.transform.rotation, translationM: originBodyM },
+          ),
+          thrustApplicationPointBodyM: originBodyM,
+          thrustAxisBody: { x: -1, y: 0, z: 0 },
+        };
+      });
+    if (motors.length === 0) {
+      throw new Error(`${stage.name} has no motor instance for the stage preview.`);
+    }
+    return {
+      id: stage.id,
+      name: stage.name,
+      structuralMassProperties,
+      motors,
+    };
+  });
+  if (stages.length === 0) throw new Error("Enable at least one propulsive stage before running a stage preview.");
+
+  const stageIds = stages.map((stage) => stage.id);
+  const stageIdSet = new Set(stageIds);
+  const geometryStageIds = new Set<string>(["retained"]);
+  activeStages
+    .filter((stage) => !stageIdSet.has(stage.id))
+    .forEach((stage) => geometryStageIds.add(stage.id));
+  const components = stageComponents
+    .filter((component) => stageById.get(component.stageId)?.enabled !== false)
+    .map((component) => {
+      if (
+        component.stageId === "sustainer" &&
+        (component.id === "recovery" || component.id === "payload")
+      ) {
+        return { ...component, stageId: "retained" };
+      }
+      return component;
+    });
+  const regimes: StageAerodynamicRegime[] = [];
+  for (let mask = 0; mask < 2 ** stageIds.length; mask += 1) {
+    const activeStageIds = stageIds.filter((_, index) => (mask & (1 << index)) !== 0);
+    regimes.push({
+      id: `preview-${activeStageIds.join("-") || "retained"}`,
+      label: activeStageIds.length > 0 ? `${activeStageIds.join(" + ")} topology` : "Retained payload topology",
+      activeStageIds,
+      dragCoefficient,
+    });
+  }
+  const staging = createMultiStageVehicleModel({ retainedMassProperties, stages });
+  const initialStage = stages[0]!;
+  const initiallyIgnitedStageIds = stages.filter((stage, index) => {
+    const plan = stageById.get(stage.id);
+    return index === 0 || plan?.attachment === "parallel" || plan?.role === "booster";
+  }).map((stage) => stage.id);
+  const stateEvents: StateTriggeredRigidBodyEvent[] = [];
+  let serialSourceId = initialStage.id;
+  for (const stage of stages.slice(1)) {
+    const plan = stageById.get(stage.id);
+    if (plan?.attachment === "parallel" || plan?.role === "booster") {
+      stateEvents.push(staging.createBurnoutSeparationEvent({ stageId: stage.id, delayS: 0.1 }));
+      continue;
+    }
+    stateEvents.push(staging.createBurnoutSeparationEvent({ stageId: stage.id, delayS: 0.1 }));
+    stateEvents.push(staging.createBurnoutIgnitionEvent({
+      sourceStageId: serialSourceId,
+      targetStageId: stage.id,
+      delayS: 0,
+    }));
+    serialSourceId = stage.id;
+  }
+  for (const stage of stages) {
+    const plan = stageById.get(stage.id);
+    if (plan?.role === "booster" || plan?.attachment === "parallel") {
+      if (!stateEvents.some((event) => event.id === `staging-${stage.id}-burnout-separation`)) {
+        stateEvents.push(staging.createBurnoutSeparationEvent({ stageId: stage.id, delayS: 0.1 }));
+      }
+    }
+  }
+  return {
+    retainedMassProperties,
+    components,
+    stages,
+    regimes,
+    initiallyIgnitedStageIds,
+    durationS: Math.max(12, motor.metrics.burnDurationS * (stages.length + 2) + 8),
+    timeStepS: 0.02,
+    environmentAt,
+    alwaysActiveGeometryStageIds: [...geometryStageIds],
+    separationTransitionWindowS: 0.2,
+    stateEvents,
+  };
 }
 
 function createFlightConfig({
@@ -797,6 +959,18 @@ export default function Home() {
       }),
     [diameter, length, material, payloadMass],
   );
+  const stageFlightComponents = useMemo(
+    () =>
+      vehicleTopology.stages.flatMap((stage) =>
+        makeAssemblyStageComponents(stage, vehicleComponents, {
+          lengthM: length / 1000,
+          diameterM: diameter / 1000,
+          material,
+          payloadMassKg: payloadMass,
+        }),
+      ),
+    [diameter, length, material, payloadMass, vehicleComponents, vehicleTopology],
+  );
   const assemblyDefinition = useMemo(() => ({
     id: "arc54-assembly",
     name: "ARC 54 assembly",
@@ -879,6 +1053,10 @@ export default function Home() {
       motorRecord: previewMotor,
     }),
   );
+  const [stageFlightResult, setStageFlightResult] =
+    useState<StageFlightPreviewResult | null>(null);
+  const [stageFlightRunning, setStageFlightRunning] = useState(false);
+  const [stageFlightError, setStageFlightError] = useState("");
   const [uncertainty, setUncertainty] = useState<UncertaintyAnalysisResult>(() =>
     createUncertaintyResult({
       mass,
@@ -1132,7 +1310,11 @@ export default function Home() {
     setToast(message);
     window.setTimeout(() => setToast(""), 2200);
   };
-  const markChanged = () => setSaved(false);
+  const markChanged = () => {
+    setSaved(false);
+    setStageFlightResult(null);
+    setStageFlightError("");
+  };
   const applyEditableInputs = (inputs: EditableProjectInputs) => {
     setLength(inputs.lengthMm);
     setDiameter(inputs.diameterMm);
@@ -1217,6 +1399,8 @@ export default function Home() {
   };
   const selectMotor = (id: string) => {
     setSelectedMotorId(id);
+    setStageFlightResult(null);
+    setStageFlightError("");
     setMotorLibraryOpen(false);
     setMotorError("");
     notify(id === "synthetic" ? "Synthetic preview selected; rerun the estimate" : "Motor selected; rerun the estimate");
@@ -1267,6 +1451,8 @@ export default function Home() {
     window.localStorage.setItem(LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY, serialized);
     topologyRef.current = next;
     setVehicleTopology(next);
+    setStageFlightResult(null);
+    setStageFlightError("");
     setTopologyError("");
   };
   const addTopologyStage = (role: Exclude<VehicleStageRole, "core">) => {
@@ -1489,6 +1675,38 @@ export default function Home() {
       }
     }, 520);
   };
+  const runStageAwareEstimate = () => {
+    if (activeStageCount < 2) {
+      notify("Add an upper stage or booster before running a staged preview");
+      setTopologyOpen(true);
+      return;
+    }
+    setStageFlightRunning(true);
+    setStageFlightError("");
+    setView("flight");
+    window.setTimeout(() => {
+      try {
+        const nextResult = simulateStageFlightPreview(
+          createStageFlightPreviewInputs({
+            topology: vehicleTopology,
+            assembly,
+            stageComponents: stageFlightComponents,
+            motor: previewMotor,
+            dragCoefficient,
+            environmentAt: previewEnvironment.at,
+          }),
+        );
+        setStageFlightResult(nextResult);
+        notify("Stage-aware 6DOF preview complete");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to run the staged preview";
+        setStageFlightError(message);
+        notify(message);
+      } finally {
+        setStageFlightRunning(false);
+      }
+    }, 30);
+  };
   const optimize = () => {
     setOptimizing(true);
     setView("flight");
@@ -1702,6 +1920,49 @@ export default function Home() {
               <div><span className="eyebrow">Preliminary estimate</span><h2>Vertical flight profile</h2></div>
               <span className="model-badge">{result.modelVersion}</span>
             </div>
+            {activeStageCount > 1 && (
+              <section className="stage-flight-card" aria-labelledby="stage-flight-title">
+                <div className="stage-flight-heading">
+                  <div>
+                    <span className="eyebrow">Topology-aware preview</span>
+                    <h3 id="stage-flight-title">6DOF staging run</h3>
+                    <p>Uses the active stage graph, live mass properties, topology-specific aerodynamics, and explicit event transitions.</p>
+                  </div>
+                  <button className="primary-button" onClick={runStageAwareEstimate} disabled={stageFlightRunning}>
+                    {stageFlightRunning ? "Propagating…" : stageFlightResult ? "Rerun staged preview" : "Run staged preview"}
+                  </button>
+                </div>
+                {stageFlightError && <div className="stage-flight-error" role="alert">{stageFlightError}</div>}
+                {stageFlightResult ? (
+                  <>
+                    <div className="stage-flight-metrics">
+                      <div><span>Peak altitude</span><strong>{stageFlightResult.maxAltitudeAglM.toFixed(0)} m</strong></div>
+                      <div><span>Peak speed</span><strong>{stageFlightResult.maxSpeedMps.toFixed(1)} m/s</strong></div>
+                      <div><span>Apogee estimate</span><strong>{stageFlightResult.timeToApogeeS.toFixed(1)} s</strong></div>
+                      <div><span>Events applied</span><strong>{stageFlightResult.events.length}</strong></div>
+                    </div>
+                    <div className="stage-flight-events" aria-label="Staged flight events">
+                      {stageFlightResult.events.length === 0 ? (
+                        <span className="stage-flight-empty">No staging transitions were reached in this run.</span>
+                      ) : stageFlightResult.events.map((event) => (
+                        <div key={`${event.id}-${event.timeS}`}>
+                          <span>{event.timeS.toFixed(2)} s</span>
+                          <strong>{event.label}</strong>
+                          <small>{event.attachedStageIdsBefore.join(" + ")} → {event.attachedStageIdsAfter.join(" + ")}</small>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="stage-flight-status">
+                      <span>MODEL STATUS</span>
+                      <strong>{stageFlightResult.validationStatus}</strong>
+                      <small>{stageFlightResult.stagingModelVersion} · {stageFlightResult.aerodynamicsModelVersion}</small>
+                    </div>
+                  </>
+                ) : (
+                  <div className="stage-flight-empty">Run the staged preview to propagate ignition, burnout, and separation events through the retained vehicle.</div>
+                )}
+              </section>
+            )}
             <div className="metric-grid">
               <div className="metric"><span>Apogee</span><strong>{running ? <Skeleton width={86} /> : `${result.apogeeM.toFixed(0)} m`}</strong><small>Above launch point</small></div>
               <div className="metric"><span>Maximum speed</span><strong>{running ? <Skeleton width={96} /> : `${result.maxSpeedMps.toFixed(1)} m/s`}</strong><small>{result.maxMach.toFixed(2)} Mach</small></div>

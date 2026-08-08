@@ -1,0 +1,169 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  createScheduledStageIgnitionEvent,
+  createScheduledStageSeparationEvent,
+  simulateStageFlightPreview,
+} from "../lib/physics/index.ts";
+
+function properties(massKg, x, inertia = 0.02) {
+  return {
+    massKg,
+    centerOfMassM: { x, y: 0, z: 0 },
+    inertiaAtCenterKgM2: [
+      [inertia, 0, 0],
+      [0, inertia, 0],
+      [0, 0, inertia],
+    ],
+  };
+}
+
+const thrustCurve = [
+  { timeS: 0, thrustN: 0 },
+  { timeS: 1, thrustN: 30 },
+  { timeS: 2, thrustN: 0 },
+];
+
+function motor(id, x) {
+  return {
+    id,
+    name: id,
+    thrustCurve,
+    dryMassProperties: properties(0.1, x),
+    initialPropellantMassProperties: properties(0.2, x),
+    thrustApplicationPointBodyM: { x, y: 0, z: 0 },
+  };
+}
+
+const stages = [
+  {
+    id: "booster",
+    name: "Booster",
+    structuralMassProperties: properties(0.5, 1.1),
+    motors: [motor("booster-motor", 1.3)],
+  },
+  {
+    id: "upper",
+    name: "Upper stage",
+    structuralMassProperties: properties(0.35, 0.55),
+    motors: [motor("upper-motor", 0.72)],
+  },
+];
+
+const components = [
+  {
+    id: "upper-body",
+    name: "Upper body",
+    stageId: "upper",
+    kind: "axisymmetric",
+    densityKgM3: 800,
+    wallThicknessM: 0.001,
+    positionM: { x: 0.2, y: 0, z: 0 },
+    stations: [
+      { xM: 0, outerRadiusM: 0.03 },
+      { xM: 0.6, outerRadiusM: 0.03 },
+    ],
+  },
+  {
+    id: "upper-fins",
+    name: "Upper fins",
+    stageId: "upper",
+    kind: "finSet",
+    count: 3,
+    axialPositionM: 0.62,
+    bodyRadiusM: 0.03,
+    rootChordM: 0.16,
+    tipChordM: 0.07,
+    sweepM: 0.04,
+    spanM: 0.07,
+    thicknessM: 0.002,
+    densityKgM3: 600,
+  },
+  {
+    id: "booster-body",
+    name: "Booster body",
+    stageId: "booster",
+    kind: "axisymmetric",
+    densityKgM3: 800,
+    wallThicknessM: 0.001,
+    positionM: { x: 0.8, y: 0, z: 0 },
+    stations: [
+      { xM: 0, outerRadiusM: 0.04 },
+      { xM: 0.6, outerRadiusM: 0.04 },
+    ],
+  },
+  {
+    id: "booster-fins",
+    name: "Booster fins",
+    stageId: "booster",
+    kind: "finSet",
+    count: 4,
+    axialPositionM: 1.18,
+    bodyRadiusM: 0.04,
+    rootChordM: 0.2,
+    tipChordM: 0.08,
+    sweepM: 0.05,
+    spanM: 0.09,
+    thicknessM: 0.0025,
+    densityKgM3: 600,
+  },
+];
+
+const regimes = [
+  {
+    id: "full-stack",
+    label: "Full launch stack",
+    activeStageIds: ["booster", "upper"],
+    dragCoefficient: 0.65,
+  },
+  {
+    id: "upper-only",
+    label: "Upper stage",
+    activeStageIds: ["upper"],
+    dragCoefficient: 0.48,
+  },
+];
+
+test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF events", () => {
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages,
+    regimes,
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 2.5,
+    timeStepS: 0.05,
+    launchAltitudeM: 0,
+    events: [
+      createScheduledStageSeparationEvent({ stageId: "booster", timeS: 1 }),
+      createScheduledStageIgnitionEvent({ stageId: "upper", timeS: 1 }),
+    ],
+  });
+
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.1.0");
+  assert.equal(result.validationStatus, "mathematical-regression-tests-only");
+  assert.equal(result.events.length, 2);
+  assert.deepEqual(result.events[0].attachedStageIdsBefore, ["booster", "upper"]);
+  assert.deepEqual(result.events[0].attachedStageIdsAfter, ["upper"]);
+  assert.deepEqual(result.events[1].attachedStageIdsAfter, ["upper"]);
+  assert.ok(result.maxAltitudeAglM > 0);
+  assert.ok(result.maxSpeedMps > 0);
+  assert.ok(result.trace.some((point) => point.attachedStageIds.includes("booster")));
+  assert.ok(result.trace.some((point) => !point.attachedStageIds.includes("booster")));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("separated bodies")));
+});
+
+test("stage-flight adapter rejects unknown initial ignition stages", () => {
+  assert.throws(
+    () => simulateStageFlightPreview({
+      retainedMassProperties: properties(0.4, 0.2),
+      components,
+      stages,
+      regimes,
+      initiallyIgnitedStageIds: ["missing"],
+      durationS: 1,
+      timeStepS: 0.05,
+    }),
+    /unknown stages/,
+  );
+});
