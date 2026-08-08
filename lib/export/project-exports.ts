@@ -3,6 +3,7 @@ import type {
   FlightTracePoint,
   VerticalFlightResult,
 } from "../physics/vertical-flight.ts";
+import type { StageFlightTracePoint } from "../physics/stage-flight-preview.ts";
 
 export const KESTREL_PROJECT_SCHEMA_ID = "org.kestrel-lab.project";
 export const KESTREL_PROJECT_SCHEMA_VERSION = 1;
@@ -172,6 +173,34 @@ export function createFlightTraceCsv(trace: readonly FlightTracePoint[]): string
       assertFinite(value, `flight trace row ${index + 1} column ${headers[valueIndex]}`),
     );
     return [...values, point.recoveryDeployed].map(csvCell).join(",");
+  });
+  return `${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
+}
+
+export function createStageFlightTraceCsv(
+  trace: readonly StageFlightTracePoint[],
+): string {
+  if (trace.length === 0) throw new Error("stage-flight trace cannot be empty");
+  const headers = [
+    "time_s",
+    "altitude_agl_m",
+    "speed_mps",
+    "mass_kg",
+    "thrust_n",
+    "attached_stage_ids",
+  ];
+  const rows = trace.map((point, index) => {
+    const values = [
+      point.timeS,
+      point.altitudeAglM,
+      point.speedMps,
+      point.massKg,
+      point.thrustN,
+    ];
+    values.forEach((value, valueIndex) =>
+      assertFinite(value, `stage-flight trace row ${index + 1} column ${headers[valueIndex]}`),
+    );
+    return [...values, point.attachedStageIds.join("|")].map(csvCell).join(",");
   });
   return `${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
 }

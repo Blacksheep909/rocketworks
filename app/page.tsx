@@ -8,6 +8,7 @@ import { Rocket3DViewport } from "./rocket-3d-viewport.tsx";
 import {
   createEngineeringReportMarkdown,
   createFlightTraceCsv,
+  createStageFlightTraceCsv,
   createKestrelProjectJson,
   createRocketOpenScad,
   createRocketProfileDxf,
@@ -91,7 +92,7 @@ type ComponentKey = "nose" | "body" | "fins" | "mount" | "recovery";
 type ViewKey = "design" | "flight";
 type DesignViewKey = "2d" | "3d";
 type MaterialKey = "kraft" | "fiberglass" | "carbon";
-type ExportFormat = "project" | "flight-csv" | "report" | "dxf" | "openscad";
+type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "report" | "dxf" | "openscad";
 type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
@@ -1557,6 +1558,7 @@ export default function Home() {
           } as unknown as JsonValue,
           simulations: {
             verticalFlight: result,
+            stageFlight: stageFlightResult,
           } as unknown as JsonValue,
           analyses: {
             uncertainty,
@@ -1600,6 +1602,11 @@ export default function Home() {
         filename = "arc-54-flight-trace.csv";
         mediaType = "text/csv;charset=utf-8";
         content = createFlightTraceCsv(result.trace);
+      } else if (format === "stage-flight-csv") {
+        if (!stageFlightResult) throw new Error("Run the staged preview before exporting its trace.");
+        filename = "arc-54-stage-flight-trace.csv";
+        mediaType = "text/csv;charset=utf-8";
+        content = createStageFlightTraceCsv(stageFlightResult.trace);
       } else if (format === "report") {
         filename = "arc-54-engineering-report.md";
         mediaType = "text/markdown;charset=utf-8";
@@ -2623,6 +2630,11 @@ export default function Home() {
                 <span><strong>Flight trace</strong><small>SI-unit time history for plotting, analysis, and reproducible comparisons.</small></span>
                 <em>↓</em>
               </button>
+              {stageFlightResult && <button onClick={() => exportArtifact("stage-flight-csv")}>
+                <span className="export-extension">CSV</span>
+                <span><strong>Staged 6DOF trace</strong><small>Attached-stage topology, mass, thrust, altitude, and speed at each integration sample.</small></span>
+                <em>↓</em>
+              </button>}
               <button onClick={() => exportArtifact("report")}>
                 <span className="export-extension">MD</span>
                 <span><strong>Engineering report</strong><small>Assumptions-first vehicle, motor, weather, flight, event, warning, and footprint summary.</small></span>
