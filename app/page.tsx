@@ -954,6 +954,10 @@ export default function Home() {
   const modelWarning =
     result.warnings.find((item) => item.severity !== "info") ??
     result.warnings[0];
+  const activeStageCount = vehicleTopology.stages.filter((stage) => stage.enabled).length;
+  const configurationRevision = projectHistory.entries.at(-1)?.snapshot.revision ?? 0;
+  const configurationId = `A-${String(configurationRevision + 1).padStart(2, "0")}`;
+  const readinessLabel = designWarning.good ? "NOMINAL" : "REVIEW";
   const burnoutEvent = result.events.find((event) => event.type === "burnout");
   const apogeeEvent = result.events.find((event) => event.type === "apogee");
   const recoveryEvent = result.events.find(
@@ -1614,7 +1618,15 @@ export default function Home() {
             <button className={view === "flight" ? "active" : ""} onClick={() => setView("flight")}>Flight</button>
           </div>
           <div className="workspace-status" aria-label="Current vehicle context">
+            <i className="status-pulse" aria-hidden="true" />
             <span>DESIGN LOOP</span><strong>ARC 54 / SUSTAINER</strong>
+          </div>
+          <div className="mission-rack" aria-label="Mission telemetry">
+            <div><span>CONFIG</span><strong>{configurationId}</strong></div>
+            <div><span>STAGES</span><strong>{String(activeStageCount).padStart(2, "0")}</strong></div>
+            <div className={designWarning.good ? "readout-ok" : "readout-warn"}>
+              <span>CHECK</span><strong>{readinessLabel}</strong>
+            </div>
           </div>
           <div className="view-tools">
             {view === "design" ? (

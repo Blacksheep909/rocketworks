@@ -9,13 +9,15 @@ Kestrel Lab now uses a restrained launch-console language inspired by contempora
 - near-black graphite surfaces and sharp, low-radius controls;
 - paper-white technical labels and compact monospace instrumentation;
 - telemetry blue for active state, links, selection, and live model context;
-- amber/terracotta only for caution, provenance, or unvalidated data;
+- amber/terracotta only for caution, provenance, unvalidated data, and the small number of launch-console signal accents;
 - thin grid lines, mission identifiers, stage context, and model-status badges;
-- generous workspace canvas with dense side inspectors, preserving a design-review rhythm.
+- generous workspace canvas with dense side inspectors, preserving a design-review rhythm;
+- a compact mission telemetry rack for configuration, active-stage count, and a plain-language design check;
+- a neutral-black technical drawing plate with a restrained amber service band, keeping the canvas distinct from the surrounding console without introducing a swamp-green cast.
 
 ## Interaction hierarchy
 
-The top bar establishes mission identity (`KST-01`), persistence state, experience mode, template access, export, and the primary run action. The workspace toolbar establishes the current design/flight loop and vehicle topology. Side panels hold editable inputs and explainable diagnostics. Modal centers are reserved for templates, local history, motor data, and exports.
+The top bar establishes mission identity (`KST-01`), persistence state, experience mode, template access, export, and the primary run action. The workspace toolbar establishes the current design/flight loop and vehicle topology, then exposes a small telemetry rack (`CONFIG`, `STAGES`, `CHECK`) so the operator can read state at a glance. Side panels hold editable inputs and explainable diagnostics. Modal centers are reserved for templates, local history, motor data, and exports.
 
 This hierarchy is intentionally original. It borrows broad aerospace control-room conventions—status bands, telemetry labels, dark surfaces, and clear state transitions—not any protected visual asset or implementation.
 

@@ -287,12 +287,19 @@ test("ships a provenance-aware local motor library and mission-control visual la
   assert.match(page, /Selected motor/);
   assert.match(page, /exportMotorThrustCsv/);
   assert.match(page, /mission-chip/);
+  assert.match(page, /mission-rack/);
+  assert.match(page, /CONFIG/);
+  assert.match(page, /STAGES/);
+  assert.match(page, /CHECK/);
   assert.match(page, /DESIGN LOOP/);
   assert.match(motorState, /LOCAL_MOTOR_LIBRARY_SCHEMA_ID/);
   assert.match(motorState, /LOCAL_MOTOR_LIBRARY_LIMIT = 24/);
   assert.match(motorState, /parseLocalMotorLibrary/);
   assert.match(stylesheet, /\.motor-dialog/);
   assert.match(stylesheet, /\.mission-chip/);
+  assert.match(stylesheet, /--signal-amber: #f4a340/);
+  assert.match(stylesheet, /\.mission-rack/);
+  assert.match(stylesheet, /\.status-pulse/);
   assert.match(stylesheet, /\.workspace-status/);
 });
 
