@@ -427,6 +427,26 @@ test("engineering report leads with status and preserves calculations and limita
           maxSpeedMps: 41.6,
         },
       ],
+      multiBodySeparation: {
+        modelVersion: "kestrel-multi-body-separation-0.1.0",
+        validationStatus: "analytical-component-checks-only",
+        releaseTimeS: 0,
+        bodies: [
+          { id: "retained-vehicle", label: "Retained vehicle", releaseTimeS: 0, sampleCount: 8 },
+          { id: "booster/logical-1", label: "Booster", releaseTimeS: 4.2, sampleCount: 5 },
+        ],
+        pairs: [],
+        minimumDistanceM: 0.4,
+        closestPair: {
+          firstBodyId: "retained-vehicle",
+          secondBodyId: "booster/logical-1",
+          timeS: 4.2,
+          distanceM: 0.4,
+        },
+        status: "partial",
+        warnings: ["Pairwise fixture warning."],
+        assumptions: ["Pairwise fixture assumption."],
+      },
     },
     stageUncertainty: {
       ...uncertainty,
@@ -487,6 +507,10 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /\| Booster \| 1 \/ 2 \| 1 \| 0\.200 kg \| watch \|/);
   assert.match(report, /### Separated-body trajectories/);
   assert.match(report, /\| Booster \| 4\.20 s \| not recorded \| not recorded \| not-modeled \| gravity only \| 11\.80 s \| 182\.0 m \| 41\.60 m\/s \|/);
+  assert.match(report, /### Multi-body center-of-mass separation/);
+  assert.match(report, /\| Minimum COM separation \| 0\.400 m \|/);
+  assert.match(report, /Closest pair \| retained-vehicle \/ booster\/logical-1 at 4\.20 s/);
+  assert.match(report, /Pairwise fixture warning/);
   assert.match(report, /Convergence status: converged/);
   assert.match(report, /Threshold high convergence/);
   assert.match(report, /Landing uncertainty convergence/);
