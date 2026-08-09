@@ -19,6 +19,8 @@ research, standards, and original code.
   calculations with model versions and assumptions;
 - serial, parallel, radial, clustered, and multi-stage vehicle topology;
 - bounded canted-motor configuration with radial instance alignment;
+- bounded launch-rail inclination and ENU azimuth controls with aligned 6DOF
+  handoff;
 - motor and aerodynamic coefficient libraries for user-supplied,
   provenance-qualified data;
 - atmosphere, launch-site, wind, turbulence, launch-rail, recovery, and

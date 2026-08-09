@@ -349,6 +349,8 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(page, /parseLocalProjectSnapshot/);
   assert.match(page, /setLaunchRailEnabled/);
   assert.match(page, /launchRailLengthM/);
+  assert.match(page, /launchRailInclinationDeg/);
+  assert.match(page, /launchRailAzimuthDeg/);
   assert.match(page, /recoveryDeploymentSuccessProbability/);
   assert.match(page, /window\.setTimeout\(\(\) => \{/);
   assert.match(page, /\}, 600\)/);
@@ -359,6 +361,8 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(projectState, /DEFAULT_LOCAL_HISTORY_LIMIT = 40/);
   assert.match(projectState, /launchRailEnabled/);
   assert.match(projectState, /launchRailLengthM/);
+  assert.match(projectState, /launchRailInclinationDeg/);
+  assert.match(projectState, /launchRailAzimuthDeg/);
   assert.match(projectState, /recoveryDeploymentSuccessProbability/);
   assert.match(projectState, /validateEditableProjectInputs/);
   assert.match(projectState, /Unsupported local project schema version/);
@@ -464,6 +468,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Run 6DOF preview/);
   assert.match(page, /Launch rail constraint/);
   assert.match(page, /launchRailEnabled/);
+  assert.match(page, /Inclination from vertical/);
+  assert.match(page, /Azimuth · east toward north/);
   assert.match(page, /stage-flight-rail/);
   assert.match(page, /stageFlightResult\.validationStatus/);
   assert.match(page, /stage-flight-warnings/);

@@ -1,4 +1,4 @@
-# Launch-rail constraint and free-flight handoff 0.2
+# Launch-rail constraint, angled handoff, and free-flight transition 0.2
 
 Status: analytical component checks only. This model is not validated for
 flight-safety decisions.
@@ -34,6 +34,18 @@ This cancels transverse applied force without changing the axial component.
 At the pad origin, non-positive axial force is canceled by support and the
 vehicle remains stationary. Liftoff occurs at the first positive axial-force
 crossing.
+
+## ENU rail direction
+
+The browser editor exposes a bounded inclination `i` from local +up and an
+azimuth `a` measured from +east toward +north. The normalized rail direction is
+
+`e = (sin(i) cos(a), sin(i) sin(a), cos(i))`
+
+with angles entered in degrees and converted to radians before evaluation. The
+initial body attitude is rotated from Kestrel's vertical launch convention so
+the body nose (-X) is aligned with `e`; when the rail constraint is disabled,
+the preview retains the vertical launch attitude.
 
 ## Event handling
 
@@ -71,6 +83,7 @@ The regression suite checks:
 - scheduled and root-found discrete event continuity through rail release
 - explicit rail-reversal stop without returning a negative guide position
 - rejection of misaligned attitude and off-axis initial position
+- ENU inclination/azimuth direction resolution and aligned angled-rail handoff
 
 These checks verify mathematics and software boundaries; they do not validate
 a real launcher or vehicle.

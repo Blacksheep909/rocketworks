@@ -28,6 +28,8 @@ export type EditableProjectInputs = Readonly<{
   windSpeedMps: number;
   launchRailEnabled: boolean;
   launchRailLengthM: number;
+  launchRailInclinationDeg: number;
+  launchRailAzimuthDeg: number;
   recoveryEnabled: boolean;
   recoveryDelayS: number;
   recoveryDiameterM: number;
@@ -75,6 +77,8 @@ const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material
   launchAltitudeM: [-400, 10000],
   windSpeedMps: [0, 80],
   launchRailLengthM: [0.25, 12],
+  launchRailInclinationDeg: [0, 30],
+  launchRailAzimuthDeg: [-180, 180],
   recoveryDelayS: [0, 30],
   recoveryDiameterM: [0.1, 3],
   recoveryMassKg: [0.005, 2],
@@ -90,6 +94,8 @@ const numericDefaults: Readonly<Partial<Record<keyof typeof numericRanges, numbe
   finSpanMm: 75,
   finThicknessMm: 3,
   launchRailLengthM: 1.2,
+  launchRailInclinationDeg: 0,
+  launchRailAzimuthDeg: 0,
   recoveryMassKg: 0.06,
   recoveryDeploymentSuccessProbability: 0.9,
 };
@@ -179,6 +185,8 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     windSpeedMps: validated.windSpeedMps,
     launchRailEnabled,
     launchRailLengthM: validated.launchRailLengthM,
+    launchRailInclinationDeg: validated.launchRailInclinationDeg,
+    launchRailAzimuthDeg: validated.launchRailAzimuthDeg,
     recoveryEnabled: input.recoveryEnabled,
     recoveryDelayS: validated.recoveryDelayS,
     recoveryDiameterM: validated.recoveryDiameterM,
@@ -254,6 +262,8 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   windSpeedMps: "wind speed",
   launchRailEnabled: "launch rail constraint",
   launchRailLengthM: "effective rail travel",
+  launchRailInclinationDeg: "launch rail inclination",
+  launchRailAzimuthDeg: "launch rail azimuth",
   recoveryEnabled: "recovery system",
   recoveryDelayS: "recovery delay",
   recoveryDiameterM: "canopy diameter",

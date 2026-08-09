@@ -15,6 +15,9 @@ flight-readiness claims.
   Spearman bars and paired-sample counts.
 - Added a visible flight-heading badge showing whether the nominal drag basis
   is the selected Mach--Reynolds table or the explicit constant-Cd fallback.
+- Added bounded launch-rail inclination and ENU azimuth controls; the coupled
+  preview now aligns the initial attitude and hands the angled rail state into
+  free flight.
 
 ## 0.1.0-preview — 2026-08-09
 

@@ -24,6 +24,9 @@ import {
   computeStaticStability,
   analyzeVerticalFlightUncertainty,
   createLaunchEnvironmentModel,
+  launchRailDirectionFromAngles,
+  launchRailOrientationFromAngles,
+  verticalLaunchOrientationBodyToEnu,
   createMotorDataRecord,
   createMultiStageVehicleModel,
   failStageIgnition,
@@ -740,6 +743,8 @@ function createStageFlightPreviewInputs({
   environmentAt,
   launchRailEnabled,
   launchRailLengthM,
+  launchRailInclinationDeg,
+  launchRailAzimuthDeg,
   aerodynamicTable,
   aerodynamicTableModels,
 }: {
@@ -752,6 +757,8 @@ function createStageFlightPreviewInputs({
   environmentAt: LaunchEnvironmentProvider;
   launchRailEnabled: boolean;
   launchRailLengthM: number;
+  launchRailInclinationDeg: number;
+  launchRailAzimuthDeg: number;
   aerodynamicTable?: AerodynamicCoefficientTableModel | null;
   aerodynamicTableModels?: Readonly<Record<string, AerodynamicCoefficientTableModel>>;
 }): Parameters<typeof simulateStageFlightPreview>[0] {
@@ -891,12 +898,18 @@ function createStageFlightPreviewInputs({
     const plan = stageById.get(stage.id);
     return index === 0 || plan?.attachment === "parallel" || plan?.role === "booster";
   }).map((stage) => stage.id);
+  const launchOrientation = launchRailEnabled
+    ? launchRailOrientationFromAngles(launchRailInclinationDeg, launchRailAzimuthDeg)
+    : verticalLaunchOrientationBodyToEnu();
   const initialState = stages
     .filter((stage) => stageById.get(stage.id)?.ignitionFailure)
     .reduce((state, stage) => {
       stageFailureWarnings.push(`${stage.name} ignition failure is configured at pad initialization for this preview.`);
       return failStageIgnition(state, stage.id);
-    }, stageFlightPreviewInitialState());
+    }, {
+      ...stageFlightPreviewInitialState(),
+      orientationBodyToWorld: launchOrientation,
+    });
   const stateEvents: StateTriggeredRigidBodyEvent[] = [];
   const events: ScheduledRigidBodyEvent[] = [];
   let serialSourceId = initialStage.id;
@@ -934,7 +947,10 @@ function createStageFlightPreviewInputs({
     alwaysActiveGeometryStageIds: [...geometryStageIds],
     separationTransitionWindowS: 0.2,
     launchRail: launchRailEnabled
-      ? { directionWorld: { x: 0, y: 0, z: 1 }, lengthM: launchRailLengthM }
+      ? {
+          directionWorld: launchRailDirectionFromAngles(launchRailInclinationDeg, launchRailAzimuthDeg),
+          lengthM: launchRailLengthM,
+        }
       : undefined,
     launchRailMaximumSteps: 250_000,
     initialState,
@@ -1904,6 +1920,8 @@ export default function Home() {
   const [windSpeed, setWindSpeed] = useState(4);
   const [launchRailEnabled, setLaunchRailEnabled] = useState(true);
   const [launchRailLengthM, setLaunchRailLengthM] = useState(1.2);
+  const [launchRailInclinationDeg, setLaunchRailInclinationDeg] = useState(0);
+  const [launchRailAzimuthDeg, setLaunchRailAzimuthDeg] = useState(0);
   const [recoveryEnabled, setRecoveryEnabled] = useState(true);
   const [recoveryDelay, setRecoveryDelay] = useState(0);
   const [recoveryDiameter, setRecoveryDiameter] = useState(0.45);
@@ -1984,13 +2002,15 @@ export default function Home() {
       windSpeedMps: windSpeed,
       launchRailEnabled,
       launchRailLengthM,
+      launchRailInclinationDeg,
+      launchRailAzimuthDeg,
       recoveryEnabled,
       recoveryDelayS: recoveryDelay,
       recoveryDiameterM: recoveryDiameter,
       recoveryMassKg: recoveryMass,
       recoveryDeploymentSuccessProbability,
     }),
-    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchRailEnabled, launchRailLengthM, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, thrust, windSpeed],
+    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, thrust, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -2374,6 +2394,8 @@ export default function Home() {
         setWindSpeed(inputs.windSpeedMps);
         setLaunchRailEnabled(inputs.launchRailEnabled);
         setLaunchRailLengthM(inputs.launchRailLengthM);
+        setLaunchRailInclinationDeg(inputs.launchRailInclinationDeg);
+        setLaunchRailAzimuthDeg(inputs.launchRailAzimuthDeg);
         setRecoveryEnabled(inputs.recoveryEnabled);
         setRecoveryDelay(inputs.recoveryDelayS);
         setRecoveryDiameter(inputs.recoveryDiameterM);
@@ -2595,6 +2617,8 @@ export default function Home() {
     setWindSpeed(inputs.windSpeedMps);
     setLaunchRailEnabled(inputs.launchRailEnabled);
     setLaunchRailLengthM(inputs.launchRailLengthM);
+    setLaunchRailInclinationDeg(inputs.launchRailInclinationDeg);
+    setLaunchRailAzimuthDeg(inputs.launchRailAzimuthDeg);
     setRecoveryEnabled(inputs.recoveryEnabled);
     setRecoveryDelay(inputs.recoveryDelayS);
     setRecoveryDiameter(inputs.recoveryDiameterM);
@@ -3115,6 +3139,8 @@ export default function Home() {
             environmentAt: previewEnvironment.at,
             launchRailEnabled,
             launchRailLengthM,
+            launchRailInclinationDeg,
+            launchRailAzimuthDeg,
             aerodynamicTable: selectedAerodynamicTable,
             aerodynamicTableModels,
           }),
@@ -4040,13 +4066,15 @@ export default function Home() {
             <div className="field-group rail-control-group">
               <label htmlFor="launch-rail-enabled">Launch rail constraint</label>
               <select id="launch-rail-enabled" value={launchRailEnabled ? "enabled" : "disabled"} onChange={(event) => { setLaunchRailEnabled(event.target.value === "enabled"); markChanged(); }}>
-                <option value="enabled">Enabled · vertical rail handoff</option>
+                <option value="enabled">Enabled · angled rail handoff</option>
                 <option value="disabled">Disabled · unconstrained start</option>
               </select>
             </div>
             {launchRailEnabled && <>
               <NumberField id="launch-rail-length" label="Effective rail travel" value={launchRailLengthM} unit="m" min={0.25} max={12} step={0.05} onChange={(value) => { setLaunchRailLengthM(value); markChanged(); }} />
-              <p className="rail-provenance">The staged preview holds attitude and lateral motion on a fixed vertical rail, then hands the exact release state to free flight. Guide hardware, friction, tip-off, and launcher motion are not modeled.</p>
+              <NumberField id="launch-rail-inclination" label="Inclination from vertical" value={launchRailInclinationDeg} unit="deg" min={0} max={30} step={0.1} onChange={(value) => { setLaunchRailInclinationDeg(value); markChanged(); }} />
+              <NumberField id="launch-rail-azimuth" label="Azimuth · east toward north" value={launchRailAzimuthDeg} unit="deg" min={-180} max={180} step={1} onChange={(value) => { setLaunchRailAzimuthDeg(value); markChanged(); }} />
+              <p className="rail-provenance">The staged preview holds attitude and lateral motion on a fixed ENU rail, then hands the exact release state to free flight. Inclination is measured from +up; azimuth is 0° east and 90° north. Guide hardware, friction, tip-off, and launcher motion are not modeled.</p>
             </>}
             <div className="field-group">
               <label htmlFor="recovery-enabled">Recovery model</label>

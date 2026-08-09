@@ -98,10 +98,14 @@ test("simulation fingerprints change when a modeled input or motor changes", () 
       })),
     },
   });
+  const railAngleChanged = fingerprint({
+    inputs: { ...inputs, launchRailInclinationDeg: 8 },
+  });
   assert.notEqual(baseline, windChanged);
   assert.notEqual(baseline, topologyChanged);
   assert.notEqual(baseline, motorChanged);
   assert.notEqual(baseline, cantChanged);
+  assert.notEqual(baseline, railAngleChanged);
   assert.equal(isSimulationFingerprintCurrent(baseline, windChanged), false);
   assert.equal(isSimulationFingerprintCurrent(null, baseline), false);
 });

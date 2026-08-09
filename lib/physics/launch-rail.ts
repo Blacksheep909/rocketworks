@@ -8,7 +8,9 @@ import {
   type Vector3,
 } from "./linear-algebra.ts";
 import {
+  multiplyQuaternions,
   normalizeQuaternion,
+  quaternionFromAxisAngle,
   rigidBodyPropertiesAt,
   rotateBodyToWorld,
   simulateRigidBody6D,
@@ -17,12 +19,63 @@ import {
   type RigidBodyLoads,
   type RigidBodyModel,
   type RigidBodyState,
+  type Quaternion,
   type ScheduledRigidBodyEvent,
   type SixDofSimulationResult,
   type StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
 
 export const LAUNCH_RAIL_MODEL_VERSION = "kestrel-launch-rail-0.2.0";
+
+/**
+ * Resolves a launch-rail vector from ENU launch-site angles. Inclination is
+ * measured away from +up; azimuth is measured from +east toward +north.
+ */
+export function launchRailDirectionFromAngles(
+  inclinationDeg: number,
+  azimuthDeg: number,
+): Vector3 {
+  if (!Number.isFinite(inclinationDeg) || inclinationDeg < 0 || inclinationDeg >= 90) {
+    throw new Error("launch-rail inclination must be finite from 0 to less than 90 degrees");
+  }
+  if (!Number.isFinite(azimuthDeg) || azimuthDeg < -180 || azimuthDeg > 180) {
+    throw new Error("launch-rail azimuth must be finite from -180 to 180 degrees");
+  }
+  const inclinationRad = inclinationDeg * Math.PI / 180;
+  const azimuthRad = azimuthDeg * Math.PI / 180;
+  const horizontal = Math.sin(inclinationRad);
+  return {
+    x: horizontal * Math.cos(azimuthRad),
+    y: horizontal * Math.sin(azimuthRad),
+    z: Math.cos(inclinationRad),
+  };
+}
+
+/**
+ * Returns the body-to-world attitude that points the body nose (-X) along the
+ * configured rail while keeping the vertical launch roll convention.
+ */
+export function launchRailOrientationFromAngles(
+  inclinationDeg: number,
+  azimuthDeg: number,
+): Quaternion {
+  const direction = launchRailDirectionFromAngles(inclinationDeg, azimuthDeg);
+  const verticalOrientation = quaternionFromAxisAngle({ x: 0, y: 1, z: 0 }, Math.PI / 2);
+  if (inclinationDeg === 0) return verticalOrientation;
+  const inclinationRad = inclinationDeg * Math.PI / 180;
+  const azimuthRad = azimuthDeg * Math.PI / 180;
+  const tiltAxis = { x: -Math.sin(azimuthRad), y: Math.cos(azimuthRad), z: 0 };
+  const tilt = quaternionFromAxisAngle(tiltAxis, inclinationRad);
+  const orientation = normalizeQuaternion(multiplyQuaternions(tilt, verticalOrientation));
+  const noseDirection = rotateBodyToWorld(orientation, { x: -1, y: 0, z: 0 });
+  const alignmentError = Math.sqrt(
+    (noseDirection.x - direction.x) ** 2 +
+    (noseDirection.y - direction.y) ** 2 +
+    (noseDirection.z - direction.z) ** 2,
+  );
+  if (alignmentError > 1e-10) throw new Error("launch-rail attitude could not align with its direction");
+  return orientation;
+}
 
 export type LaunchRailConfig = Readonly<{
   directionWorld: Vector3;

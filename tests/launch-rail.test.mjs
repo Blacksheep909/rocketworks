@@ -3,6 +3,9 @@ import test from "node:test";
 import {
   magnitude,
   quaternionFromAxisAngle,
+  launchRailDirectionFromAngles,
+  launchRailOrientationFromAngles,
+  rotateBodyToWorld,
   simulateRailGuidedLaunch,
   verticalLaunchOrientationBodyToEnu,
 } from "../lib/physics/index.ts";
@@ -57,6 +60,40 @@ test("pad support prevents motion when axial force is non-positive", () => {
   close(result.finalState.positionWorldM.z, 0, 1e-15, "pad position");
   close(result.finalState.velocityWorldMps.z, 0, 1e-15, "pad velocity");
   close(result.railTrace[0].railReactionWorldN.z, 10, 1e-15, "pad reaction");
+});
+
+test("rail angle helpers resolve ENU direction and aligned launch attitude", () => {
+  const direction = launchRailDirectionFromAngles(15, 90);
+  close(direction.x, 0, 1e-15, "east component");
+  close(direction.y, Math.sin(15 * Math.PI / 180), 1e-15, "north component");
+  close(direction.z, Math.cos(15 * Math.PI / 180), 1e-15, "up component");
+  close(magnitude(direction), 1, 1e-15, "rail direction magnitude");
+  const noseDirection = rotateBodyToWorld(
+    launchRailOrientationFromAngles(15, 90),
+    { x: -1, y: 0, z: 0 },
+  );
+  close(noseDirection.x, direction.x, 1e-12, "attitude east component");
+  close(noseDirection.y, direction.y, 1e-12, "attitude north component");
+  close(noseDirection.z, direction.z, 1e-12, "attitude up component");
+});
+
+test("angled rail handoff preserves the configured world direction", () => {
+  const inclinationDeg = 10;
+  const azimuthDeg = -35;
+  const direction = launchRailDirectionFromAngles(inclinationDeg, azimuthDeg);
+  const result = launch({
+    initialState: verticalState({
+      orientationBodyToWorld: launchRailOrientationFromAngles(inclinationDeg, azimuthDeg),
+    }),
+    rail: { directionWorld: direction, lengthM: 1 },
+    loads: () => ({
+      forceWorldN: { x: direction.x * 4, y: direction.y * 4, z: direction.z * 4 },
+    }),
+  });
+  const exit = result.events.find((event) => event.type === "rail_exit");
+  close(exit.state.positionWorldM.x, direction.x, 1e-12, "angled exit east position");
+  close(exit.state.positionWorldM.y, direction.y, 1e-12, "angled exit north position");
+  close(exit.state.positionWorldM.z, direction.z, 1e-12, "angled exit up position");
 });
 
 test("constant acceleration exits at the analytical time and hands off exactly", () => {

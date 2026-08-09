@@ -48,6 +48,8 @@ test("local project snapshots round-trip through a strict versioned schema", () 
   assert.deepEqual(parseLocalProjectSnapshot(serialized), source);
   assert.equal(source.inputs.launchRailEnabled, true);
   assert.equal(source.inputs.launchRailLengthM, 1.2);
+  assert.equal(source.inputs.launchRailInclinationDeg, 0);
+  assert.equal(source.inputs.launchRailAzimuthDeg, 0);
   assert.equal(source.inputs.noseLengthMm, 180);
   assert.equal(source.inputs.noseProfile, "ogive");
   assert.equal(source.inputs.finCount, 3);
@@ -70,6 +72,14 @@ test("invalid, unsupported, and out-of-range snapshots fail explicitly", () => {
   assert.throws(
     () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, launchRailLengthM: 12.1 } }),
     /launchRailLengthM/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, launchRailInclinationDeg: 30.1 } }),
+    /launchRailInclinationDeg/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, launchRailAzimuthDeg: 180.1 } }),
+    /launchRailAzimuthDeg/,
   );
   assert.throws(
     () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, recoveryDeploymentSuccessProbability: 1.1 } }),
