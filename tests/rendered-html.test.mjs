@@ -89,6 +89,19 @@ test("ships a portable project import path with validated restoration warnings",
   assert.match(stylesheet, /export-import-option/);
 });
 
+test("ships a validated browser design-share path without bundling local libraries", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const shareSource = await readFile(new URL("../lib/project/project-share.ts", import.meta.url), "utf8");
+  assert.match(source, /encodeProjectShare/);
+  assert.match(source, /decodeProjectShare/);
+  assert.match(source, /Share design link/);
+  assert.match(source, /Referenced motor/);
+  assert.match(shareSource, /PROJECT_SHARE_HASH_PREFIX/);
+  assert.match(shareSource, /validateEditableProjectInputs/);
+  assert.match(shareSource, /validateVehicleTopology/);
+  assert.match(shareSource, /never embeds local libraries|local motor records/);
+});
+
 test("ships live center-of-pressure and static-margin feedback", async () => {
   const source = await readFile(
     new URL("../app/page.tsx", import.meta.url),

@@ -8,6 +8,9 @@ flight-readiness claims.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.
+- Added validated browser design-share links for editable inputs and stage
+  topology; local motor/aerodynamic source data remain unbundled and missing
+  references fall back with an explicit review note.
 - Added bounded isotropic point-drag propagation for separated stages when a
   topology-specific drag coefficient and reference area are available, with a
   visible gravity-only fallback when that basis is missing.

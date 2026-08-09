@@ -48,7 +48,8 @@ research, standards, and original code.
 - accessible event timelines, trace charts, comparisons, engineering reports,
   CSV, DXF, OpenSCAD, and portable Kestrel project JSON;
 - validated project import, device-local autosave/history, templates,
-  beginner/expert modes, and keyboard command search.
+  beginner/expert modes, keyboard command search, and compact browser design
+  share links.
 
 Every calculation surface exposes its model version, validation status,
 warnings, assumptions, and scope limits. User data retains its source,

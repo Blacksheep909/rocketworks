@@ -117,6 +117,11 @@ import {
   upsertLocalAerodynamicTable,
 } from "../lib/project/aero-library-state.ts";
 import {
+  decodeProjectShare,
+  encodeProjectShare,
+  PROJECT_SHARE_HASH_PREFIX,
+} from "../lib/project/project-share.ts";
+import {
   createSimulationFingerprint,
   isSimulationFingerprintCurrent,
   SIMULATION_FRESHNESS_MODEL_VERSION,
@@ -2063,6 +2068,7 @@ export default function Home() {
   const revisionRef = useRef(0);
   const lastSavedInputsRef = useRef<EditableProjectInputs | null>(null);
   const lastSavedFingerprintRef = useRef("");
+  const shareHydratedRef = useRef(false);
   const [storageReady, setStorageReady] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -2562,6 +2568,97 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!storageReady || shareHydratedRef.current) return;
+    shareHydratedRef.current = true;
+    const hash = window.location.hash;
+    if (!hash.startsWith(PROJECT_SHARE_HASH_PREFIX)) return;
+    const importTimer = window.setTimeout(() => {
+      try {
+        const shared = decodeProjectShare(hash);
+        const inputs = shared.editableInputs;
+        setLength(inputs.lengthMm);
+        setDiameter(inputs.diameterMm);
+        setNoseLength(inputs.noseLengthMm);
+        setNoseProfile(inputs.noseProfile);
+        setFinCount(inputs.finCount);
+        setFinRootChord(inputs.finRootChordMm);
+        setFinTipChord(inputs.finTipChordMm);
+        setFinSweep(inputs.finSweepMm);
+        setFinSpan(inputs.finSpanMm);
+        setFinThickness(inputs.finThicknessMm);
+        setPayloadMass(inputs.payloadMassKg);
+        setMaterial(inputs.material);
+        setThrust(inputs.thrustN);
+        setBurnTime(inputs.burnTimeS);
+        setDragCoefficient(inputs.dragCoefficient);
+        setLaunchAltitude(inputs.launchAltitudeM);
+        setWindSpeed(inputs.windSpeedMps);
+        setRelativeHumidityPercent(inputs.relativeHumidityPercent);
+        setSurfacePressureHpa(inputs.surfacePressureHpa);
+        setSurfaceTemperatureC(inputs.surfaceTemperatureC);
+        setLaunchRailEnabled(inputs.launchRailEnabled);
+        setLaunchRailLengthM(inputs.launchRailLengthM);
+        setLaunchRailInclinationDeg(inputs.launchRailInclinationDeg);
+        setLaunchRailAzimuthDeg(inputs.launchRailAzimuthDeg);
+        setRecoveryEnabled(inputs.recoveryEnabled);
+        setRecoveryDelay(inputs.recoveryDelayS);
+        setRecoveryDiameter(inputs.recoveryDiameterM);
+        setRecoveryMass(inputs.recoveryMassKg);
+        setRecoveryDeploymentSuccessProbability(inputs.recoveryDeploymentSuccessProbability);
+        topologyRef.current = shared.topology;
+        setVehicleTopology(shared.topology);
+        window.localStorage.setItem(
+          LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY,
+          serializeVehicleTopology(shared.topology),
+        );
+        const motorAvailable =
+          shared.selectedMotorId === "synthetic" ||
+          userMotorRecords.some((record) => record.id === shared.selectedMotorId);
+        const aerodynamicTableAvailable =
+          shared.selectedAerodynamicTableId === "constant" ||
+          aerodynamicTableDefinitions.some((table) => table.id === shared.selectedAerodynamicTableId);
+        setSelectedMotorId(motorAvailable ? shared.selectedMotorId : "synthetic");
+        setSelectedAerodynamicTableId(
+          aerodynamicTableAvailable ? shared.selectedAerodynamicTableId : "constant",
+        );
+        window.localStorage.setItem(
+          LOCAL_AERODYNAMIC_SELECTION_STORAGE_KEY,
+          aerodynamicTableAvailable ? shared.selectedAerodynamicTableId : "constant",
+        );
+        setStageFlightResult(null);
+        setStageFlightError("");
+        setSweepResult(null);
+        setSweepError("");
+        setSaved(false);
+        setSaveError(
+          [
+            !motorAvailable && shared.selectedMotorId !== "synthetic"
+              ? `Referenced motor ${shared.selectedMotorId} is not available on this device; synthetic preview selected.`
+              : "",
+            !aerodynamicTableAvailable && shared.selectedAerodynamicTableId !== "constant"
+              ? `Referenced aerodynamic table ${shared.selectedAerodynamicTableId} is not available on this device; constant drag selected.`
+              : "",
+          ].filter(Boolean).join(" "),
+        );
+        window.history.replaceState(
+          null,
+          "",
+          `${window.location.pathname}${window.location.search}`,
+        );
+        setView("design");
+        setSelected("body");
+        setToast(`Shared ${shared.projectName} design loaded; rerun estimates to refresh results`);
+        window.setTimeout(() => setToast(""), 2200);
+      } catch (error) {
+        setSaveError(error instanceof Error ? error.message : "Unable to read Kestrel share link");
+        setToast("Shared design link could not be loaded");
+        window.setTimeout(() => setToast(""), 2200);
+      }
+    }, 0);
+    return () => window.clearTimeout(importTimer);
+  }, [aerodynamicTableDefinitions, storageReady, userMotorRecords]);
+
+  useEffect(() => {
     if (!storageReady) return;
     const fingerprint = projectInputFingerprint(editableInputs);
     if (fingerprint === lastSavedFingerprintRef.current) {
@@ -2997,6 +3094,37 @@ export default function Home() {
   };
   const openProjectImport = () => {
     projectImportInputRef.current?.click();
+  };
+  const copyProjectShare = async () => {
+    try {
+      const hash = encodeProjectShare({
+        projectName: "ARC 54",
+        editableInputs,
+        topology: vehicleTopology,
+        selectedMotorId,
+        selectedAerodynamicTableId,
+      });
+      const shareUrl = `${window.location.origin}${window.location.pathname}${window.location.search}${hash}`;
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const fallback = document.createElement("textarea");
+        fallback.value = shareUrl;
+        fallback.setAttribute("readonly", "true");
+        fallback.style.position = "fixed";
+        fallback.style.opacity = "0";
+        document.body.appendChild(fallback);
+        fallback.select();
+        const copied = document.execCommand("copy");
+        fallback.remove();
+        if (!copied) throw new Error("clipboard access is unavailable");
+      }
+      notify("Design share link copied");
+      setExportOpen(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Unable to create design share link");
+      notify("Design share link could not be copied");
+    }
   };
   const importProjectFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
@@ -3452,6 +3580,7 @@ export default function Home() {
     { id: "open-templates", label: "Choose a project template", description: "Start from a beginner, high-power, weather, or diagnostic setup", run: () => setTemplatesOpen(true) },
     { id: "open-history", label: "Open local project history", description: "Restore a validated device-local checkpoint", run: () => setHistoryOpen(true) },
     { id: "open-export", label: "Open artifact center", description: "Export project JSON, traces, reports, and CAD references", run: () => setExportOpen(true) },
+    { id: "share-design", label: "Copy design share link", description: "Share validated inputs and stage topology without embedding local library data", run: () => { void copyProjectShare(); } },
     { id: "import-project", label: "Import Kestrel project", description: "Restore a portable project document and its validated user libraries", run: () => setProjectImportRequested(true) },
     { id: "toggle-mode", label: experienceMode === "beginner" ? "Switch to expert mode" : "Switch to beginner mode", description: "Change how much of the workbench is exposed", run: () => changeExperienceMode(experienceMode === "beginner" ? "expert" : "beginner") },
   ];
@@ -3499,7 +3628,7 @@ export default function Home() {
         </div>
         <div className="project-title">
           <button className="quiet-button" aria-label="Go back to projects">‹</button>
-          <div><strong>ARC 54 / Vehicle 01</strong><span><i className="live-dot" />{saveError ? "Local save unavailable" : saved ? "Saved locally" : "Saving changes…"}</span></div>
+          <div><strong>ARC 54 / Vehicle 01</strong><span><i className="live-dot" />{saveError ? "Review required" : saved ? "Saved locally" : "Saving changes…"}</span></div>
         </div>
         <div className="top-actions">
           <div className="mission-chip" aria-label="Mission status"><span>MISSION</span><strong>KST-01</strong><em>PRELIMINARY · REV 01</em></div>
@@ -4819,6 +4948,11 @@ export default function Home() {
               </button>
             </div>
             <div className="export-grid">
+              <button className="export-import-option" onClick={() => { void copyProjectShare(); }}>
+                <span className="export-extension">LINK</span>
+                <span><strong>Share design link</strong><small>Copy validated inputs and stage topology into a browser URL. Local motor and aerodynamic libraries stay local.</small></span>
+                <em>↗</em>
+              </button>
               <button className="export-import-option" onClick={openProjectImport}>
                 <span className="export-extension">OPEN</span>
                 <span><strong>Import Kestrel project</strong><small>Restore editable inputs, stage topology, user motors, and aerodynamic tables from a portable JSON document.</small></span>
