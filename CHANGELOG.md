@@ -12,9 +12,13 @@ flight-readiness claims.
   multi-stage model: per-copy ignition/failure/separation state, burnout event
   targeting, nested diagnostics, and live per-copy mass-property lookup while
   preserving logical stage topology for aerodynamic regimes.
-- Bumped the stage-flight preview contract to 0.6.0 and added per-copy event
+- Bumped the stage-flight preview contract to 0.7.0 and added per-copy event
   telemetry plus one bounded separated-body trajectory per detached physical
   stage instance.
+- Added mass-ratio equal-and-opposite linear-momentum impulses to detached
+  stage branches when a retained-body separation delta-v is configured; the
+  instantaneous two-body assumption, missing impulse fallback, and remaining
+  mechanism limitations are exposed in telemetry and the browser UI.
 - Added stage-aware metadata, grouped stage visibility controls, and projected
   stage selection to the original display-only 3D viewport; visibility changes
   never alter engineering inputs or results.

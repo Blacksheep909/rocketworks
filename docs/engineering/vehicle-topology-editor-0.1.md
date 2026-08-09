@@ -48,8 +48,9 @@ stage trajectories or separation clearance.
 When configured, separation delta-v is applied instantaneously to the retained
 body in its current body-frame +X direction and is included in the staged event
 label. This is a bounded analytical input rather than a measured pyrotechnic
-impulse; the discarded body does not receive a coupled equal-and-opposite change
-in the retained-body solver.
+impulse; the detached-body preview derives the equal-and-opposite linear
+momentum delta-v from the retained-to-detached mass ratio, while the retained
+solver and preview still omit separation mechanism and angular-impulse details.
 
 When a staged run is requested, the assigned motor's thrust curve and mass
 properties feed that stage's independent propulsion model. A missing local

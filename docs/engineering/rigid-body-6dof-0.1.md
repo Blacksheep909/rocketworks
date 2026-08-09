@@ -227,7 +227,11 @@ loads, finite guide-button and tip-off mechanics, and higher-fidelity
 ground-contact events. A separate preliminary recovery model now uses discrete
 apogee/altitude/timed commands, smooth inflation, wind-relative drag, failure
 state, and terminal impact. Multi-stage 0.1 now performs exact ignition,
-burnout, failure, and separation topology changes for one retained vehicle. A
-later geometry-based propellant layer should replace uniform depletion where
-grain data is available, then a multi-body solver should spawn and
-independently propagate discarded bodies after separation.
+burnout, failure, and separation topology changes for one retained vehicle.
+The stage-flight adapter now spawns an independent discarded-body branch and,
+when a retained-body separation delta-v is configured, derives the equal-and-
+opposite detached-body linear impulse from the event mass ratio. This is an
+instantaneous two-body momentum idealization; a later multi-body solver should
+replace it with explicit separation mechanisms, angular impulse, contact, and
+coupled proximity aerodynamics. A later geometry-based propellant layer should
+replace uniform depletion where grain data is available.

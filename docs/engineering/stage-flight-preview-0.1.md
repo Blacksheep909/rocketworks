@@ -1,4 +1,4 @@
-# Stage-aware flight preview 0.6
+# Stage-aware flight preview 0.7
 
 Status: implemented composition adapter; mathematical regression tests only.
 This preview is not flight-safety validated and must not be used for launch
@@ -23,7 +23,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.6.0`. 
+`kestrel-stage-flight-preview-0.7.0`.
 
 ## Event and state policy
 
@@ -129,8 +129,9 @@ center of mass. The release state is
 derived from the retained body's event state: the stage center-of-mass offset
 is rotated into world coordinates and the parent angular-rate cross-product is
 included in the released velocity. The result reports the retained-body
-separation delta-v in both body and world frames, but the detached branch
-starts from the pre-event release state. The branch then uses the same original
+separation delta-v in both body and world frames. When present, the adapter
+also adds the derived detached-body impulse to that release velocity. The
+branch then uses the same original
 6-DOF integrator with altitude-dependent gravity and a terminal ground-impact
 event.
 
@@ -141,10 +142,21 @@ declared design point for this independent branch; it is not coupled to the
 discarded body's changing Mach or Reynolds state. If either basis is missing,
 the branch stays gravity-only and labels that fallback in its telemetry.
 
+When the event carries a retained-body delta-v, the adapter derives the
+detached-body delta-v from equal-and-opposite linear momentum using the
+retained and detached masses at the event. If one event releases multiple
+physical copies, their combined detached mass is used and the same derived
+velocity increment is assigned to each copy; this assumes one shared impulse
+velocity rather than independent mechanism impulses. This is an instantaneous
+two-body impulse idealization; it does not model the separation mechanism,
+spring or joint dynamics, or angular impulse. When no event delta-v is
+supplied, the detached branch explicitly reports that the impulse is not
+modeled.
+
 This remains an intentionally bounded ballistic component check. It does not
 invent lift, attitude-dependent aerodynamic torque, plume interaction,
-stage-to-stage aerodynamic interference, separation impulse, collision,
-recovery, or clearance logic. The result status is
+stage-to-stage aerodynamic interference, collision, recovery, or clearance
+logic. The result status is
 `analytical-component-checks-only`, and the UI, project JSON, and engineering
 report retain the warning so an impact time cannot be mistaken for a range or
 flight-safety prediction.
@@ -156,9 +168,9 @@ flight-safety prediction.
   point drag, not a coupled multi-body solver.
 - A configured separation delta-v is applied to the retained body in body-frame
   +X and is carried into the event/trajectory diagnostics in body and world
-  frames. The discarded-body branch starts from the pre-event state and does
-  not yet solve the equal-and-opposite momentum exchange or a coupled
-  separation mechanism.
+  frames. The discarded-body branch receives the mass-ratio equal-and-opposite
+  linear impulse when that event annotation is present; mechanism dynamics,
+  angular impulse, and coupled contact remain outside the model.
 - Stage-separation proximity aerodynamics remain explicitly unsupported during
   the configured transition window.
 - The supplied aerodynamic regime table must contain an exact regime for every

@@ -117,9 +117,10 @@ tests/                Deterministic physics, UI, export, and integration checks
 
 ## Roadmap
 
-Near-term work is stronger experimental/benchmark validation, a coupled
-multi-body separation solver, richer structural and aeroelastic checks, and
-more stage-aware design review. Longer-term work includes collaboration and
-cloud project storage plus native desktop/tablet packaging. Those additions
+Near-term work is stronger experimental/benchmark validation, a full coupled
+multi-body separation solver beyond the current mass-ratio impulse branch,
+richer structural and aeroelastic checks, and more stage-aware design review.
+Longer-term work includes collaboration and cloud project storage plus native
+desktop/tablet packaging. Those additions
 will preserve the same provenance boundary and will never upgrade an
 analytical preview to flight-safe status without independent evidence.

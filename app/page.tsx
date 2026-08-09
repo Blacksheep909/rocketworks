@@ -4094,7 +4094,7 @@ export default function Home() {
                           <div>
                             <span className="eyebrow">Flight dynamics / discard branch</span>
                             <h4 id="stage-separated-bodies-title">Separated trajectories</h4>
-                            <p>Released stages are carried from the exact event state into an independent ballistic-capable preview. When a stage-specific area and coefficient are available, isotropic point drag is applied; this remains an analytical component check, not an aerodynamic clearance or range-safety result.</p>
+                            <p>Released stages are carried from the exact event state into an independent ballistic-capable preview. When configured, the branch receives the equal-and-opposite linear-momentum delta-v implied by the retained and detached masses; a stage-specific area and coefficient add isotropic point drag. This remains an analytical component check, not an aerodynamic clearance or range-safety result.</p>
                           </div>
                           <span className="stage-separated-bodies-badge">{stageFlightResult.separatedBodies.length} bod{stageFlightResult.separatedBodies.length === 1 ? "y" : "ies"}</span>
                         </div>
@@ -4109,12 +4109,13 @@ export default function Home() {
                               <div className="stage-separated-body-metrics">
                                 <div><span>Release</span><strong>{body.releaseTimeS.toFixed(2)} s</strong></div>
                                 <div><span>Retained dV</span><strong>+X {body.retainedBodyDeltaVBodyMps.x.toFixed(2)} m/s</strong><small>body frame</small></div>
+                                <div><span>Detached dV</span><strong>{body.detachedBodyDeltaVBodyMps.x.toFixed(2)} m/s</strong><small>{body.separationImpulseModel === "mass-ratio-linear-momentum" ? "mass-ratio impulse · body +X" : "not supplied"}</small></div>
                                 <div><span>Peak altitude</span><strong>{body.maxAltitudeAglM.toFixed(1)} m</strong></div>
                                 <div><span>Peak speed</span><strong>{body.maxSpeedMps.toFixed(1)} m/s</strong></div>
                                 <div><span>Drag basis</span><strong>{body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? `Cd ${body.dragCoefficient.toFixed(3)} · ${body.referenceAreaM2.toFixed(4)} m²` : "Gravity only"}</strong><small>{body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? "isotropic point drag" : "no detached-stage aero basis"}</small></div>
                                 <div><span>Model</span><strong>{body.validationStatus}</strong></div>
                               </div>
-                              <p className="stage-separated-body-note">{body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? "Isotropic point-drag path." : "Gravity-only path."} The retained-body dV is shown for release traceability; this detached branch starts from the pre-event state and has no lift, attitude-dependent aero torque, equal-and-opposite impulse, plume interaction, collision, clearance, or recovery model.</p>
+                              <p className="stage-separated-body-note">{body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? "Isotropic point-drag path." : "Gravity-only path."} {body.separationImpulseModel === "mass-ratio-linear-momentum" ? "The detached dV uses an instantaneous equal-and-opposite linear-momentum impulse based on the event delta-v and mass ratio." : "No detached-body impulse was supplied, so the branch starts from the pre-event release velocity."} Lift, attitude-dependent aero torque, separation mechanism dynamics, plume interaction, collision, clearance, and recovery remain outside this preview.</p>
                             </article>
                           ))}
                         </div>

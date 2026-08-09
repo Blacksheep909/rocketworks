@@ -21,9 +21,13 @@ import {
 } from "./six-dof.ts";
 
 export const SEPARATED_BODY_FLIGHT_MODEL_VERSION =
-  "kestrel-separated-body-flight-0.2.0";
+  "kestrel-separated-body-flight-0.3.0";
 export const SEPARATED_BODY_FLIGHT_STATUS =
   "analytical-component-checks-only" as const;
+
+export type SeparatedBodyImpulseModel =
+  | "mass-ratio-linear-momentum"
+  | "not-modeled";
 
 export type SeparatedBodyTracePoint = Readonly<{
   timeS: number;
@@ -44,6 +48,9 @@ export type SeparatedBodyTrajectory = Readonly<{
   releaseVelocityWorldMps: Vector3;
   retainedBodyDeltaVBodyMps: Vector3;
   retainedBodyDeltaVWorldMps: Vector3;
+  detachedBodyDeltaVBodyMps: Vector3;
+  detachedBodyDeltaVWorldMps: Vector3;
+  separationImpulseModel: SeparatedBodyImpulseModel;
   trace: readonly SeparatedBodyTracePoint[];
   simulation: SixDofSimulationResult;
   maxAltitudeAglM: number;
@@ -68,8 +75,10 @@ export type SeparatedBodyFlightInput = Readonly<{
   launchAltitudeM?: number;
   environmentAt?: LaunchEnvironmentProvider;
   maximumSteps?: number;
-  /** Retained-body separation delta-v annotation; the detached branch is not impulsed. */
+  /** Retained-body separation delta-v annotation applied to the retained body. */
   retainedBodyDeltaVBodyMps?: Vector3;
+  /** Detached-body delta-v from the same separation impulse, when available. */
+  detachedBodyDeltaVBodyMps?: Vector3;
   /** Detached-stage reference area for the bounded isotropic drag branch. */
   referenceAreaM2?: number;
   /** Detached-stage constant drag coefficient for the bounded isotropic drag branch. */
@@ -99,7 +108,10 @@ function validateMassProperties(properties: MassProperties): void {
   }
 }
 
-function releaseStateAtStageCenterOfMass(input: SeparatedBodyFlightInput): RigidBodyState {
+function releaseStateAtStageCenterOfMass(
+  input: SeparatedBodyFlightInput,
+  detachedBodyDeltaVWorldMps: Vector3,
+): RigidBodyState {
   const stageOffsetBodyM = {
     x: input.stageMassProperties.centerOfMassM.x - input.parentCenterOfMassBodyM.x,
     y: input.stageMassProperties.centerOfMassM.y - input.parentCenterOfMassBodyM.y,
@@ -117,8 +129,11 @@ function releaseStateAtStageCenterOfMass(input: SeparatedBodyFlightInput): Rigid
     ...input.releaseState,
     positionWorldM: addVectors(input.releaseState.positionWorldM, offsetWorldM),
     velocityWorldMps: addVectors(
-      input.releaseState.velocityWorldMps,
-      cross(angularVelocityWorldRadS, offsetWorldM),
+      addVectors(
+        input.releaseState.velocityWorldMps,
+        cross(angularVelocityWorldRadS, offsetWorldM),
+      ),
+      detachedBodyDeltaVWorldMps,
     ),
   };
 }
@@ -130,9 +145,10 @@ function releaseStateAtStageCenterOfMass(input: SeparatedBodyFlightInput): Rigid
  * into the shared 6DOF kernel, then applies altitude-dependent gravity and a
  * terminal ground-impact event. When a reference area and constant drag
  * coefficient are supplied, the branch adds isotropic point drag against the
- * environment-relative velocity. Without both inputs it remains a clearly
- * labelled gravity-only fallback; neither path invents plume, separation
- * impulse, collision, or recovery models for the discarded body.
+ * environment-relative velocity. A caller may also provide the detached
+ * body's delta-v from an equal-and-opposite separation impulse; the stage-flight
+ * adapter derives that vector from the retained and detached masses. Without
+ * that vector the branch remains a clearly labelled no-impulse fallback.
  */
 export function simulateSeparatedBodyFlight(
   input: SeparatedBodyFlightInput,
@@ -155,6 +171,16 @@ export function simulateSeparatedBodyFlight(
     ].every(Number.isFinite)
   ) {
     throw new Error("retained-body separation delta-v must contain finite coordinates");
+  }
+  const detachedBodyDeltaVBodyMps = input.detachedBodyDeltaVBodyMps ?? ZERO_VECTOR;
+  if (
+    ![
+      detachedBodyDeltaVBodyMps.x,
+      detachedBodyDeltaVBodyMps.y,
+      detachedBodyDeltaVBodyMps.z,
+    ].every(Number.isFinite)
+  ) {
+    throw new Error("detached-body separation delta-v must contain finite coordinates");
   }
   const hasReferenceArea = input.referenceAreaM2 !== undefined;
   const hasDragCoefficient = input.dragCoefficient !== undefined;
@@ -179,8 +205,15 @@ export function simulateSeparatedBodyFlight(
     input.releaseState.orientationBodyToWorld,
     retainedBodyDeltaVBodyMps,
   );
+  const detachedBodyDeltaVWorldMps = rotateBodyToWorld(
+    input.releaseState.orientationBodyToWorld,
+    detachedBodyDeltaVBodyMps,
+  );
   validateMassProperties(input.stageMassProperties);
-  const initialState = releaseStateAtStageCenterOfMass(input);
+  const initialState = releaseStateAtStageCenterOfMass(
+    input,
+    detachedBodyDeltaVWorldMps,
+  );
   const body = {
     massKg: input.stageMassProperties.massKg,
     inertiaBodyKgM2: input.stageMassProperties.inertiaAtCenterKgM2,
@@ -259,6 +292,11 @@ export function simulateSeparatedBodyFlight(
     releaseVelocityWorldMps: initialState.velocityWorldMps,
     retainedBodyDeltaVBodyMps,
     retainedBodyDeltaVWorldMps,
+    detachedBodyDeltaVBodyMps,
+    detachedBodyDeltaVWorldMps,
+    separationImpulseModel: input.detachedBodyDeltaVBodyMps
+      ? "mass-ratio-linear-momentum"
+      : "not-modeled",
     trace,
     simulation,
     maxAltitudeAglM,
@@ -272,15 +310,20 @@ export function simulateSeparatedBodyFlight(
       : {}),
     warnings: [
       hasReferenceArea && hasDragCoefficient
-        ? "This separated-body branch is a ballistic rigid-body propagation with altitude-dependent gravity and isotropic point drag from the supplied constant coefficient and reference area; attitude-dependent aerodynamics, plume interaction, aerodynamic interference, recovery, collision, and equal-and-opposite separation impulse are not modeled."
-        : "This separated-body branch is ballistic and applies gravity only; drag, plume interaction, aerodynamic interference, recovery, collision, and equal-and-opposite separation impulse are not modeled.",
+        ? "This separated-body branch is a ballistic rigid-body propagation with altitude-dependent gravity and isotropic point drag from the supplied constant coefficient and reference area; attitude-dependent aerodynamics, plume interaction, aerodynamic interference, recovery, and collision are not modeled."
+        : "This separated-body branch is ballistic and applies gravity only; drag, plume interaction, aerodynamic interference, recovery, and collision are not modeled.",
+      input.detachedBodyDeltaVBodyMps
+        ? "The detached branch includes the supplied equal-and-opposite linear-momentum delta-v; this is an instantaneous two-body impulse idealization and does not model the separation mechanism, joint dynamics, or angular impulse."
+        : "No detached-body separation impulse was supplied; this branch starts from the pre-event release velocity and is not a momentum-balanced separation analysis.",
       "The result is an analytical component check, not a clearance, range-safety, or flight-safety assessment.",
       ...simulation.warnings,
     ],
     assumptions: [
       "The released stage inherits the parent orientation and angular velocity at separation.",
       "The released stage position is offset to its own center of mass and its velocity includes the parent rigid-body angular-rate contribution.",
-      "The retained-body separation delta-v is reported from event metadata for traceability; this detached branch starts from the pre-event release state and does not solve the equal-and-opposite discarded-body impulse or a coupled separation mechanism.",
+      input.detachedBodyDeltaVBodyMps
+        ? "The detached-body delta-v is supplied by the stage adapter after applying equal-and-opposite linear momentum using the retained and detached mass at the event; external impulse, spring, joint, plume, and angular-momentum details remain outside the model."
+        : "The retained-body separation delta-v is reported from event metadata for traceability; this detached branch starts from the pre-event release state because no detached-body impulse was supplied.",
       "Gravity uses the supplied launch-environment altitude when available, otherwise launch altitude plus local AGL position.",
       hasReferenceArea && hasDragCoefficient
         ? "When present, drag uses the supplied reference area and constant coefficient against environment-relative velocity; it is an isotropic point-drag approximation with no aerodynamic torque."

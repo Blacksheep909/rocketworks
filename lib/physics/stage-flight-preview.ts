@@ -20,7 +20,7 @@ import {
   type SixDofSimulationResult,
   type StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
-import { magnitude, type Vector3 } from "./linear-algebra.ts";
+import { magnitude, scaleVector, type Vector3 } from "./linear-algebra.ts";
 import type { VehicleComponent } from "./vehicle-components.ts";
 import type { WindLayer } from "./curves.ts";
 import type { MassProperties } from "./mass-properties.ts";
@@ -30,7 +30,7 @@ import {
 } from "./separated-body-flight.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.6.0";
+  "kestrel-stage-flight-preview-0.7.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -677,7 +677,25 @@ export function simulateStageFlightPreview(
       event.stateBefore,
       event.stateAfter,
     );
-    for (const { stageId, instanceId } of detachedStageInstances) {
+    const detachedStageMassEntries = detachedStageInstances.map(({ stageId, instanceId }) => ({
+      stageId,
+      instanceId,
+      massProperties: staging.stageMassProperties(event.stateBefore, stageId, instanceId),
+    }));
+    const detachedMassKg = detachedStageMassEntries.reduce(
+      (total, entry) => total + entry.massProperties.massKg,
+      0,
+    );
+    const retainedMassPropertiesAfterSeparation = staging.evaluate(
+      event.stateAfter,
+    ).massProperties;
+    const detachedBodyDeltaVBodyMps = event.separationDeltaVBodyMps && detachedMassKg > 0
+      ? scaleVector(
+          event.separationDeltaVBodyMps,
+          -retainedMassPropertiesAfterSeparation.massKg / detachedMassKg,
+        )
+      : undefined;
+    for (const { stageId, instanceId, massProperties } of detachedStageMassEntries) {
       const spawnKey = `${stageId}/${instanceId}`;
       if (spawnedStageInstances.has(spawnKey)) continue;
       const detachedAero = detachedStageAerodynamicBasis(
@@ -692,13 +710,14 @@ export function simulateStageFlightPreview(
             instanceId,
             stageName: stageInstanceNames.get(spawnKey) ?? stageNames.get(stageId) ?? stageId,
             releaseState: event.stateBefore,
-            stageMassProperties: staging.stageMassProperties(event.stateBefore, stageId, instanceId),
+            stageMassProperties: massProperties,
             parentCenterOfMassBodyM: before.massProperties.centerOfMassM,
             durationS: input.durationS,
             timeStepS: input.timeStepS,
             launchAltitudeM: input.launchAltitudeM,
             environmentAt: input.environmentAt,
             retainedBodyDeltaVBodyMps: event.separationDeltaVBodyMps,
+            detachedBodyDeltaVBodyMps,
             ...(detachedAero ?? {}),
           }),
         );
@@ -728,7 +747,8 @@ export function simulateStageFlightPreview(
     ...(primaryRun.rail?.freeFlight?.assumptions ?? []),
     ...convergence.assumptions,
     `Explicit separation events spawn a separate ballistic-capable trajectory for each newly detached stage; separated bodies are represented independently; ${separatedBodies.filter((body) => body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined).length} branch(es) use bounded isotropic point drag and ${separatedBodies.filter((body) => body.referenceAreaM2 === undefined || body.dragCoefficient === undefined).length} branch(es) use the gravity-only fallback.`,
-    "Separated-body previews do not model lift, attitude-dependent aerodynamic torque, plume interaction, aerodynamic interference, recovery, collision, clearance, or the equal-and-opposite discarded-body separation impulse.",
+    "When one separation event releases multiple physical copies, the equal-and-opposite impulse uses their combined detached mass and assigns one shared detached velocity increment to each copy; individual separation-mechanism impulses are not modeled.",
+    "Separated-body previews apply a mass-ratio equal-and-opposite linear-momentum delta-v when the separation event carries a configured retained-body delta-v; a single event releasing multiple copies uses their combined detached mass and assigns one shared detached velocity increment. Separation mechanism dynamics, angular impulse, lift, attitude-dependent aerodynamic torque, plume interaction, aerodynamic interference, recovery, collision, and clearance remain outside the model.",
     "The returned trajectory is a deterministic engineering preview and is not a flight-safety assessment.",
   ];
   return {

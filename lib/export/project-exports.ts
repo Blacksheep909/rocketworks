@@ -851,19 +851,20 @@ export function createEngineeringReportMarkdown(
                 "",
                 "### Separated-body trajectories",
                 "",
-                "| Stage | Release | Retained dV (+X) | Drag basis | Impact | Peak altitude | Peak speed |",
-                "|---|---:|---:|---|---:|---:|---:|",
+                "| Stage | Release | Retained dV (+X) | Detached dV (+X) | Impulse model | Drag basis | Impact | Peak altitude | Peak speed |",
+                "|---|---:|---:|---:|---|---|---:|---:|---:|",
                 ...(input.stageFlight.separatedBodies ?? []).map(
                   (body) => {
                     const dragBasis =
                       body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined
                         ? `Cd ${formatNumber(body.dragCoefficient, 3)} · ${formatNumber(body.referenceAreaM2, 4)} m²`
                         : "gravity only";
-                    return `| ${markdownText(body.stageName)} | ${formatNumber(body.releaseTimeS, 2)} s | ${body.retainedBodyDeltaVBodyMps ? `${formatNumber(body.retainedBodyDeltaVBodyMps.x, 3)} m/s` : "not recorded"} | ${dragBasis} | ${body.impactTimeS === null ? "Not reached" : `${formatNumber(body.impactTimeS, 2)} s`} | ${formatNumber(body.maxAltitudeAglM, 1)} m | ${formatNumber(body.maxSpeedMps, 2)} m/s |`;
+                    const impulseModel = body.separationImpulseModel ?? "not-modeled";
+                    return `| ${markdownText(body.stageName)} | ${formatNumber(body.releaseTimeS, 2)} s | ${body.retainedBodyDeltaVBodyMps ? `${formatNumber(body.retainedBodyDeltaVBodyMps.x, 3)} m/s` : "not recorded"} | ${body.detachedBodyDeltaVBodyMps ? `${formatNumber(body.detachedBodyDeltaVBodyMps.x, 3)} m/s` : "not recorded"} | ${markdownText(impulseModel)} | ${dragBasis} | ${body.impactTimeS === null ? "Not reached" : `${formatNumber(body.impactTimeS, 2)} s`} | ${formatNumber(body.maxAltitudeAglM, 1)} m | ${formatNumber(body.maxSpeedMps, 2)} m/s |`;
                   },
                 ),
                 "",
-                "> Separated-body paths are bounded analytical component checks. Where a stage-specific reference area and constant coefficient are available, isotropic point drag is applied; otherwise the branch remains gravity-only. The retained-body delta-v is reported for traceability; the detached branch starts from the pre-event state. Lift, attitude-dependent aerodynamics, plume interaction, aerodynamic clearance, equal-and-opposite separation impulse, collision, and recovery are not modeled.",
+                "> Separated-body paths are bounded analytical component checks. Where a stage-specific reference area and constant coefficient are available, isotropic point drag is applied; otherwise the branch remains gravity-only. When the event carries a retained-body delta-v, the detached branch uses the mass-ratio equal-and-opposite linear-momentum impulse; otherwise it starts from the pre-event release velocity. Separation mechanism, lift, attitude-dependent aerodynamics, plume interaction, aerodynamic clearance, collision, and recovery are not modeled.",
               ]
             : []),
           "",

@@ -110,13 +110,16 @@ check without reimplementing the staging equations. Passing the optional
 attached copies of that logical stage.
 
 The stage-flight browser adapter uses that lookup to launch a bounded
-gravity-only trajectory for each newly detached stage. It offsets the stage to
-its own center of mass and carries the parent angular-rate contribution into
-the release velocity. The result reports any retained-body separation delta-v
-in body and world frames; the detached branch starts from the pre-event state.
-This branch is not a coupled multi-body solver and does
-not model drag, plume interaction, separation impulse, collision, recovery, or
-clearance.
+trajectory for each newly detached stage. It offsets the stage to its own
+center of mass and carries the parent angular-rate contribution into the
+release velocity. The result reports any retained-body separation delta-v in
+body and world frames. When that delta-v is present, the adapter derives the
+detached-body delta-v from equal-and-opposite linear momentum using the
+retained and detached masses at the event; without an event delta-v the branch
+explicitly remains a no-impulse fallback. This branch is not a coupled
+multi-body solver and does not model drag beyond its optional bounded point
+basis, plume interaction, separation mechanism, angular impulse, collision,
+recovery, or clearance.
 
 It does not conserve the angular momentum of the pre-separation combined stack
 inside the retained body alone; the discarded body carries away its share.
@@ -160,12 +163,12 @@ flight performance.
 - Separation is instantaneous and removes the source stage from the retained
   tracked body. A logical-stage separation removes all physical instances;
   instance-targeted separation removes only the selected copy. The optional
-  separated-body preview is ballistic only and is not suitable for clearance,
-  range-safety, or flight-safety decisions. A
-  bounded body-frame +X delta-v may be applied to the retained body and is
-  surfaced as explicit event/trajectory telemetry, but the discarded body
-  starts from the pre-event state and does not receive a coupled
-  equal-and-opposite impulse.
+  separated-body preview is not suitable for clearance, range-safety, or
+  flight-safety decisions. A bounded body-frame +X delta-v may be applied to
+  the retained body and is surfaced as explicit event/trajectory telemetry;
+  the adapter supplies the detached body's mass-ratio equal-and-opposite
+  linear impulse when that annotation is present, but does not model the
+  separation mechanism or angular impulse.
 - Pyrotechnic and spring impulses, joint forces, tip-off, flexure, plume
   impingement, wake interaction, collision, and recontact are absent.
 - Stage-aware aerodynamics 0.1 now reconfigures retained-body geometry, CP,

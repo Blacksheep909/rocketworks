@@ -72,6 +72,9 @@ test("ships versioned flight results and explainable model UI", async () => {
   assert.match(source, /SIMULATION_FRESHNESS_MODEL_VERSION/);
   assert.match(source, /Separated trajectories/);
   assert.match(source, /separatedBodies/);
+  assert.match(source, /Detached dV/);
+  assert.match(source, /mass-ratio-linear-momentum/);
+  assert.match(source, /equal-and-opposite linear-momentum/);
   assert.match(source, /analytical component check/);
 });
 
