@@ -6,8 +6,8 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Kestrel Lab — Rocket Design Prototype",
-  description: "An independent, clean-room browser workspace for rocket design and preliminary flight estimation.",
+  title: "Kestrel Lab — Rocket Design & Flight Analysis",
+  description: "A clean-room, browser-first workbench for rocket design, staged flight previews, uncertainty analysis, and engineering exports.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

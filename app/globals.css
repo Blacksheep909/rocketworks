@@ -1019,6 +1019,16 @@ kbd {
 .export-grid button:hover, .export-grid button:focus-visible {
   border-color: rgba(47,159,255,.4); background: rgba(47,159,255,.075);
 }
+.export-grid button.export-import-option {
+  border-color: rgba(244,163,64,.3);
+  background: linear-gradient(135deg, rgba(244,163,64,.07), rgba(16,23,29,.95));
+}
+.export-grid button.export-import-option:hover, .export-grid button.export-import-option:focus-visible {
+  border-color: rgba(244,163,64,.62);
+  background: rgba(244,163,64,.1);
+}
+.export-import-option .export-extension { border-color: rgba(244,163,64,.34); color: #ffc477; }
+.export-import-option em { color: #ffc477; }
 .export-grid button > span:nth-child(2) { min-width: 0; }
 .export-grid strong { display: block; font-size: 10px; }
 .export-grid small { display: block; margin-top: 5px; color: var(--muted); font-size: 8px; line-height: 1.45; }

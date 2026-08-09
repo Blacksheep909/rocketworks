@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { LandingFootprintChart } from "./landing-footprint-chart.tsx";
@@ -11,6 +11,7 @@ import {
   createParameterSweepCsv,
   createStageFlightTraceCsv,
   createKestrelProjectJson,
+  parseKestrelProjectJson,
   createRocketOpenScad,
   createRocketProfileDxf,
   type JsonValue,
@@ -1682,6 +1683,8 @@ export default function Home() {
   const commandInputRef = useRef<HTMLInputElement>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const exportCloseRef = useRef<HTMLButtonElement>(null);
+  const projectImportInputRef = useRef<HTMLInputElement>(null);
+  const [projectImportRequested, setProjectImportRequested] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const templatesCloseRef = useRef<HTMLButtonElement>(null);
   const [motorLibraryOpen, setMotorLibraryOpen] = useState(false);
@@ -2180,6 +2183,15 @@ export default function Home() {
   }, [exportOpen]);
 
   useEffect(() => {
+    if (!projectImportRequested) return;
+    const importTimer = window.setTimeout(() => {
+      projectImportInputRef.current?.click();
+      setProjectImportRequested(false);
+    }, 0);
+    return () => window.clearTimeout(importTimer);
+  }, [projectImportRequested]);
+
+  useEffect(() => {
     if (!historyOpen) return;
     historyCloseRef.current?.focus();
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
@@ -2538,6 +2550,46 @@ export default function Home() {
       setTopologyError(error instanceof Error ? error.message : "Unable to remove stage");
     }
   };
+  const openProjectImport = () => {
+    projectImportInputRef.current?.click();
+  };
+  const importProjectFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    try {
+      if (file.size > 10_000_000) {
+        throw new Error("Kestrel project files must be 10 MB or smaller.");
+      }
+      const imported = parseKestrelProjectJson(await file.text());
+      applyEditableInputs(imported.editableInputs);
+      persistVehicleTopology(imported.topology);
+      persistMotorRecords([...imported.motorLibrary]);
+      persistAerodynamicTables([...imported.aerodynamicLibrary]);
+      setSelectedMotorId(imported.selectedMotorId);
+      setSelectedAerodynamicTableId(imported.selectedAerodynamicTableId);
+      window.localStorage.setItem(
+        LOCAL_AERODYNAMIC_SELECTION_STORAGE_KEY,
+        imported.selectedAerodynamicTableId,
+      );
+      markChanged();
+      persistCheckpoint(imported.editableInputs, `Imported project: ${imported.projectName}`);
+      setSelected("body");
+      setView("design");
+      setGuideOpen(false);
+      setExportOpen(false);
+      if (imported.warnings.length > 0) {
+        setSaveError(imported.warnings.join(" "));
+        notify(`Imported ${imported.projectName} with review notes`);
+      } else {
+        setSaveError("");
+        notify(`${imported.projectName} imported; rerun estimates to refresh results`);
+      }
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Unable to import Kestrel project");
+      notify("Project import failed; the current design was not changed");
+    }
+  };
   const exportArtifact = (format: ExportFormat) => {
     try {
       if ((format === "flight-csv" || format === "report") && !resultIsCurrent) {
@@ -2635,6 +2687,14 @@ export default function Home() {
                     landingPrediction.uncertainty.failedSampleCount,
                 }
               : null,
+          } as unknown as JsonValue,
+          configuration: {
+            editableInputs,
+            topology: vehicleTopology,
+            selectedMotorId,
+            selectedAerodynamicTableId,
+            motorLibrary: userMotorRecords,
+            aerodynamicLibrary: aerodynamicTableDefinitions,
           } as unknown as JsonValue,
           provenance: {
             motor: previewMotor.provenance,
@@ -2928,6 +2988,7 @@ export default function Home() {
     { id: "open-templates", label: "Choose a project template", description: "Start from a beginner, high-power, weather, or diagnostic setup", run: () => setTemplatesOpen(true) },
     { id: "open-history", label: "Open local project history", description: "Restore a validated device-local checkpoint", run: () => setHistoryOpen(true) },
     { id: "open-export", label: "Open artifact center", description: "Export project JSON, traces, reports, and CAD references", run: () => setExportOpen(true) },
+    { id: "import-project", label: "Import Kestrel project", description: "Restore a portable project document and its validated user libraries", run: () => setProjectImportRequested(true) },
     { id: "toggle-mode", label: experienceMode === "beginner" ? "Switch to expert mode" : "Switch to beginner mode", description: "Change how much of the workbench is exposed", run: () => changeExperienceMode(experienceMode === "beginner" ? "expert" : "beginner") },
   ];
   const filteredCommandActions = commandActions.filter((action) =>
@@ -2959,6 +3020,14 @@ export default function Home() {
 
   return (
     <main className="app-shell">
+      <input
+        ref={projectImportInputRef}
+        className="sr-only"
+        type="file"
+        accept=".json,application/json"
+        aria-label="Import Kestrel project document"
+        onChange={importProjectFile}
+      />
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">K</span>
@@ -4089,7 +4158,7 @@ export default function Home() {
             </div>
             <div className="history-notice">
               <span>MODEL BOUNDARY</span>
-              <p>Topology changes update analytical assembly mass, centre of gravity, inertia, instance counts, and stage-level aerodynamic source assignments. A regime with one available table uses it; combined stages with conflicting or unavailable tables fall back to the global source with an explicit warning. Separation clearance, discarded-body trajectories, aerodynamic interference, and flight-safety validation remain outside this retained-body model.</p>
+              <p>Topology changes update analytical assembly mass, centre of gravity, inertia, instance counts, and stage-level aerodynamic source assignments. A regime with one available table uses it; combined stages with conflicting or unavailable tables fall back to the global source with an explicit warning. Coupled separation clearance, aerodynamic interference, and flight-safety validation remain outside this retained-body model; the staged preview exposes a separate ballistic component check for detached bodies.</p>
             </div>
           </section>
         </div>
@@ -4184,6 +4253,11 @@ export default function Home() {
               </button>
             </div>
             <div className="export-grid">
+              <button className="export-import-option" onClick={openProjectImport}>
+                <span className="export-extension">OPEN</span>
+                <span><strong>Import Kestrel project</strong><small>Restore editable inputs, stage topology, user motors, and aerodynamic tables from a portable JSON document.</small></span>
+                <em>↑</em>
+              </button>
               <button onClick={() => exportArtifact("project")}>
                 <span className="export-extension">JSON</span>
                 <span><strong>Kestrel project document</strong><small>Versioned geometry, models, simulation, uncertainty, landing results, and provenance.</small></span>

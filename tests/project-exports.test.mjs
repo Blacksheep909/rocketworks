@@ -9,6 +9,7 @@ import {
   createParameterSweepCsv,
   createStageFlightTraceCsv,
   createKestrelProjectJson,
+  parseKestrelProjectJson,
   createRocketOpenScad,
   createRocketProfileDxf,
 } from "../lib/export/project-exports.ts";
@@ -58,6 +59,56 @@ const geometry = {
   centerOfPressureXM: 0.69,
 };
 
+const portableConfiguration = {
+  editableInputs: {
+    lengthMm: 710,
+    diameterMm: 54,
+    noseLengthMm: 180,
+    noseProfile: "ogive",
+    finCount: 3,
+    finRootChordMm: 130,
+    finTipChordMm: 55,
+    finSweepMm: 45,
+    finSpanMm: 75,
+    finThicknessMm: 3,
+    payloadMassKg: 0.16,
+    material: "kraft",
+    thrustN: 22,
+    burnTimeS: 1.65,
+    dragCoefficient: 0.52,
+    launchAltitudeM: 80,
+    windSpeedMps: 4,
+    launchRailEnabled: true,
+    launchRailLengthM: 1.2,
+    recoveryEnabled: true,
+    recoveryDelayS: 0,
+    recoveryDiameterM: 0.45,
+    recoveryMassKg: 0.06,
+    recoveryDeploymentSuccessProbability: 0.9,
+  },
+  topology: {
+    schema: "dev.kestrel-lab.local-vehicle-topology",
+    schemaVersion: 1,
+    vehicleId: "arc54",
+    stages: [{
+      id: "sustainer",
+      name: "Sustainer",
+      role: "core",
+      attachment: "serial",
+      enabled: true,
+      repeatCount: 1,
+      repeatRadiusM: 0,
+      ignitionDelayS: 0,
+      separationDelayS: 0.1,
+      ignitionFailure: false,
+    }],
+  },
+  selectedMotorId: "synthetic",
+  selectedAerodynamicTableId: "constant",
+  motorLibrary: [],
+  aerodynamicLibrary: [],
+};
+
 test("versioned Kestrel project JSON is deterministic and clean-room qualified", () => {
   const input = {
     projectId: "arc54",
@@ -68,6 +119,7 @@ test("versioned Kestrel project JSON is deterministic and clean-room qualified",
     simulations: { modelVersion: "fixture", trace },
     analyses: { staticMarginCalibers: 2.1 },
     provenance: { source: "Synthetic fixture", license: "CC0-1.0" },
+    configuration: portableConfiguration,
   };
   const first = createKestrelProjectJson(input);
   const replay = createKestrelProjectJson(input);
@@ -80,6 +132,48 @@ test("versioned Kestrel project JSON is deterministic and clean-room qualified",
   assert.match(parsed.cleanRoomNotice, /No OpenRocket source/);
   assert.deepEqual(parsed.vehicle, input.vehicle);
   assert.equal(parsed.simulations.trace[1].recoveryDeployed, true);
+  const imported = parseKestrelProjectJson(first);
+  assert.equal(imported.projectId, "arc54");
+  assert.equal(imported.editableInputs.diameterMm, 54);
+  assert.equal(imported.topology.stages[0].role, "core");
+  assert.equal(imported.selectedMotorId, "synthetic");
+  assert.deepEqual(imported.warnings, []);
+});
+
+test("portable project import rejects documents without a validated configuration envelope", () => {
+  const serialized = createKestrelProjectJson({
+    projectId: "arc54",
+    projectName: "ARC 54",
+    generatedAtIso: "2026-08-01T00:00:00.000Z",
+    applicationVersion: "prototype-0.1",
+    vehicle: {},
+    simulations: {},
+    analyses: {},
+    provenance: {},
+  });
+  assert.throws(() => parseKestrelProjectJson(serialized), /portable project configuration/);
+});
+
+test("portable project import makes missing source selections explicit", () => {
+  const serialized = createKestrelProjectJson({
+    projectId: "arc54",
+    projectName: "ARC 54",
+    generatedAtIso: "2026-08-01T00:00:00.000Z",
+    applicationVersion: "prototype-0.1",
+    vehicle: {},
+    simulations: {},
+    analyses: {},
+    provenance: {},
+    configuration: {
+      ...portableConfiguration,
+      selectedMotorId: "missing.motor",
+      selectedAerodynamicTableId: "missing.table",
+    },
+  });
+  const imported = parseKestrelProjectJson(serialized);
+  assert.equal(imported.selectedMotorId, "synthetic");
+  assert.equal(imported.selectedAerodynamicTableId, "constant");
+  assert.equal(imported.warnings.length, 2);
 });
 
 test("flight CSV has stable SI columns, CRLF rows, and boolean deployment state", () => {

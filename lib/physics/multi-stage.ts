@@ -753,7 +753,7 @@ export function createMultiStageVehicleModel(input: Readonly<{
     ],
     warnings: [
       "This staging model has analytical component checks only and is not flight-safety validated.",
-      "Pyrotechnic impulse, spring forces, joint constraints, plume impingement, collision risk, and discarded-stage trajectories are not modeled.",
+      "Pyrotechnic impulse, spring forces, joint constraints, plume impingement, collision risk, and coupled discarded-stage trajectories are not modeled; the browser adapter may expose a separate ballistic component check.",
       "Stage separation is an instantaneous topology change; use a dedicated multi-body model for separation-clearance analysis.",
       "Impulse-proportional depletion is approximate unless thrust tracks propellant mass flow at effectively constant exhaust velocity.",
     ],

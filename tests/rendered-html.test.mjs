@@ -71,6 +71,20 @@ test("ships versioned flight results and explainable model UI", async () => {
   assert.match(source, /analytical component check/);
 });
 
+test("ships a portable project import path with validated restoration warnings", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const exportSource = await readFile(new URL("../lib/export/project-exports.ts", import.meta.url), "utf8");
+  const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(source, /parseKestrelProjectJson/);
+  assert.match(source, /Import Kestrel project/);
+  assert.match(source, /projectImportInputRef/);
+  assert.match(source, /rerun estimates to refresh results/);
+  assert.match(exportSource, /export function parseKestrelProjectJson/);
+  assert.match(exportSource, /validateEditableProjectInputs/);
+  assert.match(exportSource, /validateVehicleTopology/);
+  assert.match(stylesheet, /export-import-option/);
+});
+
 test("ships live center-of-pressure and static-margin feedback", async () => {
   const source = await readFile(
     new URL("../app/page.tsx", import.meta.url),

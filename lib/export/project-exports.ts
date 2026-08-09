@@ -11,10 +11,27 @@ import type {
   ParameterSweepResult,
   UncertaintyAnalysisResult,
 } from "../physics/uncertainty-analysis.ts";
+import {
+  createAerodynamicCoefficientTable,
+  type AerodynamicCoefficientTableDefinition,
+} from "../physics/aerodynamic-coefficients.ts";
+import {
+  createMotorDataRecord,
+  type MotorDataInput,
+  type MotorDataRecord,
+} from "../physics/motor-data.ts";
+import {
+  validateEditableProjectInputs,
+  type EditableProjectInputs,
+} from "../project/project-state.ts";
+import {
+  validateVehicleTopology,
+  type LocalVehicleTopology,
+} from "../project/vehicle-topology.ts";
 
 export const KESTREL_PROJECT_SCHEMA_ID = "org.kestrel-lab.project";
 export const KESTREL_PROJECT_SCHEMA_VERSION = 1;
-export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.7.0";
+export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.8.0";
 export const KESTREL_EXPORT_VALIDATION_STATUS =
   "engineering-preview-unvalidated";
 
@@ -23,6 +40,20 @@ export type JsonValue =
   | JsonPrimitive
   | readonly JsonValue[]
   | Readonly<{ [key: string]: JsonValue }>;
+
+export type KestrelProjectImport = Readonly<{
+  projectId: string;
+  projectName: string;
+  generatedAtIso: string;
+  exportModelVersion: string;
+  editableInputs: EditableProjectInputs;
+  topology: LocalVehicleTopology;
+  selectedMotorId: string;
+  selectedAerodynamicTableId: string;
+  motorLibrary: readonly MotorDataRecord[];
+  aerodynamicLibrary: readonly AerodynamicCoefficientTableDefinition[];
+  warnings: readonly string[];
+}>;
 
 export type RocketCadGeometry = Readonly<{
   projectName: string;
@@ -118,6 +149,7 @@ export function createKestrelProjectJson(input: Readonly<{
   simulations: JsonValue;
   analyses: JsonValue;
   provenance: JsonValue;
+  configuration?: JsonValue;
 }>): string {
   if (!/^[A-Za-z0-9._-]+$/.test(input.projectId)) {
     throw new Error("project identifier must contain only letters, numbers, dots, underscores, and hyphens");
@@ -141,9 +173,147 @@ export function createKestrelProjectJson(input: Readonly<{
     simulations: input.simulations,
     analyses: input.analyses,
     provenance: input.provenance,
+    ...(input.configuration === undefined
+      ? {}
+      : { configuration: input.configuration }),
   } satisfies JsonValue;
   validateJsonValue(document, "project document", new Set());
   return `${JSON.stringify(document, null, 2)}\n`;
+}
+
+function importObject(value: unknown, label: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function importString(value: unknown, label: string): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`${label} must be a non-empty string`);
+  }
+  return value;
+}
+
+function importMotorLibrary(value: unknown): MotorDataRecord[] {
+  if (!Array.isArray(value) || value.length > 24) {
+    throw new Error("project motor library must contain 0 through 24 records");
+  }
+  return value.map((record, index) => {
+    try {
+      return createMotorDataRecord(record as MotorDataInput);
+    } catch (error) {
+      throw new Error(
+        `project motor ${index + 1} is invalid: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+    }
+  });
+}
+
+function importAerodynamicLibrary(
+  value: unknown,
+): AerodynamicCoefficientTableDefinition[] {
+  if (!Array.isArray(value) || value.length > 8) {
+    throw new Error("project aerodynamic library must contain 0 through 8 tables");
+  }
+  return value.map((definition, index) => {
+    try {
+      const table = definition as AerodynamicCoefficientTableDefinition;
+      createAerodynamicCoefficientTable(table);
+      return table;
+    } catch (error) {
+      throw new Error(
+        `project aerodynamic table ${index + 1} is invalid: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+    }
+  });
+}
+
+/**
+ * Reads the portable configuration envelope emitted by the Kestrel project
+ * export. Simulation results remain inspectable data; only validated editable
+ * configuration and user-supplied libraries are returned for restoration.
+ */
+export function parseKestrelProjectJson(serialized: string): KestrelProjectImport {
+  try {
+    const document = importObject(JSON.parse(serialized), "project document");
+    if (document.schema !== KESTREL_PROJECT_SCHEMA_ID) {
+      throw new Error("unsupported Kestrel project schema");
+    }
+    if (document.schemaVersion !== KESTREL_PROJECT_SCHEMA_VERSION) {
+      throw new Error("unsupported Kestrel project schema version");
+    }
+    const project = importObject(document.project, "project metadata");
+    const projectId = importString(project.id, "project id");
+    if (!/^[A-Za-z0-9._-]+$/.test(projectId)) {
+      throw new Error("project id contains unsupported characters");
+    }
+    const projectName = importString(project.name, "project name");
+    const generatedAtIso = importString(document.generatedAtIso, "generated timestamp");
+    assertIsoDate(generatedAtIso, "generated timestamp");
+    const exportModelVersion = importString(
+      document.exportModelVersion,
+      "export model version",
+    );
+    const configuration = importObject(
+      document.configuration,
+      "portable project configuration",
+    );
+    const editableInputs = validateEditableProjectInputs(configuration.editableInputs);
+    const topology = validateVehicleTopology(configuration.topology);
+    const motorLibrary = importMotorLibrary(configuration.motorLibrary ?? []);
+    const aerodynamicLibrary = importAerodynamicLibrary(
+      configuration.aerodynamicLibrary ?? [],
+    );
+    const selectedMotorId = importString(
+      configuration.selectedMotorId ?? "synthetic",
+      "selected motor id",
+    );
+    const selectedAerodynamicTableId = importString(
+      configuration.selectedAerodynamicTableId ?? "constant",
+      "selected aerodynamic table id",
+    );
+    const warnings: string[] = [];
+    if (
+      selectedMotorId !== "synthetic" &&
+      !motorLibrary.some((record) => record.id === selectedMotorId)
+    ) {
+      warnings.push(
+        `Selected motor ${selectedMotorId} was not included in the imported library; synthetic preview motor selected instead.`,
+      );
+    }
+    if (
+      selectedAerodynamicTableId !== "constant" &&
+      !aerodynamicLibrary.some((table) => table.id === selectedAerodynamicTableId)
+    ) {
+      warnings.push(
+        `Selected aerodynamic table ${selectedAerodynamicTableId} was not included in the imported library; constant drag selected instead.`,
+      );
+    }
+    return {
+      projectId,
+      projectName,
+      generatedAtIso,
+      exportModelVersion,
+      editableInputs,
+      topology,
+      selectedMotorId:
+        selectedMotorId === "synthetic" || motorLibrary.some((record) => record.id === selectedMotorId)
+          ? selectedMotorId
+          : "synthetic",
+      selectedAerodynamicTableId:
+        selectedAerodynamicTableId === "constant" || aerodynamicLibrary.some((table) => table.id === selectedAerodynamicTableId)
+          ? selectedAerodynamicTableId
+          : "constant",
+      motorLibrary,
+      aerodynamicLibrary,
+      warnings,
+    };
+  } catch (error) {
+    throw new Error(
+      `Could not read Kestrel project document: ${error instanceof Error ? error.message : "invalid JSON"}`,
+    );
+  }
 }
 
 function csvCell(value: string | number | boolean): string {
