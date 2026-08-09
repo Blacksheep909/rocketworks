@@ -144,7 +144,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.5.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.6.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.events.length, 2);
   assert.deepEqual(result.events[0].attachedStageIdsBefore, ["booster", "upper"]);
@@ -176,6 +176,55 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.deepEqual(result.separatedBodies[0].retainedBodyDeltaVBodyMps, { x: 0.1, y: 0, z: 0 });
   assert.ok(result.separatedBodies[0].warnings.some((warning) => warning.includes("ballistic")));
   assert.deepEqual(result.clusterDiagnostics, []);
+});
+
+test("stage-flight adapter spawns one separated-body branch per repeated physical copy", () => {
+  const repeatedBooster = {
+    ...stages[0],
+    instances: [
+      {
+        id: "booster-1",
+        name: "Booster 1",
+        structuralMassProperties: properties(0.5, 1.1),
+        motors: [motor("booster-1-motor", 1.3)],
+      },
+      {
+        id: "booster-2",
+        name: "Booster 2",
+        structuralMassProperties: properties(0.5, 1.1),
+        motors: [motor("booster-2-motor", 1.3)],
+      },
+    ],
+  };
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components: [
+      ...components.filter((component) => component.stageId === "booster"),
+      { ...components.find((component) => component.id === "upper-body"), id: "retained-body", stageId: "retained" },
+      { ...components.find((component) => component.id === "upper-fins"), id: "retained-fins", stageId: "retained" },
+    ],
+    stages: [repeatedBooster],
+    regimes: [
+      { id: "booster-only", label: "Booster", activeStageIds: ["booster"], dragCoefficient: 0.65 },
+      { id: "retained-only", label: "Retained payload", activeStageIds: [], dragCoefficient: 0.5 },
+    ],
+    initiallyIgnitedStageIds: ["booster"],
+    alwaysActiveGeometryStageIds: ["retained"],
+    durationS: 2.5,
+    timeStepS: 0.05,
+    launchAltitudeM: 0,
+    events: [
+      createScheduledStageSeparationEvent({ stageId: "booster", instanceId: "booster-1", timeS: 1 }),
+      createScheduledStageSeparationEvent({ stageId: "booster", instanceId: "booster-2", timeS: 1.4 }),
+    ],
+  });
+
+  assert.equal(result.separatedBodies.length, 2);
+  assert.deepEqual(result.separatedBodies.map((body) => body.instanceId), ["booster-1", "booster-2"]);
+  assert.deepEqual(result.events[0].detachedStageIds, []);
+  assert.deepEqual(result.events[0].detachedStageInstanceIds, ["booster-1"]);
+  assert.deepEqual(result.events[1].detachedStageIds, ["booster"]);
+  assert.deepEqual(result.events[1].detachedStageInstanceIds, ["booster-2"]);
 });
 
 test("stage-flight adapter supplies detached-stage geometry and coefficient to the drag branch", () => {

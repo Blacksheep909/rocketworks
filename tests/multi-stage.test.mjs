@@ -12,6 +12,8 @@ import {
   separateStage,
   simulateRigidBody6D,
   stageIgnitionFailureKey,
+  stageInstanceIgnitionTimeKey,
+  stageInstanceSeparationKey,
   stageIgnitionTimeKey,
   stageSeparationKey,
 } from "../lib/physics/index.ts";
@@ -244,6 +246,107 @@ test("per-motor ignition failure preserves cluster propellant and trims burnout 
   close(result.stages[0].propellantMassKg, 0.9375, 1e-15, "cluster propellant");
   close(result.stages[0].thrustN, 5, 1e-15, "active motor thrust");
   close(staging.burnoutOffsetS("cluster"), 2, 1e-15, "active cluster burnout offset");
+});
+
+test("repeated physical stage instances can ignite and separate independently", () => {
+  const first = stage("booster-a", 2, 1);
+  const second = stage("booster-b", 2, 0.8);
+  const repeated = {
+    ...stage("booster", 2),
+    instances: [
+      {
+        id: "booster-a",
+        name: "booster A",
+        structuralMassProperties: first.structuralMassProperties,
+        motors: first.motors.map((motor) => ({ ...motor, id: "booster-a-motor" })),
+      },
+      {
+        id: "booster-b",
+        name: "booster B",
+        structuralMassProperties: second.structuralMassProperties,
+        motors: second.motors.map((motor) => ({ ...motor, id: "booster-b-motor" })),
+      },
+    ],
+  };
+  const staging = createMultiStageVehicleModel({
+    retainedMassProperties: properties(1, 0),
+    stages: [repeated],
+  });
+
+  assert.deepEqual(staging.stageInstanceIds("booster"), ["booster-a", "booster-b"]);
+  const bothBurning = staging.evaluate({
+    ...initializeMultiStageState(state(), ["booster"]),
+    timeS: 1,
+  });
+  close(bothBurning.massProperties.massKg, 4.15, 1e-15, "repeated stack mass");
+  assert.equal(bothBurning.stages[0].instances[0].phase, "burning");
+  assert.equal(bothBurning.stages[0].instances[1].phase, "burning");
+  assert.deepEqual(bothBurning.attachedStageInstanceIds, ["booster-a", "booster-b"]);
+
+  const separatedState = separateStage(
+    { ...initializeMultiStageState(state(), ["booster"]), timeS: 2 },
+    "booster",
+    { x: 0, y: 0, z: 0 },
+    "booster-a",
+  );
+  const separated = staging.evaluate(separatedState);
+  assert.equal(separated.stages[0].instances[0].phase, "separated");
+  assert.equal(separated.stages[0].instances[1].attached, true);
+  assert.deepEqual(separated.attachedStageInstanceIds, ["booster-b"]);
+  close(staging.stageMassProperties(separatedState, "booster", "booster-b").massKg, 1.2, 1e-15, "remaining copy mass");
+  assert.throws(
+    () => staging.stageMassProperties(separatedState, "booster", "booster-a"),
+    /booster instance booster-a is not attached/,
+  );
+  assert.equal(separatedState.discreteState[stageInstanceSeparationKey("booster", "booster-a")], true);
+  assert.equal(
+    staging.evaluate({ ...state(0.5), discreteState: { [stageInstanceIgnitionTimeKey("booster", "booster-a")]: 0.25 } })
+      .stages[0].instances[0].phase,
+    "burning",
+  );
+});
+
+test("repeated stage burnout events target only their selected physical copy", () => {
+  const first = stage("booster-a", 2, 1);
+  const second = stage("booster-b", 2, 1);
+  second.motors = second.motors.map((motor) => ({
+    ...motor,
+    id: "booster-b-motor",
+    thrustCurve: [
+      { timeS: 0, thrustN: 0 },
+      { timeS: 1.5, thrustN: 10 },
+      { timeS: 3, thrustN: 0 },
+    ],
+  }));
+  const repeated = {
+    ...stage("booster", 2),
+    instances: [
+      { id: "booster-a", name: "booster A", structuralMassProperties: first.structuralMassProperties, motors: first.motors.map((motor) => ({ ...motor, id: "booster-a-motor" })) },
+      { id: "booster-b", name: "booster B", structuralMassProperties: second.structuralMassProperties, motors: second.motors },
+    ],
+  };
+  const staging = createMultiStageVehicleModel({
+    retainedMassProperties: properties(1, 0),
+    stages: [repeated],
+  });
+  const result = simulateRigidBody6D({
+    body: staging.body,
+    initialState: initializeMultiStageState(state(), ["booster"]),
+    durationS: 3.5,
+    timeStepS: 0.6,
+    stateEvents: [
+      staging.createBurnoutSeparationEvent({ stageId: "booster", instanceId: "booster-a" }),
+      staging.createBurnoutSeparationEvent({ stageId: "booster", instanceId: "booster-b" }),
+    ],
+  });
+
+  assert.equal(result.events.length, 2);
+  close(result.events[0].timeS, 2, 2e-9, "first copy separation");
+  close(result.events[1].timeS, 3, 2e-9, "second copy separation");
+  assert.equal(result.finalState.discreteState[stageInstanceSeparationKey("booster", "booster-a")], true);
+  assert.equal(result.finalState.discreteState[stageInstanceSeparationKey("booster", "booster-b")], true);
+  assert.deepEqual(staging.evaluate(result.events[0].stateAfter).attachedStageInstanceIds, ["booster-b"]);
+  assert.deepEqual(staging.evaluate(result.finalState).attachedStageInstanceIds, []);
 });
 
 test("failed ignition cannot synthesize a later burnout transition", () => {

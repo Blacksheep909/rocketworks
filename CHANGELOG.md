@@ -8,6 +8,13 @@ flight-readiness claims.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.
+- Added independently keyed repeated physical stage instances to the original
+  multi-stage model: per-copy ignition/failure/separation state, burnout event
+  targeting, nested diagnostics, and live per-copy mass-property lookup while
+  preserving logical stage topology for aerodynamic regimes.
+- Bumped the stage-flight preview contract to 0.6.0 and added per-copy event
+  telemetry plus one bounded separated-body trajectory per detached physical
+  stage instance.
 - Added stage-aware metadata, grouped stage visibility controls, and projected
   stage selection to the original display-only 3D viewport; visibility changes
   never alter engineering inputs or results.

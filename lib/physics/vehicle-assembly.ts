@@ -381,7 +381,7 @@ export function createVehicleAssemblyModel(definition: VehicleAssemblyDefinition
       ],
       assumptions: [
         "All placements are rigid body-frame transforms with the vehicle nose along +X.",
-        "Radial patterns are equally spaced about the body X axis and share one stage event state.",
+        "Radial patterns are equally spaced about the body X axis; stage-instance event state is owned by the multi-stage flight model.",
         "Component inertia is rotated and translated with the tensor parallel-axis theorem.",
         "Disabled nodes and inactive stages contribute neither mass nor motor mounts.",
       ],

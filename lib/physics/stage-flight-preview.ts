@@ -30,7 +30,7 @@ import {
 } from "./separated-body-flight.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.5.0";
+  "kestrel-stage-flight-preview-0.6.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -93,6 +93,9 @@ export type StageFlightEvent = Readonly<{
   attachedStageIdsBefore: readonly string[];
   attachedStageIdsAfter: readonly string[];
   detachedStageIds: readonly string[];
+  attachedStageInstanceIdsBefore: readonly string[];
+  attachedStageInstanceIdsAfter: readonly string[];
+  detachedStageInstanceIds: readonly string[];
   separationDeltaVBodyMps?: Vector3;
   separationDeltaVWorldMps?: Vector3;
 }>;
@@ -180,6 +183,34 @@ function stageIdsAt(
   return staging.evaluate(state).attachedStageIds;
 }
 
+function stageInstanceIdsAt(
+  staging: ReturnType<typeof createMultiStageVehicleModel>,
+  state: RigidBodyState,
+): readonly string[] {
+  return staging.evaluate(state).attachedStageInstanceIds;
+}
+
+type DetachedStageInstance = Readonly<{
+  stageId: string;
+  instanceId: string;
+}>;
+
+function detachedStageInstancesBetween(
+  staging: ReturnType<typeof createMultiStageVehicleModel>,
+  beforeState: RigidBodyState,
+  afterState: RigidBodyState,
+): readonly DetachedStageInstance[] {
+  const before = staging.evaluate(beforeState);
+  const afterByStageId = new Map(staging.evaluate(afterState).stages.map((stage) => [stage.id, stage]));
+  return before.stages.flatMap((stage) => {
+    const afterStage = afterByStageId.get(stage.id);
+    return stage.instances
+      .filter((instance) => instance.attached)
+      .filter((instance) => !afterStage?.instances.find((candidate) => candidate.id === instance.id)?.attached)
+      .map((instance) => ({ stageId: stage.id, instanceId: instance.id }));
+  });
+}
+
 type DetachedStageAerodynamicBasis = Readonly<{
   referenceAreaM2: number;
   dragCoefficient: number;
@@ -237,8 +268,13 @@ function summarizeEvent(
 ): StageFlightEvent {
   const attachedStageIdsBefore = [...stageIdsAt(staging, event.stateBefore)];
   const attachedStageIdsAfter = [...stageIdsAt(staging, event.stateAfter)];
+  const attachedStageInstanceIdsBefore = [...stageInstanceIdsAt(staging, event.stateBefore)];
+  const attachedStageInstanceIdsAfter = [...stageInstanceIdsAt(staging, event.stateAfter)];
   const detachedStageIds = attachedStageIdsBefore.filter(
     (stageId) => !attachedStageIdsAfter.includes(stageId),
+  );
+  const detachedStageInstanceIds = attachedStageInstanceIdsBefore.filter(
+    (instanceId) => !attachedStageInstanceIdsAfter.includes(instanceId),
   );
   return {
     id: event.id,
@@ -248,6 +284,9 @@ function summarizeEvent(
     attachedStageIdsBefore,
     attachedStageIdsAfter,
     detachedStageIds,
+    attachedStageInstanceIdsBefore,
+    attachedStageInstanceIdsAfter,
+    detachedStageInstanceIds,
     separationDeltaVBodyMps: event.separationDeltaVBodyMps,
     separationDeltaVWorldMps: event.separationDeltaVBodyMps
       ? rotateBodyToWorld(event.stateBefore.orientationBodyToWorld, event.separationDeltaVBodyMps)
@@ -573,6 +612,9 @@ export function simulateStageFlightPreview(
         attachedStageIdsBefore: [...stageIdsAt(staging, event.state)],
         attachedStageIdsAfter: [...stageIdsAt(staging, event.state)],
         detachedStageIds: [],
+        attachedStageInstanceIdsBefore: [...stageInstanceIdsAt(staging, event.state)],
+        attachedStageInstanceIdsAfter: [...stageInstanceIdsAt(staging, event.state)],
+        detachedStageInstanceIds: [],
       })) ?? []),
       ...appliedEvents.map((event) =>
         summarizeEvent(staging, event),
@@ -616,15 +658,25 @@ export function simulateStageFlightPreview(
   const separatedBodies: SeparatedBodyTrajectory[] = [];
   const separatedBodyWarnings: string[] = [];
   const stageNames = new Map(input.stages.map((stage) => [stage.id, stage.name]));
-  const spawnedStageIds = new Set<string>();
+  const stageInstanceNames = new Map<string, string>(
+    input.stages.flatMap((stage) =>
+      (stage.instances ?? [{ id: stage.id, name: stage.name }]).map((instance) => [
+        `${stage.id}/${instance.id}`,
+        instance.name,
+      ] as const),
+    ),
+  );
+  const spawnedStageInstances = new Set<string>();
   for (const event of primaryRun.appliedEvents) {
     const before = staging.evaluate(event.stateBefore);
-    const after = staging.evaluate(event.stateAfter);
-    const detachedStageIds = before.attachedStageIds.filter(
-      (stageId) => !after.attachedStageIds.includes(stageId),
+    const detachedStageInstances = detachedStageInstancesBetween(
+      staging,
+      event.stateBefore,
+      event.stateAfter,
     );
-    for (const stageId of detachedStageIds) {
-      if (spawnedStageIds.has(stageId)) continue;
+    for (const { stageId, instanceId } of detachedStageInstances) {
+      const spawnKey = `${stageId}/${instanceId}`;
+      if (spawnedStageInstances.has(spawnKey)) continue;
       const detachedAero = detachedStageAerodynamicBasis(
         input.components,
         input.regimes,
@@ -634,9 +686,10 @@ export function simulateStageFlightPreview(
         separatedBodies.push(
           simulateSeparatedBodyFlight({
             stageId,
-            stageName: stageNames.get(stageId) ?? stageId,
+            instanceId,
+            stageName: stageInstanceNames.get(spawnKey) ?? stageNames.get(stageId) ?? stageId,
             releaseState: event.stateBefore,
-            stageMassProperties: staging.stageMassProperties(event.stateBefore, stageId),
+            stageMassProperties: staging.stageMassProperties(event.stateBefore, stageId, instanceId),
             parentCenterOfMassBodyM: before.massProperties.centerOfMassM,
             durationS: input.durationS,
             timeStepS: input.timeStepS,
@@ -646,7 +699,7 @@ export function simulateStageFlightPreview(
             ...(detachedAero ?? {}),
           }),
         );
-        spawnedStageIds.add(stageId);
+        spawnedStageInstances.add(spawnKey);
       } catch (error) {
         separatedBodyWarnings.push(
           `${stageId} separated-body preview unavailable: ${error instanceof Error ? error.message : "unknown error"}`,

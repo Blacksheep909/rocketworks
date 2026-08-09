@@ -1953,6 +1953,7 @@ body {
 .stage-separated-body-title { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .stage-separated-body-title span { overflow: hidden; color: #f1f6f7; font-size: 9px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .stage-separated-body-title strong { flex: 0 0 auto; color: #ffc477; font: 700 8px var(--font-geist-mono), monospace; }
+.stage-separated-body-instance { display: block; margin-top: 4px; color: #8fa4ae; font: 7px var(--font-geist-mono), monospace; letter-spacing: .04em; }
 .stage-separated-body-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin-top: 9px; background: rgba(244, 163, 64, .12); }
 .stage-separated-body-metrics div { min-width: 0; padding: 7px; background: rgba(21, 27, 32, .95); }
 .stage-separated-body-metrics span { display: block; color: #8797a0; font-size: 7px; }

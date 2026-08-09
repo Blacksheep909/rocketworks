@@ -26,7 +26,7 @@ import {
   type StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
 
-export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.2.2";
+export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.3.0";
 
 export type MultiStageMotor = Readonly<{
   id: string;
@@ -41,11 +41,25 @@ export type MultiStageMotor = Readonly<{
   ignitionFailure?: boolean;
 }>;
 
+/**
+ * A physical copy of a logical stage. Repeated radial stages can use this
+ * shape to receive independent ignition, burnout, and separation state while
+ * preserving one logical topology identifier for aerodynamic regimes.
+ */
+export type RocketStageInstance = Readonly<{
+  id: string;
+  name: string;
+  structuralMassProperties: MassProperties;
+  motors: readonly MultiStageMotor[];
+  separationDeltaVBodyMps?: number;
+}>;
+
 export type RocketStage = Readonly<{
   id: string;
   name: string;
   structuralMassProperties: MassProperties;
   motors: readonly MultiStageMotor[];
+  instances?: readonly RocketStageInstance[];
   /** Retained-body axial separation delta-v in the body frame (+X nose direction). */
   separationDeltaVBodyMps?: number;
 }>;
@@ -86,6 +100,22 @@ export type RocketStageEvaluation = Readonly<{
   propellantMassKg: number;
   thrustN: number;
   motors: readonly MultiStageMotorEvaluation[];
+  instances: readonly RocketStageInstanceEvaluation[];
+}>;
+
+export type RocketStageInstanceEvaluation = Readonly<{
+  id: string;
+  name: string;
+  phase: StagePhase;
+  attached: boolean;
+  ignitionCommandTimeS: number | null;
+  separationTimeS: number | null;
+  ignitionFailed: boolean;
+  burnoutTimeS: number | null;
+  massKg: number;
+  propellantMassKg: number;
+  thrustN: number;
+  motors: readonly MultiStageMotorEvaluation[];
 }>;
 
 export type MultiStageVehicleEvaluation = Readonly<{
@@ -96,6 +126,7 @@ export type MultiStageVehicleEvaluation = Readonly<{
   netThrustForceBodyN: Vector3;
   netThrustMomentBodyNm: Vector3;
   attachedStageIds: readonly string[];
+  attachedStageInstanceIds: readonly string[];
   stages: readonly RocketStageEvaluation[];
 }>;
 
@@ -104,7 +135,8 @@ export type MultiStageVehicleModel = Readonly<{
   validationStatus: "analytical-component-checks-only";
   stageIds: readonly string[];
   evaluate: (state: RigidBodyState) => MultiStageVehicleEvaluation;
-  stageMassProperties: (state: RigidBodyState, stageId: string) => MassProperties;
+  stageMassProperties: (state: RigidBodyState, stageId: string, instanceId?: string) => MassProperties;
+  stageInstanceIds: (stageId: string) => readonly string[];
   body: (state: RigidBodyState) => Readonly<{
     massKg: number;
     inertiaBodyKgM2: Matrix3;
@@ -118,16 +150,19 @@ export type MultiStageVehicleModel = Readonly<{
     centerOfMassBodyM: Vector3;
     motors: readonly [];
   }>;
-  burnoutOffsetS: (stageId: string) => number;
+  burnoutOffsetS: (stageId: string, instanceId?: string) => number;
   createBurnoutSeparationEvent: (input: Readonly<{
     stageId: string;
+    instanceId?: string;
     delayS?: number;
     label?: string;
     separationDeltaVBodyMps?: number;
   }>) => StateTriggeredRigidBodyEvent;
   createBurnoutIgnitionEvent: (input: Readonly<{
     sourceStageId: string;
+    sourceInstanceId?: string;
     targetStageId: string;
+    targetInstanceId?: string;
     delayS?: number;
     label?: string;
   }>) => StateTriggeredRigidBodyEvent;
@@ -141,9 +176,28 @@ type PreparedMotor = MultiStageMotor & Readonly<{
   totalImpulseNs: number;
 }>;
 
-type PreparedStage = Omit<RocketStage, "motors"> & Readonly<{
+type PreparedStageInstance = Omit<RocketStageInstance, "motors"> & Readonly<{
   motors: readonly PreparedMotor[];
   burnoutOffsetS: number;
+}>;
+
+type PreparedStage = Omit<RocketStage, "motors" | "instances"> & Readonly<{
+  motors: readonly PreparedMotor[];
+  burnoutOffsetS: number;
+  instances: readonly PreparedStageInstance[];
+}>;
+
+type PreparedStageInstanceState = Readonly<{
+  instance: PreparedStageInstance;
+  separated: boolean;
+  separationTimeS: number | null;
+  ignitionFailed: boolean;
+  ignitionCommandTimeS: number | null;
+}>;
+
+type PreparedStageState = Readonly<{
+  stage: PreparedStage;
+  instances: readonly PreparedStageInstanceState[];
 }>;
 
 function validateIdentifier(id: string, label: string): void {
@@ -221,6 +275,34 @@ export function stageIgnitionFailureKey(stageId: string): string {
   return `staging.${stageId}.ignitionFailed`;
 }
 
+function validateStageInstanceIdentifier(instanceId: string): void {
+  validateIdentifier(instanceId, "stage instance");
+}
+
+export function stageInstanceIgnitionTimeKey(stageId: string, instanceId: string): string {
+  validateIdentifier(stageId, "stage");
+  validateStageInstanceIdentifier(instanceId);
+  return `staging.${stageId}.instances.${instanceId}.ignitionTimeS`;
+}
+
+export function stageInstanceSeparationKey(stageId: string, instanceId: string): string {
+  validateIdentifier(stageId, "stage");
+  validateStageInstanceIdentifier(instanceId);
+  return `staging.${stageId}.instances.${instanceId}.separated`;
+}
+
+export function stageInstanceSeparationTimeKey(stageId: string, instanceId: string): string {
+  validateIdentifier(stageId, "stage");
+  validateStageInstanceIdentifier(instanceId);
+  return `staging.${stageId}.instances.${instanceId}.separationTimeS`;
+}
+
+export function stageInstanceIgnitionFailureKey(stageId: string, instanceId: string): string {
+  validateIdentifier(stageId, "stage");
+  validateStageInstanceIdentifier(instanceId);
+  return `staging.${stageId}.instances.${instanceId}.ignitionFailed`;
+}
+
 function readBooleanState(
   state: RigidBodyState,
   key: string,
@@ -247,10 +329,95 @@ export function stageIgnitionTime(
   return typeof value === "number" ? value : null;
 }
 
+function readOptionalTimeState(state: RigidBodyState, key: string, label: string): number | null {
+  const value = state.discreteState?.[key];
+  if (value !== undefined && (typeof value !== "number" || !Number.isFinite(value))) {
+    throw new Error(`${label} must be a finite number`);
+  }
+  return typeof value === "number" ? value : null;
+}
+
+function stageInstanceIgnitionTime(
+  state: RigidBodyState,
+  stageId: string,
+  instanceId: string,
+): number | null {
+  const instanceTime = readOptionalTimeState(
+    state,
+    stageInstanceIgnitionTimeKey(stageId, instanceId),
+    `stage ${stageId} instance ${instanceId} ignition time`,
+  );
+  return instanceTime ?? stageIgnitionTime(state, stageId);
+}
+
+function stageInstanceSeparated(state: RigidBodyState, stageId: string, instanceId: string): boolean {
+  return (
+    readBooleanState(
+      state,
+      stageSeparationKey(stageId),
+      `stage ${stageId} separation state`,
+    ) ||
+    readBooleanState(
+      state,
+      stageInstanceSeparationKey(stageId, instanceId),
+      `stage ${stageId} instance ${instanceId} separation state`,
+    )
+  );
+}
+
+function stageInstanceIgnitionFailed(state: RigidBodyState, stageId: string, instanceId: string): boolean {
+  return (
+    readBooleanState(
+      state,
+      stageIgnitionFailureKey(stageId),
+      `stage ${stageId} ignition failure state`,
+    ) ||
+    readBooleanState(
+      state,
+      stageInstanceIgnitionFailureKey(stageId, instanceId),
+      `stage ${stageId} instance ${instanceId} ignition failure state`,
+    )
+  );
+}
+
+function stageInstanceSeparationTime(
+  state: RigidBodyState,
+  stageId: string,
+  instanceId: string,
+): number | null {
+  const logicalTime = readOptionalTimeState(
+    state,
+    stageSeparationTimeKey(stageId),
+    `stage ${stageId} separation time`,
+  );
+  const instanceTime = readOptionalTimeState(
+    state,
+    stageInstanceSeparationTimeKey(stageId, instanceId),
+    `stage ${stageId} instance ${instanceId} separation time`,
+  );
+  return instanceTime ?? logicalTime;
+}
+
 export function igniteStage(
   state: RigidBodyState,
   stageId: string,
+  instanceId?: string,
 ): RigidBodyState {
+  if (instanceId !== undefined) {
+    validateStageInstanceIdentifier(instanceId);
+    if (stageInstanceSeparated(state, stageId, instanceId)) {
+      throw new Error(`cannot ignite separated stage ${stageId} instance ${instanceId}`);
+    }
+    const existingTime = stageInstanceIgnitionTime(state, stageId, instanceId);
+    if (existingTime !== null) return state;
+    return {
+      ...state,
+      discreteState: {
+        ...(state.discreteState ?? {}),
+        [stageInstanceIgnitionTimeKey(stageId, instanceId)]: state.timeS,
+      },
+    };
+  }
   if (readBooleanState(state, stageSeparationKey(stageId), `stage ${stageId} separation state`)) {
     throw new Error(`cannot ignite separated stage ${stageId}`);
   }
@@ -269,6 +436,7 @@ export function separateStage(
   state: RigidBodyState,
   stageId: string,
   separationDeltaVBodyMps: Vector3 = ZERO_VECTOR,
+  instanceId?: string,
 ): RigidBodyState {
   if (!finiteVector(separationDeltaVBodyMps)) {
     throw new Error("stage separation delta-v must be finite");
@@ -277,26 +445,38 @@ export function separateStage(
     state.orientationBodyToWorld,
     separationDeltaVBodyMps,
   );
+  const discreteState = {
+    ...(state.discreteState ?? {}),
+    ...(instanceId === undefined
+      ? {
+          [stageSeparationKey(stageId)]: true,
+          [stageSeparationTimeKey(stageId)]: state.timeS,
+        }
+      : {
+          [stageInstanceSeparationKey(stageId, instanceId)]: true,
+          [stageInstanceSeparationTimeKey(stageId, instanceId)]: state.timeS,
+        }),
+  };
   return {
     ...state,
     velocityWorldMps: addVectors(state.velocityWorldMps, deltaVelocityWorldMps),
-    discreteState: {
-      ...(state.discreteState ?? {}),
-      [stageSeparationKey(stageId)]: true,
-      [stageSeparationTimeKey(stageId)]: state.timeS,
-    },
+    discreteState,
   };
 }
 
 export function failStageIgnition(
   state: RigidBodyState,
   stageId: string,
+  instanceId?: string,
 ): RigidBodyState {
+  if (instanceId !== undefined) validateStageInstanceIdentifier(instanceId);
   return {
     ...state,
     discreteState: {
       ...(state.discreteState ?? {}),
-      [stageIgnitionFailureKey(stageId)]: true,
+      [instanceId === undefined
+        ? stageIgnitionFailureKey(stageId)
+        : stageInstanceIgnitionFailureKey(stageId, instanceId)]: true,
     },
   };
 }
@@ -313,25 +493,29 @@ export function initializeMultiStageState(
 
 export function createScheduledStageIgnitionEvent(input: Readonly<{
   stageId: string;
+  instanceId?: string;
   timeS: number;
   label?: string;
 }>): ScheduledRigidBodyEvent {
   validateIdentifier(input.stageId, "stage");
+  if (input.instanceId !== undefined) validateStageInstanceIdentifier(input.instanceId);
   return {
-    id: `staging-${input.stageId}-ignition`,
-    label: input.label ?? `${input.stageId} stage ignition`,
+    id: `staging-${input.stageId}${input.instanceId ? `-${input.instanceId}` : ""}-ignition`,
+    label: input.label ?? `${input.stageId}${input.instanceId ? ` instance ${input.instanceId}` : ""} stage ignition`,
     timeS: input.timeS,
-    apply: (state) => igniteStage(state, input.stageId),
+    apply: (state) => igniteStage(state, input.stageId, input.instanceId),
   };
 }
 
 export function createScheduledStageSeparationEvent(input: Readonly<{
   stageId: string;
+  instanceId?: string;
   timeS: number;
   label?: string;
   separationDeltaVBodyMps?: Vector3;
 }>): ScheduledRigidBodyEvent {
   validateIdentifier(input.stageId, "stage");
+  if (input.instanceId !== undefined) validateStageInstanceIdentifier(input.instanceId);
   if (input.separationDeltaVBodyMps && !finiteVector(input.separationDeltaVBodyMps)) {
     throw new Error("stage separation delta-v must be finite");
   }
@@ -339,25 +523,27 @@ export function createScheduledStageSeparationEvent(input: Readonly<{
     ? ` (body dV ${input.separationDeltaVBodyMps.x.toFixed(2)},${input.separationDeltaVBodyMps.y.toFixed(2)},${input.separationDeltaVBodyMps.z.toFixed(2)} m/s)`
     : "";
   return {
-    id: `staging-${input.stageId}-separation`,
-    label: input.label ?? `${input.stageId} stage separation${separationLabel}`,
+    id: `staging-${input.stageId}${input.instanceId ? `-${input.instanceId}` : ""}-separation`,
+    label: input.label ?? `${input.stageId}${input.instanceId ? ` instance ${input.instanceId}` : ""} stage separation${separationLabel}`,
     timeS: input.timeS,
-    apply: (state) => separateStage(state, input.stageId, input.separationDeltaVBodyMps),
+    apply: (state) => separateStage(state, input.stageId, input.separationDeltaVBodyMps, input.instanceId),
     separationDeltaVBodyMps: input.separationDeltaVBodyMps ?? ZERO_VECTOR,
   };
 }
 
 export function createScheduledStageIgnitionFailureEvent(input: Readonly<{
   stageId: string;
+  instanceId?: string;
   timeS: number;
   label?: string;
 }>): ScheduledRigidBodyEvent {
   validateIdentifier(input.stageId, "stage");
+  if (input.instanceId !== undefined) validateStageInstanceIdentifier(input.instanceId);
   return {
-    id: `staging-${input.stageId}-ignition-failure`,
-    label: input.label ?? `${input.stageId} stage ignition failure`,
+    id: `staging-${input.stageId}${input.instanceId ? `-${input.instanceId}` : ""}-ignition-failure`,
+    label: input.label ?? `${input.stageId}${input.instanceId ? ` instance ${input.instanceId}` : ""} stage ignition failure`,
     timeS: input.timeS,
-    apply: (state) => failStageIgnition(state, input.stageId),
+    apply: (state) => failStageIgnition(state, input.stageId, input.instanceId),
   };
 }
 
@@ -367,23 +553,30 @@ function burnoutEventValue(
   burnoutOffsetS: number,
   delayS: number,
   allowSeparated: boolean,
+  instanceId?: string,
 ): number {
-  if (
-    (!allowSeparated &&
-      readBooleanState(
+  const separated = instanceId === undefined
+    ? readBooleanState(
         state,
         stageSeparationKey(stageId),
         `stage ${stageId} separation state`,
-      )) ||
-    readBooleanState(
-      state,
-      stageIgnitionFailureKey(stageId),
-      `stage ${stageId} ignition failure state`,
-    )
+      )
+    : stageInstanceSeparated(state, stageId, instanceId);
+  const ignitionFailed = instanceId === undefined
+    ? readBooleanState(
+        state,
+        stageIgnitionFailureKey(stageId),
+        `stage ${stageId} ignition failure state`,
+      )
+    : stageInstanceIgnitionFailed(state, stageId, instanceId);
+  if (
+    (!allowSeparated && separated) || ignitionFailed
   ) {
     return -1;
   }
-  const ignitionTimeS = stageIgnitionTime(state, stageId);
+  const ignitionTimeS = instanceId === undefined
+    ? stageIgnitionTime(state, stageId)
+    : stageInstanceIgnitionTime(state, stageId, instanceId);
   return ignitionTimeS === null
     ? -1
     : state.timeS - ignitionTimeS - burnoutOffsetS - delayS;
@@ -397,16 +590,12 @@ export function createMultiStageVehicleModel(input: Readonly<{
   if (input.stages.length === 0) {
     throw new Error("a multi-stage vehicle requires at least one stage");
   }
-  const stages: PreparedStage[] = input.stages.map((stage) => {
-    validateIdentifier(stage.id, "stage");
-    if (!stage.name.trim()) throw new Error("stages must have names");
-    validateMassProperties(stage.structuralMassProperties, `stage ${stage.id} structure`);
-    const separationDeltaVBodyMps = stage.separationDeltaVBodyMps ?? 0;
-    assertNonNegative(separationDeltaVBodyMps, `stage ${stage.id} separation delta-v`);
-    if (stage.motors.length === 0) {
-      throw new Error(`stage ${stage.id} requires at least one motor`);
-    }
-    const motors: PreparedMotor[] = stage.motors.map((motor) => {
+  const prepareMotors = (
+    motorsInput: readonly MultiStageMotor[],
+    label: string,
+  ): readonly PreparedMotor[] => {
+    if (motorsInput.length === 0) throw new Error(`${label} requires at least one motor`);
+    const motors: PreparedMotor[] = motorsInput.map((motor) => {
       validateIdentifier(motor.id, "motor");
       if (!motor.name.trim()) throw new Error("motors must have names");
       const thrustCurve = [...motor.thrustCurve];
@@ -442,20 +631,54 @@ export function createMultiStageVehicleModel(input: Readonly<{
       };
     });
     if (new Set(motors.map((motor) => motor.id)).size !== motors.length) {
-      throw new Error(`motor identifiers must be unique within stage ${stage.id}`);
+      throw new Error(`motor identifiers must be unique within ${label}`);
     }
+    return motors;
+  };
+  const burnoutOffset = (motors: readonly PreparedMotor[]): number => Math.max(
+    0,
+    ...motors
+      .filter((motor) => !motor.ignitionFailure)
+      .map((motor) => (motor.ignitionDelayS ?? 0) + motor.thrustCurve.at(-1)!.timeS),
+  );
+  const stages: PreparedStage[] = input.stages.map((stage) => {
+    validateIdentifier(stage.id, "stage");
+    if (!stage.name.trim()) throw new Error("stages must have names");
+    validateMassProperties(stage.structuralMassProperties, `stage ${stage.id} structure`);
+    const separationDeltaVBodyMps = stage.separationDeltaVBodyMps ?? 0;
+    assertNonNegative(separationDeltaVBodyMps, `stage ${stage.id} separation delta-v`);
+    const motors = prepareMotors(stage.motors, `stage ${stage.id}`);
+    const rawInstances = stage.instances ?? [{
+      id: stage.id,
+      name: stage.name,
+      structuralMassProperties: stage.structuralMassProperties,
+      motors: stage.motors,
+      separationDeltaVBodyMps,
+    }];
+    if (rawInstances.length === 0) throw new Error(`stage ${stage.id} requires at least one physical instance`);
+    const instanceIds = new Set<string>();
+    const instances: PreparedStageInstance[] = rawInstances.map((instance) => {
+      validateIdentifier(instance.id, "stage instance");
+      if (instanceIds.has(instance.id)) throw new Error(`stage instance identifiers must be unique within ${stage.id}`);
+      instanceIds.add(instance.id);
+      if (!instance.name.trim()) throw new Error("stage instances must have names");
+      validateMassProperties(instance.structuralMassProperties, `stage ${stage.id} instance ${instance.id} structure`);
+      const instanceDeltaV = instance.separationDeltaVBodyMps ?? separationDeltaVBodyMps;
+      assertNonNegative(instanceDeltaV, `stage ${stage.id} instance ${instance.id} separation delta-v`);
+      const instanceMotors = prepareMotors(instance.motors, `stage ${stage.id} instance ${instance.id}`);
+      return {
+        ...instance,
+        separationDeltaVBodyMps: instanceDeltaV,
+        motors: instanceMotors,
+        burnoutOffsetS: burnoutOffset(instanceMotors),
+      };
+    });
     return {
       ...stage,
       separationDeltaVBodyMps,
       motors,
-      burnoutOffsetS: Math.max(
-        0,
-        ...motors
-          .filter((motor) => !motor.ignitionFailure)
-          .map(
-            (motor) => (motor.ignitionDelayS ?? 0) + motor.thrustCurve.at(-1)!.timeS,
-          ),
-      ),
+      instances,
+      burnoutOffsetS: Math.max(...instances.map((instance) => instance.burnoutOffsetS)),
     };
   });
   if (new Set(stages.map((stage) => stage.id)).size !== stages.length) {
@@ -467,69 +690,73 @@ export function createMultiStageVehicleModel(input: Readonly<{
     if (!stage) throw new Error(`unknown stage ${stageId}`);
     return stage;
   };
+  const requireStageInstance = (
+    stage: PreparedStage,
+    instanceId: string,
+  ): PreparedStageInstance => {
+    validateStageInstanceIdentifier(instanceId);
+    const instance = stage.instances.find((candidate) => candidate.id === instanceId);
+    if (!instance) throw new Error(`unknown stage ${stage.id} instance ${instanceId}`);
+    return instance;
+  };
 
   const evaluate = (state: RigidBodyState): MultiStageVehicleEvaluation => {
     if (!Number.isFinite(state.timeS)) throw new Error("staging state time must be finite");
-    const prepared = stages.map((stage) => {
-      const separated = readBooleanState(
-        state,
-        stageSeparationKey(stage.id),
-        `stage ${stage.id} separation state`,
-      );
-      const ignitionFailed = readBooleanState(
-        state,
-        stageIgnitionFailureKey(stage.id),
-        `stage ${stage.id} ignition failure state`,
-      );
-      const ignitionCommandTimeS = stageIgnitionTime(state, stage.id);
-      const separationTimeValue =
-        state.discreteState?.[stageSeparationTimeKey(stage.id)];
-      if (
-        separationTimeValue !== undefined &&
-        (typeof separationTimeValue !== "number" ||
-          !Number.isFinite(separationTimeValue))
-      ) {
-        throw new Error(`stage ${stage.id} separation time must be a finite number`);
-      }
-      const separationTimeS =
-        typeof separationTimeValue === "number" ? separationTimeValue : null;
-      if (separationTimeS !== null && separationTimeS > state.timeS + 1e-12) {
-        throw new Error(`stage ${stage.id} separation time cannot be in the future`);
-      }
-      if (separated !== (separationTimeS !== null)) {
-        throw new Error(
-          `stage ${stage.id} separation flag and time must be recorded together`,
-        );
-      }
-      if (ignitionCommandTimeS !== null && ignitionCommandTimeS > state.timeS + 1e-12) {
-        throw new Error(`stage ${stage.id} ignition time cannot be in the future`);
-      }
-      return {
-        stage,
-        separated,
-        separationTimeS,
-        ignitionFailed,
-        ignitionCommandTimeS,
-      };
-    });
+
+    const prepared: PreparedStageState[] = stages.map((stage) => ({
+      stage,
+      instances: stage.instances.map((instance): PreparedStageInstanceState => {
+        const separated = stageInstanceSeparated(state, stage.id, instance.id);
+        const separationTimeS = stageInstanceSeparationTime(state, stage.id, instance.id);
+        if (separationTimeS !== null && separationTimeS > state.timeS + 1e-12) {
+          throw new Error(`stage ${stage.id} instance ${instance.id} separation time cannot be in the future`);
+        }
+        if (separated !== (separationTimeS !== null)) {
+          throw new Error(
+            `stage ${stage.id} instance ${instance.id} separation flag and time must be recorded together`,
+          );
+        }
+        const ignitionCommandTimeS = stageInstanceIgnitionTime(state, stage.id, instance.id);
+        if (ignitionCommandTimeS !== null && ignitionCommandTimeS > state.timeS + 1e-12) {
+          throw new Error(`stage ${stage.id} instance ${instance.id} ignition time cannot be in the future`);
+        }
+        return {
+          instance,
+          separated,
+          separationTimeS,
+          ignitionFailed: stageInstanceIgnitionFailed(state, stage.id, instance.id),
+          ignitionCommandTimeS,
+        };
+      }),
+    }));
+
+    const motorLocalTime = (
+      item: PreparedStageInstanceState,
+      motor: PreparedMotor,
+    ): number | null =>
+      item.ignitionCommandTimeS === null || item.ignitionFailed || motor.ignitionFailure
+        ? null
+        : state.timeS - item.ignitionCommandTimeS - (motor.ignitionDelayS ?? 0);
+    const deliveredImpulse = (motor: PreparedMotor, localTimeS: number | null): number =>
+      localTimeS === null
+        ? 0
+        : Math.min(
+            motor.totalImpulseNs,
+            Math.max(0, impulseThrough(motor.thrustCurve as ThrustPoint[], localTimeS)),
+          );
 
     const massParts: MassProperties[] = [input.retainedMassProperties];
-    for (const item of prepared) {
-      if (item.separated) continue;
-      massParts.push(item.stage.structuralMassProperties);
-      for (const motor of item.stage.motors) {
-        massParts.push(motor.dryMassProperties);
-        const localTimeS =
-          item.ignitionCommandTimeS === null || item.ignitionFailed || motor.ignitionFailure
-            ? null
-            : state.timeS - item.ignitionCommandTimeS - (motor.ignitionDelayS ?? 0);
-        const deliveredImpulseNs =
-          localTimeS === null
-            ? 0
-            : Math.min(motor.totalImpulseNs, Math.max(0, impulseThrough(motor.thrustCurve as ThrustPoint[], localTimeS)));
-        const remainingFraction = Math.max(0, 1 - deliveredImpulseNs / motor.totalImpulseNs);
-        if (remainingFraction > 0) {
-          massParts.push(scaledMassProperties(motor.initialPropellantMassProperties, remainingFraction));
+    for (const stageState of prepared) {
+      for (const instanceState of stageState.instances) {
+        if (instanceState.separated) continue;
+        massParts.push(instanceState.instance.structuralMassProperties);
+        for (const motor of instanceState.instance.motors) {
+          massParts.push(motor.dryMassProperties);
+          const deliveredImpulseNs = deliveredImpulse(motor, motorLocalTime(instanceState, motor));
+          const remainingFraction = Math.max(0, 1 - deliveredImpulseNs / motor.totalImpulseNs);
+          if (remainingFraction > 0) {
+            massParts.push(scaledMassProperties(motor.initialPropellantMassProperties, remainingFraction));
+          }
         }
       }
     }
@@ -538,24 +765,24 @@ export function createMultiStageVehicleModel(input: Readonly<{
     let netThrustForceBodyN: Vector3 = ZERO_VECTOR;
     let netThrustMomentBodyNm: Vector3 = ZERO_VECTOR;
 
-    const stageEvaluations = prepared.map((item): RocketStageEvaluation => {
-      const motorEvaluations = item.stage.motors.map(
+    const evaluateInstance = (
+      item: PreparedStageInstanceState,
+    ): RocketStageInstanceEvaluation => {
+      const motorEvaluations = item.instance.motors.map(
         (motor): MultiStageMotorEvaluation => {
-          const localTimeS =
-            item.ignitionCommandTimeS === null || item.ignitionFailed || motor.ignitionFailure
-              ? null
-              : state.timeS - item.ignitionCommandTimeS - (motor.ignitionDelayS ?? 0);
-          const deliveredImpulseNs =
-            localTimeS === null
-              ? 0
-              : Math.min(motor.totalImpulseNs, Math.max(0, impulseThrough(motor.thrustCurve as ThrustPoint[], localTimeS)));
+          const localTimeS = motorLocalTime(item, motor);
+          const deliveredImpulseNs = deliveredImpulse(motor, localTimeS);
           const remainingPropellantFraction = Math.max(
             0,
             1 - deliveredImpulseNs / motor.totalImpulseNs,
           );
           const curveEndS = motor.thrustCurve.at(-1)!.timeS;
           const thrustN =
-            item.separated || item.ignitionFailed || motor.ignitionFailure || localTimeS === null || remainingPropellantFraction <= 1e-14
+            item.separated ||
+            item.ignitionFailed ||
+            motor.ignitionFailure ||
+            localTimeS === null ||
+            remainingPropellantFraction <= 1e-14
               ? 0
               : thrustAt(motor.thrustCurve as ThrustPoint[], localTimeS);
           const propellantMassRateKgS =
@@ -571,10 +798,7 @@ export function createMultiStageVehicleModel(input: Readonly<{
               : 0;
           const forceBodyN = scaleVector(motor.normalizedThrustAxisBody, thrustN);
           const momentBodyNm = cross(
-            subtractVectors(
-              motor.thrustApplicationPointBodyM,
-              massProperties.centerOfMassM,
-            ),
+            subtractVectors(motor.thrustApplicationPointBodyM, massProperties.centerOfMassM),
             forceBodyN,
           );
           if (propellantMassRateKgS !== 0) {
@@ -583,8 +807,7 @@ export function createMultiStageVehicleModel(input: Readonly<{
               shiftInertia(
                 scaleMatrix(
                   motor.initialPropellantMassProperties.inertiaAtCenterKgM2,
-                  propellantMassRateKgS /
-                    motor.initialPropellantMassProperties.massKg,
+                  propellantMassRateKgS / motor.initialPropellantMassProperties.massKg,
                 ),
                 propellantMassRateKgS,
                 subtractVectors(
@@ -602,11 +825,11 @@ export function createMultiStageVehicleModel(input: Readonly<{
               ? "ignition-failed"
               : motor.ignitionFailure
                 ? "ignition-failed"
-              : localTimeS === null || localTimeS < motor.thrustCurve[0].timeS
-                ? "waiting"
-                : localTimeS >= curveEndS || remainingPropellantFraction <= 1e-14
-                  ? "burned-out"
-                  : "burning";
+                : localTimeS === null || localTimeS < motor.thrustCurve[0].timeS
+                  ? "waiting"
+                  : localTimeS >= curveEndS || remainingPropellantFraction <= 1e-14
+                    ? "burned-out"
+                    : "burning";
           return {
             id: motor.id,
             name: motor.name,
@@ -616,11 +839,9 @@ export function createMultiStageVehicleModel(input: Readonly<{
             totalImpulseNs: motor.totalImpulseNs,
             deliveredImpulseNs,
             remainingPropellantFraction,
-            propellantMassKg:
-              item.separated
-                ? 0
-                : motor.initialPropellantMassProperties.massKg *
-                  remainingPropellantFraction,
+            propellantMassKg: item.separated
+              ? 0
+              : motor.initialPropellantMassProperties.massKg * remainingPropellantFraction,
             propellantMassRateKgS,
             forceBodyN,
             momentBodyNm,
@@ -641,8 +862,8 @@ export function createMultiStageVehicleModel(input: Readonly<{
                 ? "ignition-delayed"
                 : "burned-out";
       return {
-        id: item.stage.id,
-        name: item.stage.name,
+        id: item.instance.id,
+        name: item.instance.name,
         phase,
         attached: !item.separated,
         ignitionCommandTimeS: item.ignitionCommandTimeS,
@@ -651,15 +872,13 @@ export function createMultiStageVehicleModel(input: Readonly<{
         burnoutTimeS:
           item.ignitionCommandTimeS === null
             ? null
-            : item.ignitionCommandTimeS + item.stage.burnoutOffsetS,
+            : item.ignitionCommandTimeS + item.instance.burnoutOffsetS,
         massKg: item.separated
           ? 0
-          : item.stage.structuralMassProperties.massKg +
+          : item.instance.structuralMassProperties.massKg +
             motorEvaluations.reduce(
               (sum, motor, index) =>
-                sum +
-                item.stage.motors[index].dryMassProperties.massKg +
-                motor.propellantMassKg,
+                sum + item.instance.motors[index].dryMassProperties.massKg + motor.propellantMassKg,
               0,
             ),
         propellantMassKg: motorEvaluations.reduce(
@@ -668,6 +887,64 @@ export function createMultiStageVehicleModel(input: Readonly<{
         ),
         thrustN: motorEvaluations.reduce((sum, motor) => sum + motor.thrustN, 0),
         motors: motorEvaluations,
+      };
+    };
+
+    const stageEvaluations = prepared.map((stageState): RocketStageEvaluation => {
+      const instanceEvaluations = stageState.instances.map(evaluateInstance);
+      const attachedInstances = instanceEvaluations.filter((instance) => instance.attached);
+      const allSeparated = attachedInstances.length === 0;
+      const hasBurningInstance = instanceEvaluations.some((instance) => instance.phase === "burning");
+      const hasIgnitionDelayedInstance = instanceEvaluations.some((instance) => instance.phase === "ignition-delayed");
+      const hasWaitingInstance = instanceEvaluations.some((instance) => instance.phase === "waiting");
+      const hasIgnitionFailedInstance = instanceEvaluations.some((instance) => instance.phase === "ignition-failed");
+      const ignitionTimes = instanceEvaluations
+        .map((instance) => instance.ignitionCommandTimeS)
+        .filter((value): value is number => value !== null);
+      const separationTimes = instanceEvaluations
+        .map((instance) => instance.separationTimeS)
+        .filter((value): value is number => value !== null);
+      const ignitionCommandTimeS = ignitionTimes.length > 0 && ignitionTimes.every((time) => time === ignitionTimes[0])
+        ? ignitionTimes[0]
+        : null;
+      const separationTimeS = separationTimes.length > 0
+        ? Math.max(...separationTimes)
+        : null;
+      const stageIgnitionFailed = readBooleanState(
+        state,
+        stageIgnitionFailureKey(stageState.stage.id),
+        `stage ${stageState.stage.id} ignition failure state`,
+      );
+      const phase: StagePhase = allSeparated
+        ? "separated"
+        : stageIgnitionFailed || (hasIgnitionFailedInstance && !hasBurningInstance && !hasIgnitionDelayedInstance && !hasWaitingInstance)
+          ? "ignition-failed"
+          : hasBurningInstance
+            ? "burning"
+            : hasIgnitionDelayedInstance
+              ? "ignition-delayed"
+              : hasWaitingInstance
+                ? "waiting"
+                : hasIgnitionFailedInstance
+                  ? "ignition-failed"
+                  : "burned-out";
+      return {
+        id: stageState.stage.id,
+        name: stageState.stage.name,
+        phase,
+        attached: attachedInstances.length > 0,
+        ignitionCommandTimeS,
+        separationTimeS,
+        ignitionFailed: stageIgnitionFailed || instanceEvaluations.every((instance) => instance.ignitionFailed),
+        burnoutTimeS:
+          ignitionCommandTimeS === null
+            ? null
+            : ignitionCommandTimeS + stageState.stage.burnoutOffsetS,
+        massKg: instanceEvaluations.reduce((sum, instance) => sum + instance.massKg, 0),
+        propellantMassKg: instanceEvaluations.reduce((sum, instance) => sum + instance.propellantMassKg, 0),
+        thrustN: instanceEvaluations.reduce((sum, instance) => sum + instance.thrustN, 0),
+        motors: instanceEvaluations.flatMap((instance) => instance.motors),
+        instances: instanceEvaluations,
       };
     });
 
@@ -681,76 +958,133 @@ export function createMultiStageVehicleModel(input: Readonly<{
       attachedStageIds: stageEvaluations
         .filter((stage) => stage.attached)
         .map((stage) => stage.id),
+      attachedStageInstanceIds: stageEvaluations.flatMap((stage) =>
+        stage.instances.filter((instance) => instance.attached).map((instance) => instance.id),
+      ),
       stages: stageEvaluations,
     };
   };
 
   const createBurnoutSeparationEvent = (eventInput: Readonly<{
     stageId: string;
+    instanceId?: string;
     delayS?: number;
     label?: string;
     separationDeltaVBodyMps?: number;
   }>): StateTriggeredRigidBodyEvent => {
     const stage = requireStage(eventInput.stageId);
+    const instance = eventInput.instanceId === undefined
+      ? undefined
+      : requireStageInstance(stage, eventInput.instanceId);
     const delayS = eventInput.delayS ?? 0;
     assertNonNegative(delayS, "stage separation delay");
-    const separationDeltaVBodyMps = eventInput.separationDeltaVBodyMps ?? stage.separationDeltaVBodyMps ?? 0;
+    const separationDeltaVBodyMps = eventInput.separationDeltaVBodyMps ??
+      instance?.separationDeltaVBodyMps ?? stage.separationDeltaVBodyMps ?? 0;
     assertNonNegative(separationDeltaVBodyMps, "stage separation delta-v");
     const separationLabel = separationDeltaVBodyMps > 0
       ? ` (+${separationDeltaVBodyMps.toFixed(2)} m/s body +X)`
       : "";
+    const instanceSuffix = instance ? `-${instance.id}` : "";
     return {
-      id: `staging-${stage.id}-burnout-separation`,
-      label: eventInput.label ?? `${stage.name} separation after burnout${separationLabel}`,
+      id: `staging-${stage.id}${instanceSuffix}-burnout-separation`,
+      label: eventInput.label ?? `${stage.name}${instance ? ` ${instance.name}` : ""} separation after burnout${separationLabel}`,
       direction: "rising",
       value: (state) =>
-        burnoutEventValue(state, stage.id, stage.burnoutOffsetS, delayS, false),
-      apply: (state) => separateStage(state, stage.id, { x: separationDeltaVBodyMps, y: 0, z: 0 }),
+        burnoutEventValue(
+          state,
+          stage.id,
+          instance?.burnoutOffsetS ?? stage.burnoutOffsetS,
+          delayS,
+          false,
+          instance?.id,
+        ),
+      apply: (state) => separateStage(
+        state,
+        stage.id,
+        { x: separationDeltaVBodyMps, y: 0, z: 0 },
+        instance?.id,
+      ),
       separationDeltaVBodyMps: { x: separationDeltaVBodyMps, y: 0, z: 0 },
     };
   };
 
   const createBurnoutIgnitionEvent = (eventInput: Readonly<{
     sourceStageId: string;
+    sourceInstanceId?: string;
     targetStageId: string;
+    targetInstanceId?: string;
     delayS?: number;
     label?: string;
   }>): StateTriggeredRigidBodyEvent => {
     const source = requireStage(eventInput.sourceStageId);
     const target = requireStage(eventInput.targetStageId);
-    if (source.id === target.id) throw new Error("a stage cannot ignite itself after burnout");
+    const sourceInstance = eventInput.sourceInstanceId === undefined
+      ? undefined
+      : requireStageInstance(source, eventInput.sourceInstanceId);
+    const targetInstance = eventInput.targetInstanceId === undefined
+      ? undefined
+      : requireStageInstance(target, eventInput.targetInstanceId);
+    if (
+      source.id === target.id &&
+      (sourceInstance === undefined || targetInstance === undefined || sourceInstance.id === targetInstance.id)
+    ) {
+      throw new Error("a stage cannot ignite itself after burnout");
+    }
     const delayS = eventInput.delayS ?? 0;
     assertNonNegative(delayS, "stage ignition delay");
+    const sourceSuffix = sourceInstance ? `-${sourceInstance.id}` : "";
+    const targetSuffix = targetInstance ? `-${targetInstance.id}` : "";
     return {
-      id: `staging-${target.id}-ignition-after-${source.id}-burnout`,
+      id: `staging-${target.id}${targetSuffix}-ignition-after-${source.id}${sourceSuffix}-burnout`,
       label:
-        eventInput.label ?? `${target.name} ignition after ${source.name} burnout`,
+        eventInput.label ?? `${target.name}${targetInstance ? ` ${targetInstance.name}` : ""} ignition after ${source.name}${sourceInstance ? ` ${sourceInstance.name}` : ""} burnout`,
       direction: "rising",
       value: (state) =>
-        burnoutEventValue(state, source.id, source.burnoutOffsetS, delayS, true),
-      apply: (state) => igniteStage(state, target.id),
+        burnoutEventValue(
+          state,
+          source.id,
+          sourceInstance?.burnoutOffsetS ?? source.burnoutOffsetS,
+          delayS,
+          true,
+          sourceInstance?.id,
+        ),
+      apply: (state) => igniteStage(state, target.id, targetInstance?.id),
     };
   };
 
   const stageMassProperties = (
     state: RigidBodyState,
     stageId: string,
+    instanceId?: string,
   ): MassProperties => {
     const stage = requireStage(stageId);
+    if (instanceId !== undefined) requireStageInstance(stage, instanceId);
     const evaluation = evaluate(state);
     const stageEvaluation = evaluation.stages.find((item) => item.id === stageId);
-    if (!stageEvaluation?.attached) {
-      throw new Error(`stage ${stageId} is not attached at the requested state`);
+    if (!stageEvaluation) {
+      throw new Error(`stage ${stageId} is not present in the requested state`);
     }
-    const parts: MassProperties[] = [stage.structuralMassProperties];
-    stage.motors.forEach((motor, index) => {
-      parts.push(motor.dryMassProperties);
-      const remainingFraction =
-        stageEvaluation.motors[index]?.remainingPropellantFraction ?? 0;
-      if (remainingFraction > 0) {
-        parts.push(scaledMassProperties(motor.initialPropellantMassProperties, remainingFraction));
-      }
-    });
+    const selectedInstances = instanceId === undefined
+      ? stageEvaluation.instances.filter((instance) => instance.attached)
+      : [stageEvaluation.instances.find((instance) => instance.id === instanceId)].filter(
+          (instance): instance is RocketStageInstanceEvaluation => instance !== undefined && instance.attached,
+        );
+    if (selectedInstances.length === 0) {
+      const label = instanceId === undefined ? `stage ${stageId}` : `stage ${stageId} instance ${instanceId}`;
+      throw new Error(`${label} is not attached at the requested state`);
+    }
+    const parts: MassProperties[] = [];
+    for (const selected of selectedInstances) {
+      const instance = requireStageInstance(stage, selected.id);
+      parts.push(instance.structuralMassProperties);
+      instance.motors.forEach((motor, index) => {
+        parts.push(motor.dryMassProperties);
+        const remainingFraction = selected.motors[index]?.remainingPropellantFraction ?? 0;
+        if (remainingFraction > 0) {
+          parts.push(scaledMassProperties(motor.initialPropellantMassProperties, remainingFraction));
+        }
+      });
+    }
     return combineMassProperties(parts);
   };
 
@@ -785,7 +1119,13 @@ export function createMultiStageVehicleModel(input: Readonly<{
         motors: [],
       };
     },
-    burnoutOffsetS: (stageId) => requireStage(stageId).burnoutOffsetS,
+    stageInstanceIds: (stageId) => requireStage(stageId).instances.map((instance) => instance.id),
+    burnoutOffsetS: (stageId, instanceId) => {
+      const stage = requireStage(stageId);
+      return instanceId === undefined
+        ? stage.burnoutOffsetS
+        : requireStageInstance(stage, instanceId).burnoutOffsetS;
+    },
     createBurnoutSeparationEvent,
     createBurnoutIgnitionEvent,
     assumptions: [

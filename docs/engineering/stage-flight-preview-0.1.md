@@ -23,7 +23,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.5.0`.
+`kestrel-stage-flight-preview-0.6.0`.
 
 ## Event and state policy
 
@@ -31,9 +31,10 @@ The caller supplies initial ignition stages and scheduled or state-triggered
 events. The adapter initializes ignition through the shared staging state keys,
 passes exact event times through the rail and free-flight phases, and summarizes
 every applied event with its attached-stage set before and after the state
-change. Separation events also carry the optional body-frame retained-body
-delta-v annotation and its attitude-rotated world-frame vector, plus the
-detached-stage IDs. This keeps the timeline and exported result numerically
+change. Repeated physical stage copies are also reported through attached and
+detached stage-instance IDs. Separation events carry the optional body-frame
+retained-body delta-v annotation and its attitude-rotated world-frame vector,
+plus the detached logical-stage IDs. This keeps the timeline and exported result numerically
 traceable instead of relying on event-label text. When `launchRail` is present,
 the result includes rail liftoff and release events, the effective travel distance, and the exact free-flight
 handoff state. It does not invent ignition delays, separation impulses, failure
@@ -110,8 +111,9 @@ warnings alongside the primary trace.
 
 ## Separated-body analytical branch
 
-When an explicit separation event detaches a stage, the browser also records a
-separate trajectory for that body's own center of mass. The release state is
+When an explicit separation event detaches a stage or one of its physical
+instances, the browser also records a separate trajectory for that body's own
+center of mass. The release state is
 derived from the retained body's event state: the stage center-of-mass offset
 is rotated into world coordinates and the parent angular-rate cross-product is
 included in the released velocity. The result reports the retained-body

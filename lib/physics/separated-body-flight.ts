@@ -35,6 +35,7 @@ export type SeparatedBodyTracePoint = Readonly<{
 
 export type SeparatedBodyTrajectory = Readonly<{
   stageId: string;
+  instanceId?: string;
   stageName: string;
   modelVersion: string;
   validationStatus: typeof SEPARATED_BODY_FLIGHT_STATUS;
@@ -57,6 +58,7 @@ export type SeparatedBodyTrajectory = Readonly<{
 
 export type SeparatedBodyFlightInput = Readonly<{
   stageId: string;
+  instanceId?: string;
   stageName: string;
   releaseState: RigidBodyState;
   stageMassProperties: MassProperties;
@@ -248,6 +250,7 @@ export function simulateSeparatedBodyFlight(
   const maxSpeedMps = Math.max(...trace.map((point) => point.speedMps));
   return {
     stageId: input.stageId,
+    ...(input.instanceId ? { instanceId: input.instanceId } : {}),
     stageName: input.stageName,
     modelVersion: SEPARATED_BODY_FLIGHT_MODEL_VERSION,
     validationStatus: SEPARATED_BODY_FLIGHT_STATUS,

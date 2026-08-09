@@ -20,6 +20,9 @@ research, standards, and original code.
 - mass, centre-of-gravity, inertia, static stability, and centre-of-pressure
   calculations with model versions and assumptions;
 - serial, parallel, radial, clustered, and multi-stage vehicle topology;
+- independent repeated-stage instance ignition, burnout, separation, and live
+  mass-property diagnostics with logical-stage topology preserved for aero
+  regimes;
 - bounded canted-motor configuration with radial instance alignment;
 - deterministic per-motor cluster-failure preview with retained failed-motor
   propellant and explicit imbalance warnings;

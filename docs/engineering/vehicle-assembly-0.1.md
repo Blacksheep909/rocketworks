@@ -38,7 +38,11 @@ A radial pattern creates `N` equally spaced placements about the `X` axis:
 
 By default each instance also rotates by `theta_i` about `X`, preserving the local orientation of fins, pods, and off-axis motor geometry around the circumference. `rotateInstances: false` keeps every instance aligned with the parent frame.
 
-Repeated stages share one stage identifier and therefore one future separation/ignition state, but every physical copy gets a unique stage-instance index and concrete component/motor instance identifier.
+Repeated stages share one logical topology identifier for aerodynamic regime
+selection, while every physical copy gets a unique stage-instance index and
+concrete component/motor instance identifier. The multi-stage flight model can
+map those copies into `RocketStage.instances` and track ignition, burnout, and
+separation independently.
 
 ## Mass properties
 
@@ -81,7 +85,9 @@ Regression tests cover serial-stage CG, active-stage filtering, four-way booster
 ## Known limitations
 
 - Aerodynamic interference and separation flow fields are absent.
-- Stage instances within one repeated stage cannot yet separate independently.
+- The assembly layer itself remains a geometry/mass expansion and does not
+  own event state; callers must map its stage-instance indices into the
+  multi-stage event model when independent separation is required.
 - Flexible joints, mount compliance, slosh, and structural modes are absent.
 - Motor mounts do not automatically create motor mass or thrust curves.
 - Placements are programmatic; interactive browser editing of arbitrary trees is a future layer.

@@ -29,6 +29,13 @@ This makes staging a topology change rather than a cosmetic event: a separated
 stage immediately stops contributing mass, inertia, propellant, or thrust to
 the retained vehicle.
 
+The current implementation is model version `kestrel-multi-stage-0.3.0`.
+`RocketStage.instances` can describe physical copies of one logical stage.
+When present, each copy has its own structure, motors, burnout offset, and
+event state while `attachedStageIds` continues to expose the logical topology
+used by the stage-aware aerodynamic adapter. `attachedStageInstanceIds` and
+the nested `stage.instances` diagnostics expose the physical state.
+
 ## Discrete state and phases
 
 The 6-DOF discrete-state map owns piecewise-constant staging keys:
@@ -37,6 +44,10 @@ The 6-DOF discrete-state map owns piecewise-constant staging keys:
 - `staging.<stage>.ignitionFailed`
 - `staging.<stage>.separated`
 - `staging.<stage>.separationTimeS`
+- `staging.<stage>.instances.<instance>.ignitionTimeS`
+- `staging.<stage>.instances.<instance>.ignitionFailed`
+- `staging.<stage>.instances.<instance>.separated`
+- `staging.<stage>.instances.<instance>.separationTimeS`
 
 An ignition command records the exact event time. Motor-local time is the
 vehicle time minus stage ignition time and the motor's configured delay. Stage
@@ -48,9 +59,12 @@ separation. Separation events retain a body-frame delta-v annotation in the
 applied rigid-body event trace so downstream previews can rotate it into the
 current world frame without parsing labels. Model-bound state-event helpers locate stage burnout plus an
 optional deterministic delay, then either separate the source stage or ignite
-a target stage. Failed or already separated source stages cannot synthesize a
-later burnout transition. Simultaneous burnout events use the 6-DOF kernel's
-declared event order.
+a target stage. Supplying an `instanceId` targets one physical copy; omitting
+it preserves the legacy logical-stage operation and applies to every copy.
+Source and target instance IDs can also be paired for repeated serial groups.
+Failed or already separated source stages cannot synthesize a later burnout
+transition. Simultaneous burnout events use the 6-DOF kernel's declared event
+order.
 
 ## Mass and propulsion equations
 
@@ -85,13 +99,15 @@ motors that can actually burn.
 
 ## Separation semantics
 
-Version 0.1 changes the retained mass and inertia while preserving its
+Version 0.3 changes the retained mass and inertia while preserving its
 position, velocity, orientation, and angular velocity. This represents an
 ideal, zero-impulse release where the retained body has no instantaneous
 velocity reset. The `stageMassProperties(state, stageId)` adapter exposes the
 detached stage's live structural, dry-motor, and remaining-propellant
 properties at the event state so a caller can construct a separate component
-check without reimplementing the staging equations.
+check without reimplementing the staging equations. Passing the optional
+`instanceId` returns one still-attached physical copy; omitting it combines all
+attached copies of that logical stage.
 
 The stage-flight browser adapter uses that lookup to launch a bounded
 gravity-only trajectory for each newly detached stage. It offsets the stage to
@@ -120,6 +136,8 @@ The regression suite verifies:
 - ignition-failure suppression with intact propellant
 - asymmetric cluster evaluation with one failed motor, retained propellant,
   and active-motor burnout timing
+- independent ignition, burnout, separation, physical-copy attachment, and
+  live mass-property checks for repeated stage instances
 - prevention of false burnout transitions after ignition failure
 - exact scheduled ignition, failure, and separation changes
 - retained-body separation delta-v in the current body attitude
@@ -140,8 +158,10 @@ flight performance.
   a configured preview switch, not a misfire probability; partial ignition,
   pressure buildup, and thrust uncertainty are not included.
 - Separation is instantaneous and removes the source stage from the retained
-  tracked body. The optional separated-body preview is ballistic only and is
-  not suitable for clearance, range-safety, or flight-safety decisions. A
+  tracked body. A logical-stage separation removes all physical instances;
+  instance-targeted separation removes only the selected copy. The optional
+  separated-body preview is ballistic only and is not suitable for clearance,
+  range-safety, or flight-safety decisions. A
   bounded body-frame +X delta-v may be applied to the retained body and is
   surfaced as explicit event/trajectory telemetry, but the discarded body
   starts from the pre-event state and does not receive a coupled

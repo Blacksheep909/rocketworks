@@ -66,6 +66,7 @@ import {
   type VehicleAssemblyEvaluation,
   type StateTriggeredRigidBodyEvent,
   type ScheduledRigidBodyEvent,
+  type RocketStageInstance,
   type StructuralMaterialModel,
   type StructuralScreenResult,
 } from "../lib/physics/index.ts";
@@ -845,54 +846,89 @@ function createStageFlightPreviewInputs({
   const propulsivePlans = activeStages.filter((stage) => stage.role !== "payload");
   const stages: RocketStage[] = propulsivePlans.map((stage) => {
     const stageMotor = motorForStage(stage);
-    const instances = assembly.componentInstances.filter((instance) => instance.stageId === stage.id);
+    const assemblyInstances = assembly.componentInstances.filter((instance) => instance.stageId === stage.id);
     if (stage.failedMotorInstanceIndices.length > 0) {
       stageFailureWarnings.push(
         `${stage.name} motor instance failure is configured for motor ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}; failed motors retain propellant and do not contribute thrust.`,
       );
     }
+    const isStructuralInstance = (instance: VehicleAssemblyEvaluation["componentInstances"][number]) =>
+      !isMotorInstance(instance) && !isRetainedComponent(instance);
     const structuralMassProperties = combineMassProperties(
-      instances
-        .filter((instance) => !isMotorInstance(instance) && !isRetainedComponent(instance))
+      assemblyInstances
+        .filter(isStructuralInstance)
         .map((instance) => instance.massProperties),
     );
     if (!(structuralMassProperties.massKg > 0)) {
       throw new Error(`${stage.name} needs a positive structural mass for the stage preview.`);
     }
-    const motors = instances
+    const createStageMotor = (
+      instance: VehicleAssemblyEvaluation["componentInstances"][number],
+      index: number,
+    ) => {
+      const center = instance.massProperties.centerOfMassM;
+      const originBodyM = {
+        x: center.x - (stageMotor.dryCgFromAftM ?? stageMotor.lengthM / 2),
+        y: center.y,
+        z: center.z,
+      };
+      return {
+        id: `${stage.id}-preview-motor-${instance.stageInstanceIndex}-${index}`,
+        name: `${stage.name} / ${stageMotor.designation}`,
+        thrustCurve: stageMotor.thrustCurve,
+        dryMassProperties: transformMassProperties(stageMotor.dryMassPropertiesLocal, {
+          rotation: instance.transform.rotation,
+          translationM: originBodyM,
+        }),
+        initialPropellantMassProperties: transformMassProperties(
+          stageMotor.propellantMassPropertiesLocal,
+          { rotation: instance.transform.rotation, translationM: originBodyM },
+        ),
+        thrustApplicationPointBodyM: originBodyM,
+        thrustAxisBody: stageThrustAxisBody(stage, instance.stageInstanceIndex),
+        ignitionFailure: stage.failedMotorInstanceIndices.includes(instance.stageInstanceIndex),
+      };
+    };
+    const motors = assemblyInstances
       .filter(isMotorInstance)
-      .map((instance, index) => {
-        const center = instance.massProperties.centerOfMassM;
-        const originBodyM = {
-          x: center.x - (stageMotor.dryCgFromAftM ?? stageMotor.lengthM / 2),
-          y: center.y,
-          z: center.z,
-        };
-        return {
-          id: `${stage.id}-preview-motor-${instance.stageInstanceIndex}-${index}`,
-          name: `${stage.name} · ${stageMotor.designation}`,
-          thrustCurve: stageMotor.thrustCurve,
-          dryMassProperties: transformMassProperties(stageMotor.dryMassPropertiesLocal, {
-            rotation: instance.transform.rotation,
-            translationM: originBodyM,
-          }),
-          initialPropellantMassProperties: transformMassProperties(
-            stageMotor.propellantMassPropertiesLocal,
-            { rotation: instance.transform.rotation, translationM: originBodyM },
-          ),
-          thrustApplicationPointBodyM: originBodyM,
-          thrustAxisBody: stageThrustAxisBody(stage, instance.stageInstanceIndex),
-          ignitionFailure: stage.failedMotorInstanceIndices.includes(instance.stageInstanceIndex),
-        };
-      });
+      .map(createStageMotor);
     if (motors.length === 0) {
       throw new Error(`${stage.name} has no motor instance for the stage preview.`);
     }
+    const groupedInstances = new Map<number, typeof assemblyInstances>();
+    for (const instance of assemblyInstances) {
+      const group = groupedInstances.get(instance.stageInstanceIndex);
+      if (group) group.push(instance);
+      else groupedInstances.set(instance.stageInstanceIndex, [instance]);
+    }
+    const physicalInstances: RocketStageInstance[] = [...groupedInstances.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([stageInstanceIndex, group]) => {
+        const instanceStructuralComponents = group.filter(isStructuralInstance);
+        const instanceStructuralMassProperties = combineMassProperties(
+          instanceStructuralComponents.map((instance) => instance.massProperties),
+        );
+        if (!(instanceStructuralMassProperties.massKg > 0)) {
+          throw new Error(`${stage.name} instance ${stageInstanceIndex + 1} needs a positive structural mass.`);
+        }
+        const instanceMotors = group.filter(isMotorInstance).map(createStageMotor);
+        if (instanceMotors.length === 0) {
+          throw new Error(`${stage.name} instance ${stageInstanceIndex + 1} has no motor instance.`);
+        }
+        return {
+          id: `${stage.id}-instance-${stageInstanceIndex + 1}`,
+          name: `${stage.name} ${stageInstanceIndex + 1}`,
+          structuralMassProperties: instanceStructuralMassProperties,
+          motors: instanceMotors,
+          separationDeltaVBodyMps: stage.separationDeltaVBodyMps ?? 0,
+        };
+      });
     return {
       id: stage.id,
       name: stage.name,
       structuralMassProperties,
       motors,
+      ...(physicalInstances.length > 1 ? { instances: physicalInstances } : {}),
       separationDeltaVBodyMps: stage.separationDeltaVBodyMps ?? 0,
     };
   });
@@ -967,39 +1003,72 @@ function createStageFlightPreviewInputs({
     });
   const stateEvents: StateTriggeredRigidBodyEvent[] = [];
   const events: ScheduledRigidBodyEvent[] = [];
+  const hasSeparationEvent = (stageId: string, instanceId?: string) =>
+    stateEvents.some(
+      (event) => event.id === `staging-${stageId}${instanceId ? `-${instanceId}` : ""}-burnout-separation`,
+    );
+  const scheduleBurnoutSeparations = (stage: RocketStage, plan?: VehicleStagePlan) => {
+    const instanceIds = staging.stageInstanceIds(stage.id);
+    const separationInput = (instanceId?: string) => ({
+      stageId: stage.id,
+      ...(instanceId ? { instanceId } : {}),
+      delayS: plan?.separationDelayS ?? 0.1,
+      separationDeltaVBodyMps: plan?.separationDeltaVBodyMps ?? 0,
+    });
+    if (instanceIds.length > 1) {
+      instanceIds.forEach((instanceId) => {
+        if (!hasSeparationEvent(stage.id, instanceId)) {
+          stateEvents.push(staging.createBurnoutSeparationEvent(separationInput(instanceId)));
+        }
+      });
+      return;
+    }
+    if (!hasSeparationEvent(stage.id)) {
+      stateEvents.push(staging.createBurnoutSeparationEvent(separationInput()));
+    }
+  };
   let serialSourceId = initialStage.id;
   for (const stage of stages.slice(1)) {
     const plan = stageById.get(stage.id);
     if (plan?.attachment === "parallel" || plan?.role === "booster") {
-      stateEvents.push(staging.createBurnoutSeparationEvent({
-        stageId: stage.id,
-        delayS: plan?.separationDelayS ?? 0.1,
-        separationDeltaVBodyMps: plan?.separationDeltaVBodyMps ?? 0,
-      }));
+      scheduleBurnoutSeparations(stage, plan);
       continue;
     }
-    stateEvents.push(staging.createBurnoutSeparationEvent({
-      stageId: stage.id,
-      delayS: plan?.separationDelayS ?? 0.1,
-      separationDeltaVBodyMps: plan?.separationDeltaVBodyMps ?? 0,
-    }));
-    stateEvents.push(staging.createBurnoutIgnitionEvent({
-      sourceStageId: serialSourceId,
-      targetStageId: stage.id,
-      delayS: plan?.ignitionDelayS ?? 0,
-    }));
+    scheduleBurnoutSeparations(stage, plan);
+    const sourceInstanceIds = staging.stageInstanceIds(serialSourceId);
+    const targetInstanceIds = staging.stageInstanceIds(stage.id);
+    if (sourceInstanceIds.length > 1 && sourceInstanceIds.length === targetInstanceIds.length) {
+      targetInstanceIds.forEach((targetInstanceId, index) => {
+        stateEvents.push(staging.createBurnoutIgnitionEvent({
+          sourceStageId: serialSourceId,
+          sourceInstanceId: sourceInstanceIds[index],
+          targetStageId: stage.id,
+          targetInstanceId,
+          delayS: plan?.ignitionDelayS ?? 0,
+        }));
+      });
+    } else if (targetInstanceIds.length > 1) {
+      targetInstanceIds.forEach((targetInstanceId) => {
+        stateEvents.push(staging.createBurnoutIgnitionEvent({
+          sourceStageId: serialSourceId,
+          targetStageId: stage.id,
+          targetInstanceId,
+          delayS: plan?.ignitionDelayS ?? 0,
+        }));
+      });
+    } else {
+      stateEvents.push(staging.createBurnoutIgnitionEvent({
+        sourceStageId: serialSourceId,
+        targetStageId: stage.id,
+        delayS: plan?.ignitionDelayS ?? 0,
+      }));
+    }
     serialSourceId = stage.id;
   }
   for (const stage of stages) {
     const plan = stageById.get(stage.id);
     if (plan?.role === "booster" || plan?.attachment === "parallel") {
-      if (!stateEvents.some((event) => event.id === `staging-${stage.id}-burnout-separation`)) {
-        stateEvents.push(staging.createBurnoutSeparationEvent({
-          stageId: stage.id,
-          delayS: plan?.separationDelayS ?? 0.1,
-          separationDeltaVBodyMps: plan?.separationDeltaVBodyMps ?? 0,
-        }));
-      }
+      scheduleBurnoutSeparations(stage, plan);
     }
   }
   return {
@@ -3948,11 +4017,12 @@ export default function Home() {
                         </div>
                         <div className="stage-separated-body-grid">
                           {stageFlightResult.separatedBodies.map((body) => (
-                            <article className="stage-separated-body" key={`${body.stageId}-${body.releaseTimeS}`}>
+                            <article className="stage-separated-body" key={`${body.stageId}-${body.instanceId ?? "logical"}-${body.releaseTimeS}`}>
                               <div className="stage-separated-body-title">
                                 <span>{body.stageName}</span>
                                 <strong>{body.impactTimeS === null ? "No impact in window" : `Impact ${body.impactTimeS.toFixed(2)} s`}</strong>
                               </div>
+                              {body.instanceId && <small className="stage-separated-body-instance">Physical copy · {body.instanceId}</small>}
                               <div className="stage-separated-body-metrics">
                                 <div><span>Release</span><strong>{body.releaseTimeS.toFixed(2)} s</strong></div>
                                 <div><span>Retained dV</span><strong>+X {body.retainedBodyDeltaVBodyMps.x.toFixed(2)} m/s</strong><small>body frame</small></div>
@@ -3993,6 +4063,7 @@ export default function Home() {
                         <div key={`${event.id}-${event.timeS}`}>
                           <span>{event.timeS.toFixed(2)} s</span>
                           <strong>{event.label}</strong>
+                          {event.detachedStageInstanceIds.length > 0 && <small>released copies · {event.detachedStageInstanceIds.join(" + ")}</small>}
                           <small>{event.attachedStageIdsBefore.join(" + ")} → {event.attachedStageIdsAfter.join(" + ")}</small>
                           {event.separationDeltaVBodyMps && event.detachedStageIds.length > 0 && <small>retained dV +X {event.separationDeltaVBodyMps.x.toFixed(2)} m/s · world ({event.separationDeltaVWorldMps?.x.toFixed(2)}, {event.separationDeltaVWorldMps?.y.toFixed(2)}, {event.separationDeltaVWorldMps?.z.toFixed(2)}) m/s</small>}
                         </div>
@@ -4807,7 +4878,7 @@ export default function Home() {
               <div>
                 <span className="eyebrow">Vehicle architecture</span>
                 <h2 id="topology-title">Stages, boosters & clusters</h2>
-                <p id="topology-description">Build an assembly topology from serial stages, parallel booster sets, repeated radial instances, and bounded motor cant. Mass and inertia update through the shared analytical assembly model, while each stage can select a provenance-qualified aerodynamic table for its isolated regime.</p>
+                <p id="topology-description">Build an assembly topology from serial stages, parallel booster sets, repeated radial instances, and bounded motor cant. Mass and inertia update through the shared analytical assembly model; repeated physical copies can now carry independent burnout and separation state while the logical stage remains the aerodynamic regime key.</p>
               </div>
               <button
                 ref={topologyCloseRef}
@@ -4870,7 +4941,7 @@ export default function Home() {
             </div>
             <div className="history-notice">
               <span>MODEL BOUNDARY</span>
-              <p>Topology changes update analytical assembly mass, centre of gravity, inertia, instance counts, and stage-level aerodynamic source assignments. A regime with one available table uses it; combined stages with conflicting or unavailable tables fall back to the global source with an explicit warning. Coupled separation clearance, aerodynamic interference, and flight-safety validation remain outside this retained-body model; the staged preview exposes an independent ballistic-capable trajectory for detached bodies and uses isotropic point drag only when a stage-specific area and coefficient are available.</p>
+              <p>Topology changes update analytical assembly mass, centre of gravity, inertia, instance counts, and stage-level aerodynamic source assignments. Repeated physical copies can separate independently in the retained-body event model. A regime with one available table uses it; combined stages with conflicting or unavailable tables fall back to the global source with an explicit warning. Coupled separation clearance, aerodynamic interference, and flight-safety validation remain outside this retained-body model; the staged preview exposes an independent ballistic-capable trajectory for detached bodies and uses isotropic point drag only when a stage-specific area and coefficient are available.</p>
             </div>
           </section>
         </div>
