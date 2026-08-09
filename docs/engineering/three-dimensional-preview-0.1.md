@@ -1,4 +1,4 @@
-# Three-dimensional design preview 0.3
+# Three-dimensional design preview 0.4
 
 Status: `display-only-unvalidated`
 
@@ -46,10 +46,13 @@ The body uses triangulated cylindrical sections. Each fin is constructed as a
 thin closed trapezoidal prism oriented evenly around the body axis. The nozzle
 is a tapered cylindrical display surface.
 
-Version 0.3 renders those triangles through an original perspective projection,
+Version 0.4 renders those triangles through an original perspective projection,
 depth-sort painter, and directional intensity calculation. It expands each
 enabled topology stage into a display instance with its validated axial
-translation, radial offset, scale, and repeated-instance rotation. It uses the
+translation, radial offset, scale, and repeated-instance rotation. Stage
+identity is carried as display metadata only, allowing the viewport to group
+repeated instances, hide/show a stage without changing the engineering model,
+and report the selected stage when a projected surface is clicked. It uses the
 Canvas 2D API rather than a third-party 3D or CAD library.
 
 ## Interaction and accessibility
@@ -59,6 +62,12 @@ Canvas 2D API rather than a third-party 3D or CAD library.
   inspector component; the selected surface receives a bright outline.
 - Disabled topology stages are omitted from the display mesh, so the design view
   follows the active assembly configuration.
+- Stage visibility controls group repeated instances by stage and always keep
+  one stage visible, so isolating a booster or payload cannot produce an empty
+  or invalid display mesh.
+- Clicking a stage-aware triangle retains both the surface component and stage
+  identity; the browser viewport highlights that stage and can notify the
+  surrounding inspector.
 - Mouse-wheel zoom and dedicated buttons adjust scale.
 - Arrow keys orbit; plus and minus zoom; zero resets the view.
 - The canvas is keyboard focusable and has a descriptive accessible label.
@@ -82,6 +91,8 @@ Automated tests cover:
 - foremost-triangle surface picking and empty-space misses
 - serial and radial stage-instance expansion, transforms, bounds, and surface
   filtering
+- stage metadata propagation, repeated-instance grouping, visibility fallback,
+  and stage-aware projected picking
 - invalid geometry, camera, and viewport rejection
 - UI presence, pointer/touch controls, keyboard controls, accessible label, and
   surface selection, and explicit display-only qualification
@@ -92,11 +103,10 @@ flight safety.
 
 ## Known limitations
 
-- The preview currently maps the browser's generated stage geometry and topology
+- The preview still maps the browser's generated stage geometry and topology
   instances, not every node or arbitrary transform in the general assembly
-  graph.
-- Per-stage visibility controls, internal components, and independently
-  selectable stage identities are not yet implemented.
+  graph. Internal components and arbitrary node-level selection are not yet
+  implemented.
 - No internal components, transparency, section cuts, exploded views, stage
   separation animation, or material texture.
 - Painter-style triangle sorting can produce minor overlap artifacts for future
@@ -110,6 +120,6 @@ flight safety.
   dimensional measurement.
 
 The next geometry increment should generate the preview from every expanded
-assembly component instance, add per-stage visibility and stage-aware picking,
-and reuse that same original scene graph for CAD-friendly exports without
-treating the render mesh itself as authoritative engineering geometry.
+assembly component instance and reuse that same original scene graph for
+CAD-friendly exports without treating the render mesh itself as authoritative
+engineering geometry.

@@ -285,7 +285,9 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(page, />3D<\/button>/);
   assert.match(viewport, /createRocketPreviewMesh/);
   assert.match(viewport, /RocketPreviewStageInstance/);
-  assert.match(viewport, /pickProjectedRocketSurface/);
+  assert.match(viewport, /Stage visibility controls/);
+  assert.match(viewport, /pickProjectedRocketPart/);
+  assert.match(viewport, /onStageSelect/);
   assert.match(viewport, /Interactive three-dimensional ARC 54 preview/);
   assert.match(viewport, /Click a rendered surface to select/);
   assert.match(viewport, /onPointerMove/);

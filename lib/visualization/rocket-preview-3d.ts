@@ -1,13 +1,18 @@
 export const ROCKET_PREVIEW_3D_MODEL_VERSION =
-  "kestrel-rocket-preview-3d-0.3.0";
+  "kestrel-rocket-preview-3d-0.4.0";
 export const ROCKET_PREVIEW_3D_MODEL_STATUS = "display-only-unvalidated";
 
 export type PreviewVector3 = Readonly<{ x: number; y: number; z: number }>;
 export type RocketPreviewSurface = "nose" | "skin" | "accent" | "fin" | "rear" | "nozzle";
 export type RocketPreviewNoseProfile = "ogive" | "conical" | "elliptical";
+export type RocketPreviewStageRole = "core" | "upper" | "booster" | "payload";
 
 export type RocketPreviewStageInstance = Readonly<{
   id: string;
+  stageId?: string;
+  stageLabel?: string;
+  stageRole?: RocketPreviewStageRole;
+  instanceIndex?: number;
   translationXM: number;
   radialOffsetM?: Readonly<{ y: number; z: number }>;
   rotationRad?: number;
@@ -38,6 +43,8 @@ export type RocketPreviewTriangle = Readonly<{
   b: PreviewVector3;
   c: PreviewVector3;
   surface: RocketPreviewSurface;
+  stageId?: string;
+  stageInstanceId?: string;
 }>;
 
 export type RocketPreviewMesh = Readonly<{
@@ -58,6 +65,8 @@ export type RocketPreviewCamera = Readonly<{
 export type ProjectedRocketTriangle = Readonly<{
   points: readonly [Readonly<{ x: number; y: number }>, Readonly<{ x: number; y: number }>, Readonly<{ x: number; y: number }>];
   surface: RocketPreviewSurface;
+  stageId?: string;
+  stageInstanceId?: string;
   depth: number;
   lightIntensity: number;
   facingCamera: boolean;
@@ -73,10 +82,16 @@ export type ProjectedRocketPreview = Readonly<{
   markers: Readonly<Record<string, Readonly<{ x: number; y: number; depth: number }>>>;
 }>;
 
-export function pickProjectedRocketSurface(
+export type RocketPreviewPart = Readonly<{
+  surface: RocketPreviewSurface;
+  stageId?: string;
+  stageInstanceId?: string;
+}>;
+
+export function pickProjectedRocketPart(
   projected: ProjectedRocketPreview | null,
   point: Readonly<{ x: number; y: number }>,
-): RocketPreviewSurface | null {
+): RocketPreviewPart | null {
   if (!projected) return null;
   for (let index = projected.triangles.length - 1; index >= 0; index -= 1) {
     const triangle = projected.triangles[index];
@@ -95,10 +110,21 @@ export function pickProjectedRocketSurface(
       denominator;
     const thirdWeight = 1 - firstWeight - secondWeight;
     if (firstWeight >= -1e-9 && secondWeight >= -1e-9 && thirdWeight >= -1e-9) {
-      return triangle.surface;
+      return {
+        surface: triangle.surface,
+        ...(triangle.stageId ? { stageId: triangle.stageId } : {}),
+        ...(triangle.stageInstanceId ? { stageInstanceId: triangle.stageInstanceId } : {}),
+      };
     }
   }
   return null;
+}
+
+export function pickProjectedRocketSurface(
+  projected: ProjectedRocketPreview | null,
+  point: Readonly<{ x: number; y: number }>,
+): RocketPreviewSurface | null {
+  return pickProjectedRocketPart(projected, point)?.surface ?? null;
 }
 
 type MutableVector3 = { x: number; y: number; z: number };
@@ -366,6 +392,20 @@ function validateStageInstance(
     throw new Error(`preview stage instance id ${stage.id} must be unique`);
   }
   seenIds.add(stage.id);
+  for (const [label, value] of [
+    ["stage id", stage.stageId],
+    ["stage label", stage.stageLabel],
+  ] as const) {
+    if (value !== undefined && (typeof value !== "string" || !value.trim())) {
+      throw new Error(`preview stage ${stage.id} ${label} cannot be empty`);
+    }
+  }
+  if (stage.instanceIndex !== undefined && (!Number.isInteger(stage.instanceIndex) || stage.instanceIndex < 0)) {
+    throw new Error(`preview stage ${stage.id} instance index must be a non-negative integer`);
+  }
+  if (stage.stageRole !== undefined && !["core", "upper", "booster", "payload"].includes(stage.stageRole)) {
+    throw new Error(`preview stage ${stage.id} stage role is invalid`);
+  }
   if (!Number.isFinite(stage.translationXM)) {
     throw new Error(`preview stage ${stage.id} translation must be finite`);
   }
@@ -416,6 +456,8 @@ export function createRocketPreviewMesh(input: RocketPreviewMeshInput): RocketPr
       if (triangle.surface === "nozzle" && stage.includeNozzle === false) continue;
       triangles.push({
         ...triangle,
+        ...(stage.stageId ? { stageId: stage.stageId } : {}),
+        stageInstanceId: stage.id,
         a: transformedStagePoint(triangle.a, stage),
         b: transformedStagePoint(triangle.b, stage),
         c: transformedStagePoint(triangle.c, stage),

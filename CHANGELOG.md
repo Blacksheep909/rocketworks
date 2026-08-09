@@ -8,6 +8,9 @@ flight-readiness claims.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.
+- Added stage-aware metadata, grouped stage visibility controls, and projected
+  stage selection to the original display-only 3D viewport; visibility changes
+  never alter engineering inputs or results.
 - Added validated browser design-share links for editable inputs and stage
   topology; local motor/aerodynamic source data remain unbundled and missing
   references fall back with an explicit review note.

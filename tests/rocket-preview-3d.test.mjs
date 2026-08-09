@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   ROCKET_PREVIEW_3D_MODEL_VERSION,
   createRocketPreviewMesh,
+  pickProjectedRocketPart,
   pickProjectedRocketSurface,
   projectRocketPreview,
   tangentOgiveRadiusM,
@@ -62,6 +63,10 @@ test("preview mesh expands enabled serial and radial stage instances", () => {
     stageInstances: [
       {
         id: "core-preview-1",
+        stageId: "core",
+        stageLabel: "Sustainer",
+        stageRole: "core",
+        instanceIndex: 0,
         translationXM: 0,
         radialOffsetM: { y: 0, z: 0 },
         lengthScale: 1,
@@ -69,6 +74,10 @@ test("preview mesh expands enabled serial and radial stage instances", () => {
       },
       {
         id: "booster-preview-1",
+        stageId: "booster",
+        stageLabel: "Booster",
+        stageRole: "booster",
+        instanceIndex: 0,
         translationXM: 0,
         radialOffsetM: { y: 0.12, z: 0 },
         rotationRad: Math.PI / 2,
@@ -80,6 +89,10 @@ test("preview mesh expands enabled serial and radial stage instances", () => {
       },
       {
         id: "upper-preview-1",
+        stageId: "upper",
+        stageLabel: "Upper stage",
+        stageRole: "upper",
+        instanceIndex: 0,
         translationXM: -0.45,
         radialOffsetM: { y: 0, z: 0 },
         lengthScale: 0.62,
@@ -93,6 +106,8 @@ test("preview mesh expands enabled serial and radial stage instances", () => {
   assert.ok(result.bounds.maximum.x > 0.89);
   assert.ok(result.maximumRadiusM > 0.12);
   assert.ok(result.triangles.length > mesh().triangles.length);
+  assert.equal(new Set(result.triangles.map((triangle) => triangle.stageId)).size, 3);
+  assert.equal(new Set(result.triangles.map((triangle) => triangle.stageInstanceId)).size, 3);
   assert.ok(result.triangles.every((triangle) =>
     [triangle.a, triangle.b, triangle.c]
       .flatMap((point) => [point.x, point.y, point.z])
@@ -199,6 +214,26 @@ test("surface picking resolves the foremost triangle and misses empty space", ()
   assert.equal(pickProjectedRocketSurface(null, { x: 0, y: 0 }), null);
 });
 
+test("stage-aware picking preserves the selected display instance identity", () => {
+  const projected = {
+    markers: {},
+    triangles: [{
+      points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 10 }],
+      surface: "skin",
+      stageId: "booster",
+      stageInstanceId: "booster-preview-2",
+      depth: 0,
+      lightIntensity: 1,
+      facingCamera: true,
+    }],
+  };
+  assert.deepEqual(pickProjectedRocketPart(projected, { x: 2, y: 2 }), {
+    surface: "skin",
+    stageId: "booster",
+    stageInstanceId: "booster-preview-2",
+  });
+});
+
 test("invalid mesh and camera inputs fail explicitly", () => {
   assert.throws(() => mesh({ bodyRadiusM: 0 }), /body radius/);
   assert.throws(() => mesh({ finCount: 1 }), /fin count/);
@@ -219,5 +254,17 @@ test("invalid mesh and camera inputs fail explicitly", () => {
   assert.throws(
     () => mesh({ stageInstances: [{ id: "duplicate", translationXM: 0 }, { id: "duplicate", translationXM: 1 }] }),
     /unique/,
+  );
+  assert.throws(
+    () => mesh({ stageInstances: [{ id: "bad-stage", stageId: "", translationXM: 0 }] }),
+    /stage id cannot be empty/,
+  );
+  assert.throws(
+    () => mesh({ stageInstances: [{ id: "bad-index", instanceIndex: -1, translationXM: 0 }] }),
+    /instance index/,
+  );
+  assert.throws(
+    () => mesh({ stageInstances: [{ id: "bad-role", stageRole: "invalid", translationXM: 0 }] }),
+    /stage role is invalid/,
   );
 });

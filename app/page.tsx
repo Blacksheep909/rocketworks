@@ -2213,6 +2213,10 @@ export default function Home() {
                   : 0;
                 return {
                   id: `${stage.id}-preview-${instanceIndex + 1}`,
+                  stageId: stage.id,
+                  stageLabel: stage.name,
+                  stageRole: stage.role,
+                  instanceIndex,
                   translationXM,
                   radialOffsetM: stage.attachment === "parallel"
                     ? {
@@ -3802,6 +3806,13 @@ export default function Home() {
                           : "body";
                   setSelected(component);
                   setView("design");
+                }}
+                onStageSelect={(stageId) => {
+                  const stage = vehicleTopology.stages.find((candidate) => candidate.id === stageId);
+                  if (stage) {
+                    setToast(`${stage.name} selected in the display model`);
+                    window.setTimeout(() => setToast(""), 2200);
+                  }
                 }}
               />
             </div>

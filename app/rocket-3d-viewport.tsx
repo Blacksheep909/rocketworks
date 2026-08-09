@@ -12,7 +12,7 @@ import {
 } from "react";
 import {
   createRocketPreviewMesh,
-  pickProjectedRocketSurface,
+  pickProjectedRocketPart,
   projectRocketPreview,
   type ProjectedRocketTriangle,
   type RocketPreviewNoseProfile,
@@ -55,6 +55,7 @@ export function Rocket3DViewport({
   stageInstances,
   highlightSurface = null,
   onSurfaceSelect,
+  onStageSelect,
 }: Readonly<{
   noseLengthM: number;
   noseProfile: RocketPreviewNoseProfile;
@@ -71,6 +72,7 @@ export function Rocket3DViewport({
   stageInstances?: readonly RocketPreviewStageInstance[];
   highlightSurface?: RocketPreviewSurface | null;
   onSurfaceSelect?: (surface: RocketPreviewSurface) => void;
+  onStageSelect?: (stageId: string) => void;
 }>) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pointerRef = useRef<Readonly<{
@@ -83,6 +85,32 @@ export function Rocket3DViewport({
   const [yawRad, setYawRad] = useState(-0.42);
   const [pitchRad, setPitchRad] = useState(-0.18);
   const [zoom, setZoom] = useState(0.86);
+  const [hiddenStageIds, setHiddenStageIds] = useState<readonly string[]>([]);
+  const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
+  const stageGroups = useMemo(() => {
+    if (!stageInstances) return [];
+    const groups = new Map<string, { id: string; label: string; count: number }>();
+    for (const instance of stageInstances) {
+      const id = instance.stageId ?? instance.id;
+      const existing = groups.get(id);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        groups.set(id, {
+          id,
+          label: instance.stageLabel ?? id,
+          count: 1,
+        });
+      }
+    }
+    return [...groups.values()];
+  }, [stageInstances]);
+  const hiddenStageIdSet = useMemo(() => new Set(hiddenStageIds), [hiddenStageIds]);
+  const visibleStageInstances = useMemo(() => {
+    if (!stageInstances) return undefined;
+    const visible = stageInstances.filter((instance) => !hiddenStageIdSet.has(instance.stageId ?? instance.id));
+    return visible.length > 0 ? visible : stageInstances.slice(0, 1);
+  }, [hiddenStageIdSet, stageInstances]);
   const mesh = useMemo(
     () =>
       createRocketPreviewMesh({
@@ -96,9 +124,9 @@ export function Rocket3DViewport({
         finSweepM,
         finSpanM,
         finThicknessM,
-        stageInstances,
+        stageInstances: visibleStageInstances,
       }),
-    [bodyDiameterM, bodyLengthM, finCount, finRootChordM, finSpanM, finSweepM, finThicknessM, finTipChordM, noseLengthM, noseProfile, stageInstances],
+    [bodyDiameterM, bodyLengthM, finCount, finRootChordM, finSpanM, finSweepM, finThicknessM, finTipChordM, noseLengthM, noseProfile, visibleStageInstances],
   );
 
   const draw = useCallback(() => {
@@ -168,9 +196,11 @@ export function Rocket3DViewport({
       context.globalAlpha = triangle.facingCamera ? 0.98 : 0.52;
       context.fillStyle = triangleColor(triangle);
       context.fill();
-      const isHighlighted = highlightSurface === triangle.surface;
+      const isSurfaceHighlighted = highlightSurface === triangle.surface;
+      const isStageHighlighted = selectedStageId !== null && triangle.stageId === selectedStageId;
+      const isHighlighted = isSurfaceHighlighted || isStageHighlighted;
       context.globalAlpha = isHighlighted ? 0.86 : 0.26;
-      context.strokeStyle = isHighlighted ? "#e7f7ff" : "#a9c2d3";
+      context.strokeStyle = isSurfaceHighlighted ? "#e7f7ff" : isStageHighlighted ? "#ffad55" : "#a9c2d3";
       context.lineWidth = isHighlighted ? 1.25 : 0.45;
       context.stroke();
     }
@@ -200,7 +230,7 @@ export function Rocket3DViewport({
     };
     drawMarker("cg", "#ffad55", "CG");
     drawMarker("cp", "#69bfff", "CP");
-  }, [centerOfMassXM, centerOfPressureXM, highlightSurface, mesh, pitchRad, yawRad, zoom]);
+  }, [centerOfMassXM, centerOfPressureXM, highlightSurface, mesh, pitchRad, selectedStageId, yawRad, zoom]);
 
   useEffect(() => {
     draw();
@@ -243,13 +273,17 @@ export function Rocket3DViewport({
     const pointer = pointerRef.current;
     if (pointer?.pointerId === event.pointerId) {
       pointerRef.current = null;
-      if (!pointer.moved && onSurfaceSelect) {
+      if (!pointer.moved && (onSurfaceSelect || onStageSelect)) {
         const bounds = event.currentTarget.getBoundingClientRect();
-        const surface = pickProjectedRocketSurface(projectedRef.current, {
+        const part = pickProjectedRocketPart(projectedRef.current, {
           x: event.clientX - bounds.left,
           y: event.clientY - bounds.top,
         });
-        if (surface) onSurfaceSelect(surface);
+        if (part?.stageId) {
+          setSelectedStageId(part.stageId);
+          onStageSelect?.(part.stageId);
+        }
+        if (part) onSurfaceSelect?.(part.surface);
       }
     }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -281,13 +315,28 @@ export function Rocket3DViewport({
     }
   };
 
+  const toggleStageVisibility = (stageId: string) => {
+    const isHidden = hiddenStageIdSet.has(stageId);
+    if (!isHidden && stageGroups.every((group) => group.id === stageId || hiddenStageIdSet.has(group.id))) {
+      return;
+    }
+    if (isHidden) {
+      setHiddenStageIds((current) => current.filter((id) => id !== stageId));
+    } else {
+      setHiddenStageIds((current) => [...current, stageId]);
+      if (selectedStageId === stageId) setSelectedStageId(null);
+    }
+  };
+
+  const visibleStageCount = stageGroups.filter((group) => !hiddenStageIdSet.has(group.id)).length;
+
   return (
     <div className="rocket-3d-viewport">
       <canvas
         ref={canvasRef}
         tabIndex={0}
         role="img"
-        aria-label={`Interactive three-dimensional ARC 54 preview with ${stageInstances?.length ?? 1} rendered stage instances, a ${noseProfile} nose and ${finCount} fins. Click a rendered surface to select its inspector component. Drag or use arrow keys to orbit, and use the mouse wheel or plus and minus keys to zoom.`}
+        aria-label={`Interactive three-dimensional ARC 54 preview with ${stageInstances?.length ?? 1} rendered stage instances and ${visibleStageCount} visible stages, a ${noseProfile} nose and ${finCount} fins. Click a rendered surface to select its inspector component and stage. Drag or use arrow keys to orbit, and use the mouse wheel or plus and minus keys to zoom.`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -295,6 +344,30 @@ export function Rocket3DViewport({
         onWheel={onWheel}
         onKeyDown={onKeyDown}
       />
+      {stageGroups.length > 0 && (
+        <div className="rocket-3d-stage-filter" aria-label="Stage visibility controls">
+          <span>STAGE VISIBILITY</span>
+          <div>
+            {stageGroups.map((group) => {
+              const visible = !hiddenStageIdSet.has(group.id);
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  className={visible ? "active" : ""}
+                  aria-pressed={visible}
+                  title={`${visible ? "Hide" : "Show"} ${group.label}`}
+                  onClick={() => toggleStageVisibility(group.id)}
+                >
+                  <i aria-hidden="true" />
+                  <span>{group.label}</span>
+                  {group.count > 1 && <small>×{group.count}</small>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <div className="rocket-3d-controls" aria-label="Three-dimensional view controls">
         <button type="button" onClick={() => setYawRad((value) => value - 0.2)} aria-label="Orbit left">↶</button>
         <button type="button" onClick={resetView}>Fit</button>
@@ -306,6 +379,7 @@ export function Rocket3DViewport({
       <div className="rocket-3d-readout">
         <span>DISPLAY MODEL</span>
         <strong>{mesh.modelVersion}</strong>
+        <small>{visibleStageCount}/{stageGroups.length || 1} stages visible</small>
         <small>Click a surface to select · drag to orbit · wheel to zoom · arrows / + / − / 0</small>
       </div>
       <p className="rocket-3d-disclaimer">
