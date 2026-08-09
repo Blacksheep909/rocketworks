@@ -23,7 +23,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.4.0`.
+`kestrel-stage-flight-preview-0.4.1`.
 
 ## Event and state policy
 
@@ -45,8 +45,9 @@ initial position, velocity, attitude, or body rate for analysis cases.
 The browser's `Stage flight profile` is a presentation layer over the returned
 trace; it does not add forces, resample the integrator, or change the model
 version. The operator can switch the plotted series between altitude, speed,
-Mach, dynamic pressure, axial drag, mass, and thrust. The aerodynamic series
-come from the same per-state load diagnostics used by the integrator, so table
+Mach, angle of attack, signed sideslip, dynamic pressure, axial drag, mass, and
+thrust. The aerodynamic series come from the same per-state load diagnostics
+used by the integrator, so table
 applicability and topology changes remain visible in the surrounding warnings.
 Rail liftoff, rail exit, staging, and failure events are drawn as time markers,
 while the hover readout reports the exact retained trace sample and attached-
@@ -118,10 +119,10 @@ flight-safety prediction.
   the configured transition window.
 - The supplied aerodynamic regime table must contain an exact regime for every
   attached-stage topology reached by the event sequence.
-- The optional launch rail is straight, fixed, vertical in the browser adapter,
-  and frictionless; guide-button spacing, tip-off, flexure, and launcher motion
-  are not modeled. Rail-phase state resets must preserve the constrained axis
-  and attitude.
+- The optional launch rail is straight, fixed, angled by bounded ENU controls in
+  the browser adapter, and frictionless; guide-button spacing, tip-off, flexure,
+  and launcher motion are not modeled. Rail-phase state resets must preserve the
+  constrained axis and attitude.
 - Results inherit every applicability warning from the staging, aerodynamic,
   load, environment, launch-rail, and six-degree-of-freedom models.
 - The half-step convergence rerun can be unavailable when a caller imposes a

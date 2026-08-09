@@ -29,7 +29,7 @@ import {
 } from "./separated-body-flight.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.4.0";
+  "kestrel-stage-flight-preview-0.4.1";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -63,6 +63,8 @@ export type StageFlightTracePoint = Readonly<{
   altitudeAglM: number;
   speedMps: number;
   mach: number;
+  angleOfAttackRad: number;
+  sideslipRad: number;
   dynamicPressurePa: number;
   dragN: number;
   massKg: number;
@@ -422,6 +424,8 @@ export function simulateStageFlightPreview(
         altitudeAglM: state.positionWorldM.z,
         speedMps: magnitude(state.velocityWorldMps),
         mach: loadEvaluation.diagnostics.mach,
+        angleOfAttackRad: loadEvaluation.diagnostics.angleOfAttackRad,
+        sideslipRad: loadEvaluation.diagnostics.sideslipRad,
         dynamicPressurePa: loadEvaluation.diagnostics.dynamicPressurePa,
         dragN: loadEvaluation.diagnostics.dragN,
         massKg: evaluation.massProperties.massKg,

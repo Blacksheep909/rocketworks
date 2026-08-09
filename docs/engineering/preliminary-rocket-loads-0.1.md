@@ -1,4 +1,4 @@
-# Preliminary rocket force and moment coupling 0.3
+# Preliminary rocket force and moment coupling 0.3.1
 
 Status: analytical component checks only. This coupling is not a validated
 flight simulation.
@@ -33,6 +33,15 @@ dynamic provider. Each dimensionless derivative is converted to a body moment
 with its configured reference length and the standard reduced-rate factor. The
 diagnostics now carry dynamic viscosity, Reynolds number, damping moment,
 coefficient uncertainty, and source provenance when available.
+
+Version 0.3.1 adds a signed sideslip diagnostic to the flow condition and load
+diagnostic. With body-forward speed `u = -Vbody,x`, lateral speed `v =
+Vbody,y`, and total airspeed `V`, the reported angle is
+
+`beta = asin(clamp(v / V, -1, 1))`
+
+Positive sideslip is toward body `+y`. This readout is diagnostic only; it does
+not introduce a new sideslip-dependent force or coefficient model.
 
 The returned loads can drive the independent rigid-body integrator. The model
 does not yet implement a launch rail, ground contact, recovery, or a complete
@@ -142,7 +151,7 @@ Each evaluation exposes:
 - density and speed of sound
 - wind and air-relative velocity in world and body frames
 - airspeed, forward airspeed, Mach, and dynamic pressure
-- angle of attack
+- angle of attack and signed sideslip
 - thrust, weight, drag, and normal-force magnitudes
 - whether normal force was applied
 - structured applicability codes with severity and explanation

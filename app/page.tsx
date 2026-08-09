@@ -1601,6 +1601,8 @@ type StageFlightMetricKey =
   | "altitude"
   | "speed"
   | "mach"
+  | "angleOfAttack"
+  | "sideslip"
   | "dynamicPressure"
   | "drag"
   | "mass"
@@ -1617,6 +1619,8 @@ const STAGE_FLIGHT_METRICS: readonly StageFlightMetricDefinition[] = [
   { key: "altitude", label: "Altitude", unit: "m", color: "#2f9fff" },
   { key: "speed", label: "Speed", unit: "m/s", color: "#ff7043" },
   { key: "mach", label: "Mach", unit: "M", color: "#b58cff" },
+  { key: "angleOfAttack", label: "AoA", unit: "deg", color: "#ff9b71" },
+  { key: "sideslip", label: "Sideslip", unit: "deg", color: "#86d8ff" },
   { key: "dynamicPressure", label: "Dynamic pressure", unit: "Pa", color: "#45d6b0" },
   { key: "drag", label: "Axial drag", unit: "N", color: "#e9c46a" },
   { key: "mass", label: "Mass", unit: "kg", color: "#a5c7d8" },
@@ -1630,6 +1634,8 @@ function stageFlightMetricValue(
   if (key === "altitude") return point.altitudeAglM;
   if (key === "speed") return point.speedMps;
   if (key === "mach") return point.mach;
+  if (key === "angleOfAttack") return (point.angleOfAttackRad * 180) / Math.PI;
+  if (key === "sideslip") return (point.sideslipRad * 180) / Math.PI;
   if (key === "dynamicPressure") return point.dynamicPressurePa;
   if (key === "drag") return point.dragN;
   if (key === "mass") return point.massKg;
@@ -1639,6 +1645,7 @@ function stageFlightMetricValue(
 function formatStageFlightMetric(value: number, key: StageFlightMetricKey): string {
   if (key === "mass") return value.toFixed(3);
   if (key === "mach") return value.toFixed(3);
+  if (key === "angleOfAttack" || key === "sideslip") return value.toFixed(2);
   if (key === "dynamicPressure") return value.toFixed(0);
   if (key === "thrust") return value.toFixed(1);
   if (key === "drag") return value.toFixed(1);
@@ -1850,7 +1857,7 @@ function StageFlightProfileChart({ result }: { result: StageFlightPreviewResult 
         <div>
           <span className="eyebrow">Trace inspector</span>
           <h4 id="stage-flight-profile-title">Stage flight profile</h4>
-          <p>Read the retained-vehicle trace across rail release, staging events, and free flight, including the aero load envelope.</p>
+          <p>Read the retained-vehicle trace across rail release, staging events, and free flight, including attitude and aero-load envelopes.</p>
         </div>
         <div className="stage-flight-profile-tabs" role="tablist" aria-label="Stage flight trace metric">
           {STAGE_FLIGHT_METRICS.map((item, index) => (

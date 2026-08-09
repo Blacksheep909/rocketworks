@@ -40,7 +40,7 @@ import {
 } from "./six-dof.ts";
 
 export const PRELIMINARY_ROCKET_LOAD_MODEL_VERSION =
-  "kestrel-rocket-loads-0.3.0";
+  "kestrel-rocket-loads-0.3.1";
 
 export type RocketLoadApplicabilityCode =
   | "LOW_AIRSPEED"
@@ -91,6 +91,7 @@ export type PreliminaryAerodynamicCondition = Readonly<{
   airspeedMps: number;
   forwardAirspeedBodyMps: number;
   angleOfAttackRad: number;
+  sideslipRad: number;
   mach: number;
   dynamicPressurePa: number;
 }>;
@@ -136,6 +137,7 @@ export type PreliminaryRocketLoadDiagnostics = Readonly<{
   airspeedMps: number;
   forwardAirspeedBodyMps: number;
   angleOfAttackRad: number;
+  sideslipRad: number;
   mach: number;
   dynamicPressurePa: number;
   thrustN: number;
@@ -312,6 +314,15 @@ export function createPreliminaryRocketLoadModel(
       airspeedMps > 1e-12
         ? Math.atan2(transverseAirspeedMps, forwardAirspeedBodyMps)
         : 0;
+    const sideslipRad =
+      airspeedMps > 1e-12
+        ? Math.asin(
+            Math.min(
+              1,
+              Math.max(-1, airRelativeVelocityBodyMps.y / airspeedMps),
+            ),
+          )
+        : 0;
     const mach = airspeedMps / atmosphere.speedOfSoundMps;
     const dynamicPressurePa =
       0.5 * atmosphere.densityKgM3 * airspeedMps * airspeedMps;
@@ -323,6 +334,7 @@ export function createPreliminaryRocketLoadModel(
       airspeedMps,
       forwardAirspeedBodyMps,
       angleOfAttackRad,
+      sideslipRad,
       mach,
       dynamicPressurePa,
     };
@@ -569,6 +581,7 @@ export function createPreliminaryRocketLoadModel(
         airspeedMps,
         forwardAirspeedBodyMps,
         angleOfAttackRad,
+        sideslipRad,
         mach,
         dynamicPressurePa,
         thrustN: propulsion.totalThrustN,

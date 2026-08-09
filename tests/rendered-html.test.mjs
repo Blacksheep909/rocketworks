@@ -479,7 +479,11 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /stage-flight-comparison/);
   assert.match(page, /Stage flight profile/);
   assert.match(page, /Dynamic pressure/);
+  assert.match(page, /key: "angleOfAttack", label: "AoA"/);
+  assert.match(page, /key: "sideslip", label: "Sideslip"/);
   assert.match(page, /point\.dynamicPressurePa/);
+  assert.match(page, /point\.angleOfAttackRad/);
+  assert.match(page, /point\.sideslipRad/);
   assert.match(page, /Integration-step convergence/);
   assert.match(page, /formatStageFlightConvergenceStatus/);
   assert.match(page, /aria-label=\{`\$\{definition\.label\} over time/);
@@ -503,6 +507,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(topology, /aerodynamicTableId/);
   assert.match(stagePreview, /simulateStageFlightPreview/);
   assert.match(stagePreview, /simulateRailGuidedLaunch/);
+  assert.match(stagePreview, /sideslipRad/);
   assert.match(stagePreview, /launchRailMaximumSteps/);
   assert.match(stagePreview, /mathematical-regression-tests-only/);
   assert.match(stagePreview, /STAGE_FLIGHT_CONVERGENCE_RELATIVE_TOLERANCE/);

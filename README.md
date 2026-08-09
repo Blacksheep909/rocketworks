@@ -28,7 +28,7 @@ research, standards, and original code.
 - preliminary vertical flight, coupled 6DOF, staging, ignition delays,
   failure events, and bounded separated-body ballistic checks;
 - interactive vertical and staged trace inspectors with Mach, dynamic-pressure,
-  drag, event, and topology readouts;
+  drag, angle-of-attack, sideslip, event, and topology readouts;
 - preliminary structural-readiness screen for axial stress, Euler buckling,
   fin-root bending/shear, and static-margin review with explicit assumptions;
 - uncertainty analysis, parameter sweeps, sensitivity, and constraint-aware

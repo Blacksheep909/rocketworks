@@ -18,6 +18,8 @@ flight-readiness claims.
 - Added bounded launch-rail inclination and ENU azimuth controls; the coupled
   preview now aligns the initial attitude and hands the angled rail state into
   free flight.
+- Added angle-of-attack and signed-sideslip diagnostics to the coupled trace
+  inspector and staged CSV export, with explicit degree units.
 
 ## 0.1.0-preview — 2026-08-09
 

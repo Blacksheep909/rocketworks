@@ -127,6 +127,18 @@ test("crossflow produces opposing normal force and an aft restoring moment", () 
   assert.ok(evaluation.loads.forceBodyN.y < 0);
   assert.ok(evaluation.loads.momentBodyNm.z < 0);
   close(
+    evaluation.diagnostics.angleOfAttackRad,
+    Math.atan2(5, 50),
+    1e-12,
+    "angle-of-attack magnitude",
+  );
+  close(
+    evaluation.diagnostics.sideslipRad,
+    Math.asin(5 / Math.sqrt(50 ** 2 + 5 ** 2)),
+    1e-12,
+    "positive sideslip",
+  );
+  close(
     evaluation.loads.momentBodyNm.z,
     0.2 * -evaluation.diagnostics.normalForceN,
     1e-10,
