@@ -337,6 +337,12 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /stage-flight-rail/);
   assert.match(page, /stageFlightResult\.validationStatus/);
   assert.match(page, /stage-flight-warnings/);
+  assert.match(page, /StageFlightProfileChart/);
+  assert.match(page, /Stage flight profile/);
+  assert.match(page, /aria-label=\{`\$\{definition\.label\} over time/);
+  assert.match(page, /attachedStageIds\.join/);
+  assert.match(page, /ArrowRight/);
+  assert.match(page, /ArrowLeft/);
   assert.match(page, /Staged 6DOF trace/);
   assert.match(page, /createStageFlightTraceCsv/);
   assert.match(page, /MODEL BOUNDARY/);
@@ -357,6 +363,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stylesheet, /\.topology-stage-events/);
   assert.match(stylesheet, /\.topology-failure-toggle/);
   assert.match(stylesheet, /\.topology-add-actions/);
+  assert.match(stylesheet, /\.stage-flight-profile/);
+  assert.match(stylesheet, /\.stage-flight-chart/);
+  assert.match(stylesheet, /\.stage-flight-profile-tabs button:focus-visible/);
 });
 
 test("ships a bounded parameter-sweep workflow with inspectable exports", async () => {

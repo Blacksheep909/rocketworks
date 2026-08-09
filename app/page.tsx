@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { LandingFootprintChart } from "./landing-footprint-chart.tsx";
@@ -1152,6 +1152,262 @@ function FlightChart({ result }: { result: VerticalFlightResult }) {
       aria-label="Estimated altitude over time"
       role="img"
     />
+  );
+}
+
+type StageFlightMetricKey = "altitude" | "speed" | "mass" | "thrust";
+
+type StageFlightMetricDefinition = Readonly<{
+  key: StageFlightMetricKey;
+  label: string;
+  unit: string;
+  color: string;
+}>;
+
+const STAGE_FLIGHT_METRICS: readonly StageFlightMetricDefinition[] = [
+  { key: "altitude", label: "Altitude", unit: "m", color: "#2f9fff" },
+  { key: "speed", label: "Speed", unit: "m/s", color: "#ff7043" },
+  { key: "mass", label: "Mass", unit: "kg", color: "#a5c7d8" },
+  { key: "thrust", label: "Thrust", unit: "N", color: "#f4a340" },
+];
+
+function stageFlightMetricValue(
+  point: StageFlightPreviewResult["trace"][number],
+  key: StageFlightMetricKey,
+): number {
+  if (key === "altitude") return point.altitudeAglM;
+  if (key === "speed") return point.speedMps;
+  if (key === "mass") return point.massKg;
+  return point.thrustN;
+}
+
+function formatStageFlightMetric(value: number, key: StageFlightMetricKey): string {
+  if (key === "mass") return value.toFixed(3);
+  if (key === "thrust") return value.toFixed(1);
+  return value.toFixed(1);
+}
+
+function StageFlightProfileChart({ result }: { result: StageFlightPreviewResult }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [metric, setMetric] = useState<StageFlightMetricKey>("altitude");
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const trace = result.trace;
+  const definition = STAGE_FLIGHT_METRICS.find((item) => item.key === metric)!;
+  const maxTimeS = Math.max(trace.at(-1)?.timeS ?? 0, 1);
+  const metricValues = trace.map((point) => stageFlightMetricValue(point, metric));
+  const peakValue = metricValues.length > 0 ? Math.max(...metricValues) : 0;
+  const hoverPoint = hoverIndex === null ? null : trace[hoverIndex] ?? null;
+  const summaryId = "stage-flight-profile-summary";
+  const selectMetricByKeyboard = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    currentIndex: number,
+  ) => {
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      nextIndex = (currentIndex + 1) % STAGE_FLIGHT_METRICS.length;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      nextIndex = (currentIndex - 1 + STAGE_FLIGHT_METRICS.length) % STAGE_FLIGHT_METRICS.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = STAGE_FLIGHT_METRICS.length - 1;
+    }
+    if (nextIndex === null) return;
+    event.preventDefault();
+    setMetric(STAGE_FLIGHT_METRICS[nextIndex]!.key);
+    setHoverIndex(null);
+  };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || trace.length === 0) return;
+
+    const draw = () => {
+      const ratio = window.devicePixelRatio || 1;
+      const bounds = canvas.getBoundingClientRect();
+      const width = Math.max(1, bounds.width);
+      const height = Math.max(1, bounds.height);
+      canvas.width = Math.max(1, Math.round(width * ratio));
+      canvas.height = Math.max(1, Math.round(height * ratio));
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+      const padding = { top: 26, right: 52, bottom: 30, left: 52 };
+      const plotWidth = Math.max(1, width - padding.left - padding.right);
+      const plotHeight = Math.max(1, height - padding.top - padding.bottom);
+      const values = trace.map((point) => stageFlightMetricValue(point, metric));
+      const rawMinimum = Math.min(...values, 0);
+      const rawMaximum = Math.max(...values, 1);
+      const range = Math.max(rawMaximum - rawMinimum, 1e-9);
+      const domainMinimum = metric === "mass"
+        ? Math.max(0, rawMinimum - range * 0.06)
+        : rawMinimum;
+      const domainMaximum = rawMaximum + range * 0.08;
+      const xForTime = (timeS: number) =>
+        padding.left + Math.max(0, Math.min(1, timeS / maxTimeS)) * plotWidth;
+      const yForValue = (value: number) =>
+        padding.top + plotHeight -
+        ((value - domainMinimum) / Math.max(domainMaximum - domainMinimum, 1e-9)) * plotHeight;
+
+      context.clearRect(0, 0, width, height);
+      context.font = "10px ui-monospace, SFMono-Regular, Consolas, monospace";
+      context.lineWidth = 1;
+      context.strokeStyle = "rgba(125, 158, 182, 0.16)";
+      context.fillStyle = "#718795";
+      for (let index = 0; index <= 4; index += 1) {
+        const fraction = index / 4;
+        const y = padding.top + plotHeight * fraction;
+        const value = domainMaximum - (domainMaximum - domainMinimum) * fraction;
+        context.beginPath();
+        context.moveTo(padding.left, y);
+        context.lineTo(width - padding.right, y);
+        context.stroke();
+        context.fillText(`${formatStageFlightMetric(value, metric)} ${definition.unit}`, 4, y + 3);
+      }
+
+      context.fillStyle = "#718795";
+      context.fillText("0 s", padding.left, height - 8);
+      context.fillText(`${maxTimeS.toFixed(1)} s`, width - padding.right - 34, height - 8);
+
+      const coordinates = trace.map((point) => ({
+        x: xForTime(point.timeS),
+        y: yForValue(stageFlightMetricValue(point, metric)),
+      }));
+      const gradient = context.createLinearGradient(0, padding.top, 0, height);
+      gradient.addColorStop(0, `${definition.color}45`);
+      gradient.addColorStop(1, `${definition.color}04`);
+      context.beginPath();
+      context.moveTo(coordinates[0]!.x, padding.top + plotHeight);
+      coordinates.forEach((point) => context.lineTo(point.x, point.y));
+      context.lineTo(coordinates.at(-1)!.x, padding.top + plotHeight);
+      context.closePath();
+      context.fillStyle = gradient;
+      context.fill();
+      context.beginPath();
+      coordinates.forEach((point, index) =>
+        index === 0 ? context.moveTo(point.x, point.y) : context.lineTo(point.x, point.y),
+      );
+      context.strokeStyle = definition.color;
+      context.lineWidth = 2.2;
+      context.lineJoin = "round";
+      context.stroke();
+
+      for (const event of result.events) {
+        const x = xForTime(event.timeS);
+        context.save();
+        context.setLineDash([3, 4]);
+        context.strokeStyle = event.kind === "rail"
+          ? "rgba(255,112,67,.72)"
+          : event.kind === "scheduled"
+            ? "rgba(244,163,64,.72)"
+            : "rgba(47,159,255,.7)";
+        context.beginPath();
+        context.moveTo(x, padding.top);
+        context.lineTo(x, padding.top + plotHeight);
+        context.stroke();
+        context.restore();
+      }
+
+      if (hoverIndex !== null && coordinates[hoverIndex]) {
+        const point = coordinates[hoverIndex]!;
+        context.save();
+        context.strokeStyle = "rgba(236,245,249,.52)";
+        context.setLineDash([2, 3]);
+        context.beginPath();
+        context.moveTo(point.x, padding.top);
+        context.lineTo(point.x, padding.top + plotHeight);
+        context.stroke();
+        context.setLineDash([]);
+        context.fillStyle = definition.color;
+        context.beginPath();
+        context.arc(point.x, point.y, 4, 0, Math.PI * 2);
+        context.fill();
+        context.restore();
+      }
+    };
+
+    draw();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(draw);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [definition.color, definition.unit, hoverIndex, maxTimeS, metric, result.events, trace]);
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (trace.length === 0) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const paddingLeft = 52;
+    const paddingRight = 52;
+    const usableWidth = Math.max(1, bounds.width - paddingLeft - paddingRight);
+    const normalizedX = Math.max(0, Math.min(1, (event.clientX - bounds.left - paddingLeft) / usableWidth));
+    const targetTimeS = normalizedX * maxTimeS;
+    let nearestIndex = 0;
+    let nearestDistance = Infinity;
+    trace.forEach((point, index) => {
+      const distance = Math.abs(point.timeS - targetTimeS);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+    setHoverIndex(nearestIndex);
+  };
+
+  if (trace.length === 0) {
+    return <div className="stage-flight-profile-empty">No staged trace samples were returned for this run.</div>;
+  }
+
+  return (
+    <section className="stage-flight-profile" aria-labelledby="stage-flight-profile-title">
+      <div className="stage-flight-profile-heading">
+        <div>
+          <span className="eyebrow">Trace inspector</span>
+          <h4 id="stage-flight-profile-title">Stage flight profile</h4>
+          <p>Read the retained-vehicle trace across rail release, staging events, and free flight.</p>
+        </div>
+        <div className="stage-flight-profile-tabs" role="tablist" aria-label="Stage flight trace metric">
+          {STAGE_FLIGHT_METRICS.map((item, index) => (
+            <button
+              key={item.key}
+              type="button"
+              role="tab"
+              aria-selected={metric === item.key}
+              className={metric === item.key ? "active" : ""}
+              onKeyDown={(event) => selectMetricByKeyboard(event, index)}
+              onClick={() => { setMetric(item.key); setHoverIndex(null); }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="stage-flight-profile-plot">
+        <canvas
+          ref={canvasRef}
+          className="stage-flight-chart"
+          role="img"
+          aria-label={`${definition.label} over time for the staged flight preview`}
+          aria-describedby={summaryId}
+          onPointerMove={handlePointerMove}
+          onPointerLeave={() => setHoverIndex(null)}
+        />
+        {hoverPoint && (
+          <div className="stage-flight-hover" aria-live="polite">
+            <span>{hoverPoint.timeS.toFixed(2)} s</span>
+            <strong>{formatStageFlightMetric(stageFlightMetricValue(hoverPoint, metric), metric)} {definition.unit}</strong>
+            <small>{hoverPoint.attachedStageIds.join(" + ") || "No attached stage"}</small>
+          </div>
+        )}
+      </div>
+      <div className="stage-flight-profile-footer">
+        <span><i className="profile-key-line" style={{ background: definition.color }} />{definition.label} · peak {formatStageFlightMetric(peakValue, metric)} {definition.unit}</span>
+        <span><i className="profile-key-event" />{result.events.length} event markers · {trace.length} samples</span>
+      </div>
+      <p className="sr-only" id={summaryId}>
+        The staged flight trace contains {trace.length} samples over {maxTimeS.toFixed(2)} seconds. The selected {definition.label.toLowerCase()} reaches {formatStageFlightMetric(peakValue, metric)} {definition.unit}. Event markers include rail release and any accepted staging or failure transitions. This is an unvalidated engineering preview.
+      </p>
+    </section>
   );
 }
 
@@ -2402,6 +2658,7 @@ export default function Home() {
                         <div><span>HANDOFF</span><strong>{stageFlightResult.rail.events.find((event) => event.type === "rail_exit")?.timeS.toFixed(2) ?? "—"} s</strong></div>
                       </div>
                     )}
+                    <StageFlightProfileChart result={stageFlightResult} />
                     <div className="stage-flight-events" aria-label="Staged flight events">
                       {stageFlightResult.events.length === 0 ? (
                         <span className="stage-flight-empty">No staging transitions were reached in this run.</span>

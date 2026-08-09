@@ -39,6 +39,24 @@ The initial attitude defaults to the documented vertical-launch quaternion,
 which maps the body nose direction to ENU up. A caller may provide a different
 initial position, velocity, attitude, or body rate for analysis cases.
 
+## Browser trace profile
+
+The browser's `Stage flight profile` is a presentation layer over the returned
+trace; it does not add forces, resample the integrator, or change the model
+version. The operator can switch the plotted series between altitude, speed,
+mass, and thrust. Rail liftoff, rail exit, staging, and failure events are
+drawn as time markers, while the hover readout reports the exact retained
+trace sample and attached-stage set. The canvas is paired with a textual
+summary so the profile remains understandable to keyboard and assistive-
+technology users. CSV export remains the authoritative portable trace for
+external plotting. The metric tabs accept Tab plus Arrow, Home, and End key
+navigation so changing the displayed series does not require a pointer.
+
+The profile deliberately uses one primary y-axis at a time. This prevents a
+large thrust value or a small mass value from visually hiding another series
+and keeps the plotted quantity's units explicit. It is a diagnostic view, not
+a replacement for the underlying state vector or independent verification.
+
 ## Limitations
 
 - The retained-body staging model does not spawn or propagate discarded stages.
