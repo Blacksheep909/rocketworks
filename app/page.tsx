@@ -39,6 +39,7 @@ import {
   simulateRecoveryDescent,
   estimateAscentWindDrift,
   simulateVerticalFlight,
+  resolveStageAerodynamicTable,
   type DesignOptimizationResult,
   type AerodynamicCoefficientTableDefinition,
   type AerodynamicCoefficientTableModel,
@@ -711,6 +712,7 @@ function createStageFlightPreviewInputs({
   launchRailEnabled,
   launchRailLengthM,
   aerodynamicTable,
+  aerodynamicTableModels,
 }: {
   topology: LocalVehicleTopology;
   assembly: VehicleAssemblyEvaluation;
@@ -722,11 +724,13 @@ function createStageFlightPreviewInputs({
   launchRailEnabled: boolean;
   launchRailLengthM: number;
   aerodynamicTable?: AerodynamicCoefficientTableModel | null;
+  aerodynamicTableModels?: Readonly<Record<string, AerodynamicCoefficientTableModel>>;
 }): Parameters<typeof simulateStageFlightPreview>[0] {
   const stageById = new Map(topology.stages.map((stage) => [stage.id, stage]));
   const activeStages = topology.stages.filter((stage) => stage.enabled);
   const motorAssignmentWarnings: string[] = [];
   const stageFailureWarnings: string[] = [];
+  const aerodynamicAssignmentWarnings: string[] = [];
   const motorAssignmentAssumptions = [
     "A stage without an explicit motor assignment uses the current global motor selection.",
   ];
@@ -825,22 +829,30 @@ function createStageFlightPreviewInputs({
       return component;
     });
   const regimes: StageAerodynamicRegime[] = [];
-  const coefficientTableDesignPoint = aerodynamicTable
-    ? {
-        mach: (aerodynamicTable.machRange[0] + aerodynamicTable.machRange[1]) / 2,
-        reynoldsNumber: Math.sqrt(
-          aerodynamicTable.reynoldsRange[0] * aerodynamicTable.reynoldsRange[1],
-        ),
-      }
-    : undefined;
   for (let mask = 0; mask < 2 ** stageIds.length; mask += 1) {
     const activeStageIds = stageIds.filter((_, index) => (mask & (1 << index)) !== 0);
+    const resolvedAerodynamicTable = resolveStageAerodynamicTable({
+      activeStageIds,
+      stages: topology.stages,
+      aerodynamicTableModels: aerodynamicTableModels ?? {},
+      globalTable: aerodynamicTable ?? null,
+    });
+    aerodynamicAssignmentWarnings.push(...resolvedAerodynamicTable.warnings);
+    const regimeTable = resolvedAerodynamicTable.table;
     regimes.push({
       id: `preview-${activeStageIds.join("-") || "retained"}`,
       label: activeStageIds.length > 0 ? `${activeStageIds.join(" + ")} topology` : "Retained payload topology",
       activeStageIds,
-      ...(aerodynamicTable
-        ? { coefficientTable: aerodynamicTable, coefficientTableDesignPoint }
+      ...(regimeTable
+        ? {
+            coefficientTable: regimeTable,
+            coefficientTableDesignPoint: {
+              mach: (regimeTable.machRange[0] + regimeTable.machRange[1]) / 2,
+              reynoldsNumber: Math.sqrt(
+                regimeTable.reynoldsRange[0] * regimeTable.reynoldsRange[1],
+              ),
+            },
+          }
         : { dragCoefficient }),
     });
   }
@@ -899,7 +911,11 @@ function createStageFlightPreviewInputs({
     initialState,
     events,
     stateEvents,
-    additionalWarnings: [...motorAssignmentWarnings, ...stageFailureWarnings],
+    additionalWarnings: [
+      ...motorAssignmentWarnings,
+      ...stageFailureWarnings,
+      ...aerodynamicAssignmentWarnings,
+    ],
     additionalAssumptions: motorAssignmentAssumptions,
   };
 }
@@ -1832,6 +1848,15 @@ export default function Home() {
         : null,
     [selectedAerodynamicTableDefinition],
   );
+  const aerodynamicTableModels = useMemo<Readonly<Record<string, AerodynamicCoefficientTableModel>>>(
+    () => Object.fromEntries(
+      aerodynamicTableDefinitions.map((definition) => [
+        definition.id,
+        createAerodynamicCoefficientTable(definition),
+      ]),
+    ),
+    [aerodynamicTableDefinitions],
+  );
   const simulationFingerprint = useMemo(
     () =>
       createSimulationFingerprint({
@@ -2744,6 +2769,7 @@ export default function Home() {
             launchRailEnabled,
             launchRailLengthM,
             aerodynamicTable: selectedAerodynamicTable,
+            aerodynamicTableModels,
           }),
         );
         setStageFlightResult(nextResult);
@@ -3933,7 +3959,7 @@ export default function Home() {
               <div>
                 <span className="eyebrow">Vehicle architecture</span>
                 <h2 id="topology-title">Stages, boosters & clusters</h2>
-                <p id="topology-description">Build an assembly topology from serial stages, parallel booster sets, and repeated radial instances. Mass and inertia update through the shared analytical assembly model.</p>
+                <p id="topology-description">Build an assembly topology from serial stages, parallel booster sets, and repeated radial instances. Mass and inertia update through the shared analytical assembly model, while each stage can select a provenance-qualified aerodynamic table for its isolated regime.</p>
               </div>
               <button
                 ref={topologyCloseRef}
@@ -3970,6 +3996,11 @@ export default function Home() {
                         {userMotorRecords.map((record) => <option value={record.id} key={record.id}>{record.manufacturer} · {record.designation}</option>)}
                         {stage.motorId && !userMotorRecords.some((record) => record.id === stage.motorId) && <option value={stage.motorId}>Unavailable · fallback</option>}
                       </select></label>
+                      <label>Aero table<select value={stage.aerodynamicTableId ?? "__global__"} onChange={(event) => updateTopologyStage(stage.id, { aerodynamicTableId: event.target.value === "__global__" ? undefined : event.target.value })}>
+                        <option value="__global__">Global · {selectedAerodynamicTable?.name ?? "constant Cd"}</option>
+                        {aerodynamicTableDefinitions.map((table) => <option value={table.id} key={table.id}>{table.name}</option>)}
+                        {stage.aerodynamicTableId && !aerodynamicTableDefinitions.some((table) => table.id === stage.aerodynamicTableId) && <option value={stage.aerodynamicTableId}>Unavailable · fallback</option>}
+                      </select></label>
                       <label>Attachment<select value={stage.attachment} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { attachment: event.target.value as VehicleStageAttachment, parentStageId: event.target.value === "parallel" ? (stage.parentStageId ?? "sustainer") : stage.parentStageId })}><option value="serial">Serial</option><option value="parallel">Parallel</option></select></label>
                       <label>Parent stage<select value={stage.parentStageId ?? ""} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { parentStageId: event.target.value || undefined })}>{vehicleTopology.stages.slice(0, index).map((candidate) => <option value={candidate.id} key={candidate.id}>{candidate.name}</option>)}</select></label>
                       <label>Repeat count<input type="number" min="1" max="8" value={stage.repeatCount} onChange={(event) => updateTopologyStage(stage.id, { repeatCount: Number(event.target.value) })} /></label>
@@ -3987,7 +4018,7 @@ export default function Home() {
             </div>
             <div className="history-notice">
               <span>MODEL BOUNDARY</span>
-              <p>Topology changes update analytical assembly mass, centre of gravity, inertia, and instance counts. The staged Flight preview consumes these ignition/separation settings and reports event topology; separation clearance, discarded-body trajectories, and flight-safety validation remain outside this retained-body model.</p>
+              <p>Topology changes update analytical assembly mass, centre of gravity, inertia, instance counts, and stage-level aerodynamic source assignments. A regime with one available table uses it; combined stages with conflicting or unavailable tables fall back to the global source with an explicit warning. Separation clearance, discarded-body trajectories, aerodynamic interference, and flight-safety validation remain outside this retained-body model.</p>
             </div>
           </section>
         </div>

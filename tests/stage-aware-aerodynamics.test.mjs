@@ -8,6 +8,7 @@ import {
   createScheduledStageSeparationEvent,
   createStageAwareAerodynamicsModel,
   initializeMultiStageState,
+  resolveStageAerodynamicTable,
   separateStage,
   simulateRigidBody6D,
 } from "../lib/physics/index.ts";
@@ -17,6 +18,26 @@ function close(actual, expected, tolerance, label) {
     Math.abs(actual - expected) <= tolerance,
     `${label}: expected ${expected}, received ${actual}`,
   );
+}
+
+function coefficientTable(id, drag = 0.5) {
+  return createAerodynamicCoefficientTable({
+    id,
+    name: id,
+    machPoints: [0, 1],
+    reynoldsPoints: [1e5, 1e6],
+    dragCoefficient: { values: [[drag, drag], [drag, drag]] },
+    normalForceSlopePerRad: { values: [[4, 4], [4, 4]] },
+    centerOfPressureXM: { values: [[0.5, 0.5], [0.5, 0.5]] },
+    provenance: {
+      sourceName: "Resolver fixture",
+      sourceKind: "user-supplied",
+      dataVersion: "fixture-1",
+      licenseIdentifier: "CC0-1.0",
+      attribution: "Original test fixture",
+      validationStatus: "user-supplied-unvalidated",
+    },
+  });
 }
 
 function properties(massKg, x, inertia = 0.02) {
@@ -438,4 +459,45 @@ test("Mach-Reynolds coefficient tables propagate into topology-aware evaluations
   assert.equal(result.coefficientEvaluation?.validationStatus, "user-supplied-unvalidated");
   close(result.dragCoefficient, 0.5, 1e-12, "design-point drag coefficient");
   assert.equal(result.applicability[0]?.code, "COEFFICIENT_UNCERTAINTY_PRESENT");
+});
+
+test("stage aerodynamic assignments select isolated tables and warn on unsafe combinations", () => {
+  const globalTable = coefficientTable("global", 0.5);
+  const boosterTable = coefficientTable("booster-table", 0.72);
+  const upperTable = coefficientTable("upper-table", 0.38);
+  const stages = [
+    { id: "booster", aerodynamicTableId: boosterTable.id },
+    { id: "upper", aerodynamicTableId: upperTable.id },
+  ];
+  const models = {
+    [boosterTable.id]: boosterTable,
+    [upperTable.id]: upperTable,
+  };
+
+  const isolated = resolveStageAerodynamicTable({
+    activeStageIds: ["booster"],
+    stages,
+    aerodynamicTableModels: models,
+    globalTable,
+  });
+  assert.equal(isolated.table?.id, boosterTable.id);
+  assert.deepEqual(isolated.warnings, []);
+
+  const combined = resolveStageAerodynamicTable({
+    activeStageIds: ["booster", "upper"],
+    stages,
+    aerodynamicTableModels: models,
+    globalTable,
+  });
+  assert.equal(combined.table?.id, globalTable.id);
+  assert.match(combined.warnings.join(" "), /multiple aerodynamic tables/);
+
+  const unavailable = resolveStageAerodynamicTable({
+    activeStageIds: ["booster"],
+    stages: [{ id: "booster", aerodynamicTableId: "missing-table" }],
+    aerodynamicTableModels: models,
+    globalTable,
+  });
+  assert.equal(unavailable.table?.id, globalTable.id);
+  assert.match(unavailable.warnings.join(" "), /unavailable aerodynamic table/);
 });

@@ -41,6 +41,16 @@ export type StageAerodynamicRegime = Readonly<{
   minimumNormalForceAirspeedMps?: number;
 }>;
 
+export type StageAerodynamicTableAssignment = Readonly<{
+  id: string;
+  aerodynamicTableId?: string;
+}>;
+
+export type StageAerodynamicTableResolution = Readonly<{
+  table: AerodynamicCoefficientTableModel | null;
+  warnings: readonly string[];
+}>;
+
 export type StageAwareAerodynamicEvaluation = Readonly<{
   modelVersion: string;
   validationStatus: "analytical-component-checks-only";
@@ -71,6 +81,49 @@ export type StageAwareAerodynamicsModel = Readonly<{
   assumptions: readonly string[];
   warnings: readonly string[];
 }>;
+
+/**
+ * Resolves stage-level table selections for one exact attached-stage set.
+ * A single available source is safe to select; mixed or missing sources fall
+ * back to the caller's global table instead of blending incompatible data.
+ */
+export function resolveStageAerodynamicTable(input: Readonly<{
+  activeStageIds: readonly string[];
+  stages: readonly StageAerodynamicTableAssignment[];
+  aerodynamicTableModels: Readonly<Record<string, AerodynamicCoefficientTableModel>>;
+  globalTable: AerodynamicCoefficientTableModel | null;
+}>): StageAerodynamicTableResolution {
+  const stageById = new Map(input.stages.map((stage) => [stage.id, stage]));
+  const assignedTableIds = [...new Set(
+    input.activeStageIds
+      .map((stageId) => stageById.get(stageId)?.aerodynamicTableId)
+      .filter((tableId): tableId is string => Boolean(tableId)),
+  )];
+  const assignedTables = assignedTableIds
+    .map((tableId) => input.aerodynamicTableModels[tableId])
+    .filter((table): table is AerodynamicCoefficientTableModel => Boolean(table));
+  const warnings: string[] = [];
+  const topologyLabel = input.activeStageIds.join(" + ") || "retained payload";
+  const hasUnavailableAssignment = assignedTableIds.length > 0 && assignedTables.length !== assignedTableIds.length;
+  if (hasUnavailableAssignment) {
+    warnings.push(
+      `${topologyLabel} references an unavailable aerodynamic table; the global source was used.`,
+    );
+  }
+  const hasConflictingAssignments = assignedTableIds.length > 1;
+  if (hasConflictingAssignments) {
+    warnings.push(
+      `${topologyLabel} assigns multiple aerodynamic tables; combined-stage interference is not represented, so the global source was used.`,
+    );
+  }
+  return {
+    table:
+      !hasUnavailableAssignment && !hasConflictingAssignments && assignedTables.length === 1
+        ? assignedTables[0]
+        : input.globalTable,
+    warnings,
+  };
+}
 
 function validateIdentifier(id: string, label: string): void {
   if (!/^[A-Za-z0-9_-]+$/.test(id)) {

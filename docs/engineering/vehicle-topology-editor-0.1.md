@@ -14,10 +14,12 @@ Kestrel Lab now exposes a local topology editor for:
 - parent-stage selection, enable/disable state, and editable names;
 - per-stage motor assignment to a saved user-supplied record, with a global
   selection fallback;
+- per-stage aerodynamic-table assignment to a saved coefficient surface, with
+  a global selection fallback;
 - per-stage ignition delay, separation delay, and an explicit deterministic
   ignition-failure switch for the preview run.
 
-The editor produces a validated `LocalVehicleTopology` document with schema `dev.kestrel-lab.local-vehicle-topology`, version 1. It is stored under `kestrel.project.arc54.vehicle-topology.v1` and is bounded to eight stages. IDs, optional motor assignments, stage order, parent references, attachment type, roles, repeat count, and radius are checked before persistence. Motor assignments are migration-by-default: older v1 records without `motorId` continue to use the global motor selection.
+The editor produces a validated `LocalVehicleTopology` document with schema `dev.kestrel-lab.local-vehicle-topology`, version 1. It is stored under `kestrel.project.arc54.vehicle-topology.v1` and is bounded to eight stages. IDs, optional motor and aerodynamic-table assignments, stage order, parent references, attachment type, roles, repeat count, and radius are checked before persistence. Motor and aerodynamic-table assignments are migration-by-default: older v1 records without either optional field continue to use the global selection.
 
 ## Assembly mapping
 
@@ -35,6 +37,13 @@ When a staged run is requested, the assigned motor's thrust curve and mass
 properties feed that stage's independent propulsion model. A missing local
 motor record falls back to the global selection and emits a visible warning in
 the result; it is never silently treated as certified data.
+
+Each exact attached-stage regime also resolves its aerodynamic source. If all
+active stages point to one available table, that table is used for the regime.
+If the active set contains conflicting table IDs or an unavailable table, the
+regime falls back to the global source and emits a warning that combined-stage
+interference is not represented. This conservative fallback avoids silently
+mixing incompatible coefficient reference areas or signs.
 
 ## Safety and validation
 

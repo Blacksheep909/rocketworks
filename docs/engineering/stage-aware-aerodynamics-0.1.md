@@ -36,6 +36,12 @@ This avoids silently applying full-stack coefficients to an upper stage or
 interpolating between geometrically different vehicles. The drag coefficient
 must use the reference-area convention reported by that selected topology.
 
+The browser topology editor can assign one saved coefficient table to each
+stage. For an exact attached-stage set, one available assigned table is used;
+conflicting or unavailable assignments fall back to the global table and emit
+an explicit warning. This is a source-selection convenience, not a model of
+combined-stage interference or a way to blend incompatible datasets.
+
 Always-active geometry identifiers support payload, capsule, or retained nose
 sections whose component grouping is outside the propulsive-stage list.
 

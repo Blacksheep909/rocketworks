@@ -1128,7 +1128,7 @@ kbd {
 .topology-stage-heading small { color: var(--muted); font: 8px var(--font-geist-mono),monospace; text-transform: uppercase; }
 .topology-enabled { display: flex; align-items: center; gap: 6px; color: #a6bac8; font-size: 8px; white-space: nowrap; }
 .topology-enabled input { accent-color: var(--accent); }
-.topology-stage-fields { display: grid; grid-template-columns: 1.6fr repeat(6,minmax(0,1fr)); gap: 7px; margin-top: 12px; }
+.topology-stage-fields { display: grid; grid-template-columns: 1.45fr repeat(7,minmax(0,1fr)); gap: 7px; margin-top: 12px; }
 .topology-stage-fields label { display: flex; min-width: 0; flex-direction: column; gap: 4px; color: #8fa4b2; font-size: 7px; }
 .topology-stage-fields input, .topology-stage-fields select { width: 100%; min-height: 29px; padding: 0 6px; border: 1px solid var(--line); border-radius: 3px; background: #0b1116; color: var(--ink); font-size: 9px; }
 .topology-stage-fields input:focus, .topology-stage-fields select:focus { border-color: rgba(47,159,255,.52); outline: 0; box-shadow: 0 0 0 2px rgba(47,159,255,.12); }

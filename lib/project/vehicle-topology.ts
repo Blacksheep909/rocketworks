@@ -13,6 +13,7 @@ export type VehicleStagePlan = Readonly<{
   attachment: VehicleStageAttachment;
   parentStageId?: string;
   motorId?: string;
+  aerodynamicTableId?: string;
   enabled: boolean;
   repeatCount: number;
   repeatRadiusM: number;
@@ -62,6 +63,9 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
   if (stage.motorId !== undefined && (typeof stage.motorId !== "string" || !ID_PATTERN.test(stage.motorId))) {
     throw new Error(`Stage ${id} motorId is invalid.`);
   }
+  if (stage.aerodynamicTableId !== undefined && (typeof stage.aerodynamicTableId !== "string" || !ID_PATTERN.test(stage.aerodynamicTableId))) {
+    throw new Error(`Stage ${id} aerodynamicTableId is invalid.`);
+  }
   const ignitionDelayS = stage.ignitionDelayS ?? 0;
   if (typeof ignitionDelayS !== "number" || !Number.isFinite(ignitionDelayS) || ignitionDelayS < 0 || ignitionDelayS > 120) {
     throw new Error(`Stage ${id} ignitionDelayS must be a finite value from 0 through 120 s.`);
@@ -79,6 +83,7 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     attachment: stage.attachment as VehicleStageAttachment,
     ...(stage.parentStageId ? { parentStageId: stage.parentStageId } : {}),
     ...(stage.motorId ? { motorId: stage.motorId } : {}),
+    ...(stage.aerodynamicTableId ? { aerodynamicTableId: stage.aerodynamicTableId } : {}),
     enabled: stage.enabled,
     repeatCount: stage.repeatCount as number,
     repeatRadiusM: stage.repeatRadiusM,
@@ -148,6 +153,7 @@ export function createStagePlan(input: Readonly<{
   attachment: VehicleStageAttachment;
   parentStageId?: string;
   motorId?: string;
+  aerodynamicTableId?: string;
   repeatCount?: number;
   repeatRadiusM?: number;
   ignitionDelayS?: number;
