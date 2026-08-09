@@ -24,9 +24,9 @@ The device-local document is stored under `kestrel.project.arc54.motor-library.v
 
 ## Flight integration
 
-Selecting a record changes the thrust curve passed to the shared vertical-flight configuration. The selected record's launch-mass delta is applied relative to the synthetic 0.16 kg motor baseline, and its propellant mass remains subject to the vehicle launch-mass guard. Landing descent uses the same selected motor's propellant mass. The existing uncertainty, optimization, export, and report paths receive the selected record through the same input object.
+Selecting a record changes the thrust curve and motor mass allowance passed to the shared vertical-flight configuration. Its propellant mass remains subject to the vehicle launch-mass guard, and landing descent uses the same selected motor's propellant mass. The topology editor can additionally assign a saved user motor to each stage; unassigned stages inherit the global selection. Assigned launch mass updates the analytical stage mass allowance, while the staged 6DOF adapter uses the assigned thrust curve, dry/propellant mass properties, CG, and burn duration. The existing uncertainty, optimization, export, and report paths receive the selected global record through the same input object.
 
-This is still a preliminary integration: the editable assembly graph does not yet place arbitrary imported motor geometry as a first-class component, and the 6DOF/clustered-propulsion UI does not yet expose every motor placement parameter. The interface keeps that boundary visible and continues to label the result as unvalidated.
+This is still a preliminary integration: imported motor geometry is represented through analytical dimensions and mass properties rather than a first-class CAD solid; stage assignment falls back to the global motor with an explicit warning when a local record is unavailable; and the 6DOF/clustered-propulsion UI does not yet expose every canted-thrust, grain, or motor-mount placement parameter. The interface keeps that boundary visible and continues to label the result as unvalidated.
 
 ## Clean-room boundary
 

@@ -167,3 +167,19 @@ test("stage-flight adapter rejects unknown initial ignition stages", () => {
     /unknown stages/,
   );
 });
+
+test("stage-flight adapter preserves caller motor-assignment diagnostics", () => {
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages,
+    regimes,
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 1,
+    timeStepS: 0.05,
+    additionalWarnings: ["Upper stage motor record unavailable; global fallback used."],
+    additionalAssumptions: ["Stage-specific motor data came from a local user library."],
+  });
+  assert.ok(result.warnings.includes("Upper stage motor record unavailable; global fallback used."));
+  assert.ok(result.assumptions.includes("Stage-specific motor data came from a local user library."));
+});

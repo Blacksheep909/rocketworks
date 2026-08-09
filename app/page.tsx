@@ -254,6 +254,28 @@ const materialModels: Record<
   carbon: { label: "Carbon composite", densityKgM3: 1550, wallThicknessM: 0.0008 },
 };
 
+function resolveStageMotorMassKg(
+  stage: VehicleStagePlan,
+  selectedMotorId: string,
+  userMotorRecords: readonly MotorDataRecord[],
+): number {
+  const motorId = stage.motorId ?? selectedMotorId;
+  return userMotorRecords.find((record) => record.id === motorId)?.launchMassKg ?? 0.16;
+}
+
+function createStageMotorMassMap(
+  stages: readonly VehicleStagePlan[],
+  selectedMotorId: string,
+  userMotorRecords: readonly MotorDataRecord[],
+): Readonly<Record<string, number>> {
+  return Object.fromEntries(
+    stages.map((stage) => [
+      stage.id,
+      resolveStageMotorMassKg(stage, selectedMotorId, userMotorRecords),
+    ]),
+  );
+}
+
 function createPreviewWindProfile(
   windSpeed: number,
   options: Readonly<{ windScale?: number; directionOffsetRad?: number }> = {},
@@ -324,11 +346,13 @@ function makeDesignComponents({
   diameterM,
   material,
   payloadMassKg,
+  motorMassKg = 0.16,
 }: {
   lengthM: number;
   diameterM: number;
   material: MaterialKey;
   payloadMassKg: number;
+  motorMassKg?: number;
 }): VehicleComponent[] {
   const noseLengthM = 0.18;
   const radiusM = diameterM / 2;
@@ -380,7 +404,7 @@ function makeDesignComponents({
       name: "Motor and mount allowance",
       stageId: "sustainer",
       kind: "pointMass",
-      massKg: 0.16,
+      massKg: motorMassKg,
       positionM: {
         x: noseLengthM + Math.max(0, lengthM - 0.09),
         y: 0,
@@ -501,7 +525,13 @@ function placeStageComponent(
 function makePlacedStageComponents(
   stages: readonly VehicleStagePlan[],
   baseComponents: readonly VehicleComponent[],
-  inputs: Readonly<{ lengthM: number; diameterM: number; material: MaterialKey; payloadMassKg: number }>,
+  inputs: Readonly<{
+    lengthM: number;
+    diameterM: number;
+    material: MaterialKey;
+    payloadMassKg: number;
+    motorMassKgByStageId?: Readonly<Record<string, number>>;
+  }>,
 ): VehicleComponent[] {
   return createStagePlacements(stages, inputs.lengthM).flatMap((placement) => {
     const stageComponents = makeAssemblyStageComponents(placement.stage, baseComponents, inputs);
@@ -514,7 +544,13 @@ function makePlacedStageComponents(
 function makeAssemblyStageComponents(
   stage: VehicleStagePlan,
   baseComponents: readonly VehicleComponent[],
-  inputs: Readonly<{ lengthM: number; diameterM: number; material: MaterialKey; payloadMassKg: number }>,
+  inputs: Readonly<{
+    lengthM: number;
+    diameterM: number;
+    material: MaterialKey;
+    payloadMassKg: number;
+    motorMassKgByStageId?: Readonly<Record<string, number>>;
+  }>,
 ): VehicleComponent[] {
   if (stage.role === "core") return baseComponents.map((component) => ({ ...component, stageId: stage.id }));
   const stageScale = stageScaleForRole(stage.role);
@@ -523,6 +559,7 @@ function makeAssemblyStageComponents(
     diameterM: inputs.diameterM * (stage.role === "booster" ? 0.8 : 0.72),
     material: inputs.material,
     payloadMassKg: stage.role === "payload" ? inputs.payloadMassKg * 0.7 : inputs.payloadMassKg * 0.18,
+    motorMassKg: inputs.motorMassKgByStageId?.[stage.id] ?? 0.16,
   });
   const allowedKinds = stage.role === "booster"
     ? new Set(["body", "fins", "motor"])
@@ -539,6 +576,7 @@ function createStageFlightPreviewInputs({
   assembly,
   stageComponents,
   motor,
+  userMotorRecords,
   dragCoefficient,
   environmentAt,
 }: {
@@ -546,11 +584,25 @@ function createStageFlightPreviewInputs({
   assembly: VehicleAssemblyEvaluation;
   stageComponents: readonly VehicleComponent[];
   motor: MotorDataRecord;
+  userMotorRecords: readonly MotorDataRecord[];
   dragCoefficient: number;
   environmentAt: LaunchEnvironmentProvider;
 }): Parameters<typeof simulateStageFlightPreview>[0] {
   const stageById = new Map(topology.stages.map((stage) => [stage.id, stage]));
   const activeStages = topology.stages.filter((stage) => stage.enabled);
+  const motorAssignmentWarnings: string[] = [];
+  const motorAssignmentAssumptions = [
+    "A stage without an explicit motor assignment uses the current global motor selection.",
+  ];
+  const motorForStage = (stage: VehicleStagePlan): MotorDataRecord => {
+    if (!stage.motorId) return motor;
+    const assigned = userMotorRecords.find((record) => record.id === stage.motorId);
+    if (assigned) return assigned;
+    motorAssignmentWarnings.push(
+      `${stage.name} references unavailable motor ${stage.motorId}; the global motor selection was used for this preview.`,
+    );
+    return motor;
+  };
   const isMotorInstance = (instance: VehicleAssemblyEvaluation["componentInstances"][number]) =>
     instance.sourceComponentId === "motor" || instance.sourceComponentId.endsWith("-motor");
   const isRetainedComponent = (instance: VehicleAssemblyEvaluation["componentInstances"][number]) =>
@@ -568,6 +620,7 @@ function createStageFlightPreviewInputs({
 
   const propulsivePlans = activeStages.filter((stage) => stage.role !== "payload");
   const stages: RocketStage[] = propulsivePlans.map((stage) => {
+    const stageMotor = motorForStage(stage);
     const instances = assembly.componentInstances.filter((instance) => instance.stageId === stage.id);
     const structuralMassProperties = combineMassProperties(
       instances
@@ -582,20 +635,20 @@ function createStageFlightPreviewInputs({
       .map((instance, index) => {
         const center = instance.massProperties.centerOfMassM;
         const originBodyM = {
-          x: center.x - (motor.dryCgFromAftM ?? motor.lengthM / 2),
+          x: center.x - (stageMotor.dryCgFromAftM ?? stageMotor.lengthM / 2),
           y: center.y,
           z: center.z,
         };
         return {
           id: `${stage.id}-preview-motor-${instance.stageInstanceIndex}-${index}`,
-          name: `${stage.name} · ${motor.designation}`,
-          thrustCurve: motor.thrustCurve,
-          dryMassProperties: transformMassProperties(motor.dryMassPropertiesLocal, {
+          name: `${stage.name} · ${stageMotor.designation}`,
+          thrustCurve: stageMotor.thrustCurve,
+          dryMassProperties: transformMassProperties(stageMotor.dryMassPropertiesLocal, {
             rotation: instance.transform.rotation,
             translationM: originBodyM,
           }),
           initialPropellantMassProperties: transformMassProperties(
-            motor.propellantMassPropertiesLocal,
+            stageMotor.propellantMassPropertiesLocal,
             { rotation: instance.transform.rotation, translationM: originBodyM },
           ),
           thrustApplicationPointBodyM: originBodyM,
@@ -613,6 +666,10 @@ function createStageFlightPreviewInputs({
     };
   });
   if (stages.length === 0) throw new Error("Enable at least one propulsive stage before running a stage preview.");
+  const maximumMotorBurnDurationS = propulsivePlans.reduce(
+    (maximum, stage) => Math.max(maximum, motorForStage(stage).metrics.burnDurationS),
+    motor.metrics.burnDurationS,
+  );
 
   const stageIds = stages.map((stage) => stage.id);
   const stageIdSet = new Set(stageIds);
@@ -687,13 +744,15 @@ function createStageFlightPreviewInputs({
     stages,
     regimes,
     initiallyIgnitedStageIds,
-    durationS: Math.max(12, motor.metrics.burnDurationS * (stages.length + 2) + 8),
+    durationS: Math.max(12, maximumMotorBurnDurationS * (stages.length + 2) + 8),
     timeStepS: 0.02,
     environmentAt,
     alwaysActiveGeometryStageIds: [...geometryStageIds],
     separationTransitionWindowS: 0.2,
     events,
     stateEvents,
+    additionalWarnings: motorAssignmentWarnings,
+    additionalAssumptions: motorAssignmentAssumptions,
   };
 }
 
@@ -724,8 +783,7 @@ function createFlightConfig({
 }): VerticalFlightConfig {
   const motor = motorRecord ?? createPreviewMotorRecord({ mass, thrust, burnTime });
   const propellantMassKg = motor.metrics.propellantMassKg;
-  const motorMassDeltaKg = motorRecord ? motor.launchMassKg - 0.16 : 0;
-  const launchMassKg = mass + motorMassDeltaKg;
+  const launchMassKg = mass;
   if (!(propellantMassKg > 0 && propellantMassKg < launchMassKg)) {
     throw new Error("Selected motor propellant mass must remain below the vehicle launch mass.");
   }
@@ -903,7 +961,7 @@ function createLandingPrediction(
     thrust: inputs.thrust,
     burnTime: inputs.burnTime,
   });
-  const launchMassKg = inputs.mass + (inputs.motorRecord ? inputs.motorRecord.launchMassKg - 0.16 : 0);
+  const launchMassKg = inputs.mass;
   const descentMassKg = launchMassKg - motor.metrics.propellantMassKg;
   const site = {
     name: "ARC 54 synthetic range",
@@ -1169,6 +1227,10 @@ export default function Home() {
     [burnTime, diameter, dragCoefficient, launchAltitude, length, material, payloadMass, recoveryDelay, recoveryDiameter, recoveryEnabled, thrust, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
+  const stageMotorMassKgById = useMemo(
+    () => createStageMotorMassMap(vehicleTopology.stages, selectedMotorId, userMotorRecords),
+    [selectedMotorId, userMotorRecords, vehicleTopology.stages],
+  );
   const vehicleComponents = useMemo(
     () =>
       makeDesignComponents({
@@ -1176,8 +1238,9 @@ export default function Home() {
         diameterM: diameter / 1000,
         material,
         payloadMassKg: payloadMass,
+        motorMassKg: stageMotorMassKgById[vehicleTopology.stages[0]?.id ?? "sustainer"] ?? 0.16,
       }),
-    [diameter, length, material, payloadMass],
+    [diameter, length, material, payloadMass, stageMotorMassKgById, vehicleTopology.stages],
   );
   const stageFlightComponents = useMemo(
     () => makePlacedStageComponents(vehicleTopology.stages, vehicleComponents, {
@@ -1185,8 +1248,9 @@ export default function Home() {
       diameterM: diameter / 1000,
       material,
       payloadMassKg: payloadMass,
+      motorMassKgByStageId: stageMotorMassKgById,
     }),
-    [diameter, length, material, payloadMass, vehicleComponents, vehicleTopology],
+    [diameter, length, material, payloadMass, stageMotorMassKgById, vehicleComponents, vehicleTopology],
   );
   const assemblyDefinition = useMemo(() => {
     const placements = createStagePlacements(vehicleTopology.stages, length / 1000);
@@ -1199,6 +1263,7 @@ export default function Home() {
         diameterM: diameter / 1000,
         material,
         payloadMassKg: payloadMass,
+        motorMassKgByStageId: stageMotorMassKgById,
       });
       return {
         id: stage.id,
@@ -1224,7 +1289,7 @@ export default function Home() {
       };
       }),
     };
-  }, [diameter, length, material, payloadMass, vehicleComponents, vehicleTopology]);
+  }, [diameter, length, material, payloadMass, stageMotorMassKgById, vehicleComponents, vehicleTopology]);
   const assembly = useMemo(
     () => createVehicleAssemblyModel(assemblyDefinition).evaluate(),
     [assemblyDefinition],
@@ -1960,6 +2025,7 @@ export default function Home() {
             assembly,
             stageComponents: stageFlightComponents,
             motor: previewMotor,
+            userMotorRecords,
             dragCoefficient,
             environmentAt: previewEnvironment.at,
           }),
@@ -2325,6 +2391,10 @@ export default function Home() {
                       <span>MODEL STATUS</span>
                       <strong>{stageFlightResult.validationStatus}</strong>
                       <small>{stageFlightResult.stagingModelVersion} · {stageFlightResult.aerodynamicsModelVersion}</small>
+                    </div>
+                    <div className="stage-flight-warnings" role="note">
+                      <span>WARNINGS</span>
+                      <ul>{stageFlightResult.warnings.slice(0, 3).map((warning) => <li key={warning}>{warning}</li>)}</ul>
                     </div>
                   </>
                 ) : (
@@ -2920,6 +2990,11 @@ export default function Home() {
                         const role = event.target.value as VehicleStageRole;
                         updateTopologyStage(stage.id, { role, attachment: role === "booster" ? "parallel" : "serial", repeatCount: role === "booster" ? Math.max(2, stage.repeatCount) : 1, repeatRadiusM: role === "booster" ? Math.max(0.09, stage.repeatRadiusM) : 0 });
                       }}><option value="core">Core</option><option value="upper">Upper</option><option value="booster">Booster</option><option value="payload">Payload</option></select></label>
+                      <label>Motor assignment<select value={stage.motorId ?? "__global__"} onChange={(event) => updateTopologyStage(stage.id, { motorId: event.target.value === "__global__" ? undefined : event.target.value })}>
+                        <option value="__global__">Global · {previewMotor.designation}</option>
+                        {userMotorRecords.map((record) => <option value={record.id} key={record.id}>{record.manufacturer} · {record.designation}</option>)}
+                        {stage.motorId && !userMotorRecords.some((record) => record.id === stage.motorId) && <option value={stage.motorId}>Unavailable · fallback</option>}
+                      </select></label>
                       <label>Attachment<select value={stage.attachment} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { attachment: event.target.value as VehicleStageAttachment, parentStageId: event.target.value === "parallel" ? (stage.parentStageId ?? "sustainer") : stage.parentStageId })}><option value="serial">Serial</option><option value="parallel">Parallel</option></select></label>
                       <label>Parent stage<select value={stage.parentStageId ?? ""} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { parentStageId: event.target.value || undefined })}>{vehicleTopology.stages.slice(0, index).map((candidate) => <option value={candidate.id} key={candidate.id}>{candidate.name}</option>)}</select></label>
                       <label>Repeat count<input type="number" min="1" max="8" value={stage.repeatCount} onChange={(event) => updateTopologyStage(stage.id, { repeatCount: Number(event.target.value) })} /></label>
@@ -2930,7 +3005,7 @@ export default function Home() {
                       <label>Separation delay (s)<input type="number" min="0" max="120" step="0.01" value={stage.separationDelayS} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { separationDelayS: Number(event.target.value) })} /></label>
                       <label className="topology-failure-toggle"><input type="checkbox" checked={stage.ignitionFailure} onChange={(event) => updateTopologyStage(stage.id, { ignitionFailure: event.target.checked })} /> Force ignition failure in preview</label>
                     </div>
-                    <div className="topology-stage-footer"><span>{stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>
+                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>
                   </div>
                 </article>
               ))}

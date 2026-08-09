@@ -12,6 +12,7 @@ export type VehicleStagePlan = Readonly<{
   role: VehicleStageRole;
   attachment: VehicleStageAttachment;
   parentStageId?: string;
+  motorId?: string;
   enabled: boolean;
   repeatCount: number;
   repeatRadiusM: number;
@@ -27,7 +28,7 @@ export type LocalVehicleTopology = Readonly<{
   stages: ReadonlyArray<VehicleStagePlan>;
 }>;
 
-const ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+const ID_PATTERN = /^[A-Za-z0-9_.-]+$/;
 const ROLES = new Set<VehicleStageRole>(["core", "upper", "booster", "payload"]);
 const ATTACHMENTS = new Set<VehicleStageAttachment>(["serial", "parallel"]);
 
@@ -58,6 +59,9 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
   if (stage.parentStageId !== undefined && (typeof stage.parentStageId !== "string" || !ID_PATTERN.test(stage.parentStageId))) {
     throw new Error(`Stage ${id} parentStageId is invalid.`);
   }
+  if (stage.motorId !== undefined && (typeof stage.motorId !== "string" || !ID_PATTERN.test(stage.motorId))) {
+    throw new Error(`Stage ${id} motorId is invalid.`);
+  }
   const ignitionDelayS = stage.ignitionDelayS ?? 0;
   if (typeof ignitionDelayS !== "number" || !Number.isFinite(ignitionDelayS) || ignitionDelayS < 0 || ignitionDelayS > 120) {
     throw new Error(`Stage ${id} ignitionDelayS must be a finite value from 0 through 120 s.`);
@@ -74,6 +78,7 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     role: stage.role as VehicleStageRole,
     attachment: stage.attachment as VehicleStageAttachment,
     ...(stage.parentStageId ? { parentStageId: stage.parentStageId } : {}),
+    ...(stage.motorId ? { motorId: stage.motorId } : {}),
     enabled: stage.enabled,
     repeatCount: stage.repeatCount as number,
     repeatRadiusM: stage.repeatRadiusM,
@@ -142,6 +147,7 @@ export function createStagePlan(input: Readonly<{
   role: VehicleStageRole;
   attachment: VehicleStageAttachment;
   parentStageId?: string;
+  motorId?: string;
   repeatCount?: number;
   repeatRadiusM?: number;
   ignitionDelayS?: number;

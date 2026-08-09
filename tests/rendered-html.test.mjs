@@ -320,10 +320,13 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Radial radius/);
   assert.match(page, /Ignition delay/);
   assert.match(page, /Separation delay/);
+  assert.match(page, /Motor assignment/);
+  assert.match(page, /userMotorRecords.map/);
   assert.match(page, /Force ignition failure/);
   assert.match(page, /Topology-aware preview/);
   assert.match(page, /Run staged preview/);
   assert.match(page, /stageFlightResult\.validationStatus/);
+  assert.match(page, /stage-flight-warnings/);
   assert.match(page, /Staged 6DOF trace/);
   assert.match(page, /createStageFlightTraceCsv/);
   assert.match(page, /MODEL BOUNDARY/);

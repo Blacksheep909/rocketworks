@@ -43,6 +43,8 @@ export type StageFlightPreviewInput = Readonly<{
   >>;
   events?: readonly ScheduledRigidBodyEvent[];
   stateEvents?: readonly StateTriggeredRigidBodyEvent[];
+  additionalWarnings?: readonly string[];
+  additionalAssumptions?: readonly string[];
 }>;
 
 export type StageFlightTracePoint = Readonly<{
@@ -228,12 +230,14 @@ export function simulateStageFlightPreview(
     0,
   );
   const warnings = [
+    ...(input.additionalWarnings ?? []),
     ...staging.warnings,
     ...aerodynamics.warnings,
     ...loads.warnings,
     ...simulation.warnings,
   ];
   const assumptions = [
+    ...(input.additionalAssumptions ?? []),
     ...staging.assumptions,
     ...aerodynamics.assumptions,
     ...loads.assumptions,
