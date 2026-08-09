@@ -2500,7 +2500,7 @@ export default function Home() {
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">K</span>
-          <div><strong>Kestrel Lab</strong><span>Aerospace workbench · Flight systems</span></div>
+          <div><strong>Kestrel Lab</strong><span>Aerospace workbench · Mission systems</span></div>
         </div>
         <div className="project-title">
           <button className="quiet-button" aria-label="Go back to projects">‹</button>
@@ -2571,7 +2571,7 @@ export default function Home() {
           </div>
           <div className="workspace-status" aria-label="Current vehicle context">
             <i className="status-pulse" aria-hidden="true" />
-            <span>DESIGN LOOP / MISSION CONTROL</span><strong>ARC 54 / SUSTAINER</strong>
+            <span>FLIGHT DESIGN / MISSION CONTROL / DESIGN LOOP</span><strong>ARC 54 / SUSTAINER</strong>
           </div>
           <div className="mission-rack" aria-label="Mission telemetry">
             <div><span>CONFIG</span><strong>{configurationId}</strong></div>
