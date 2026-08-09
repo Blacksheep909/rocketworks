@@ -148,6 +148,8 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.deepEqual(result.events[1].attachedStageIdsAfter, ["upper"]);
   assert.ok(result.maxAltitudeAglM > 0);
   assert.ok(result.maxSpeedMps > 0);
+  assert.ok(result.trace.every((point) => Number.isFinite(point.mach) && Number.isFinite(point.dynamicPressurePa) && Number.isFinite(point.dragN)));
+  assert.ok(result.trace.some((point) => point.dynamicPressurePa > 0));
   assert.ok(result.trace.some((point) => point.attachedStageIds.includes("booster")));
   assert.ok(result.trace.some((point) => !point.attachedStageIds.includes("booster")));
   assert.ok(["converged", "watch"].includes(result.convergence.status));

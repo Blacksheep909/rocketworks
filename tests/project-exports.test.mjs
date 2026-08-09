@@ -189,13 +189,13 @@ test("flight CSV has stable SI columns, CRLF rows, and boolean deployment state"
 
 test("staged flight CSV preserves attached-stage topology and SI values", () => {
   const csv = createStageFlightTraceCsv([
-    { timeS: 0, altitudeAglM: 0, speedMps: 0, massKg: 1.2, thrustN: 30, attachedStageIds: ["booster", "upper"] },
-    { timeS: 1, altitudeAglM: 42.5, speedMps: 28.2, massKg: 0.8, thrustN: 18, attachedStageIds: ["upper"] },
+    { timeS: 0, altitudeAglM: 0, speedMps: 0, mach: 0, dynamicPressurePa: 0, dragN: 0, massKg: 1.2, thrustN: 30, attachedStageIds: ["booster", "upper"] },
+    { timeS: 1, altitudeAglM: 42.5, speedMps: 28.2, mach: 0.08, dynamicPressurePa: 480, dragN: 2.5, massKg: 0.8, thrustN: 18, attachedStageIds: ["upper"] },
   ]);
   const rows = csv.trim().split("\r\n");
-  assert.equal(rows[0], "time_s,altitude_agl_m,speed_mps,mass_kg,thrust_n,attached_stage_ids");
-  assert.equal(rows[1], "0,0,0,1.2,30,booster|upper");
-  assert.equal(rows[2], "1,42.5,28.2,0.8,18,upper");
+  assert.equal(rows[0], "time_s,altitude_agl_m,speed_mps,mach,dynamic_pressure_pa,drag_n,mass_kg,thrust_n,attached_stage_ids");
+  assert.equal(rows[1], "0,0,0,0,0,0,1.2,30,booster|upper");
+  assert.equal(rows[2], "1,42.5,28.2,0.08,480,2.5,0.8,18,upper");
 });
 
 test("parameter sweep CSV preserves rows, null outputs, and evaluator errors", () => {

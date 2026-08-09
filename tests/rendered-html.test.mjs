@@ -467,6 +467,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /formatSignedMetric/);
   assert.match(page, /stage-flight-comparison/);
   assert.match(page, /Stage flight profile/);
+  assert.match(page, /Dynamic pressure/);
+  assert.match(page, /point\.dynamicPressurePa/);
   assert.match(page, /Integration-step convergence/);
   assert.match(page, /formatStageFlightConvergenceStatus/);
   assert.match(page, /aria-label=\{`\$\{definition\.label\} over time/);

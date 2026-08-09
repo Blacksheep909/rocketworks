@@ -62,6 +62,9 @@ export type StageFlightTracePoint = Readonly<{
   timeS: number;
   altitudeAglM: number;
   speedMps: number;
+  mach: number;
+  dynamicPressurePa: number;
+  dragN: number;
   massKg: number;
   thrustN: number;
   attachedStageIds: readonly string[];
@@ -413,10 +416,14 @@ export function simulateStageFlightPreview(
     const simulationTrace = rail?.trace ?? simulation?.trace ?? [];
     const trace = simulationTrace.map((state): StageFlightTracePoint => {
       const evaluation = staging.evaluate(state);
+      const loadEvaluation = loads.evaluate(state);
       return {
         timeS: state.timeS,
         altitudeAglM: state.positionWorldM.z,
         speedMps: magnitude(state.velocityWorldMps),
+        mach: loadEvaluation.diagnostics.mach,
+        dynamicPressurePa: loadEvaluation.diagnostics.dynamicPressurePa,
+        dragN: loadEvaluation.diagnostics.dragN,
         massKg: evaluation.massProperties.massKg,
         thrustN: evaluation.totalThrustN,
         attachedStageIds: [...evaluation.attachedStageIds],

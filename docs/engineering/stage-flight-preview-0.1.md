@@ -45,13 +45,16 @@ initial position, velocity, attitude, or body rate for analysis cases.
 The browser's `Stage flight profile` is a presentation layer over the returned
 trace; it does not add forces, resample the integrator, or change the model
 version. The operator can switch the plotted series between altitude, speed,
-mass, and thrust. Rail liftoff, rail exit, staging, and failure events are
-drawn as time markers, while the hover readout reports the exact retained
-trace sample and attached-stage set. The canvas is paired with a textual
-summary so the profile remains understandable to keyboard and assistive-
-technology users. CSV export remains the authoritative portable trace for
-external plotting. The metric tabs accept Tab plus Arrow, Home, and End key
-navigation so changing the displayed series does not require a pointer.
+Mach, dynamic pressure, axial drag, mass, and thrust. The aerodynamic series
+come from the same per-state load diagnostics used by the integrator, so table
+applicability and topology changes remain visible in the surrounding warnings.
+Rail liftoff, rail exit, staging, and failure events are drawn as time markers,
+while the hover readout reports the exact retained trace sample and attached-
+stage set. The canvas is paired with a textual summary so the profile remains
+understandable to keyboard and assistive-technology users. CSV export remains
+the authoritative portable trace for external plotting. The metric tabs accept
+Tab plus Arrow, Home, and End key navigation so changing the displayed series
+does not require a pointer.
 
 The same profile is available for an enabled single-stage vehicle as a
 `6DOF ascent run`. In that mode there are no staging transitions, but the

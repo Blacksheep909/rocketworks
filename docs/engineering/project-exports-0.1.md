@@ -99,6 +99,12 @@ Rows use CRLF delimiters for broad spreadsheet compatibility. Numbers use
 locale-independent JavaScript decimal notation and every numeric value is
 checked for finiteness.
 
+The staged 6DOF trace CSV uses the same explicit style and adds
+`mach`, `dynamic_pressure_pa`, and `drag_n` before the live mass, thrust, and
+attached-stage identifiers. These aerodynamic columns are evaluated from the
+coupled load diagnostics at each retained sample, not reconstructed from the
+display chart.
+
 ## DXF side profile
 
 The ASCII file declares AutoCAD database version `AC1009` and uses classic
