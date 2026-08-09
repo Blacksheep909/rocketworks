@@ -44,6 +44,9 @@ test("ships an installable browser shell without claiming offline simulation", a
   const manifest = JSON.parse(await readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"));
   assert.match(layout, /manifest\.webmanifest/);
   assert.match(layout, /kestrel-mark\.svg/);
+  assert.match(layout, /PwaRegistration/);
+  assert.match(await readFile(new URL("../app/pwa-registration.tsx", import.meta.url), "utf8"), /serviceWorker\.register/);
+  assert.match(await readFile(new URL("../public/sw.js", import.meta.url), "utf8"), /fetch\(event\.request\)/);
   assert.equal(manifest.display, "standalone");
   assert.equal(manifest.start_url, "/");
   assert.equal(manifest.theme_color, "#070a0d");
