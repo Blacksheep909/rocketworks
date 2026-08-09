@@ -23,9 +23,10 @@ malformed logs fail visibly instead of being silently reinterpreted.
 ## Comparison method
 
 For every measured timestamp `t_m`, Kestrel linearly interpolates the simulated
-trace at `t_m + Δt`. The default time offset `Δt` is zero; no automatic event
-alignment, sensor latency estimation, smoothing, bias correction, or gravity
-calibration is applied. For each shared metric, the residual is defined as:
+trace at `t_m + Δt`. The Flight card exposes `Δt` as a bounded seconds control;
+the default is zero. No automatic event alignment, sensor latency estimation,
+smoothing, bias correction, or gravity calibration is applied. For each shared
+metric, the residual is defined as:
 
 `r_i = simulated_i - measured_i`
 

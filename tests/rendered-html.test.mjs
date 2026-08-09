@@ -204,6 +204,8 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(source, /parseFlightDataCsv/);
   assert.match(source, /Compare an instrumented flight/);
   assert.match(source, /Residuals are simulated minus measured/);
+  assert.match(source, /Measured time offset/);
+  assert.match(source, /Simulation time = measured time \+ offset/);
   assert.match(source, /Gaussian-copula pair/);
   assert.match(source, /Apogee sensitivity/);
   assert.match(source, /recoveryAreaScale/);
@@ -221,6 +223,7 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(stylesheet, /\.uncertainty-status-converged/);
   assert.match(stylesheet, /\.flight-data-card/);
   assert.match(stylesheet, /\.flight-data-table/);
+  assert.match(stylesheet, /\.flight-data-controls/);
   assert.match(stylesheet, /rgba\(47,159,255/);
 });
 

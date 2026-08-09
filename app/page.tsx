@@ -2069,6 +2069,8 @@ function FlightDataComparisonCard({
   comparison,
   error,
   resultIsCurrent,
+  timeOffsetS,
+  onTimeOffsetChange,
   onImport,
   onClear,
 }: {
@@ -2076,6 +2078,8 @@ function FlightDataComparisonCard({
   comparison: FlightDataComparisonResult | null;
   error: string;
   resultIsCurrent: boolean;
+  timeOffsetS: number;
+  onTimeOffsetChange: (value: number) => void;
   onImport: (event: ChangeEvent<HTMLInputElement>) => void;
   onClear: () => void;
 }) {
@@ -2110,6 +2114,12 @@ function FlightDataComparisonCard({
       )}
       {comparison && (
         <>
+          <div className="flight-data-controls">
+            <label htmlFor="flight-data-time-offset">Measured time offset</label>
+            <input id="flight-data-time-offset" type="number" value={timeOffsetS} min={-600} max={600} step={0.01} onChange={(event) => onTimeOffsetChange(Number(event.target.value))} />
+            <span>s</span>
+            <small>Simulation time = measured time + offset</small>
+          </div>
           <div className="flight-data-meta">
             <span><strong>{comparison.sourceName}</strong> · {comparison.matchedSampleCount}/{comparison.measuredSampleCount} samples matched</span>
             <span>time offset {comparison.timeOffsetS.toFixed(2)} s · {comparison.validationStatus}</span>
@@ -2816,6 +2826,7 @@ export default function Home() {
   const [comparisonReferenceFingerprint, setComparisonReferenceFingerprint] = useState<string | null>(null);
   const [flightDataSeries, setFlightDataSeries] = useState<FlightDataSeries | null>(null);
   const [flightDataError, setFlightDataError] = useState("");
+  const [flightDataTimeOffsetS, setFlightDataTimeOffsetS] = useState(0);
   const [stageFlightResult, setStageFlightResult] =
     useState<StageFlightPreviewResult | null>(null);
   const [stageFlightFingerprint, setStageFlightFingerprint] = useState<string | null>(
@@ -2887,11 +2898,11 @@ export default function Home() {
     if (!flightDataSeries) return { comparison: null, error: "" };
     if (!resultIsCurrent) return { comparison: null, error: "" };
     try {
-      return { comparison: compareFlightDataToTrace(result.trace, flightDataSeries), error: "" };
+      return { comparison: compareFlightDataToTrace(result.trace, flightDataSeries, { timeOffsetS: flightDataTimeOffsetS }), error: "" };
     } catch (error) {
       return { comparison: null, error: error instanceof Error ? error.message : "Unable to compare measured data." };
     }
-  }, [flightDataSeries, result, resultIsCurrent]);
+  }, [flightDataSeries, flightDataTimeOffsetS, result, resultIsCurrent]);
   const structuralBody = vehicleComponents.find(
     (component): component is Extract<VehicleComponent, { kind: "axisymmetric" }> =>
       component.kind === "axisymmetric" && component.id === "body",
@@ -3355,6 +3366,7 @@ export default function Home() {
   const clearFlightData = () => {
     setFlightDataSeries(null);
     setFlightDataError("");
+    setFlightDataTimeOffsetS(0);
     notify("Measured flight data cleared");
   };
   const openCommandPalette = () => {
@@ -4761,6 +4773,8 @@ export default function Home() {
               comparison={flightDataComparisonState.comparison}
               error={flightDataError || flightDataComparisonState.error}
               resultIsCurrent={resultIsCurrent}
+              timeOffsetS={flightDataTimeOffsetS}
+              onTimeOffsetChange={(value) => { setFlightDataTimeOffsetS(Number.isFinite(value) ? value : 0); }}
               onImport={importFlightData}
               onClear={clearFlightData}
             />
