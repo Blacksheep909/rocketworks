@@ -76,6 +76,10 @@ import {
   type RecoveryReefingStage,
 } from "../lib/physics/index.ts";
 import {
+  createPreviewWindProfile,
+  PREVIEW_WIND_PROFILE_MODEL_VERSION,
+} from "../lib/physics/preview-wind-profile.ts";
+import {
   LOCAL_PROJECT_HISTORY_STORAGE_KEY,
   LOCAL_PROJECT_STORAGE_KEY,
   appendProjectHistory,
@@ -394,30 +398,11 @@ function createStageMotorMassMap(
   );
 }
 
-function createPreviewWindProfile(
-  windSpeed: number,
-  options: Readonly<{ windScale?: number; directionOffsetRad?: number }> = {},
-) {
-  const windScale = options.windScale ?? 1;
-  const directionOffsetRad = options.directionOffsetRad ?? 0;
-  const cosine = Math.cos(directionOffsetRad);
-  const sine = Math.sin(directionOffsetRad);
-  return [
-    { altitudeM: 0, eastMps: windSpeed * 0.5, northMps: 0, upMps: 0 },
-    { altitudeM: 500, eastMps: windSpeed, northMps: windSpeed * 0.2, upMps: 0 },
-    { altitudeM: 2000, eastMps: windSpeed * 1.4, northMps: windSpeed * 0.4, upMps: 0 },
-  ].map((layer) => ({
-    ...layer,
-    eastMps: (layer.eastMps * cosine - layer.northMps * sine) * windScale,
-    northMps: (layer.eastMps * sine + layer.northMps * cosine) * windScale,
-    upMps: layer.upMps * windScale,
-  }));
-}
-
 function createPreviewEnvironment(
   launchAltitude: number,
   windSpeed: number,
   options: Readonly<{
+    windAzimuthDeg?: number;
     seed?: string;
     windScale?: number;
     directionOffsetRad?: number;
@@ -446,12 +431,15 @@ function createPreviewEnvironment(
     provenance: {
       sourceName: "ARC 54 browser input",
       sourceKind: "synthetic",
-      dataVersion: "preview-1",
+      dataVersion: PREVIEW_WIND_PROFILE_MODEL_VERSION,
       licenseIdentifier: "CC0-1.0",
       attribution: "Original Kestrel Lab synthetic environment",
       validationStatus: "synthetic-unvalidated",
     },
-    meanWindProfile: createPreviewWindProfile(windSpeed, options),
+    meanWindProfile: createPreviewWindProfile(windSpeed, {
+      ...options,
+      windAzimuthRad: ((options.windAzimuthDeg ?? 0) * Math.PI) / 180,
+    }),
     surfaceObservation: {
       stationPressurePa: surfacePressureHpa * 100,
       temperatureK: surfaceTemperatureC + 273.15,
@@ -1171,6 +1159,7 @@ function createFlightConfig({
   burnTime,
   launchAltitude,
   windSpeed,
+  windAzimuthDeg,
   relativeHumidityPercent,
   surfacePressureHpa,
   surfaceTemperatureC,
@@ -1190,6 +1179,7 @@ function createFlightConfig({
   burnTime: number;
   launchAltitude: number;
   windSpeed: number;
+  windAzimuthDeg: number;
   relativeHumidityPercent: number;
   surfacePressureHpa: number;
   surfaceTemperatureC: number;
@@ -1237,7 +1227,9 @@ function createFlightConfig({
     },
     environment: {
       launchAltitudeM: launchAltitude,
-      windProfile: createPreviewWindProfile(windSpeed),
+      windProfile: createPreviewWindProfile(windSpeed, {
+        windAzimuthRad: (windAzimuthDeg * Math.PI) / 180,
+      }),
       surfaceObservation: {
         stationPressurePa: surfacePressureHpa * 100,
         temperatureK: surfaceTemperatureC + 273.15,
@@ -1497,6 +1489,7 @@ function createLandingPrediction(
         inputs.launchAltitude,
         inputs.windSpeed,
         {
+          windAzimuthDeg: inputs.windAzimuthDeg,
           seed: `arc54-landing-weather-${sampleIndex}`,
           windScale: values.windScale,
           directionOffsetRad: values.windDirectionOffsetRad,
@@ -2156,6 +2149,7 @@ export default function Home() {
   const [dragCoefficient, setDragCoefficient] = useState(0.52);
   const [launchAltitude, setLaunchAltitude] = useState(80);
   const [windSpeed, setWindSpeed] = useState(4);
+  const [windAzimuthDeg, setWindAzimuthDeg] = useState(0);
   const [relativeHumidityPercent, setRelativeHumidityPercent] = useState(60);
   const [surfacePressureHpa, setSurfacePressureHpa] = useState(1004);
   const [surfaceTemperatureC, setSurfaceTemperatureC] = useState(15);
@@ -2246,6 +2240,7 @@ export default function Home() {
       dragCoefficient,
       launchAltitudeM: launchAltitude,
       windSpeedMps: windSpeed,
+      windAzimuthDeg,
       relativeHumidityPercent,
       surfacePressureHpa,
       surfaceTemperatureC,
@@ -2262,7 +2257,7 @@ export default function Home() {
       recoveryReefingDurationS,
       recoveryReefingStartAreaFraction,
     }),
-    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, windSpeed],
+    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, windAzimuthDeg, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -2432,8 +2427,8 @@ export default function Home() {
     [editableInputs, previewMotor, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, vehicleTopology],
   );
   const previewEnvironment = useMemo(
-    () => createPreviewEnvironment(launchAltitude, windSpeed, { relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
-    [launchAltitude, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, windSpeed],
+    () => createPreviewEnvironment(launchAltitude, windSpeed, { windAzimuthDeg, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
+    [launchAltitude, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, windAzimuthDeg, windSpeed],
   );
   const environmentAtPad = useMemo(
     () => previewEnvironment.at({ timeS: 0, positionWorldM: { x: 0, y: 0, z: 0 } }),
@@ -2464,6 +2459,7 @@ export default function Home() {
       burnTime,
       launchAltitude,
       windSpeed,
+      windAzimuthDeg,
       relativeHumidityPercent,
       surfacePressureHpa,
       surfaceTemperatureC,
@@ -2500,6 +2496,7 @@ export default function Home() {
       burnTime,
       launchAltitude,
       windSpeed,
+      windAzimuthDeg,
       relativeHumidityPercent,
       surfacePressureHpa,
       surfaceTemperatureC,
@@ -2524,6 +2521,7 @@ export default function Home() {
           burnTime,
           launchAltitude,
           windSpeed,
+          windAzimuthDeg,
           relativeHumidityPercent,
           surfacePressureHpa,
           surfaceTemperatureC,
@@ -2700,6 +2698,7 @@ export default function Home() {
         setDragCoefficient(inputs.dragCoefficient);
         setLaunchAltitude(inputs.launchAltitudeM);
         setWindSpeed(inputs.windSpeedMps);
+        setWindAzimuthDeg(inputs.windAzimuthDeg);
         setRelativeHumidityPercent(inputs.relativeHumidityPercent);
         setSurfacePressureHpa(inputs.surfacePressureHpa);
         setSurfaceTemperatureC(inputs.surfaceTemperatureC);
@@ -2762,6 +2761,7 @@ export default function Home() {
         setDragCoefficient(inputs.dragCoefficient);
         setLaunchAltitude(inputs.launchAltitudeM);
         setWindSpeed(inputs.windSpeedMps);
+        setWindAzimuthDeg(inputs.windAzimuthDeg);
         setRelativeHumidityPercent(inputs.relativeHumidityPercent);
         setSurfacePressureHpa(inputs.surfacePressureHpa);
         setSurfaceTemperatureC(inputs.surfaceTemperatureC);
@@ -3023,6 +3023,7 @@ export default function Home() {
     setDragCoefficient(inputs.dragCoefficient);
     setLaunchAltitude(inputs.launchAltitudeM);
     setWindSpeed(inputs.windSpeedMps);
+    setWindAzimuthDeg(inputs.windAzimuthDeg);
     setRelativeHumidityPercent(inputs.relativeHumidityPercent);
     setSurfacePressureHpa(inputs.surfacePressureHpa);
     setSurfaceTemperatureC(inputs.surfaceTemperatureC);
@@ -3511,6 +3512,7 @@ export default function Home() {
               environmentAt500M.meanWindWorldMps.x,
               environmentAt500M.meanWindWorldMps.y,
             ),
+            windAzimuthDeg,
             surfacePressureHpa,
             surfaceTemperatureC,
             relativeHumidityPercent,
@@ -3555,6 +3557,7 @@ export default function Home() {
       burnTime,
       launchAltitude,
       windSpeed,
+      windAzimuthDeg,
       relativeHumidityPercent,
       surfacePressureHpa,
       surfaceTemperatureC,
@@ -3769,6 +3772,7 @@ export default function Home() {
           burnTime,
           launchAltitude,
           windSpeed,
+          windAzimuthDeg,
           relativeHumidityPercent,
           surfacePressureHpa,
           surfaceTemperatureC,
@@ -3813,6 +3817,7 @@ export default function Home() {
           burnTime,
           launchAltitude,
           windSpeed,
+          windAzimuthDeg,
           relativeHumidityPercent,
           surfacePressureHpa,
           surfaceTemperatureC,
@@ -4748,8 +4753,9 @@ export default function Home() {
             <NumberField id="surface-pressure" label="Pad pressure" value={surfacePressureHpa} unit="hPa" min={20} max={1100} step={0.1} onChange={(value) => { setSurfacePressureHpa(value); markChanged(); }} />
             <NumberField id="surface-temperature" label="Pad temperature" value={surfaceTemperatureC} unit="°C" min={-90} max={70} step={0.5} onChange={(value) => { setSurfaceTemperatureC(value); markChanged(); }} />
             <NumberField id="wind-speed" label="Wind at 500 m" value={windSpeed} unit="m/s" min={0} max={80} step={0.5} onChange={(value) => { setWindSpeed(value); markChanged(); }} />
+            <NumberField id="wind-azimuth" label="Wind azimuth · east toward north" value={windAzimuthDeg} unit="deg" min={-180} max={180} step={1} onChange={(value) => { setWindAzimuthDeg(value); markChanged(); }} />
             <NumberField id="relative-humidity" label="Relative humidity" value={relativeHumidityPercent} unit="%" min={0} max={100} step={1} onChange={(value) => { setRelativeHumidityPercent(value); markChanged(); }} />
-            <p className="field-help">Pressure and temperature anchor the launch-site profile; humidity couples to water-vapor pressure, virtual temperature, density, and sound speed. These are user observations, not a live weather feed.</p>
+            <p className="field-help">Pressure and temperature anchor the launch-site profile; wind azimuth uses the local ENU frame (0° east, +90° north); humidity couples to water-vapor pressure, virtual temperature, density, and sound speed. These are user observations, not a live weather feed.</p>
             <div className="field-group rail-control-group">
               <label htmlFor="launch-rail-enabled">Launch rail constraint</label>
               <select id="launch-rail-enabled" value={launchRailEnabled ? "enabled" : "disabled"} onChange={(event) => { setLaunchRailEnabled(event.target.value === "enabled"); markChanged(); }}>
@@ -4825,6 +4831,7 @@ export default function Home() {
                 <div className="mass-properties-card stability-properties-card">
                   <div><span>Altitude reference</span><strong>{environmentAt500M.altitudeAslM.toFixed(0)} m ASL at 500 m AGL</strong></div>
                   <div><span>Mean wind at 500 m</span><strong>{Math.hypot(environmentAt500M.meanWindWorldMps.x, environmentAt500M.meanWindWorldMps.y).toFixed(1)} m/s</strong></div>
+                  <div><span>Wind azimuth input</span><strong>{windAzimuthDeg.toFixed(0)}° ENU</strong></div>
                   <div><span>Pad pressure</span><strong>{(environmentAtPad.atmosphere.pressurePa / 100).toFixed(1)} hPa</strong></div>
                   <div><span>Pad temperature</span><strong>{(environmentAtPad.atmosphere.temperatureK - 273.15).toFixed(1)} °C</strong></div>
                   <div><span>Relative humidity</span><strong>{relativeHumidityPercent.toFixed(0)}% · coupled</strong></div>

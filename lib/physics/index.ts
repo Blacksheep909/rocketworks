@@ -21,6 +21,7 @@ export * from "./vertical-flight.ts";
 export * from "./vertical-flight-sweep.ts";
 export * from "./uncertainty-analysis.ts";
 export * from "./vertical-flight-uncertainty.ts";
+export * from "./preview-wind-profile.ts";
 export * from "./vehicle-assembly.ts";
 export * from "./motor-data.ts";
 export * from "./launch-environment.ts";

@@ -100,6 +100,8 @@ export type EngineeringReportInput = Readonly<{
     siteName: string;
     elevationM: number;
     meanWindAt500Mps: number;
+    /** Optional local-ENU input azimuth: 0° east, +90° north. */
+    windAzimuthDeg?: number;
     surfacePressureHpa?: number;
     surfaceTemperatureC?: number;
     relativeHumidityPercent?: number;
@@ -727,6 +729,12 @@ export function createEngineeringReportMarkdown(
 ): string {
   if (!input.projectName.trim()) throw new Error("report project name cannot be empty");
   assertIsoDate(input.generatedAtIso, "report timestamp");
+  if (input.environment.windAzimuthDeg !== undefined) {
+    assertFinite(input.environment.windAzimuthDeg, "report wind azimuth");
+    if (input.environment.windAzimuthDeg < -180 || input.environment.windAzimuthDeg > 180) {
+      throw new Error("report wind azimuth must be between -180 and 180 degrees");
+    }
+  }
   if (input.recovery) {
     assertFinite(input.recovery.reefingDurationS, "report reefing duration");
     assertFinite(input.recovery.reefingStartAreaFraction, "report reefing start area fraction");
@@ -774,6 +782,9 @@ export function createEngineeringReportMarkdown(
     `- Site: ${markdownText(input.environment.siteName)}`,
     `- Site elevation: ${formatNumber(input.environment.elevationM, 0)} m`,
     `- Mean wind at 500 m AGL: ${formatNumber(input.environment.meanWindAt500Mps, 2)} m/s`,
+    ...(input.environment.windAzimuthDeg === undefined
+      ? []
+      : [`- Wind azimuth input: ${formatNumber(input.environment.windAzimuthDeg, 0)}° ENU (0° east, +90° north)`]),
     ...(input.environment.surfacePressureHpa === undefined
       ? []
       : [`- Pad pressure observation: ${formatNumber(input.environment.surfacePressureHpa, 1)} hPa`]),

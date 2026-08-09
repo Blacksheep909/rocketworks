@@ -18,6 +18,7 @@ const inputs = {
   dragCoefficient: 0.52,
   launchAltitudeM: 80,
   windSpeedMps: 4,
+  windAzimuthDeg: 0,
   relativeHumidityPercent: 60,
   surfacePressureHpa: 1004,
   surfaceTemperatureC: 15,

@@ -248,6 +248,8 @@ test("shows a deterministic provenance-qualified launch environment", async () =
   assert.match(source, /relativeHumidityPercent/);
   assert.match(source, /surfacePressureHpa/);
   assert.match(source, /surfaceTemperatureC/);
+  assert.match(source, /windAzimuthDeg/);
+  assert.match(source, /Wind azimuth · east toward north/);
   assert.match(source, /Pad pressure/);
   assert.match(source, /Pad temperature/);
   assert.match(source, /Air density @ 500 m/);

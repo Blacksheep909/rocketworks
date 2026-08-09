@@ -52,6 +52,7 @@ test("local project snapshots round-trip through a strict versioned schema", () 
   assert.equal(source.inputs.launchRailLengthM, 1.2);
   assert.equal(source.inputs.launchRailInclinationDeg, 0);
   assert.equal(source.inputs.launchRailAzimuthDeg, 0);
+  assert.equal(source.inputs.windAzimuthDeg, 0);
   assert.equal(source.inputs.noseLengthMm, 180);
   assert.equal(source.inputs.noseProfile, "ogive");
   assert.equal(source.inputs.finCount, 3);
@@ -72,6 +73,7 @@ test("legacy snapshots receive explicit surface-weather defaults", () => {
   assert.equal(legacy.inputs.relativeHumidityPercent, 60);
   assert.equal(legacy.inputs.surfacePressureHpa, 1004);
   assert.equal(legacy.inputs.surfaceTemperatureC, 15);
+  assert.equal(legacy.inputs.windAzimuthDeg, 0);
   assert.equal(legacy.inputs.recoveryReefingEnabled, false);
   assert.equal(legacy.inputs.recoveryReefingDurationS, 3);
   assert.equal(legacy.inputs.recoveryReefingStartAreaFraction, 0.35);
@@ -98,6 +100,10 @@ test("invalid, unsupported, and out-of-range snapshots fail explicitly", () => {
   assert.throws(
     () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, launchRailAzimuthDeg: 180.1 } }),
     /launchRailAzimuthDeg/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, windAzimuthDeg: 180.1 } }),
+    /windAzimuthDeg/,
   );
   assert.throws(
     () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, recoveryDeploymentSuccessProbability: 1.1 } }),

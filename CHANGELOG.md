@@ -8,6 +8,10 @@ flight-readiness claims.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.
+- Added a persisted local-ENU wind azimuth control (0° east, +90° north) to
+  the browser environment. The same rotated altitude-dependent profile now
+  feeds vertical estimates, landing-drift scenarios, coupled 6DOF previews,
+  project history, and portable inputs; older snapshots default to 0°.
 - Bumped the coupled stage-flight preview to 0.8.0 and integrated the
   independent recovery-load model into retained-vehicle 6DOF/rail loads, with
   apogee command events, canopy-area/drag trace telemetry, and explicit

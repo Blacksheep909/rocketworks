@@ -19,6 +19,8 @@ east-north-up position and time:
 - optional relative-humidity coupling to water-vapor pressure, virtual
   temperature, density, and speed of sound
 - altitude-interpolated mean wind
+- browser-preview azimuth control in the local ENU frame (0° east, +90°
+  north), with deterministic rotation of every profile layer
 - seeded, finite-band Dryden-shaped turbulence
 - deterministic one-minus-cosine discrete gust events
 - source, version, licence, attribution, observation time, and validation status
@@ -66,6 +68,15 @@ reconstruction.
 Mean east, north, and up wind components are linearly interpolated with AGL
 altitude. Outside the supplied profile, the nearest endpoint is held.
 
+The browser's synthetic profile is defined by scalar speed anchors at 0, 500,
+and 2000 m AGL. Its configurable input azimuth rotates the horizontal profile
+in the local ENU frame before the environment provider is built. Landing
+dispersion adds a sampled direction offset on top of this base azimuth, while
+the coupled 6DOF and vertical paths consume the same rotated provider. A
+profile model version (`kestrel-preview-wind-profile-0.2.0`) is exposed in the
+source and the input is persisted in local project snapshots; older snapshots
+default to 0° for backward compatibility.
+
 Turbulence is synthesized from logarithmically bounded spatial modes with
 seeded phases. The longitudinal and transverse mode weights use the Dryden
 spatial power spectral density shapes:
@@ -106,6 +117,7 @@ Automated tests cover:
 
 - standard-atmosphere and observed surface anchors
 - mean-wind interpolation
+- synthetic-profile azimuth rotation and direction-offset composition
 - gust endpoints, peak, altitude gating, and identifiers
 - seeded repeatability and seed sensitivity
 - frozen-field translation invariance

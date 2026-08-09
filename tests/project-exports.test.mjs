@@ -340,6 +340,7 @@ test("engineering report leads with status and preserves calculations and limita
       siteName: "Test range",
       elevationM: 80,
       meanWindAt500Mps: 4.08,
+      windAzimuthDeg: 35,
       surfacePressureHpa: 1004,
       surfaceTemperatureC: 15,
       relativeHumidityPercent: 60,
@@ -438,6 +439,7 @@ test("engineering report leads with status and preserves calculations and limita
   });
   assert.match(report, /^# ARC 54 — Preliminary Engineering Report/);
   assert.match(report, /Pad pressure observation: 1004\.0 hPa/);
+  assert.match(report, /Wind azimuth input: 35° ENU/);
   assert.match(report, /Relative humidity observation: 60%/);
   assert.match(report, /## Recovery configuration/);
   assert.match(report, /Opening schedule: 25% to 100% over 2\.0 s/);

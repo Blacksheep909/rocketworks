@@ -26,6 +26,8 @@ export type EditableProjectInputs = Readonly<{
   dragCoefficient: number;
   launchAltitudeM: number;
   windSpeedMps: number;
+  /** Mean-wind azimuth in the local ENU frame: 0° east, +90° north. */
+  windAzimuthDeg: number;
   relativeHumidityPercent: number;
   surfacePressureHpa: number;
   surfaceTemperatureC: number;
@@ -83,6 +85,7 @@ const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material
   dragCoefficient: [0.1, 2],
   launchAltitudeM: [-400, 10000],
   windSpeedMps: [0, 80],
+  windAzimuthDeg: [-180, 180],
   relativeHumidityPercent: [0, 100],
   surfacePressureHpa: [20, 1100],
   surfaceTemperatureC: [-90, 70],
@@ -111,6 +114,7 @@ const numericDefaults: Readonly<Partial<Record<keyof typeof numericRanges, numbe
   relativeHumidityPercent: 60,
   surfacePressureHpa: 1004,
   surfaceTemperatureC: 15,
+  windAzimuthDeg: 0,
   recoveryMassKg: 0.06,
   recoveryDeploymentSuccessProbability: 0.9,
   recoveryReefingDurationS: 3,
@@ -204,6 +208,7 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     dragCoefficient: validated.dragCoefficient,
     launchAltitudeM: validated.launchAltitudeM,
     windSpeedMps: validated.windSpeedMps,
+    windAzimuthDeg: validated.windAzimuthDeg,
     relativeHumidityPercent: validated.relativeHumidityPercent,
     surfacePressureHpa: validated.surfacePressureHpa,
     surfaceTemperatureC: validated.surfaceTemperatureC,
@@ -287,6 +292,7 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   dragCoefficient: "drag coefficient",
   launchAltitudeM: "launch altitude",
   windSpeedMps: "wind speed",
+  windAzimuthDeg: "wind azimuth",
   relativeHumidityPercent: "relative humidity",
   surfacePressureHpa: "surface pressure",
   surfaceTemperatureC: "surface temperature",

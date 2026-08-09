@@ -40,6 +40,8 @@ research, standards, and original code.
   landing descent, 6DOF recovery loads, trace telemetry, and portable inputs;
 - optional relative-humidity coupling with explicit water-vapor, virtual-
   temperature, density, sound-speed, and Reynolds-number diagnostics;
+- configurable local-ENU wind azimuth (0° east, +90° north) shared by the
+  altitude-dependent vertical, landing, and coupled 6DOF environment paths;
 - persisted pad-pressure and pad-temperature observations shared by the fast
   vertical, launch-environment, landing, and report paths;
 - preliminary vertical flight, coupled 6DOF, staging, ignition delays,
