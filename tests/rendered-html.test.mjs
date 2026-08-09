@@ -39,6 +39,18 @@ test("server-renders the Kestrel Lab workbench", async () => {
   assert.doesNotMatch(html, /OpenRocket/);
 });
 
+test("ships an installable browser shell without claiming offline simulation", async () => {
+  const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const manifest = JSON.parse(await readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"));
+  assert.match(layout, /manifest\.webmanifest/);
+  assert.match(layout, /kestrel-mark\.svg/);
+  assert.equal(manifest.display, "standalone");
+  assert.equal(manifest.start_url, "/");
+  assert.equal(manifest.theme_color, "#070a0d");
+  assert.equal(manifest.icons[0].src, "/kestrel-mark.svg");
+  assert.equal(manifest.icons[0].purpose, "any maskable");
+});
+
 test("ships the graphite and telemetry-blue aerospace visual system", async () => {
   const stylesheet = await readFile(
     new URL("../app/globals.css", import.meta.url),

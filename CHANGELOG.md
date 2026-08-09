@@ -23,6 +23,10 @@ flight-readiness claims.
   Latin-hypercube scenarios and a reproducibility seed, with stale-result
   detection and round-trip support through local history, share links, and
   portable project JSON.
+- Added an installable PWA manifest, standalone viewport metadata, and original
+  Kestrel Lab app artwork as the first browser-to-desktop portability layer;
+  offline caching and native wrappers remain explicitly out of scope for this
+  increment.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.

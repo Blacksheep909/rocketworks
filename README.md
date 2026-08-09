@@ -68,6 +68,8 @@ research, standards, and original code.
 - validated project import, device-local autosave/history, templates,
   beginner/expert modes, keyboard command search, and compact browser design
   share links.
+- an installable standards-based browser shell with original Kestrel artwork,
+  ready for a later desktop/tablet wrapper; offline simulation is not claimed.
 
 Every calculation surface exposes its model version, validation status,
 warnings, assumptions, and scope limits. User data retains its source,

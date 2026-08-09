@@ -1,0 +1,19 @@
+{
+  "name": "Kestrel Lab — Rocket Design & Flight Analysis",
+  "short_name": "Kestrel Lab",
+  "description": "An independent browser-first workbench for rocket design, flight previews, uncertainty analysis, and engineering exports.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "landscape-primary",
+  "background_color": "#070a0d",
+  "theme_color": "#070a0d",
+  "icons": [
+    {
+      "src": "/kestrel-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
