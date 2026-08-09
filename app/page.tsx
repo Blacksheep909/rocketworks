@@ -2333,8 +2333,8 @@ export default function Home() {
     }, 520);
   };
   const runStageAwareEstimate = () => {
-    if (activeStageCount < 2) {
-      notify("Add an upper stage or booster before running a staged preview");
+    if (activeStageCount < 1) {
+      notify("Add an enabled stage before running a coupled preview");
       setTopologyOpen(true);
       return;
     }
@@ -2357,7 +2357,7 @@ export default function Home() {
           }),
         );
         setStageFlightResult(nextResult);
-        notify("Stage-aware 6DOF preview complete");
+        notify(activeStageCount > 1 ? "Stage-aware 6DOF preview complete" : "Coupled 6DOF preview complete");
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to run the staged preview";
         setStageFlightError(message);
@@ -2487,7 +2487,7 @@ export default function Home() {
   const commandActions: readonly CommandAction[] = [
     { id: "run-estimate", label: "Run vertical estimate", description: "Propagate the current vehicle through the preliminary vertical model", shortcut: "R", run: simulate },
     { id: "run-sweep", label: "Run parameter sweep", description: "Evaluate a bounded one-variable trade study", shortcut: "S", run: runSweep },
-    { id: "run-staged", label: "Run staged 6DOF preview", description: "Propagate the active stage graph and event transitions", run: runStageAwareEstimate },
+    { id: "run-staged", label: activeStageCount > 1 ? "Run staged 6DOF preview" : "Run coupled 6DOF preview", description: activeStageCount > 1 ? "Propagate the active stage graph and event transitions" : "Propagate the current vehicle through the coupled rigid-body preview", run: runStageAwareEstimate },
     { id: "open-topology", label: "Edit stages and boosters", description: "Open the serial, parallel, and radial topology editor", run: () => setTopologyOpen(true) },
     { id: "open-motors", label: "Open motor library", description: "Review or import a provenance-qualified user motor curve", run: () => setMotorLibraryOpen(true) },
     { id: "open-templates", label: "Choose a project template", description: "Start from a beginner, high-power, weather, or diagnostic setup", run: () => setTemplatesOpen(true) },
@@ -2681,16 +2681,16 @@ export default function Home() {
               <div><span className="eyebrow">Preliminary estimate</span><h2>Vertical flight profile</h2></div>
               <span className="model-badge">{result.modelVersion}</span>
             </div>
-            {activeStageCount > 1 && (
+            {activeStageCount > 0 && (
               <section className="stage-flight-card" aria-labelledby="stage-flight-title">
                 <div className="stage-flight-heading">
                   <div>
-                    <span className="eyebrow">Topology-aware preview</span>
-                    <h3 id="stage-flight-title">6DOF staging run</h3>
-                    <p>Uses the active stage graph, live mass properties, topology-specific aerodynamics, and explicit event transitions.</p>
+                    <span className="eyebrow">{activeStageCount > 1 ? "Topology-aware preview" : "Coupled dynamics preview"}</span>
+                    <h3 id="stage-flight-title">{activeStageCount > 1 ? "6DOF staging run" : "6DOF ascent run"}</h3>
+                    <p>{activeStageCount > 1 ? "Uses the active stage graph, live mass properties, topology-specific aerodynamics, and explicit event transitions." : "Propagates the current single-stage vehicle with live mass properties, preliminary aerodynamic loads, launch environment, and optional rail handoff."}</p>
                   </div>
                   <button className="primary-button" onClick={runStageAwareEstimate} disabled={stageFlightRunning}>
-                    {stageFlightRunning ? "Propagating…" : stageFlightResult ? "Rerun staged preview" : "Run staged preview"}
+                    {stageFlightRunning ? "Propagating…" : stageFlightResult ? (activeStageCount > 1 ? "Rerun staged preview" : "Rerun 6DOF preview") : (activeStageCount > 1 ? "Run staged preview" : "Run 6DOF preview")}
                   </button>
                 </div>
                 {stageFlightError && <div className="stage-flight-error" role="alert">{stageFlightError}</div>}

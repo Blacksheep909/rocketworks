@@ -7,7 +7,8 @@ approval or separation-clearance decisions.
 ## Purpose
 
 `stage-flight-preview.ts` provides one deterministic entry point for a browser
-stage run. It composes, without replacing, the independently versioned Kestrel
+stage run, including a single-stage coupled ascent baseline. It composes,
+without replacing, the independently versioned Kestrel
 models for:
 
 1. attached-stage mass, propellant, inertia, and clustered thrust;
@@ -51,6 +52,12 @@ summary so the profile remains understandable to keyboard and assistive-
 technology users. CSV export remains the authoritative portable trace for
 external plotting. The metric tabs accept Tab plus Arrow, Home, and End key
 navigation so changing the displayed series does not require a pointer.
+
+The same profile is available for an enabled single-stage vehicle as a
+`6DOF ascent run`. In that mode there are no staging transitions, but the
+retained vehicle still passes through the coupled mass, aerodynamic, launch-
+environment, rail, and rigid-body layers. Multi-stage projects retain the
+topology-aware event view and stage-set annotations.
 
 The profile deliberately uses one primary y-axis at a time. This prevents a
 large thrust value or a small mass value from visually hiding another series

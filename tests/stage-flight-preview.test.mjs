@@ -153,6 +153,26 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.ok(result.assumptions.some((assumption) => assumption.includes("separated bodies")));
 });
 
+test("stage-flight adapter supports a single-stage coupled 6DOF preview", () => {
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components: components.filter((component) => component.stageId === "upper"),
+    stages: [stages[1]],
+    regimes: [regimes[1]],
+    initiallyIgnitedStageIds: ["upper"],
+    durationS: 2.5,
+    timeStepS: 0.05,
+    launchAltitudeM: 0,
+  });
+
+  assert.equal(result.validationStatus, "mathematical-regression-tests-only");
+  assert.ok(result.simulation);
+  assert.ok(result.maxAltitudeAglM > 0);
+  assert.ok(result.maxSpeedMps > 0);
+  assert.ok(result.trace.every((point) => point.attachedStageIds.includes("upper")));
+  assert.equal(result.events.length, 0);
+});
+
 test("stage-flight adapter rejects unknown initial ignition stages", () => {
   assert.throws(
     () => simulateStageFlightPreview({
