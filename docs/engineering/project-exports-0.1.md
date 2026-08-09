@@ -1,4 +1,4 @@
-# Project, analysis, report, and CAD exports 0.2
+# Project, analysis, report, and CAD exports 0.3
 
 Status: `engineering-preview-unvalidated`
 
@@ -17,7 +17,7 @@ The browser's Export action now opens a keyboard-accessible artifact center.
 Escape or the close button dismisses it. Downloads are created in memory and
 initiated only after the user selects a format.
 
-Version 0.2 offers five inspectable formats:
+Version 0.3 offers five inspectable formats:
 
 1. Versioned Kestrel project JSON
 2. Flight-trace CSV
@@ -36,15 +36,16 @@ The root document declares:
 ```text
 schema: org.kestrel-lab.project
 schemaVersion: 1
-exportModelVersion: kestrel-export-0.2.0
+exportModelVersion: kestrel-export-0.3.0
 validationStatus: engineering-preview-unvalidated
 ```
 
 It preserves the current geometry, material choice, mass properties, static
 stability, assembly summary, vertical-flight result and trace, uncertainty
 analysis, optional optimization Pareto summary, optional landing footprint,
-  and source/licence provenance, including recovery deployment reliability
-  assumptions and sampled outcomes when a landing dispersion is present.
+  and source/licence provenance, including the ascent-to-recovery handoff
+  proxy, recovery deployment reliability assumptions, and sampled outcomes when
+  a landing dispersion is present.
 
 All numbers must be finite and all values must be JSON-compatible. Circular
 references, unsupported values, invalid identifiers, and invalid timestamps are
@@ -121,8 +122,8 @@ not-manufacturing-approved warning, then records:
 - motor performance and provenance
 - launch site, wind, environment version, status, and provenance
 - flight metrics and event table
-- optional recovery landing footprint, uncertainty seed, and deployment
-  success/failure interval
+- optional recovery landing footprint, ascent handoff proxy, uncertainty seed,
+  and deployment success/failure interval
 - model assumptions, warnings, and limitations
 - clean-room independence statement
 

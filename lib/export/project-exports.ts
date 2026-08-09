@@ -8,7 +8,7 @@ import type { ParameterSweepResult } from "../physics/uncertainty-analysis.ts";
 
 export const KESTREL_PROJECT_SCHEMA_ID = "org.kestrel-lab.project";
 export const KESTREL_PROJECT_SCHEMA_VERSION = 1;
-export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.2.0";
+export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.3.0";
 export const KESTREL_EXPORT_VALIDATION_STATUS =
   "engineering-preview-unvalidated";
 
@@ -575,8 +575,14 @@ export function createEngineeringReportMarkdown(
                 `- Observed deployment success: ${input.landing!.deploymentScenario.observedSuccessRate === null ? "not available" : `${formatNumber(input.landing!.deploymentScenario.observedSuccessRate * 100, 1)}%`} (assumed ${(input.landing!.deploymentScenario.assumedSuccessProbability * 100).toFixed(1)}%)`,
               ]
             : []),
+          ...(input.landing!.ascentDrift
+            ? [
+                `- Ascent-to-recovery handoff: ${markdownText(input.landing!.ascentDrift.label)} (${markdownText(input.landing!.ascentDrift.modelVersion)})`,
+                `- Ascent-drift scope: ${markdownText(input.landing!.ascentDrift.description)}`,
+              ]
+            : []),
           "",
-          "> The footprint covers recovery-phase drift only. It is not a launch corridor or range-safety boundary.",
+          "> The footprint includes the declared ascent handoff and recovery-phase drift only. It is not a launch corridor or range-safety boundary.",
           "",
         ]
       : []),

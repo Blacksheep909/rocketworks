@@ -1,10 +1,11 @@
-# Recovery descent and landing footprint 0.2
+# Recovery descent and landing footprint 0.3
 
 Status: `engineering-preview-unvalidated`.
 
 The landing-footprint composition version is
-`kestrel-landing-footprint-0.2.0`; the underlying recovery-descent point-mass
-model remains independently versioned. The uncertainty sampler is
+`kestrel-landing-footprint-0.3.0`; the underlying recovery-descent point-mass
+model remains independently versioned. The ascent handoff proxy is
+`kestrel-ascent-drift-0.1.0`. The uncertainty sampler is
 `kestrel-uncertainty-0.2.0` and now supports Bernoulli outcomes alongside its
 continuous distributions.
 
@@ -49,6 +50,25 @@ CdAeffective = CdAbody + s(u) CdAcanopy
 This is substantially simpler than a canopy-riser-payload model. It does not
 model line forces, relative canopy motion, pendulum dynamics, opening shock,
 reefing stages, apparent mass, wake interaction, or fluid-structure coupling.
+
+## Ascent-to-recovery handoff
+
+The browser no longer starts every landing scenario at zero horizontal state.
+Before recovery descent, `estimateAscentWindDrift` integrates only horizontal
+position and velocity from the existing one-dimensional flight trace. The
+trace prescribes altitude, vertical velocity, and mass; the added horizontal
+force is the public wind-relative drag relation evaluated with the body `CdA`:
+
+```text
+vrel = [vx - wx, vy - wy, vz(trace) - wz]
+ahorizontal = -0.5 rho CdA |vrel| vrel[horizontal] / m(trace)
+```
+
+The launch-environment provider is queried at each Runge-Kutta stage, so each
+landing-dispersion scenario receives its own wind scale, direction, turbulence,
+and gust realization. The resulting horizontal position and velocity are then
+handed to the recovery point-mass model at the estimated apogee time. This is a
+deterministic engineering proxy, not a replacement for a coupled 6DOF ascent.
 
 ## Seeded dispersion
 
@@ -122,6 +142,7 @@ The original canvas plot includes:
 
 - every scenario impact
 - launch-point crosshair
+- scenario-specific ascent-to-apogee wind-drag handoff status
 - mean-impact marker
 - sample convex hull
 - 50/90/95% covariance ellipses
@@ -145,6 +166,7 @@ Automated tests cover:
   footprint fixture
 - seeded dispersion replay and sensitivity output
 - deterministic deployment-success/failure branching and Wilson interval
+- deterministic ascent-to-recovery wind-drag handoff and replay
 - invalid state, integration, geodesy, and footprint rejection
 - browser footprint, accessible canvas description, metrics, and safety copy
 
@@ -154,8 +176,9 @@ independent range-safety software, or certified parachute data.
 
 ## Known limitations
 
-- Recovery phase begins at zero horizontal displacement and velocity at apogee;
-  ascent and coast drift are omitted from the browser footprint.
+- Ascent drift uses a prescribed vertical trace with horizontal body-drag
+  coupling; attitude, lift, fin normal force, thrust-vector misalignment, rail
+  tip-off, CP/CG coupling, and rotational 6DOF dynamics remain omitted.
 - Flat ground; no terrain elevation, obstacles, exclusion zones, coastline,
   water drift, or recovery-team routing.
 - Point mass only; no 6DOF attitude, tumbling, canopy-payload geometry, or

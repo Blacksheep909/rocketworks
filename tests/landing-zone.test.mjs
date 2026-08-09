@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  ASCENT_DRIFT_MODEL_VERSION,
   LANDING_FOOTPRINT_MODEL_VERSION,
   analyzeLandingFootprint,
   analyzeRecoveryLandingDispersion,
   createLaunchEnvironmentModel,
+  estimateAscentWindDrift,
   localEnuOffsetToWgs84,
   simulateRecoveryDescent,
   standardAtmosphere,
@@ -103,6 +105,35 @@ test("wind-relative vector drag produces downwind recovery drift", () => {
   assert.ok(result.impactPositionWorldM.y < -5);
   assert.ok(result.maximumHorizontalDistanceM > 20);
   assert.ok(result.trace.some((point) => point.windWorldMps.x === 8));
+});
+
+test("ascent wind-drag handoff is deterministic and follows the supplied wind", () => {
+  const model = environment(8, -2);
+  const trace = [
+    { timeS: 0, altitudeAglM: 0, velocityMps: 0, massKg: 1.2 },
+    { timeS: 1, altitudeAglM: 45, velocityMps: 70, massKg: 1.05 },
+    { timeS: 2, altitudeAglM: 100, velocityMps: 0, massKg: 1 },
+  ];
+  const input = {
+    trace,
+    apogeeTimeS: 2,
+    environmentAt: model.at,
+    dragCoefficient: 0.5,
+    referenceAreaM2: 0.01,
+    integration: { timeStepS: 0.01 },
+  };
+  const first = estimateAscentWindDrift(input);
+  const replay = estimateAscentWindDrift(input);
+  assert.deepEqual(first, replay);
+  assert.equal(first.modelVersion, ASCENT_DRIFT_MODEL_VERSION);
+  assert.equal(first.validationStatus, "engineering-preview-unvalidated");
+  assert.ok(first.positionWorldM.x > 0);
+  assert.ok(first.positionWorldM.y < 0);
+  assert.ok(first.velocityWorldMps.x > 0);
+  assert.ok(first.velocityWorldMps.y < 0);
+  assert.ok(first.maximumHorizontalDistanceM >= Math.hypot(first.positionWorldM.x, first.positionWorldM.y));
+  assert.ok(first.assumptions.some((assumption) => assumption.includes("one-dimensional trace")));
+  assert.ok(first.warnings.some((warning) => warning.includes("6DOF")));
 });
 
 test("deployment delay and smooth inflation remain visible in the trace", () => {
@@ -216,7 +247,54 @@ test("deployment reliability scenarios branch to ballistic descent and remain ex
   assert.ok(result.warnings.some((warning) => warning.includes("ballistic descent")));
 });
 
+test("landing dispersion records the ascent handoff model and scope", () => {
+  const result = analyzeRecoveryLandingDispersion({
+    site,
+    seed: "ascent-handoff",
+    sampleCount: 6,
+    parameters: [
+      { key: "fixtureScale", label: "Fixture scale", distribution: { kind: "uniform", minimum: 0.99, maximum: 1.01 } },
+    ],
+    ascentDrift: {
+      modelVersion: ASCENT_DRIFT_MODEL_VERSION,
+      label: "Ascent drift wind-drag proxy",
+      description: "Scenario-specific horizontal state is integrated to apogee.",
+    },
+    descentForSample: () => descent(),
+  });
+  assert.deepEqual(result.ascentDrift, {
+    modelVersion: ASCENT_DRIFT_MODEL_VERSION,
+    label: "Ascent drift wind-drag proxy",
+    description: "Scenario-specific horizontal state is integrated to apogee.",
+  });
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("integrated to apogee")));
+  assert.ok(result.warnings.some((warning) => warning.includes("prescribed vertical trace")));
+});
+
 test("invalid descent, geodesy, and footprint inputs fail explicitly", () => {
+  assert.throws(
+    () => estimateAscentWindDrift({
+      trace: [{ timeS: 0, altitudeAglM: 0, velocityMps: 0, massKg: 1 }],
+      apogeeTimeS: 0,
+      environmentAt: environment().at,
+      dragCoefficient: 0.5,
+      referenceAreaM2: 0.01,
+    }),
+    /at least two/,
+  );
+  assert.throws(
+    () => estimateAscentWindDrift({
+      trace: [
+        { timeS: 0, altitudeAglM: 0, velocityMps: 0, massKg: 1 },
+        { timeS: 0, altitudeAglM: 10, velocityMps: 1, massKg: 1 },
+      ],
+      apogeeTimeS: 0,
+      environmentAt: environment().at,
+      dragCoefficient: 0.5,
+      referenceAreaM2: 0.01,
+    }),
+    /strictly increasing/,
+  );
   assert.throws(() => descent({ massKg: 0 }), /mass/);
   assert.throws(() => descent({ initialPositionWorldM: { x: 0, y: 0, z: 0 } }), /above ground/);
   assert.throws(() => descent({ integration: { timeStepS: 1 } }), /time step/);

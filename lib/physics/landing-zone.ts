@@ -11,7 +11,8 @@ import {
 } from "./uncertainty-analysis.ts";
 
 export const RECOVERY_DESCENT_MODEL_VERSION = "kestrel-recovery-descent-0.1.0";
-export const LANDING_FOOTPRINT_MODEL_VERSION = "kestrel-landing-footprint-0.2.0";
+export const ASCENT_DRIFT_MODEL_VERSION = "kestrel-ascent-drift-0.1.0";
+export const LANDING_FOOTPRINT_MODEL_VERSION = "kestrel-landing-footprint-0.3.0";
 export const LANDING_ZONE_MODEL_STATUS = "engineering-preview-unvalidated";
 
 const WGS84_SEMI_MAJOR_AXIS_M = 6_378_137;
@@ -114,9 +115,16 @@ export type LandingDispersionResult = Readonly<{
   seed: string;
   uncertainty: UncertaintyAnalysisResult;
   footprint: LandingFootprintResult;
+  ascentDrift: LandingAscentDriftSummary | null;
   deploymentScenario: LandingDeploymentScenarioSummary | null;
   assumptions: readonly string[];
   warnings: readonly string[];
+}>;
+
+export type LandingAscentDriftSummary = Readonly<{
+  modelVersion: string;
+  label: string;
+  description: string;
 }>;
 
 export type LandingDeploymentScenarioSummary = Readonly<{
@@ -128,6 +136,24 @@ export type LandingDeploymentScenarioSummary = Readonly<{
   unclassifiedSampleCount: number;
   observedSuccessRate: number | null;
   wilson95: Readonly<{ lower: number; upper: number }> | null;
+}>;
+
+export type AscentDriftTracePoint = Readonly<{
+  timeS: number;
+  altitudeAglM: number;
+  velocityMps: number;
+  massKg: number;
+}>;
+
+export type AscentDriftEstimate = Readonly<{
+  modelVersion: typeof ASCENT_DRIFT_MODEL_VERSION;
+  validationStatus: typeof LANDING_ZONE_MODEL_STATUS;
+  apogeeTimeS: number;
+  positionWorldM: Vector3;
+  velocityWorldMps: Vector3;
+  maximumHorizontalDistanceM: number;
+  assumptions: readonly string[];
+  warnings: readonly string[];
 }>;
 
 type DescentState = Readonly<{
@@ -177,6 +203,211 @@ function wilsonInterval95(successes: number, total: number): Readonly<{ lower: n
     (z / denominator) *
     Math.sqrt((observed * (1 - observed)) / total + (z * z) / (4 * total * total));
   return { lower: Math.max(0, center - radius), upper: Math.min(1, center + radius) };
+}
+
+function interpolateAscentTracePoint(
+  trace: readonly AscentDriftTracePoint[],
+  timeS: number,
+): AscentDriftTracePoint {
+  if (timeS <= trace[0]!.timeS) return trace[0]!;
+  const last = trace[trace.length - 1]!;
+  if (timeS >= last.timeS) return last;
+  let low = 0;
+  let high = trace.length - 1;
+  while (high - low > 1) {
+    const middle = Math.floor((low + high) / 2);
+    if (trace[middle]!.timeS <= timeS) low = middle;
+    else high = middle;
+  }
+  const left = trace[low]!;
+  const right = trace[high]!;
+  const fraction = (timeS - left.timeS) / (right.timeS - left.timeS);
+  return {
+    timeS,
+    altitudeAglM: left.altitudeAglM + (right.altitudeAglM - left.altitudeAglM) * fraction,
+    velocityMps: left.velocityMps + (right.velocityMps - left.velocityMps) * fraction,
+    massKg: left.massKg + (right.massKg - left.massKg) * fraction,
+  };
+}
+
+/**
+ * Estimate the horizontal ascent handoff state with a prescribed vertical
+ * trace and a wind-relative body-drag proxy. This deliberately does not
+ * replace the vertical or six-degree-of-freedom flight models.
+ */
+export function estimateAscentWindDrift(input: Readonly<{
+  trace: readonly AscentDriftTracePoint[];
+  apogeeTimeS: number;
+  environmentAt: LaunchEnvironmentProvider;
+  dragCoefficient: number;
+  referenceAreaM2: number;
+  initialPositionWorldM?: Vector3;
+  initialVelocityWorldMps?: Vector3;
+  integration?: Readonly<{ timeStepS?: number }>;
+}>): AscentDriftEstimate {
+  if (input.trace.length < 2) {
+    throw new Error("ascent drift requires at least two trace points");
+  }
+  input.trace.forEach((point, index) => {
+    if (
+      ![point.timeS, point.altitudeAglM, point.velocityMps, point.massKg].every(Number.isFinite) ||
+      point.altitudeAglM < 0 ||
+      point.massKg <= 0
+    ) {
+      throw new Error(`ascent trace point ${index} contains invalid values`);
+    }
+    if (index > 0 && point.timeS <= input.trace[index - 1]!.timeS) {
+      throw new Error("ascent drift trace times must be strictly increasing");
+    }
+  });
+  if (!Number.isFinite(input.apogeeTimeS)) {
+    throw new Error("ascent drift apogee time must be finite");
+  }
+  if (
+    input.apogeeTimeS < input.trace[0]!.timeS ||
+    input.apogeeTimeS > input.trace[input.trace.length - 1]!.timeS
+  ) {
+    throw new Error("ascent drift apogee time must be inside the supplied trace");
+  }
+  assertPositive(input.dragCoefficient, "ascent drift drag coefficient");
+  assertPositive(input.referenceAreaM2, "ascent drift reference area");
+  const initialPosition = input.initialPositionWorldM ?? { x: 0, y: 0, z: 0 };
+  const initialVelocity = input.initialVelocityWorldMps ?? { x: 0, y: 0, z: 0 };
+  if (!finiteVector(initialPosition) || !finiteVector(initialVelocity)) {
+    throw new Error("ascent drift initial state must be finite");
+  }
+  const timeStepS = input.integration?.timeStepS ?? 0.02;
+  assertPositive(timeStepS, "ascent drift time step");
+  if (timeStepS > 0.1) {
+    throw new Error("ascent drift time step may not exceed 0.1 seconds");
+  }
+  const traceAt = (timeS: number) => interpolateAscentTracePoint(input.trace, timeS);
+  type DriftState = Readonly<{
+    timeS: number;
+    positionWorldM: Vector3;
+    velocityWorldMps: Vector3;
+  }>;
+  const derivative = (state: DriftState) => {
+    const vertical = traceAt(state.timeS);
+    const environment = input.environmentAt({
+      timeS: state.timeS,
+      positionWorldM: {
+        x: state.positionWorldM.x,
+        y: state.positionWorldM.y,
+        z: vertical.altitudeAglM,
+      },
+    });
+    const densityKgM3 = environment.atmosphere.densityKgM3;
+    if (!Number.isFinite(densityKgM3) || densityKgM3 < 0) {
+      throw new Error("ascent drift environment density must be finite and non-negative");
+    }
+    const relativeVelocity = {
+      x: state.velocityWorldMps.x - environment.windWorldMps.x,
+      y: state.velocityWorldMps.y - environment.windWorldMps.y,
+      z: vertical.velocityMps - environment.windWorldMps.z,
+    };
+    const airspeedMps = Math.hypot(
+      relativeVelocity.x,
+      relativeVelocity.y,
+      relativeVelocity.z,
+    );
+    const dragAccelerationFactor =
+      airspeedMps > 0
+        ? (-0.5 * densityKgM3 * input.dragCoefficient * input.referenceAreaM2 * airspeedMps) /
+          vertical.massKg
+        : 0;
+    return {
+      positionDerivative: { x: state.velocityWorldMps.x, y: state.velocityWorldMps.y, z: 0 },
+      velocityDerivative: {
+        x: dragAccelerationFactor * relativeVelocity.x,
+        y: dragAccelerationFactor * relativeVelocity.y,
+        z: 0,
+      },
+    };
+  };
+  const addScaled = (state: DriftState, derivativeValue: ReturnType<typeof derivative>, scale: number): DriftState => ({
+    timeS: state.timeS + scale,
+    positionWorldM: {
+      x: state.positionWorldM.x + derivativeValue.positionDerivative.x * scale,
+      y: state.positionWorldM.y + derivativeValue.positionDerivative.y * scale,
+      z: 0,
+    },
+    velocityWorldMps: {
+      x: state.velocityWorldMps.x + derivativeValue.velocityDerivative.x * scale,
+      y: state.velocityWorldMps.y + derivativeValue.velocityDerivative.y * scale,
+      z: 0,
+    },
+  });
+  const combine = (
+    initial: Vector3,
+    first: Vector3,
+    second: Vector3,
+    third: Vector3,
+    fourth: Vector3,
+    scale: number,
+  ): Vector3 => ({
+    x: initial.x + (scale / 6) * (first.x + 2 * second.x + 2 * third.x + fourth.x),
+    y: initial.y + (scale / 6) * (first.y + 2 * second.y + 2 * third.y + fourth.y),
+    z: 0,
+  });
+  const advance = (state: DriftState, stepS: number): DriftState => {
+    const first = derivative(state);
+    const second = derivative(addScaled(state, first, stepS / 2));
+    const third = derivative(addScaled(state, second, stepS / 2));
+    const fourth = derivative(addScaled(state, third, stepS));
+    return {
+      timeS: state.timeS + stepS,
+      positionWorldM: combine(
+        state.positionWorldM,
+        first.positionDerivative,
+        second.positionDerivative,
+        third.positionDerivative,
+        fourth.positionDerivative,
+        stepS,
+      ),
+      velocityWorldMps: combine(
+        state.velocityWorldMps,
+        first.velocityDerivative,
+        second.velocityDerivative,
+        third.velocityDerivative,
+        fourth.velocityDerivative,
+        stepS,
+      ),
+    };
+  };
+  let state: DriftState = {
+    timeS: input.trace[0]!.timeS,
+    positionWorldM: { x: initialPosition.x, y: initialPosition.y, z: 0 },
+    velocityWorldMps: { x: initialVelocity.x, y: initialVelocity.y, z: 0 },
+  };
+  let maximumHorizontalDistanceM = Math.hypot(state.positionWorldM.x, state.positionWorldM.y);
+  while (state.timeS < input.apogeeTimeS - 1e-12) {
+    const stepS = Math.min(timeStepS, input.apogeeTimeS - state.timeS);
+    state = advance(state, stepS);
+    maximumHorizontalDistanceM = Math.max(
+      maximumHorizontalDistanceM,
+      Math.hypot(state.positionWorldM.x, state.positionWorldM.y),
+    );
+  }
+  return {
+    modelVersion: ASCENT_DRIFT_MODEL_VERSION,
+    validationStatus: LANDING_ZONE_MODEL_STATUS,
+    apogeeTimeS: input.apogeeTimeS,
+    positionWorldM: { ...state.positionWorldM, z: 0 },
+    velocityWorldMps: { ...state.velocityWorldMps, z: 0 },
+    maximumHorizontalDistanceM,
+    assumptions: [
+      "The supplied one-dimensional trace prescribes altitude, vertical velocity, and mass through apogee",
+      "Horizontal force is a constant body-CdA wind-relative drag proxy evaluated with the supplied atmosphere",
+      "The launch-environment provider supplies mean wind, deterministic turbulence, and any declared gusts",
+      "The estimated horizontal position and velocity are handed to the recovery point-mass descent model at apogee",
+    ],
+    warnings: [
+      "This ascent-to-recovery handoff is an engineering preview and is not validated for flight-safety decisions.",
+      "Attitude, lift, fin normal force, thrust-vector misalignment, rail tip-off, CP/CG coupling, and rotational 6DOF dynamics are omitted.",
+      "Vertical state is prescribed rather than re-integrated with the horizontal drag proxy; reduce the step size for convergence studies.",
+    ],
+  };
 }
 
 export function simulateRecoveryDescent(input: Readonly<{
@@ -433,7 +664,7 @@ export function simulateRecoveryDescent(input: Readonly<{
         ],
         warnings: [
           "This recovery-drift model is an engineering preview and is not validated for range-safety decisions.",
-          "Ascent drift, canopy/vehicle relative motion, pendulum dynamics, line forces, reefing, wake interaction, and terrain are omitted.",
+          "This standalone recovery model omits the ascent handoff, canopy/vehicle relative motion, pendulum dynamics, line forces, reefing, wake interaction, and terrain; the landing-footprint composition may supply a separate ascent-drift proxy.",
           "Impact is linearly interpolated across the final RK4 step; decrease the time step for convergence studies.",
         ],
       };
@@ -671,6 +902,7 @@ export function analyzeRecoveryLandingDispersion(input: Readonly<{
   seed: string;
   sampleCount: number;
   parameters: readonly LandingDispersionParameter[];
+  ascentDrift?: LandingAscentDriftSummary;
   deploymentScenario?: Readonly<{
     parameterKey: string;
     label?: string;
@@ -759,16 +991,31 @@ export function analyzeRecoveryLandingDispersion(input: Readonly<{
       }),
     );
   const footprint = analyzeLandingFootprint({ site: input.site, impacts });
+  if (input.ascentDrift) {
+    if (
+      !input.ascentDrift.modelVersion.trim() ||
+      !input.ascentDrift.label.trim() ||
+      !input.ascentDrift.description.trim()
+    ) {
+      throw new Error("ascent drift summary fields must be non-empty");
+    }
+  }
   return {
     modelVersion: LANDING_FOOTPRINT_MODEL_VERSION,
     validationStatus: LANDING_ZONE_MODEL_STATUS,
     seed: input.seed,
     uncertainty,
     footprint,
+    ascentDrift: input.ascentDrift ?? null,
     deploymentScenario,
     assumptions: [
       ...footprint.assumptions,
       "Scenario inputs use independent Latin-hypercube samples",
+      ...(input.ascentDrift
+        ? [
+            `${input.ascentDrift.label} (${input.ascentDrift.modelVersion}) is applied before recovery descent: ${input.ascentDrift.description}`,
+          ]
+        : []),
       ...(deploymentScenario
         ? [
             `Recovery deployment outcome is modeled as a Bernoulli assumption with ${(deploymentScenario.assumedSuccessProbability * 100).toFixed(1)}% success probability; value 0 uses ballistic descent.`,
@@ -778,6 +1025,11 @@ export function analyzeRecoveryLandingDispersion(input: Readonly<{
     warnings: [
       ...uncertainty.warnings,
       ...footprint.warnings,
+      ...(input.ascentDrift
+        ? [
+            "Ascent drift uses a prescribed vertical trace with horizontal wind-drag coupling; it is not a full 6DOF ascent solution.",
+          ]
+        : []),
       "Failed descent scenarios are excluded from footprint geometry and remain visible in uncertainty diagnostics.",
       ...(deploymentScenario && deploymentScenario.failedSampleCount > 0
         ? [

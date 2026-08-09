@@ -215,6 +215,11 @@ test("engineering report leads with status and preserves calculations and limita
       seed: "landing-seed",
       footprint,
       uncertainty: {},
+      ascentDrift: {
+        modelVersion: "kestrel-ascent-drift-0.1.0",
+        label: "Ascent drift wind-drag proxy",
+        description: "Scenario-specific horizontal state is integrated to apogee.",
+      },
       deploymentScenario: {
         parameterKey: "deploymentSuccess",
         label: "Recovery deployment",
@@ -235,6 +240,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /## Recovery landing footprint/);
   assert.match(report, /Recovery deployment: 1 \/ 24 sampled failures/);
   assert.match(report, /assumed 96\.0%/);
+  assert.match(report, /Ascent-to-recovery handoff: Ascent drift wind-drag proxy/);
+  assert.match(report, /Scenario-specific horizontal state is integrated to apogee/);
   assert.match(report, /Recovery phase only/);
   assert.match(report, /does not embed OpenRocket source code/);
 });

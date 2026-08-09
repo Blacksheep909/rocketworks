@@ -1641,3 +1641,11 @@ body {
   .workspace-toolbar { padding: 0 14px; }
   .design-canvas::before { left: 14px; top: 12px; font-size: 7px; }
 }
+
+.landing-metrics .landing-ascent-drift {
+  background: linear-gradient(90deg, rgba(47, 159, 255, .12), rgba(47, 159, 255, .035));
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.landing-ascent-drift span { color: #98cfee; }
+.landing-ascent-drift strong { color: #d8efff; }
+.landing-ascent-drift small { color: #7ea7bd; }

@@ -18,6 +18,7 @@ import {
 } from "../lib/export/project-exports.ts";
 import {
   analyzeRecoveryLandingDispersion,
+  ASCENT_DRIFT_MODEL_VERSION,
   computeStaticStability,
   analyzeVerticalFlightUncertainty,
   createLaunchEnvironmentModel,
@@ -35,9 +36,11 @@ import {
   optimizeVerticalFlightDesign,
   sweepVerticalFlight,
   simulateRecoveryDescent,
+  estimateAscentWindDrift,
   simulateVerticalFlight,
   type DesignOptimizationResult,
   type LandingDispersionResult,
+  type LandingAscentDriftSummary,
   type UncertaintyAnalysisResult,
   type VerticalFlightConfig,
   type VerticalFlightResult,
@@ -963,6 +966,12 @@ type LandingPredictionInputs = Parameters<typeof createFlightConfig>[0] & Readon
   recoveryDeploymentSuccessProbability: number;
 }>;
 
+const LANDING_ASCENT_DRIFT_SUMMARY: LandingAscentDriftSummary = {
+  modelVersion: ASCENT_DRIFT_MODEL_VERSION,
+  label: "Ascent drift wind-drag proxy",
+  description: "Scenario-specific horizontal position and velocity are integrated from the vertical trace to apogee before recovery descent.",
+};
+
 function createLandingPrediction(
   inputs: LandingPredictionInputs,
   flightResult: VerticalFlightResult,
@@ -1054,6 +1063,7 @@ function createLandingPrediction(
           label: "Recovery deployment",
         }
       : undefined,
+    ascentDrift: LANDING_ASCENT_DRIFT_SUMMARY,
     descentForSample: (values, sampleIndex) => {
       const environment = createPreviewEnvironment(
         inputs.launchAltitude,
@@ -1065,11 +1075,27 @@ function createLandingPrediction(
           turbulenceScale: values.turbulenceScale,
         },
       );
+      const ascentDrift = estimateAscentWindDrift({
+        trace: flightResult.trace,
+        apogeeTimeS: flightResult.timeToApogeeS,
+        environmentAt: environment.at,
+        dragCoefficient: inputs.dragCoefficient,
+        referenceAreaM2: Math.PI * Math.pow(inputs.diameter / 2000, 2),
+        integration: { timeStepS: 0.02 },
+      });
       return simulateRecoveryDescent({
         massKg: descentMassKg * values.descentMassScale,
         initialTimeS: flightResult.timeToApogeeS,
-        initialPositionWorldM: { x: 0, y: 0, z: flightResult.apogeeM },
-        initialVelocityWorldMps: { x: 0, y: 0, z: 0 },
+        initialPositionWorldM: {
+          x: ascentDrift.positionWorldM.x,
+          y: ascentDrift.positionWorldM.y,
+          z: flightResult.apogeeM,
+        },
+        initialVelocityWorldMps: {
+          x: ascentDrift.velocityWorldMps.x,
+          y: ascentDrift.velocityWorldMps.y,
+          z: 0,
+        },
         environmentAt: environment.at,
         ballisticDragCoefficient: inputs.dragCoefficient,
         ballisticReferenceAreaM2:
@@ -2188,6 +2214,7 @@ export default function Home() {
                   validationStatus: landingPrediction.validationStatus,
                   seed: landingPrediction.seed,
                   footprint: landingPrediction.footprint,
+                  ascentDrift: landingPrediction.ascentDrift,
                   deploymentScenario: landingPrediction.deploymentScenario,
                   failedScenarioCount:
                     landingPrediction.uncertainty.failedSampleCount,
@@ -2871,6 +2898,13 @@ export default function Home() {
                       <strong>{landingPrediction.footprint.impactSpeedMps.p50.toFixed(1)} / {landingPrediction.footprint.impactSpeedMps.p95.toFixed(1)} m/s</strong>
                       <small>{landingPrediction.uncertainty.failedSampleCount} failed scenarios retained</small>
                     </div>
+                    {landingPrediction.ascentDrift && (
+                      <div className="landing-ascent-drift">
+                        <span>Ascent-to-apogee handoff</span>
+                        <strong>Wind-drag proxy included</strong>
+                        <small>{landingPrediction.ascentDrift.modelVersion} · scenario-specific horizontal state</small>
+                      </div>
+                    )}
                     {landingPrediction.deploymentScenario && (
                       <div className="landing-reliability">
                         <span>{landingPrediction.deploymentScenario.label}</span>
@@ -2887,7 +2921,7 @@ export default function Home() {
                 </div>
                 <div className="landing-disclaimer">
                   <span>RECOVERY PHASE ONLY</span>
-                  <p>Seed {landingPrediction.seed} · includes mean wind, deterministic turbulence, canopy-area, mass, direction, delay, and a Bernoulli deployment-outcome assumption. Ascent drift, terrain, obstacles, canopy pendulum motion, and range constraints are omitted. Not a flight-safety corridor.</p>
+                  <p>Seed {landingPrediction.seed} · includes a scenario-specific ascent wind-drag handoff plus mean wind, deterministic turbulence, canopy-area, mass, direction, delay, and a Bernoulli deployment-outcome assumption. Terrain, obstacles, canopy pendulum motion, and range constraints are omitted. Not a flight-safety corridor.</p>
                 </div>
               </div>
             )}
@@ -3052,7 +3086,7 @@ export default function Home() {
                   <div><span>Turbulence RMS L / T / V</span><strong>{(windSpeed * 0.12).toFixed(2)} / {(windSpeed * 0.1).toFixed(2)} / {(windSpeed * 0.06).toFixed(2)} m/s</strong></div>
                   <div><span>Replay seed</span><strong>arc54-weather-v1</strong></div>
                 </div>
-                <p className="motor-provenance">Synthetic deterministic Dryden-shaped environment · CC0-1.0 · unvalidated. The current 1D chart reports the mean profile but does not couple horizontal turbulence; the 6DOF and recovery load APIs do.</p>
+                <p className="motor-provenance">Synthetic deterministic Dryden-shaped environment · CC0-1.0 · unvalidated. The current 1D chart reports the mean profile only; the landing footprint now adds a versioned horizontal ascent-drift proxy, while the 6DOF load APIs remain the coupled-motion path.</p>
               </>
             ) : (
               <div className="mode-hint">

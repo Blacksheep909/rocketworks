@@ -144,7 +144,7 @@ test("shows a deterministic provenance-qualified launch environment", async () =
   assert.match(source, /Flight environment/);
   assert.match(source, /arc54-weather-v1/);
   assert.match(source, /Turbulence RMS L \/ T \/ V/);
-  assert.match(source, /does not couple horizontal turbulence/);
+  assert.match(source, /versioned horizontal ascent-drift proxy/);
   assert.match(source, /Synthetic deterministic Dryden-shaped environment/);
 });
 
@@ -208,11 +208,14 @@ test("ships a provenance-qualified recovery landing footprint", async () => {
   assert.match(page, /recoveryDeploymentSuccessProbability/);
   assert.match(page, /Deployment success assumption/);
   assert.match(page, /recovery-provenance/);
+  assert.match(page, /estimateAscentWindDrift/);
+  assert.match(page, /landingPrediction\.ascentDrift/);
+  assert.match(page, /Wind-drag proxy included/);
   assert.match(page, /deploymentScenario/);
   assert.match(page, /Bernoulli/);
   assert.match(page, /failed<\/strong>/);
   assert.match(page, /assumed/);
-  assert.match(page, /Ascent drift, terrain, obstacles/);
+  assert.match(page, /scenario-specific ascent wind-drag handoff/);
   assert.match(page, /Not a flight-safety corridor/);
   assert.match(chart, /50 \/ 90 \/ 95% covariance ellipses/);
   assert.match(chart, /role="img"/);
@@ -220,6 +223,7 @@ test("ships a provenance-qualified recovery landing footprint", async () => {
   assert.match(stylesheet, /\.landing-footprint-chart/);
   assert.match(stylesheet, /\.landing-disclaimer/);
   assert.match(stylesheet, /\.landing-reliability/);
+  assert.match(stylesheet, /\.landing-ascent-drift/);
 });
 
 test("ships an accessible multi-format engineering export center", async () => {
