@@ -57,6 +57,7 @@ test("topology rejects unsafe structure edits explicitly", () => {
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], ignitionFailure: "yes" }] }), /ignitionFailure/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], failedMotorInstanceIndices: [1] }] }), /failedMotorInstanceIndices/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], failedMotorInstanceIndices: [0, 0] }] }), /duplicates/);
+  assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], id: "payload", name: "Payload", role: "payload", failedMotorInstanceIndices: [0] }] }), /cannot configure failed motors/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], motorId: "bad motor" }] }), /motorId/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], aerodynamicTableId: "bad table" }] }), /aerodynamicTableId/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [...base.stages, { ...base.stages[0], id: "booster", role: "booster", attachment: "parallel", parentStageId: "missing" }] }), /parent must appear earlier/);

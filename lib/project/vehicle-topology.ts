@@ -119,6 +119,9 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
   if (!Array.isArray(failedMotorInstanceIndices)) {
     throw new Error(`Stage ${id} failedMotorInstanceIndices must be an array.`);
   }
+  if (stage.role === "payload" && failedMotorInstanceIndices.length > 0) {
+    throw new Error(`Payload stage ${id} cannot configure failed motors.`);
+  }
   const motorInstanceCount = stage.attachment === "parallel" ? stage.repeatCount as number : 1;
   const failedMotorSet = new Set<number>();
   for (const value of failedMotorInstanceIndices) {
