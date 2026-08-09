@@ -124,6 +124,32 @@ test("delay and smooth inflation produce the documented effective area", () => {
   );
 });
 
+test("reefing stages reduce effective canopy area before full opening", () => {
+  const recovery = createRecoverySystemModel({
+    devices: [device({
+      referenceAreaM2: 2,
+      reefingStages: [
+        { timeFromInflationS: 0, areaFraction: 0.25 },
+        { timeFromInflationS: 2, areaFraction: 1 },
+      ],
+    })],
+  });
+  const commanded = commandRecoveryDevice(
+    state(0, { velocityWorldMps: { x: 0, y: 0, z: -10 } }),
+    "main",
+  );
+  const reefed = recovery.evaluate({ ...commanded, timeS: 1 });
+  const open = recovery.evaluate({ ...commanded, timeS: 2 });
+
+  assert.equal(reefed.devices[0].phase, "reefing");
+  close(reefed.devices[0].reefingFraction, 0.625, 1e-15, "reefing fraction");
+  close(reefed.devices[0].effectiveAreaM2, 1.25, 1e-15, "reefed area");
+  assert.equal(reefed.devices[0].reefingStageIndex, 1);
+  assert.ok(reefed.applicability.some((issue) => issue.code === "REEFING_APPROXIMATION"));
+  assert.equal(open.devices[0].phase, "inflated");
+  close(open.devices[0].reefingFraction, 1, 1e-15, "fully open fraction");
+});
+
 test("wind-relative recovery force opposes air motion", () => {
   const recovery = model({
     windProfile: [
@@ -309,6 +335,13 @@ test("invalid devices and Mach extrapolation are explainable", () => {
         devices: [device({ id: "invalid id" })],
       }),
     /identifiers/,
+  );
+  assert.throws(
+    () =>
+      createRecoverySystemModel({
+        devices: [device({ reefingStages: [{ timeFromInflationS: 1, areaFraction: 1 }] })],
+      }),
+    /start at 0 seconds/,
   );
   const recovery = createRecoverySystemModel({
     devices: [device({ maximumModelMach: 0.1 })],

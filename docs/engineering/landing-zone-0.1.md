@@ -1,10 +1,10 @@
-# Recovery descent and landing footprint 0.3
+# Recovery descent and landing footprint 0.4
 
 Status: `engineering-preview-unvalidated`.
 
 The landing-footprint composition version is
-`kestrel-landing-footprint-0.3.0`; the underlying recovery-descent point-mass
-model remains independently versioned. The ascent handoff proxy is
+`kestrel-landing-footprint-0.4.0`; the underlying recovery-descent point-mass
+model is `kestrel-recovery-descent-0.2.0`. The ascent handoff proxy is
 `kestrel-ascent-drift-0.1.0`. The uncertainty sampler is
 `kestrel-uncertainty-0.2.0` and now supports Bernoulli outcomes alongside its
 continuous distributions.
@@ -21,7 +21,7 @@ or backend components.
 
 ## Recovery-phase dynamics
 
-Version 0.1 begins at a supplied apogee state and integrates a three-degree-of-
+The point-mass descent model begins at a supplied apogee state and integrates a three-degree-of-
 freedom point mass in local east-north-up coordinates. For mass `m`, inertial
 velocity `v`, supplied wind `w`, density `rho`, and effective drag area `CdA`:
 
@@ -47,9 +47,21 @@ s(u) = u^2 (3 - 2u),  0 <= u <= 1
 CdAeffective = CdAbody + s(u) CdAcanopy
 ```
 
+An optional reefing schedule then multiplies the fully inflated canopy area
+with a piecewise-linear effective-area fraction `r(tau)`:
+
+```text
+CdAeffective = CdAbody + s(u) r(tau) CdAcanopy
+```
+
+The schedule is bounded to eight stages, starts at zero seconds after
+inflation, ends at area fraction one, and is exposed as a `reefing` trace phase
+while `r < 1`. It is a deterministic area approximation, not an opening-shock,
+reefing-line, fabric, or structural model.
+
 This is substantially simpler than a canopy-riser-payload model. It does not
 model line forces, relative canopy motion, pendulum dynamics, opening shock,
-reefing stages, apparent mass, wake interaction, or fluid-structure coupling.
+reefing hardware, apparent mass, wake interaction, or fluid-structure coupling.
 
 ## Ascent-to-recovery handoff
 
@@ -168,6 +180,7 @@ Automated tests cover:
 - steady-canopy terminal speed against the drag-weight relation
 - wind-relative downwind drift
 - deployment delay and smooth inflation phases
+- staged reefing fractions and trace phase transitions
 - WGS84 curvature conversion at the equator
 - exact mean, covariance, ellipse ratio, hull, and quantiles for a symmetric
   footprint fixture
@@ -191,6 +204,8 @@ independent range-safety software, or certified parachute data.
 - Point mass only; no 6DOF attitude, tumbling, canopy-payload geometry, or
   tether dynamics.
 - Constant user/model ballistic and canopy drag coefficients.
+- Reefing schedules are effective-area inputs; opening shock, line stretch,
+  canopy mass, and fabric/porosity dynamics remain omitted.
 - Deployment reliability is represented by an independent Bernoulli branch; no
   hardware-derived reliability data, conditional dependencies, or partial
   deployment states are modeled.

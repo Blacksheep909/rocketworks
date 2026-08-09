@@ -156,6 +156,29 @@ test("deployment delay and smooth inflation remain visible in the trace", () => 
   assert.ok(Math.max(...inflatingAreas) < 0.755);
 });
 
+test("reefing schedule remains visible in recovery descent trace", () => {
+  const result = descent({
+    initialPositionWorldM: { x: 0, y: 0, z: 300 },
+    recovery: {
+      dragCoefficient: 1.5,
+      referenceAreaM2: 0.5,
+      deploymentDelayS: 0,
+      inflationTimeS: 0,
+      reefingStages: [
+        { timeFromInflationS: 0, areaFraction: 0.2 },
+        { timeFromInflationS: 2, areaFraction: 1 },
+      ],
+    },
+    integration: { timeStepS: 0.02, maximumDurationS: 120, traceIntervalS: 0.2 },
+  });
+  assert.ok(result.trace.some((point) => point.phase === "reefing"));
+  assert.ok(result.trace.some((point) => point.phase === "inflated"));
+  const reefing = result.trace.find((point) => point.phase === "reefing" && point.reefingFraction > 0.2);
+  assert.ok(reefing.reefingFraction > 0.2 && reefing.reefingFraction < 1);
+  assert.ok(reefing.effectiveDragAreaM2 < 0.5 * 1.5);
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("reefing")));
+});
+
 test("local ENU conversion uses WGS84 curvature at the equator", () => {
   const east = localEnuOffsetToWgs84(site, 1000, 0);
   const expectedLongitudeDeg = (1000 / 6_378_137) * (180 / Math.PI);

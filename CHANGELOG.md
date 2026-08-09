@@ -19,6 +19,10 @@ flight-readiness claims.
   stage branches when a retained-body separation delta-v is configured; the
   instantaneous two-body assumption, missing impulse fallback, and remaining
   mechanism limitations are exposed in telemetry and the browser UI.
+- Added a shared, validated piecewise-linear recovery reefing schedule to the
+  6DOF recovery loads and landing-descent models, including explicit reefing
+  phase/fraction telemetry and caution applicability messaging. Empty schedules
+  preserve the prior smooth-inflation behavior.
 - Added stage-aware metadata, grouped stage visibility controls, and projected
   stage selection to the original display-only 3D viewport; visibility changes
   never alter engineering inputs or results.

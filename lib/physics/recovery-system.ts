@@ -22,9 +22,14 @@ import {
   type StateEventDirection,
   type StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
+import {
+  evaluateRecoveryReefing,
+  validateRecoveryReefingStages,
+  type RecoveryReefingStage,
+} from "./recovery-reefing.ts";
 
 export const RECOVERY_SYSTEM_MODEL_VERSION =
-  "kestrel-recovery-loads-0.1.0";
+  "kestrel-recovery-loads-0.2.0";
 
 export type RecoveryDevice = Readonly<{
   id: string;
@@ -33,6 +38,7 @@ export type RecoveryDevice = Readonly<{
   referenceAreaM2: number;
   deploymentDelayS?: number;
   inflationTimeS?: number;
+  reefingStages?: readonly RecoveryReefingStage[];
   applicationPointBodyM?: Vector3;
   maximumModelMach?: number;
 }>;
@@ -42,12 +48,14 @@ export type RecoveryDevicePhase =
   | "failed"
   | "delayed"
   | "inflating"
+  | "reefing"
   | "inflated";
 
 export type RecoveryApplicabilityIssue = Readonly<{
   deviceId: string;
   code:
     | "INFLATION_APPROXIMATION"
+    | "REEFING_APPROXIMATION"
     | "MACH_LIMIT_EXCEEDED"
     | "CANOPY_INTERACTION_OMITTED";
   severity: "info" | "caution" | "unsupported";
@@ -61,6 +69,8 @@ export type RecoveryDeviceEvaluation = Readonly<{
   commandTimeS: number | null;
   inflationStartTimeS: number | null;
   inflationFraction: number;
+  reefingFraction: number;
+  reefingStageIndex: number | null;
   effectiveAreaM2: number;
   dragN: number;
   forceWorldN: Vector3;
@@ -251,6 +261,10 @@ export function createRecoverySystemModel(input: Readonly<{
       device.inflationTimeS ?? 0,
       `device ${device.id} inflation time`,
     );
+    const reefingStages = validateRecoveryReefingStages(
+      device.reefingStages,
+      `device ${device.id} reefing stages`,
+    );
     if (
       device.applicationPointBodyM &&
       !finiteVector(device.applicationPointBodyM)
@@ -260,7 +274,7 @@ export function createRecoverySystemModel(input: Readonly<{
     if (device.maximumModelMach !== undefined) {
       assertPositive(device.maximumModelMach, `device ${device.id} maximum Mach`);
     }
-    return device;
+    return { ...device, reefingStages };
   });
   if (new Set(devices.map((device) => device.id)).size !== devices.length) {
     throw new Error("recovery device identifiers must be unique");
@@ -326,14 +340,22 @@ export function createRecoverySystemModel(input: Readonly<{
           commandTimeS === null ? null : commandTimeS + deploymentDelayS;
         let phase: RecoveryDevicePhase = "stowed";
         let inflationFraction = 0;
+        let reefingFraction = 1;
+        let reefingStageIndex: number | null = null;
         if (failed) {
           phase = "failed";
         } else if (commandTimeS !== null && state.timeS < inflationStartTimeS!) {
           phase = "delayed";
         } else if (inflationStartTimeS !== null) {
           if (inflationTimeS === 0 || state.timeS >= inflationStartTimeS + inflationTimeS) {
-            phase = "inflated";
             inflationFraction = 1;
+            const reefing = evaluateRecoveryReefing(
+              device.reefingStages,
+              state.timeS - inflationStartTimeS,
+            );
+            reefingFraction = reefing.areaFraction;
+            reefingStageIndex = reefing.stageIndex;
+            phase = reefingFraction < 1 ? "reefing" : "inflated";
           } else {
             phase = "inflating";
             const linearFraction = Math.max(
@@ -345,7 +367,7 @@ export function createRecoverySystemModel(input: Readonly<{
           }
         }
         const effectiveAreaM2 =
-          device.referenceAreaM2 * inflationFraction;
+          device.referenceAreaM2 * inflationFraction * reefingFraction;
         const dragN =
           dynamicPressurePa * device.dragCoefficient * effectiveAreaM2;
         const forceWorldN =
@@ -375,6 +397,15 @@ export function createRecoverySystemModel(input: Readonly<{
               "Canopy area follows a smooth prescribed ramp rather than coupled fabric and line dynamics.",
           });
         }
+        if (phase === "reefing") {
+          applicability.push({
+            deviceId: device.id,
+            code: "REEFING_APPROXIMATION",
+            severity: "caution",
+            explanation:
+              "Effective canopy area follows the configured piecewise-linear reefing schedule; line, fabric, and opening-shock dynamics are not modeled.",
+          });
+        }
         if (
           inflationFraction > 0 &&
           device.maximumModelMach !== undefined &&
@@ -395,6 +426,8 @@ export function createRecoverySystemModel(input: Readonly<{
           commandTimeS,
           inflationStartTimeS,
           inflationFraction,
+          reefingFraction,
+          reefingStageIndex,
           effectiveAreaM2,
           dragN,
           forceWorldN,
@@ -459,11 +492,13 @@ export function createRecoverySystemModel(input: Readonly<{
       "Recovery drag opposes the complete wind-relative velocity vector",
       "User-supplied drag coefficient and reference area remain constant",
       "Canopy inflation uses a prescribed smoothstep effective-area ramp",
+      "When configured, reefing uses a prescribed piecewise-linear effective-area schedule after inflation",
       "Recovery force acts at the configured fixed body point or at the center of mass by default",
     ],
     warnings: [
       "This recovery model has analytical component checks only and is not flight-safety validated.",
       "Opening shock, line stretch, canopy geometry, wake effects, pendulum motion, and fluid-structure interaction are not modeled.",
+      "Reefing stages are an effective-area approximation; they do not model reefing line mechanics, fabric porosity, opening shock, or structural loads.",
       "Deployment events command a device; configured delay and inflation time are deterministic and have no uncertainty.",
       "Drag coefficients and areas must match the actual canopy, reference convention, packing, and flight regime.",
     ],

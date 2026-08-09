@@ -1,4 +1,4 @@
-# Recovery system loads 0.1
+# Recovery system loads 0.2
 
 Status: analytical component checks only. This model is not validated for
 flight-safety decisions.
@@ -17,6 +17,7 @@ as drogues and main parachutes with:
 - scheduled commands
 - deterministic deployment delay
 - prescribed smooth inflation
+- optional piecewise-linear reefing schedules
 - explicit failed-device state
 - optional fixed body-frame force application points
 - user-supplied Mach applicability limits
@@ -36,7 +37,8 @@ Discrete values remain constant through RK4 intermediate stages and change only
 through accepted event resets. The 6-DOF kernel validates that all discrete
 values are booleans, finite numbers, or strings.
 
-Device phases are `stowed`, `delayed`, `inflating`, `inflated`, and `failed`.
+Device phases are `stowed`, `delayed`, `inflating`, `reefing`, `inflated`, and
+`failed`.
 A failure overrides a prior command and produces no recovery load.
 
 ## Triggers
@@ -86,12 +88,27 @@ and its moment about instantaneous body-frame center of mass `R` is:
 With no point, the force acts at the center of mass and contributes no moment.
 Multiple device forces and moments are summed without canopy interaction.
 
+### Reefing schedule
+
+An optional device schedule contains at most eight strictly increasing stages
+`(tau_i, f_i)`, where the first time is zero, the final area fraction is one,
+and every `f_i` lies from zero through one. After smooth inflation completes,
+the effective canopy area is multiplied by the piecewise-linear interpolation
+of those stages:
+
+`Aeff = f_reef(tau) f_inflation A`
+
+This exposes a deterministic `reefing` phase and fraction in the device
+telemetry. The schedule is an effective-area approximation; it does not infer
+reefing-line mechanics, fabric porosity, opening shock, or structural loads.
+
 ## Automated checks
 
 The regression suite verifies:
 
 - fully inflated vector force against the closed-form drag equation
 - delayed and quarter-time inflation against the smoothstep relation
+- staged reefing area fractions and phase telemetry
 - drag opposition to three-axis wind-relative motion
 - off-center body moment signs and magnitude
 - failed-device suppression
@@ -109,8 +126,8 @@ These are equation and integration checks, not canopy qualification.
   suspension geometry, and structural loads are absent.
 - Canopy aerodynamics use constant user-supplied `Cd` and area. Mach, Reynolds,
   porosity, angle, wake, and oscillation effects are not derived.
-- Inflation is prescribed rather than coupled to pressure, fabric, payload, or
-  line dynamics.
+- Inflation and reefing are prescribed rather than coupled to pressure, fabric,
+  payload, or line dynamics.
 - Canopy and payload are one rigid body. Pendulum modes, line elasticity,
   canopy mass, and relative motion are absent.
 - Multiple canopies do not interact aerodynamically or mechanically.
@@ -143,8 +160,8 @@ These are equation and integration checks, not canopy qualification.
 
 ## Next work
 
-The next recovery increment should add reefing stages, opening-load estimates,
-line and canopy state, conditional deployment reliability, and uncertainty
-propagation through partial-inflation states. The browser UI should continue to
-expose deployment phases, applicability warnings, impact-speed ranges, and
-failure scenarios rather than one nominal answer.
+The next recovery increment should add opening-load estimates, line and canopy
+state, conditional deployment reliability, and uncertainty propagation through
+partial-inflation states. The browser UI should continue to expose deployment
+phases, applicability warnings, impact-speed ranges, and failure scenarios
+rather than one nominal answer.

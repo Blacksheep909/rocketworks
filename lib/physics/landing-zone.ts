@@ -9,10 +9,15 @@ import {
   type ProbabilityDistribution,
   type UncertaintyAnalysisResult,
 } from "./uncertainty-analysis.ts";
+import {
+  evaluateRecoveryReefing,
+  validateRecoveryReefingStages,
+  type RecoveryReefingStage,
+} from "./recovery-reefing.ts";
 
-export const RECOVERY_DESCENT_MODEL_VERSION = "kestrel-recovery-descent-0.1.0";
+export const RECOVERY_DESCENT_MODEL_VERSION = "kestrel-recovery-descent-0.2.0";
 export const ASCENT_DRIFT_MODEL_VERSION = "kestrel-ascent-drift-0.1.0";
-export const LANDING_FOOTPRINT_MODEL_VERSION = "kestrel-landing-footprint-0.3.0";
+export const LANDING_FOOTPRINT_MODEL_VERSION = "kestrel-landing-footprint-0.4.0";
 export const LANDING_ZONE_MODEL_STATUS = "engineering-preview-unvalidated";
 
 const WGS84_SEMI_MAJOR_AXIS_M = 6_378_137;
@@ -21,6 +26,7 @@ const WGS84_INVERSE_FLATTENING = 298.257223563;
 export type RecoveryDescentPhase =
   | "deployment-delay"
   | "inflating"
+  | "reefing"
   | "inflated"
   | "ballistic";
 
@@ -32,6 +38,7 @@ export type RecoveryDescentTracePoint = Readonly<{
   airspeedMps: number;
   densityKgM3: number;
   effectiveDragAreaM2: number;
+  reefingFraction: number;
   phase: RecoveryDescentPhase;
 }>;
 
@@ -423,6 +430,7 @@ export function simulateRecoveryDescent(input: Readonly<{
     referenceAreaM2: number;
     deploymentDelayS?: number;
     inflationTimeS?: number;
+    reefingStages?: readonly RecoveryReefingStage[];
   }>;
   integration?: Readonly<{
     timeStepS?: number;
@@ -454,6 +462,10 @@ export function simulateRecoveryDescent(input: Readonly<{
     assertPositive(input.recovery.dragCoefficient, "recovery drag coefficient");
     assertPositive(input.recovery.referenceAreaM2, "recovery reference area");
   }
+  const reefingStages = validateRecoveryReefingStages(
+    input.recovery?.reefingStages,
+    "recovery reefing stages",
+  );
   const timeStepS = input.integration?.timeStepS ?? 0.04;
   const maximumDurationS = input.integration?.maximumDurationS ?? 600;
   const traceIntervalS = input.integration?.traceIntervalS ?? 0.25;
@@ -473,19 +485,28 @@ export function simulateRecoveryDescent(input: Readonly<{
 
   const recoveryState = (timeS: number) => {
     if (!input.recovery) {
-      return { phase: "ballistic" as const, inflationFraction: 0 };
+      return { phase: "ballistic" as const, inflationFraction: 0, reefingFraction: 1 };
     }
     const sinceStart = timeS - descentStartTimeS;
     if (sinceStart < deploymentDelayS) {
-      return { phase: "deployment-delay" as const, inflationFraction: 0 };
+      return { phase: "deployment-delay" as const, inflationFraction: 0, reefingFraction: 1 };
     }
     if (inflationTimeS > 0 && sinceStart < deploymentDelayS + inflationTimeS) {
       return {
         phase: "inflating" as const,
         inflationFraction: smoothstep((sinceStart - deploymentDelayS) / inflationTimeS),
+        reefingFraction: 1,
       };
     }
-    return { phase: "inflated" as const, inflationFraction: 1 };
+    const reefing = evaluateRecoveryReefing(
+      reefingStages,
+      sinceStart - deploymentDelayS - inflationTimeS,
+    );
+    return {
+      phase: reefing.areaFraction < 1 ? "reefing" as const : "inflated" as const,
+      inflationFraction: 1,
+      reefingFraction: reefing.areaFraction,
+    };
   };
 
   const derivative = (state: DescentState) => {
@@ -502,7 +523,10 @@ export function simulateRecoveryDescent(input: Readonly<{
     );
     const recovery = recoveryState(state.timeS);
     const effectiveDragAreaM2 =
-      ballisticDragAreaM2 + recoveryDragAreaM2 * recovery.inflationFraction;
+      ballisticDragAreaM2 +
+      recoveryDragAreaM2 *
+        recovery.inflationFraction *
+        recovery.reefingFraction;
     const dragAccelerationFactor =
       airspeedMps > 0
         ? (-0.5 *
@@ -523,6 +547,7 @@ export function simulateRecoveryDescent(input: Readonly<{
       environment,
       airspeedMps,
       effectiveDragAreaM2,
+      reefingFraction: recovery.reefingFraction,
       phase: recovery.phase,
     };
   };
@@ -613,6 +638,7 @@ export function simulateRecoveryDescent(input: Readonly<{
       airspeedMps: evaluation.airspeedMps,
       densityKgM3: evaluation.environment.atmosphere.densityKgM3,
       effectiveDragAreaM2: evaluation.effectiveDragAreaM2,
+      reefingFraction: evaluation.reefingFraction,
       phase: evaluation.phase,
     });
   };
@@ -660,11 +686,16 @@ export function simulateRecoveryDescent(input: Readonly<{
           "Gravity and density vary with ASL altitude through the supplied launch environment",
           "Drag opposes the complete air-relative velocity vector",
           "Body drag remains active and canopy drag area is added through a deterministic smoothstep inflation ramp",
+          ...(reefingStages.length > 0
+            ? [
+                "Configured reefing stages multiply the fully inflated canopy area through a piecewise-linear effective-area schedule",
+              ]
+            : []),
           "Ground is a flat z=0 AGL plane",
         ],
         warnings: [
           "This recovery-drift model is an engineering preview and is not validated for range-safety decisions.",
-          "This standalone recovery model omits the ascent handoff, canopy/vehicle relative motion, pendulum dynamics, line forces, reefing, wake interaction, and terrain; the landing-footprint composition may supply a separate ascent-drift proxy.",
+          "This standalone recovery model omits the ascent handoff, canopy/vehicle relative motion, pendulum dynamics, line forces, reefing hardware, wake interaction, and terrain; the landing-footprint composition may supply a separate ascent-drift proxy.",
           "Impact is linearly interpolated across the final RK4 step; decrease the time step for convergence studies.",
         ],
       };
@@ -695,6 +726,9 @@ export function simulateRecoveryDescent(input: Readonly<{
     trace,
     assumptions: [
       "Recovery vehicle is a three-degree-of-freedom point mass in local east-north-up coordinates",
+      ...(reefingStages.length > 0
+        ? ["Configured reefing stages multiply canopy drag area with a piecewise-linear schedule"]
+        : []),
       "Ground is a flat z=0 AGL plane",
     ],
     warnings: [
