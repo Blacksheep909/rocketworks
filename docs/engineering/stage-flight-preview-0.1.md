@@ -64,6 +64,14 @@ large thrust value or a small mass value from visually hiding another series
 and keeps the plotted quantity's units explicit. It is a diagnostic view, not
 a replacement for the underlying state vector or independent verification.
 
+For a single-stage vehicle, the browser also exposes a small cross-model
+diagnostic after both runs are available. It reports the apogee, peak-speed,
+and time-to-apogee deltas between the automatic vertical estimate and the
+coupled 6DOF preview. The comparison is intentionally labeled diagnostic:
+the models use different force, attitude, environment, and rail pathways, so a
+delta is not a validation result or a reason to prefer one model without
+independent evidence.
+
 ## Limitations
 
 - The retained-body staging model does not spawn or propagate discarded stages.

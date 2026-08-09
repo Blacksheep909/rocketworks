@@ -356,6 +356,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /stageFlightResult\.validationStatus/);
   assert.match(page, /stage-flight-warnings/);
   assert.match(page, /StageFlightProfileChart/);
+  assert.match(page, /Vertical vs coupled preview/);
+  assert.match(page, /formatSignedMetric/);
+  assert.match(page, /stage-flight-comparison/);
   assert.match(page, /Stage flight profile/);
   assert.match(page, /aria-label=\{`\$\{definition\.label\} over time/);
   assert.match(page, /attachedStageIds\.join/);

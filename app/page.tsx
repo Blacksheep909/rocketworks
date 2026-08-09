@@ -1231,6 +1231,10 @@ function formatStageFlightMetric(value: number, key: StageFlightMetricKey): stri
   return value.toFixed(1);
 }
 
+function formatSignedMetric(value: number, decimals = 1): string {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(decimals)}`;
+}
+
 function StageFlightProfileChart({ result }: { result: StageFlightPreviewResult }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [metric, setMetric] = useState<StageFlightMetricKey>("altitude");
@@ -2711,6 +2715,24 @@ export default function Home() {
                       </div>
                     )}
                     <StageFlightProfileChart result={stageFlightResult} />
+                    {activeStageCount === 1 && (
+                      <section className="stage-flight-comparison" aria-labelledby="stage-flight-comparison-title">
+                        <div className="stage-flight-comparison-heading">
+                          <div>
+                            <span className="eyebrow">Cross-model diagnostic</span>
+                            <h4 id="stage-flight-comparison-title">Vertical vs coupled preview</h4>
+                            <p>Compare the automatic 1D estimate with the explicit single-stage 6DOF run. Differences are diagnostic, not validation evidence.</p>
+                          </div>
+                          <span>same project inputs</span>
+                        </div>
+                        <div className="stage-flight-comparison-grid">
+                          <div><span>Apogee delta</span><strong>{formatSignedMetric(stageFlightResult.maxAltitudeAglM - result.apogeeM, 0)} m</strong><small>6DOF minus 1D</small></div>
+                          <div><span>Peak-speed delta</span><strong>{formatSignedMetric(stageFlightResult.maxSpeedMps - result.maxSpeedMps)} m/s</strong><small>6DOF minus 1D</small></div>
+                          <div><span>Apogee-time delta</span><strong>{formatSignedMetric(stageFlightResult.timeToApogeeS - result.timeToApogeeS)} s</strong><small>6DOF minus 1D</small></div>
+                        </div>
+                        <p className="stage-flight-comparison-note">The models use different force and constraint pathways: the 1D result is the primary vertical estimate, while the coupled run includes attitude, environment, aerodynamic-load, and optional rail adapters. Both remain unvalidated engineering previews.</p>
+                      </section>
+                    )}
                     <div className="stage-flight-events" aria-label="Staged flight events">
                       {stageFlightResult.events.length === 0 ? (
                         <span className="stage-flight-empty">No staging transitions were reached in this run.</span>

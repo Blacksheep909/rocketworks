@@ -1649,3 +1649,40 @@ body {
 .landing-ascent-drift span { color: #98cfee; }
 .landing-ascent-drift strong { color: #d8efff; }
 .landing-ascent-drift small { color: #7ea7bd; }
+
+.stage-flight-comparison {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(244, 163, 64, .24);
+  border-radius: 3px;
+  background: linear-gradient(135deg, rgba(244, 163, 64, .08), rgba(13, 19, 24, .62) 58%);
+}
+.stage-flight-comparison-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.stage-flight-comparison-heading h4 { margin-top: 4px; color: #eaf2f6; font-size: 11px; letter-spacing: .02em; }
+.stage-flight-comparison-heading p { max-width: 700px; margin-top: 4px; color: #869aa5; font-size: 8px; line-height: 1.45; }
+.stage-flight-comparison-heading > span { flex: 0 0 auto; color: #dca86b; font: 650 7px var(--font-geist-mono), monospace; letter-spacing: .08em; text-transform: uppercase; }
+.stage-flight-comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(244, 163, 64, .18);
+  border-radius: 3px;
+  background: rgba(244, 163, 64, .18);
+}
+.stage-flight-comparison-grid div { min-width: 0; padding: 9px; background: rgba(12, 18, 24, .88); }
+.stage-flight-comparison-grid span { display: block; color: #8296a1; font-size: 8px; }
+.stage-flight-comparison-grid strong { display: block; margin-top: 5px; color: #ffd0a4; font: 700 12px var(--font-geist-mono), monospace; }
+.stage-flight-comparison-grid small { display: block; margin-top: 4px; color: #738995; font: 7px var(--font-geist-mono), monospace; }
+.stage-flight-comparison-note { margin-top: 10px; color: #9aabb4; font-size: 8px; line-height: 1.5; }
+
+@media (max-width: 760px) {
+  .stage-flight-comparison-heading { flex-direction: column; }
+  .stage-flight-comparison-grid { grid-template-columns: 1fr; }
+}
