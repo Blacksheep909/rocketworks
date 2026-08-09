@@ -161,9 +161,12 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(source, /convergence/);
   assert.match(source, /formatConvergenceStatus/);
   assert.match(source, /Split-sample stability/);
+  assert.match(source, /UncertaintySensitivityList/);
+  assert.match(source, /Apogee sensitivity/);
   assert.match(source, /not validation, certification, or a flight-safety assessment/);
   assert.match(stylesheet, /\.uncertainty-grid/);
   assert.match(stylesheet, /\.uncertainty-convergence/);
+  assert.match(stylesheet, /\.uncertainty-sensitivity/);
   assert.match(stylesheet, /\.uncertainty-status-converged/);
   assert.match(stylesheet, /rgba\(47,159,255/);
 });

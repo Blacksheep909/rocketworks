@@ -3659,6 +3659,7 @@ export default function Home() {
                   </small>
                 </div>
                 </div>
+                <UncertaintySensitivityList result={uncertainty} />
                 <div className="uncertainty-convergence" aria-label="Uncertainty convergence diagnostic">
                   <div>
                     <span>Split-sample stability</span>
@@ -4630,6 +4631,39 @@ function UncertaintyMetric({
       <strong>{format(low)} / {format(median)} / {format(high)} <small>{unit}</small></strong>
       <div className="uncertainty-band" aria-hidden="true"><i style={{ left: `${medianPosition}%` }} /></div>
     </div>
+  );
+}
+
+function UncertaintySensitivityList({ result }: { result: UncertaintyAnalysisResult }) {
+  const drivers = (result.sensitivityByMetric.apogeeM ?? [])
+    .filter((item) => item.spearmanRho !== null)
+    .slice(0, 4);
+  if (drivers.length === 0) return null;
+  const maximumMagnitude = Math.max(...drivers.map((item) => Math.abs(item.spearmanRho ?? 0)), 1e-9);
+  return (
+    <section className="uncertainty-sensitivity" aria-label="Apogee sensitivity drivers">
+      <div className="uncertainty-sensitivity-heading">
+        <div>
+          <span>Driver ranking</span>
+          <strong>Apogee sensitivity</strong>
+        </div>
+        <small>Spearman ρ · monotonic association</small>
+      </div>
+      <div className="uncertainty-sensitivity-list">
+        {drivers.map((item) => {
+          const rho = item.spearmanRho ?? 0;
+          const width = Math.max(4, (Math.abs(rho) / maximumMagnitude) * 100);
+          return (
+            <div className={rho < 0 ? "uncertainty-sensitivity-row negative" : "uncertainty-sensitivity-row"} key={item.parameterKey}>
+              <span title={item.parameterLabel}>{item.parameterLabel}</span>
+              <div className="uncertainty-sensitivity-track" aria-hidden="true"><i style={{ width: `${width}%` }} /></div>
+              <strong>{rho >= 0 ? "+" : ""}{rho.toFixed(2)}</strong>
+              <small>n={item.pairedSampleCount}</small>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

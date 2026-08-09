@@ -572,6 +572,31 @@ kbd {
   display: block; margin-top: 6px; color: #76bdf1;
   font: 8px var(--font-geist-mono), monospace;
 }
+.uncertainty-sensitivity {
+  margin-top: 12px; padding: 12px; border: 1px solid rgba(117,153,180,.2);
+  border-radius: 4px; background: rgba(8,13,18,.48);
+}
+.uncertainty-sensitivity-heading {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
+}
+.uncertainty-sensitivity-heading div { display: flex; flex-direction: column; gap: 4px; }
+.uncertainty-sensitivity-heading span { color: #8497a2; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+.uncertainty-sensitivity-heading strong { color: #c4d9e6; font-size: 10px; }
+.uncertainty-sensitivity-heading small { color: #708691; font: 7px var(--font-geist-mono), monospace; }
+.uncertainty-sensitivity-list { display: grid; gap: 8px; margin-top: 11px; }
+.uncertainty-sensitivity-row {
+  display: grid; grid-template-columns: minmax(110px, 1.15fr) minmax(90px, 2fr) 38px 32px;
+  align-items: center; gap: 8px; min-width: 0;
+}
+.uncertainty-sensitivity-row > span {
+  overflow: hidden; color: #a8bbc7; font-size: 8px; text-overflow: ellipsis; white-space: nowrap;
+}
+.uncertainty-sensitivity-row strong { color: #70c7a7; font: 650 9px var(--font-geist-mono), monospace; text-align: right; }
+.uncertainty-sensitivity-row small { color: #657986; font: 7px var(--font-geist-mono), monospace; text-align: right; }
+.uncertainty-sensitivity-track { height: 5px; overflow: hidden; border-radius: 3px; background: rgba(117,153,180,.13); }
+.uncertainty-sensitivity-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #2f9fff, #70c7a7); }
+.uncertainty-sensitivity-row.negative strong { color: #f0a081; }
+.uncertainty-sensitivity-row.negative .uncertainty-sensitivity-track i { background: linear-gradient(90deg, #ff7043, #f0a081); }
 .uncertainty-band {
   position: relative; height: 3px; margin-top: 14px; border-radius: 2px;
   background: linear-gradient(90deg,rgba(47,159,255,.25),#2f9fff,rgba(47,159,255,.25));
@@ -1304,6 +1329,7 @@ kbd {
   .rocket-3d-readout small { display: none; }
   .flight-view { padding: 22px 14px 30px; }
   .stage-flight-heading { flex-direction: column; }
+  .uncertainty-sensitivity-row { grid-template-columns: minmax(88px,1.15fr) minmax(60px,1.7fr) 34px 28px; gap: 6px; }
   .stage-flight-heading .primary-button { width: 100%; }
   .stage-flight-profile-heading { flex-direction: column; }
   .stage-flight-profile-tabs { justify-content: flex-start; }

@@ -54,6 +54,12 @@ inputs, rare-event tails, or validation evidence.
 
 The browser preview uses 48 seeded LHS samples and declares its input assumptions next to the result. Those small-sample bands are intended for interactive design feedback, not tail-probability claims.
 
+The browser's dispersion card also ranks the first four apogee sensitivity
+drivers by absolute Spearman magnitude. Bars retain the sign of the
+correlation, show the paired sample count, and are a reading aid over the
+returned `sensitivityByMetric` values; they do not imply causation or a formal
+variance decomposition.
+
 ## Verification
 
 Regression tests cover exact seeded replay, seed changes, one sample per LHS stratum, distribution medians, summary statistics, explicit failures and missing metrics, Wilson interval bounds, deterministic split-sample convergence statuses, Spearman direction, sweep endpoints, validation errors, and a full trajectory-adapter run.

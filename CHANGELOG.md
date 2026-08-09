@@ -11,6 +11,8 @@ flight-readiness claims.
 - Added bounded per-stage motor cant and azimuth controls; radial instances
   rotate the cant direction and feed the resulting unit axes into the staged
   propulsion model.
+- Added a ranked apogee-sensitivity view to the dispersion card with signed
+  Spearman bars and paired-sample counts.
 
 ## 0.1.0-preview — 2026-08-09
 
