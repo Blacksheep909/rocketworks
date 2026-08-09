@@ -790,6 +790,15 @@ export function createEngineeringReportMarkdown(
           `| Apogee timing difference | ${input.stageFlight.convergence.apogeeTimeDifferenceS === null ? "not available" : `${formatNumber(input.stageFlight.convergence.apogeeTimeDifferenceS, 4)} s`} |`,
           `| Event timing difference | ${input.stageFlight.convergence.maximumEventTimeDifferenceS === null ? "not available" : `${formatNumber(input.stageFlight.convergence.maximumEventTimeDifferenceS, 4)} s`} |`,
           "",
+          "### Staged event telemetry",
+          "",
+          "| Event | Time | Detached stages | Retained dV body (+X) | Retained dV world magnitude |",
+          "|---|---:|---|---:|---:|",
+          ...(input.stageFlight.events ?? []).map(
+            (event) =>
+              `| ${markdownText(event.label)} | ${formatNumber(event.timeS, 2)} s | ${(event.detachedStageIds ?? []).length > 0 ? markdownText((event.detachedStageIds ?? []).join(", ")) : "—"} | ${event.separationDeltaVBodyMps ? `${formatNumber(event.separationDeltaVBodyMps.x, 3)} m/s` : "—"} | ${event.separationDeltaVWorldMps ? `${formatNumber(Math.hypot(event.separationDeltaVWorldMps.x, event.separationDeltaVWorldMps.y, event.separationDeltaVWorldMps.z), 3)} m/s` : "—"} |`,
+          ),
+          "",
           ...input.stageFlight.convergence.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
           ...input.stageFlight.convergence.warnings.map((warning) => `- **Convergence warning:** ${markdownText(warning)}`),
           ...((input.stageFlight.clusterDiagnostics ?? []).length > 0
@@ -812,14 +821,14 @@ export function createEngineeringReportMarkdown(
                 "",
                 "### Separated-body trajectories",
                 "",
-                "| Stage | Release | Impact | Peak altitude | Peak speed |",
-                "|---|---:|---:|---:|---:|",
+                "| Stage | Release | Retained dV (+X) | Impact | Peak altitude | Peak speed |",
+                "|---|---:|---:|---:|---:|---:|",
                 ...(input.stageFlight.separatedBodies ?? []).map(
                   (body) =>
-                    `| ${markdownText(body.stageName)} | ${formatNumber(body.releaseTimeS, 2)} s | ${body.impactTimeS === null ? "Not reached" : `${formatNumber(body.impactTimeS, 2)} s`} | ${formatNumber(body.maxAltitudeAglM, 1)} m | ${formatNumber(body.maxSpeedMps, 2)} m/s |`,
+                    `| ${markdownText(body.stageName)} | ${formatNumber(body.releaseTimeS, 2)} s | ${body.retainedBodyDeltaVBodyMps ? `${formatNumber(body.retainedBodyDeltaVBodyMps.x, 3)} m/s` : "not recorded"} | ${body.impactTimeS === null ? "Not reached" : `${formatNumber(body.impactTimeS, 2)} s`} | ${formatNumber(body.maxAltitudeAglM, 1)} m | ${formatNumber(body.maxSpeedMps, 2)} m/s |`,
                 ),
                 "",
-                "> Separated-body paths are gravity-only analytical component checks. Drag, plume interaction, aerodynamic clearance, separation impulse, collision, and recovery are not modeled.",
+                "> Separated-body paths are gravity-only analytical component checks. The retained-body delta-v is reported for traceability; the detached branch starts from the pre-event state. Drag, plume interaction, aerodynamic clearance, equal-and-opposite separation impulse, collision, and recovery are not modeled.",
               ]
             : []),
           "",

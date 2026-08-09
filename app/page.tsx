@@ -3743,11 +3743,12 @@ export default function Home() {
                               </div>
                               <div className="stage-separated-body-metrics">
                                 <div><span>Release</span><strong>{body.releaseTimeS.toFixed(2)} s</strong></div>
+                                <div><span>Retained dV</span><strong>+X {body.retainedBodyDeltaVBodyMps.x.toFixed(2)} m/s</strong><small>body frame</small></div>
                                 <div><span>Peak altitude</span><strong>{body.maxAltitudeAglM.toFixed(1)} m</strong></div>
                                 <div><span>Peak speed</span><strong>{body.maxSpeedMps.toFixed(1)} m/s</strong></div>
                                 <div><span>Model</span><strong>{body.validationStatus}</strong></div>
                               </div>
-                              <p className="stage-separated-body-note">Gravity-only path; no drag, plume interaction, separation impulse, collision, or recovery model.</p>
+                              <p className="stage-separated-body-note">Gravity-only path. The retained-body dV is shown for release traceability; this detached branch starts from the pre-event state and has no equal-and-opposite impulse, drag, plume interaction, collision, clearance, or recovery model.</p>
                             </article>
                           ))}
                         </div>
@@ -3780,6 +3781,7 @@ export default function Home() {
                           <span>{event.timeS.toFixed(2)} s</span>
                           <strong>{event.label}</strong>
                           <small>{event.attachedStageIdsBefore.join(" + ")} → {event.attachedStageIdsAfter.join(" + ")}</small>
+                          {event.separationDeltaVBodyMps && event.detachedStageIds.length > 0 && <small>retained dV +X {event.separationDeltaVBodyMps.x.toFixed(2)} m/s · world ({event.separationDeltaVWorldMps?.x.toFixed(2)}, {event.separationDeltaVWorldMps?.y.toFixed(2)}, {event.separationDeltaVWorldMps?.z.toFixed(2)}) m/s</small>}
                         </div>
                       ))}
                     </div>

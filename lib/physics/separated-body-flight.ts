@@ -15,7 +15,7 @@ import {
 } from "./six-dof.ts";
 
 export const SEPARATED_BODY_FLIGHT_MODEL_VERSION =
-  "kestrel-separated-body-flight-0.1.0";
+  "kestrel-separated-body-flight-0.1.1";
 export const SEPARATED_BODY_FLIGHT_STATUS =
   "analytical-component-checks-only" as const;
 
@@ -35,6 +35,8 @@ export type SeparatedBodyTrajectory = Readonly<{
   releaseTimeS: number;
   releasePositionWorldM: Vector3;
   releaseVelocityWorldMps: Vector3;
+  retainedBodyDeltaVBodyMps: Vector3;
+  retainedBodyDeltaVWorldMps: Vector3;
   trace: readonly SeparatedBodyTracePoint[];
   simulation: SixDofSimulationResult;
   maxAltitudeAglM: number;
@@ -55,6 +57,8 @@ export type SeparatedBodyFlightInput = Readonly<{
   launchAltitudeM?: number;
   environmentAt?: LaunchEnvironmentProvider;
   maximumSteps?: number;
+  /** Retained-body separation delta-v annotation; the detached branch is not impulsed. */
+  retainedBodyDeltaVBodyMps?: Vector3;
 }>;
 
 function validateMassProperties(properties: MassProperties): void {
@@ -125,6 +129,20 @@ export function simulateSeparatedBodyFlight(
   if (!Number.isFinite(input.timeStepS) || input.timeStepS <= 0) {
     throw new Error("separated-body time step must be positive and finite");
   }
+  const retainedBodyDeltaVBodyMps = input.retainedBodyDeltaVBodyMps ?? { x: 0, y: 0, z: 0 };
+  if (
+    ![
+      retainedBodyDeltaVBodyMps.x,
+      retainedBodyDeltaVBodyMps.y,
+      retainedBodyDeltaVBodyMps.z,
+    ].every(Number.isFinite)
+  ) {
+    throw new Error("retained-body separation delta-v must contain finite coordinates");
+  }
+  const retainedBodyDeltaVWorldMps = rotateBodyToWorld(
+    input.releaseState.orientationBodyToWorld,
+    retainedBodyDeltaVBodyMps,
+  );
   validateMassProperties(input.stageMassProperties);
   const initialState = releaseStateAtStageCenterOfMass(input);
   const body = {
@@ -180,6 +198,8 @@ export function simulateSeparatedBodyFlight(
     releaseTimeS: input.releaseState.timeS,
     releasePositionWorldM: initialState.positionWorldM,
     releaseVelocityWorldMps: initialState.velocityWorldMps,
+    retainedBodyDeltaVBodyMps,
+    retainedBodyDeltaVWorldMps,
     trace,
     simulation,
     maxAltitudeAglM,
@@ -193,7 +213,7 @@ export function simulateSeparatedBodyFlight(
     assumptions: [
       "The released stage inherits the parent orientation and angular velocity at separation.",
       "The released stage position is offset to its own center of mass and its velocity includes the parent rigid-body angular-rate contribution.",
-      "The parent preview may apply a configured retained-body delta-v; this branch does not solve the equal-and-opposite discarded-body impulse or a coupled separation mechanism.",
+      "The retained-body separation delta-v is reported from event metadata for traceability; this detached branch starts from the pre-event release state and does not solve the equal-and-opposite discarded-body impulse or a coupled separation mechanism.",
       "Gravity uses the supplied launch-environment altitude when available, otherwise launch altitude plus local AGL position.",
       "A terminal ground-impact crossing is root-found only for the discarded body's ballistic path.",
       ...simulation.assumptions,

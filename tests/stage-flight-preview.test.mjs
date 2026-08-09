@@ -135,17 +135,30 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     timeStepS: 0.05,
     launchAltitudeM: 0,
     events: [
-      createScheduledStageSeparationEvent({ stageId: "booster", timeS: 1 }),
+      createScheduledStageSeparationEvent({
+        stageId: "booster",
+        timeS: 1,
+        separationDeltaVBodyMps: { x: 0.1, y: 0, z: 0 },
+      }),
       createScheduledStageIgnitionEvent({ stageId: "upper", timeS: 1 }),
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.4.3");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.4.4");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.events.length, 2);
   assert.deepEqual(result.events[0].attachedStageIdsBefore, ["booster", "upper"]);
   assert.deepEqual(result.events[0].attachedStageIdsAfter, ["upper"]);
+  assert.deepEqual(result.events[0].detachedStageIds, ["booster"]);
+  assert.deepEqual(result.events[0].separationDeltaVBodyMps, { x: 0.1, y: 0, z: 0 });
+  assert.ok(result.events[0].separationDeltaVWorldMps);
+  assert.ok(Math.abs(Math.hypot(
+    result.events[0].separationDeltaVWorldMps.x,
+    result.events[0].separationDeltaVWorldMps.y,
+    result.events[0].separationDeltaVWorldMps.z,
+  ) - 0.1) < 1e-12);
   assert.deepEqual(result.events[1].attachedStageIdsAfter, ["upper"]);
+  assert.deepEqual(result.events[1].detachedStageIds, []);
   assert.ok(result.maxAltitudeAglM > 0);
   assert.ok(result.maxSpeedMps > 0);
   assert.ok(result.trace.every((point) => Number.isFinite(point.mach) && Number.isFinite(point.angleOfAttackRad) && Number.isFinite(point.sideslipRad) && Number.isFinite(point.dynamicPressurePa) && Number.isFinite(point.dragN)));
@@ -160,6 +173,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.equal(result.separatedBodies.length, 1);
   assert.equal(result.separatedBodies[0].stageId, "booster");
   assert.equal(result.separatedBodies[0].releaseTimeS, 1);
+  assert.deepEqual(result.separatedBodies[0].retainedBodyDeltaVBodyMps, { x: 0.1, y: 0, z: 0 });
   assert.ok(result.separatedBodies[0].warnings.some((warning) => warning.includes("ballistic")));
   assert.deepEqual(result.clusterDiagnostics, []);
 });

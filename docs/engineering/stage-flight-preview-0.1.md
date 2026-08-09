@@ -23,7 +23,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.4.3`.
+`kestrel-stage-flight-preview-0.4.4`.
 
 ## Event and state policy
 
@@ -31,8 +31,11 @@ The caller supplies initial ignition stages and scheduled or state-triggered
 events. The adapter initializes ignition through the shared staging state keys,
 passes exact event times through the rail and free-flight phases, and summarizes
 every applied event with its attached-stage set before and after the state
-change. When `launchRail` is present, the result includes rail liftoff and
-release events, the effective travel distance, and the exact free-flight
+change. Separation events also carry the optional body-frame retained-body
+delta-v annotation and its attitude-rotated world-frame vector, plus the
+detached-stage IDs. This keeps the timeline and exported result numerically
+traceable instead of relying on event-label text. When `launchRail` is present,
+the result includes rail liftoff and release events, the effective travel distance, and the exact free-flight
 handoff state. It does not invent ignition delays, separation impulses, failure
 probabilities, or clearance trajectories.
 
@@ -111,7 +114,9 @@ When an explicit separation event detaches a stage, the browser also records a
 separate trajectory for that body's own center of mass. The release state is
 derived from the retained body's event state: the stage center-of-mass offset
 is rotated into world coordinates and the parent angular-rate cross-product is
-included in the released velocity. The branch then uses the same original
+included in the released velocity. The result reports the retained-body
+separation delta-v in both body and world frames, but the detached branch
+starts from the pre-event release state. The branch then uses the same original
 6-DOF integrator with altitude-dependent gravity and a terminal ground-impact
 event.
 
@@ -128,8 +133,10 @@ flight-safety prediction.
   separated-body branch is an independent gravity-only preview, not a coupled
   multi-body solver.
 - A configured separation delta-v is applied to the retained body in body-frame
-  +X. The discarded-body branch does not yet solve the equal-and-opposite
-  momentum exchange or a coupled separation mechanism.
+  +X and is carried into the event/trajectory diagnostics in body and world
+  frames. The discarded-body branch starts from the pre-event state and does
+  not yet solve the equal-and-opposite momentum exchange or a coupled
+  separation mechanism.
 - Stage-separation proximity aerodynamics remain explicitly unsupported during
   the configured transition window.
 - The supplied aerodynamic regime table must contain an exact regime for every

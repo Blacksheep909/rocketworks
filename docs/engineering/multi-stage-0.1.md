@@ -44,7 +44,9 @@ phases are `waiting`, `ignition-delayed`, `burning`, `burned-out`,
 `ignition-failed`, and `separated`.
 
 Scheduled event helpers support absolute-time ignition, failure, and
-separation. Model-bound state-event helpers locate stage burnout plus an
+separation. Separation events retain a body-frame delta-v annotation in the
+applied rigid-body event trace so downstream previews can rotate it into the
+current world frame without parsing labels. Model-bound state-event helpers locate stage burnout plus an
 optional deterministic delay, then either separate the source stage or ignite
 a target stage. Failed or already separated source stages cannot synthesize a
 later burnout transition. Simultaneous burnout events use the 6-DOF kernel's
@@ -94,7 +96,9 @@ check without reimplementing the staging equations.
 The stage-flight browser adapter uses that lookup to launch a bounded
 gravity-only trajectory for each newly detached stage. It offsets the stage to
 its own center of mass and carries the parent angular-rate contribution into
-the release velocity. This branch is not a coupled multi-body solver and does
+the release velocity. The result reports any retained-body separation delta-v
+in body and world frames; the detached branch starts from the pre-event state.
+This branch is not a coupled multi-body solver and does
 not model drag, plume interaction, separation impulse, collision, recovery, or
 clearance.
 
@@ -138,8 +142,10 @@ flight performance.
 - Separation is instantaneous and removes the source stage from the retained
   tracked body. The optional separated-body preview is ballistic only and is
   not suitable for clearance, range-safety, or flight-safety decisions. A
-  bounded body-frame +X delta-v may be applied to the retained body, but the
-  discarded body does not receive a coupled equal-and-opposite impulse.
+  bounded body-frame +X delta-v may be applied to the retained body and is
+  surfaced as explicit event/trajectory telemetry, but the discarded body
+  starts from the pre-event state and does not receive a coupled
+  equal-and-opposite impulse.
 - Pyrotechnic and spring impulses, joint forces, tip-off, flexure, plume
   impingement, wake interaction, collision, and recontact are absent.
 - Stage-aware aerodynamics 0.1 now reconfigures retained-body geometry, CP,

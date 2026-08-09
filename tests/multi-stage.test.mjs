@@ -183,6 +183,7 @@ test("separation delta-v is applied in the retained body's current attitude", ()
   });
   assert.equal(result.events.length, 1);
   close(result.events[0].stateAfter.velocityWorldMps.x, 3.2, 2e-9, "configured separation delta-v");
+  assert.deepEqual(result.events[0].separationDeltaVBodyMps, { x: 3.2, y: 0, z: 0 });
 });
 
 test("multiple motors support delayed ignition and off-axis moments", () => {

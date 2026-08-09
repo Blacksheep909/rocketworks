@@ -13,7 +13,7 @@ import {
   type Vector3,
 } from "./linear-algebra.ts";
 
-export const SIX_DOF_MODEL_VERSION = "kestrel-rigid-body-6dof-0.3.0";
+export const SIX_DOF_MODEL_VERSION = "kestrel-rigid-body-6dof-0.3.1";
 
 export type Quaternion = Readonly<{
   w: number;
@@ -65,6 +65,8 @@ export type ScheduledRigidBodyEvent = Readonly<{
   label: string;
   timeS: number;
   apply: (state: RigidBodyState) => RigidBodyState;
+  /** Optional staging annotation retained in the applied event trace. */
+  separationDeltaVBodyMps?: Vector3;
 }>;
 
 export type StateEventDirection = "rising" | "falling" | "any";
@@ -78,6 +80,8 @@ export type StateTriggeredRigidBodyEvent = Readonly<{
   terminal?: boolean;
   apply?: (state: RigidBodyState) => RigidBodyState;
   valueTolerance?: number;
+  /** Optional staging annotation retained in the applied event trace. */
+  separationDeltaVBodyMps?: Vector3;
 }>;
 
 export type AppliedRigidBodyEvent = Readonly<{
@@ -88,6 +92,8 @@ export type AppliedRigidBodyEvent = Readonly<{
   timeS: number;
   stateBefore: RigidBodyState;
   stateAfter: RigidBodyState;
+  /** Optional staging annotation copied from the source event. */
+  separationDeltaVBodyMps?: Vector3;
 }>;
 
 export type SixDofSimulationInput = Readonly<{
@@ -279,6 +285,18 @@ function stateEventValue(
     throw new Error(`state event ${event.id} returned a non-finite value`);
   }
   return value;
+}
+
+function validateEventDeltaV(
+  value: Vector3 | undefined,
+  label: string,
+): void {
+  if (
+    value !== undefined &&
+    [value.x, value.y, value.z].some((entry) => !Number.isFinite(entry))
+  ) {
+    throw new Error(`${label} separation delta-v must contain finite coordinates`);
+  }
 }
 
 function crossesStateEvent(
@@ -511,6 +529,9 @@ export function simulateRigidBody6D(
   if (new Set(scheduledEvents.map((event) => event.id)).size !== scheduledEvents.length) {
     throw new Error("event identifiers must be unique");
   }
+  scheduledEvents.forEach((event) =>
+    validateEventDeltaV(event.separationDeltaVBodyMps, `event ${event.id}`),
+  );
   const stateEvents = [...(input.stateEvents ?? [])];
   if (
     stateEvents.some(
@@ -533,6 +554,9 @@ export function simulateRigidBody6D(
   if (new Set(allEventIds).size !== allEventIds.length) {
     throw new Error("all scheduled and state event identifiers must be unique");
   }
+  stateEvents.forEach((event) =>
+    validateEventDeltaV(event.separationDeltaVBodyMps, `state event ${event.id}`),
+  );
   const eventTimeToleranceS = input.eventTimeToleranceS ?? 1e-9;
   if (!Number.isFinite(eventTimeToleranceS) || eventTimeToleranceS <= 0) {
     throw new Error("event time tolerance must be a positive finite number");
@@ -585,6 +609,7 @@ export function simulateRigidBody6D(
       timeS: state.timeS,
       stateBefore,
       stateAfter: state,
+      separationDeltaVBodyMps: event.separationDeltaVBodyMps,
     };
     firedStateEventIds.add(event.id);
     appliedEvents.push(appliedEvent);
@@ -772,6 +797,7 @@ export function simulateRigidBody6D(
           timeS: event.timeS,
           stateBefore,
           stateAfter: state,
+          separationDeltaVBodyMps: event.separationDeltaVBodyMps,
         });
         trace.push(state);
         eventIndex += 1;

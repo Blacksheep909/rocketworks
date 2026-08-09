@@ -12,6 +12,7 @@ import {
   type RailGuidedLaunchResult,
 } from "./launch-rail.ts";
 import {
+  rotateBodyToWorld,
   simulateRigidBody6D,
   type AppliedRigidBodyEvent,
   type RigidBodyState,
@@ -29,7 +30,7 @@ import {
 } from "./separated-body-flight.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.4.3";
+  "kestrel-stage-flight-preview-0.4.4";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -91,6 +92,9 @@ export type StageFlightEvent = Readonly<{
   timeS: number;
   attachedStageIdsBefore: readonly string[];
   attachedStageIdsAfter: readonly string[];
+  detachedStageIds: readonly string[];
+  separationDeltaVBodyMps?: Vector3;
+  separationDeltaVWorldMps?: Vector3;
 }>;
 
 export type StageFlightConvergenceDiagnostic = Readonly<{
@@ -180,13 +184,23 @@ function summarizeEvent(
   staging: ReturnType<typeof createMultiStageVehicleModel>,
   event: AppliedRigidBodyEvent,
 ): StageFlightEvent {
+  const attachedStageIdsBefore = [...stageIdsAt(staging, event.stateBefore)];
+  const attachedStageIdsAfter = [...stageIdsAt(staging, event.stateAfter)];
+  const detachedStageIds = attachedStageIdsBefore.filter(
+    (stageId) => !attachedStageIdsAfter.includes(stageId),
+  );
   return {
     id: event.id,
     label: event.label,
     kind: event.kind,
     timeS: event.timeS,
-    attachedStageIdsBefore: [...stageIdsAt(staging, event.stateBefore)],
-    attachedStageIdsAfter: [...stageIdsAt(staging, event.stateAfter)],
+    attachedStageIdsBefore,
+    attachedStageIdsAfter,
+    detachedStageIds,
+    separationDeltaVBodyMps: event.separationDeltaVBodyMps,
+    separationDeltaVWorldMps: event.separationDeltaVBodyMps
+      ? rotateBodyToWorld(event.stateBefore.orientationBodyToWorld, event.separationDeltaVBodyMps)
+      : undefined,
   };
 }
 
@@ -507,6 +521,7 @@ export function simulateStageFlightPreview(
         timeS: event.timeS,
         attachedStageIdsBefore: [...stageIdsAt(staging, event.state)],
         attachedStageIdsAfter: [...stageIdsAt(staging, event.state)],
+        detachedStageIds: [],
       })) ?? []),
       ...appliedEvents.map((event) =>
         summarizeEvent(staging, event),
@@ -571,6 +586,7 @@ export function simulateStageFlightPreview(
             timeStepS: input.timeStepS,
             launchAltitudeM: input.launchAltitudeM,
             environmentAt: input.environmentAt,
+            retainedBodyDeltaVBodyMps: event.separationDeltaVBodyMps,
           }),
         );
         spawnedStageIds.add(stageId);

@@ -343,6 +343,7 @@ export function createScheduledStageSeparationEvent(input: Readonly<{
     label: input.label ?? `${input.stageId} stage separation${separationLabel}`,
     timeS: input.timeS,
     apply: (state) => separateStage(state, input.stageId, input.separationDeltaVBodyMps),
+    separationDeltaVBodyMps: input.separationDeltaVBodyMps ?? ZERO_VECTOR,
   };
 }
 
@@ -705,6 +706,7 @@ export function createMultiStageVehicleModel(input: Readonly<{
       value: (state) =>
         burnoutEventValue(state, stage.id, stage.burnoutOffsetS, delayS, false),
       apply: (state) => separateStage(state, stage.id, { x: separationDeltaVBodyMps, y: 0, z: 0 }),
+      separationDeltaVBodyMps: { x: separationDeltaVBodyMps, y: 0, z: 0 },
     };
   };
 

@@ -32,10 +32,11 @@ flight-readiness claims.
   enabled serial and radial topology instances, including scale, offset, and
   repeated-stage rotation.
 - Added bounded body-frame +X separation delta-v controls to topology stages;
-  the retained-body 6DOF event applies the configured delta-v and records it in
-  the timeline while preserving the explicit non-coupled discarded-body limit.
-- Bumped the multi-stage and stage-flight composition model versions to expose
-  the new event semantics in exported provenance.
+  the retained-body 6DOF event applies the configured delta-v and records
+  body-frame/world-frame release telemetry in the timeline and separated-body
+  result while preserving the explicit non-coupled discarded-body limit.
+- Bumped the rigid-body, separated-body, multi-stage, and stage-flight model
+  versions to expose the new event semantics in exported provenance.
 
 ## 0.1.0-preview — 2026-08-09
 
