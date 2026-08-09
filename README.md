@@ -66,6 +66,8 @@ research, standards, and original code.
 - accessible event timelines, trace charts, comparisons, engineering reports,
   flight/stage/sweep/uncertainty CSV, DXF, OpenSCAD, and portable Kestrel
   project JSON;
+- local run comparison that pins a reference estimate and exposes explicit
+  metric deltas after a design or environment change;
 - validated project import, device-local autosave/history, templates,
   beginner/expert modes, keyboard command search, and compact browser design
   share links.

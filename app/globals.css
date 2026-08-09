@@ -607,6 +607,53 @@ kbd {
   padding: 18px 18px 12px; border: 1px solid var(--line);
   border-radius: 5px; background: var(--panel-raised); box-shadow: 0 10px 30px rgba(0,0,0,.12);
 }
+.flight-comparison-card {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(112, 199, 167, .24);
+  border-radius: 5px;
+  background: linear-gradient(135deg, rgba(112, 199, 167, .07), rgba(13, 19, 24, .78) 62%);
+  box-shadow: 0 10px 30px rgba(0,0,0,.1);
+}
+.flight-comparison-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.flight-comparison-heading h4 { margin-top: 4px; color: #eaf2f6; font-size: 11px; letter-spacing: .02em; }
+.flight-comparison-heading p { max-width: 660px; margin-top: 4px; color: #869aa5; font-size: 8px; line-height: 1.5; }
+.flight-comparison-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+.flight-comparison-actions button {
+  min-height: 25px; padding: 0 8px; border: 1px solid rgba(112,199,167,.34); border-radius: 3px;
+  background: rgba(112,199,167,.1); color: #bcebd7; cursor: pointer;
+  font: 650 7px var(--font-geist-mono), monospace; letter-spacing: .04em; text-transform: uppercase;
+}
+.flight-comparison-actions button:hover { border-color: rgba(112,199,167,.72); background: rgba(112,199,167,.16); }
+.flight-comparison-actions button:focus-visible { outline: 2px solid #84d6b2; outline-offset: 2px; }
+.flight-comparison-actions button:disabled { cursor: not-allowed; opacity: .42; }
+.flight-comparison-actions .flight-comparison-clear { border-color: rgba(117,153,180,.28); background: rgba(117,153,180,.06); color: #9aabb4; }
+.flight-comparison-state {
+  padding: 4px 6px; border: 1px solid currentColor; border-radius: 2px;
+  font: 650 7px var(--font-geist-mono), monospace; letter-spacing: .05em; text-transform: uppercase;
+}
+.flight-comparison-state.same { color: #8fd7b5; background: rgba(112,199,167,.08); }
+.flight-comparison-state.ready { color: #a8dbf8; background: rgba(47,159,255,.08); }
+.flight-comparison-state.stale { color: #f2ba73; background: rgba(244,163,64,.08); }
+.flight-comparison-state.empty { color: #899da8; background: rgba(117,153,180,.06); }
+.flight-comparison-table { margin-top: 12px; overflow: hidden; border: 1px solid rgba(112,199,167,.18); border-radius: 3px; background: rgba(112,199,167,.18); }
+.flight-comparison-row { display: grid; grid-template-columns: minmax(145px, 1.3fr) repeat(3, minmax(110px, 1fr)); gap: 1px; min-width: 0; background: rgba(112,199,167,.18); }
+.flight-comparison-row > * { min-width: 0; padding: 8px 9px; background: rgba(12,18,24,.9); color: #a8bbc7; font: 8px var(--font-geist-mono), monospace; }
+.flight-comparison-row-header > * { padding-top: 7px; padding-bottom: 7px; background: rgba(112,199,167,.08); color: #82bca4; font-size: 7px; letter-spacing: .06em; text-transform: uppercase; }
+.flight-comparison-row > :not(:first-child) { text-align: right; }
+.flight-comparison-row > strong { color: #a8bbc7; font-weight: 650; }
+.flight-comparison-row > strong.positive { color: #ffb08f; }
+.flight-comparison-row > strong.negative { color: #8fd7b5; }
+.flight-comparison-row > strong.neutral { color: #a8bbc7; }
+.flight-comparison-note { margin-top: 9px; color: #7d929e; font: 7px/1.5 var(--font-geist-mono), monospace; }
+.flight-comparison-empty { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 11px; padding: 11px 12px; border: 1px dashed rgba(112,199,167,.26); border-radius: 3px; background: rgba(112,199,167,.035); }
+.flight-comparison-empty strong { color: #c4e4d5; font-size: 9px; }
+.flight-comparison-empty span { color: #7d929e; font: 7px/1.45 var(--font-geist-mono), monospace; text-align: right; }
 .uncertainty-card {
   margin-top: 12px; padding: 16px 18px; overflow: hidden;
   border: 1px solid rgba(47,159,255,.24); border-radius: 5px;
@@ -2044,6 +2091,12 @@ body {
   .stage-flight-convergence-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stage-separated-bodies-heading { flex-direction: column; }
   .stage-separated-body-grid { grid-template-columns: 1fr; }
+  .flight-comparison-heading { flex-direction: column; }
+  .flight-comparison-actions { justify-content: flex-start; }
+  .flight-comparison-table { overflow-x: auto; }
+  .flight-comparison-row { min-width: 580px; }
+  .flight-comparison-empty { align-items: flex-start; flex-direction: column; }
+  .flight-comparison-empty span { text-align: left; }
   .stale-result-banner { grid-template-columns: 1fr; gap: 7px; }
   .stale-result-banner .secondary-button { width: max-content; }
 }

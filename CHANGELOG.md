@@ -31,6 +31,10 @@ flight-readiness claims.
   provenance, stable input/output columns, null-output cells, and retained
   evaluator errors. Stale vertical results are blocked from export until the
   current persisted ensemble settings are rerun.
+- Added a browser-local Flight run comparison panel. Users can pin a current
+  vertical estimate, change the design or environment, rerun, and inspect
+  apogee, speed, maximum-q, timing, and impact-speed deltas. The panel labels
+  stale results and does not persist or upgrade them into validation evidence.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.

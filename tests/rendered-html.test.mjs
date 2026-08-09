@@ -638,3 +638,16 @@ test("ships a bounded parameter-sweep workflow with inspectable exports", async 
   assert.match(stylesheet, /\.sweep-plot/);
   assert.match(stylesheet, /\.sweep-table/);
 });
+
+test("ships a local flight-run comparison workflow with stale-result guardrails", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(page, /FlightComparisonCard/);
+  assert.match(page, /comparisonReference/);
+  assert.match(page, /Pin current run/);
+  assert.match(page, /Replace reference/);
+  assert.match(page, /Rerun required/);
+  assert.match(page, /flight-safety evidence/);
+  assert.match(stylesheet, /\.flight-comparison-card/);
+  assert.match(stylesheet, /\.flight-comparison-row/);
+});

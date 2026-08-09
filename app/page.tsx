@@ -1910,6 +1910,129 @@ function FlightChart({ result }: { result: VerticalFlightResult }) {
   );
 }
 
+type FlightComparisonMetricKey =
+  | "apogeeM"
+  | "maxSpeedMps"
+  | "maxDynamicPressurePa"
+  | "timeToApogeeS"
+  | "totalFlightTimeS"
+  | "impactSpeedMps";
+
+type FlightComparisonMetricDefinition = Readonly<{
+  key: FlightComparisonMetricKey;
+  label: string;
+  unit: string;
+  decimals: number;
+  value: (result: VerticalFlightResult) => number | null;
+}>;
+
+const FLIGHT_COMPARISON_METRICS: readonly FlightComparisonMetricDefinition[] = [
+  { key: "apogeeM", label: "Apogee", unit: "m", decimals: 1, value: (result) => result.apogeeM },
+  { key: "maxSpeedMps", label: "Maximum speed", unit: "m/s", decimals: 1, value: (result) => result.maxSpeedMps },
+  { key: "maxDynamicPressurePa", label: "Maximum q", unit: "Pa", decimals: 0, value: (result) => result.maxDynamicPressurePa },
+  { key: "timeToApogeeS", label: "Time to apogee", unit: "s", decimals: 2, value: (result) => result.timeToApogeeS },
+  { key: "totalFlightTimeS", label: "Total flight", unit: "s", decimals: 2, value: (result) => result.totalFlightTimeS },
+  { key: "impactSpeedMps", label: "Impact speed", unit: "m/s", decimals: 1, value: (result) => result.impactSpeedMps },
+];
+
+function formatComparisonValue(
+  value: number | null,
+  definition: FlightComparisonMetricDefinition,
+): string {
+  return value === null || !Number.isFinite(value)
+    ? "—"
+    : `${value.toFixed(definition.decimals)} ${definition.unit}`;
+}
+
+function formatComparisonDelta(
+  current: number | null,
+  reference: number | null,
+  definition: FlightComparisonMetricDefinition,
+): string {
+  if (current === null || reference === null || !Number.isFinite(current) || !Number.isFinite(reference)) {
+    return "—";
+  }
+  const delta = current - reference;
+  const sign = delta > 0 ? "+" : "";
+  return `${sign}${delta.toFixed(definition.decimals)} ${definition.unit}`;
+}
+
+function FlightComparisonCard({
+  current,
+  reference,
+  referenceFingerprint,
+  currentFingerprint,
+  resultIsCurrent,
+  running,
+  onPin,
+  onClear,
+}: {
+  current: VerticalFlightResult;
+  reference: VerticalFlightResult | null;
+  referenceFingerprint: string | null;
+  currentFingerprint: string | null;
+  resultIsCurrent: boolean;
+  running: boolean;
+  onPin: () => void;
+  onClear: () => void;
+}) {
+  const exactReference = resultIsCurrent && reference !== null && referenceFingerprint !== null && referenceFingerprint === currentFingerprint;
+  const currentLabel = resultIsCurrent ? "Current result" : "Last result · rerun required";
+  return (
+    <section className="flight-comparison-card" aria-labelledby="flight-comparison-title">
+      <div className="flight-comparison-heading">
+        <div>
+          <span className="eyebrow">Design delta</span>
+          <h4 id="flight-comparison-title">Run comparison</h4>
+          <p>Pin a reference run, change the vehicle or environment, then rerun to see the numerical delta without losing the original trace.</p>
+        </div>
+        <div className="flight-comparison-actions">
+          <span className={exactReference ? "flight-comparison-state same" : reference ? resultIsCurrent ? "flight-comparison-state ready" : "flight-comparison-state stale" : "flight-comparison-state empty"}>
+            {exactReference ? "Reference = current" : reference ? resultIsCurrent ? "Delta ready" : "Rerun required" : "No reference pinned"}
+          </span>
+          <button type="button" onClick={onPin} disabled={running || !resultIsCurrent}>
+            {reference ? "Replace reference" : "Pin current run"}
+          </button>
+          {reference && <button type="button" className="flight-comparison-clear" onClick={onClear}>Clear</button>}
+        </div>
+      </div>
+      {reference ? (
+        <>
+          <div className="flight-comparison-table" role="table" aria-label="Vertical flight run comparison">
+            <div className="flight-comparison-row flight-comparison-row-header" role="row">
+              <span role="columnheader">Metric</span>
+              <span role="columnheader">Reference</span>
+              <span role="columnheader">{currentLabel}</span>
+              <span role="columnheader">Delta</span>
+            </div>
+            {FLIGHT_COMPARISON_METRICS.map((definition) => {
+              const referenceValue = definition.value(reference);
+              const currentValue = definition.value(current);
+              const delta = currentValue !== null && referenceValue !== null ? currentValue - referenceValue : null;
+              return (
+                <div className="flight-comparison-row" role="row" key={definition.key}>
+                  <span role="cell">{definition.label}</span>
+                  <span role="cell">{formatComparisonValue(referenceValue, definition)}</span>
+                  <span role="cell">{formatComparisonValue(currentValue, definition)}</span>
+                  <strong className={delta === null ? "" : delta > 0 ? "positive" : delta < 0 ? "negative" : "neutral"} role="cell">
+                    {formatComparisonDelta(currentValue, referenceValue, definition)}
+                  </strong>
+                </div>
+              );
+            })}
+          </div>
+          <p className="flight-comparison-note">Changes are computed from the deterministic vertical preview. A stale result is labeled explicitly until the current inputs are simulated; this comparison does not add validation or flight-safety evidence.</p>
+        </>
+      ) : (
+        <div className="flight-comparison-empty">
+          <strong>Keep a design decision visible</strong>
+          <span>Pin the current estimate before trying a motor, geometry, recovery, or weather change.</span>
+        </div>
+      )}
+    </section>
+  );
+}
+
 type StageFlightMetricKey =
   | "altitude"
   | "speed"
@@ -2579,6 +2702,8 @@ export default function Home() {
   const [lastRunFingerprint, setLastRunFingerprint] = useState<string | null>(
     () => simulationFingerprint,
   );
+  const [comparisonReference, setComparisonReference] = useState<VerticalFlightResult | null>(null);
+  const [comparisonReferenceFingerprint, setComparisonReferenceFingerprint] = useState<string | null>(null);
   const [stageFlightResult, setStageFlightResult] =
     useState<StageFlightPreviewResult | null>(null);
   const [stageFlightFingerprint, setStageFlightFingerprint] = useState<string | null>(
@@ -3074,6 +3199,20 @@ export default function Home() {
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 2200);
+  };
+  const pinComparisonReference = () => {
+    if (!resultIsCurrent) {
+      notify("Run the current vertical estimate before pinning a reference");
+      return;
+    }
+    setComparisonReference(result);
+    setComparisonReferenceFingerprint(lastRunFingerprint ?? simulationFingerprint);
+    notify("Current vertical estimate pinned as comparison reference");
+  };
+  const clearComparisonReference = () => {
+    setComparisonReference(null);
+    setComparisonReferenceFingerprint(null);
+    notify("Comparison reference cleared");
   };
   const openCommandPalette = () => {
     setCommandQuery("");
@@ -4463,6 +4602,16 @@ export default function Home() {
               </div>
               {running ? <div className="chart-loading"><Skeleton height={260} borderRadius={12} /></div> : <FlightChart result={result} />}
             </div>
+            <FlightComparisonCard
+              current={result}
+              reference={comparisonReference}
+              referenceFingerprint={comparisonReferenceFingerprint}
+              currentFingerprint={lastRunFingerprint}
+              resultIsCurrent={resultIsCurrent}
+              running={running}
+              onPin={pinComparisonReference}
+              onClear={clearComparisonReference}
+            />
             <div className="uncertainty-card">
               <div className="event-card-heading">
                 <div>
