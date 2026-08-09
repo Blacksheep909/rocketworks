@@ -467,6 +467,14 @@ kbd {
 .stage-flight-metrics div { display: flex; min-height: 54px; flex-direction: column; justify-content: space-between; padding: 9px; border: 1px solid rgba(117,153,180,.18); border-radius: 3px; background: rgba(7,11,15,.48); }
 .stage-flight-metrics span { color: #718795; font-size: 8px; }
 .stage-flight-metrics strong { color: #d9ebf5; font: 700 14px var(--font-geist-mono),monospace; letter-spacing: -.04em; }
+.stage-flight-rail {
+  display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1px;
+  margin-top: 8px; overflow: hidden; border: 1px solid rgba(255,112,67,.24);
+  border-radius: 3px; background: rgba(255,112,67,.18);
+}
+.stage-flight-rail div { min-width: 0; padding: 8px 9px; background: rgba(36,20,16,.76); }
+.stage-flight-rail span { display: block; color: #b87866; font: 650 7px var(--font-geist-mono),monospace; letter-spacing: .08em; }
+.stage-flight-rail strong { display: block; margin-top: 5px; overflow-wrap: anywhere; color: #ffd0c1; font: 700 10px var(--font-geist-mono),monospace; }
 .stage-flight-events { display: flex; flex-direction: column; gap: 5px; margin-top: 11px; }
 .stage-flight-events > div { display: grid; grid-template-columns: 52px minmax(0,1fr) minmax(130px,auto); align-items: center; gap: 9px; padding: 7px 8px; border-left: 2px solid var(--accent); background: rgba(47,159,255,.045); }
 .stage-flight-events span { color: #82c8ff; font: 650 8px var(--font-geist-mono),monospace; }
@@ -843,6 +851,7 @@ kbd {
   background: var(--launch-orange); color: #160a06; cursor: pointer; font-size: 11px; font-weight: 700;
   box-shadow: 0 8px 20px rgba(255,112,67,.15);
 }
+.rail-provenance { margin: 8px 2px 0; color: #758995; font: 8px/1.5 var(--font-geist-mono),monospace; }
 .optimizer-button { width: 100%; margin-top: 16px; }
 .optimizer-button:disabled { cursor: wait; opacity: .62; }
 .check-card { display: flex; gap: 10px; margin-top: 21px; padding: 12px; border-radius: 5px; }
@@ -1229,6 +1238,7 @@ kbd {
   .flight-view { padding: 22px 14px 30px; }
   .stage-flight-heading { flex-direction: column; }
   .stage-flight-heading .primary-button { width: 100%; }
+  .stage-flight-rail { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .stage-flight-events > div { grid-template-columns: 48px minmax(0,1fr); }
   .stage-flight-events small { grid-column: 2; text-align: left; }
   .metric-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }

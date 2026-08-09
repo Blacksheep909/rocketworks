@@ -1,4 +1,4 @@
-# Launch-rail constraint and free-flight handoff 0.1
+# Launch-rail constraint and free-flight handoff 0.2
 
 Status: analytical component checks only. This model is not validated for
 flight-safety decisions.
@@ -46,6 +46,12 @@ crossing.
   distance reaches the effective rail length.
 - The exit position, velocity, fixed orientation, zero angular rate, and exact
   event time become the free-flight initial state without an interpolation gap.
+- Scheduled state resets and one-shot state-triggered events are carried across
+  the handoff. Stage ignition, burnout, separation, and failure events therefore
+  keep the same discrete state whether they occur on the rail or after release.
+- The staged preview records rail liftoff and rail-exit events alongside the
+  staging timeline and exposes the exact release speed and time in the browser
+  workspace.
 
 The scalar constrained state is integrated with fixed-step fourth-order
 Runge-Kutta between event boundaries. Free flight uses the separate rigid-body
@@ -62,6 +68,8 @@ The regression suite checks:
 - fixed attitude and angular rate before release, followed by torque response
 - root-found liftoff under a smoothly increasing load
 - exact treatment of a scheduled step from zero to positive force
+- scheduled and root-found discrete event continuity through rail release
+- explicit rail-reversal stop without returning a negative guide position
 - rejection of misaligned attitude and off-axis initial position
 
 These checks verify mathematics and software boundaries; they do not validate
@@ -84,6 +92,12 @@ a real launcher or vehicle.
   integration interval; multiple unresolved force sign changes within one step
   require a smaller step or explicit scheduled boundaries.
 - Ground collision after release is absent.
+- If a post-liftoff load would reverse the guide travel before release, the
+  adapter stops at the guide origin and emits a `rail_reversal` event and
+  warning; it does not fabricate a negative rail position or re-contact model.
+- State resets on the rail must preserve the rail-aligned attitude, zero angular
+  rate, and on-axis position/velocity; arbitrary impulses or tip-off resets are
+  rejected until a finite-guide model is added.
 - A real safety assessment needs measured propulsion, mass properties,
   geometry, wind, guide geometry, structural limits, uncertainty, and
   correlation against test data.

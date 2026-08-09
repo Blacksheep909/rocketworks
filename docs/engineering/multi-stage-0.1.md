@@ -160,6 +160,12 @@ same origin. Radial static-aero effects are still projected into the current
 axisymmetric/fin coefficient representation; lateral interference and
 separation proximity remain outside the model.
 
+The staged Flight workspace can now compose the independent launch-rail adapter
+before this retained-body event sequence. Rail liftoff, stage events, rail exit,
+and free-flight handoff are shown in one timeline; the browser defaults to a
+fixed vertical effective rail and exposes its travel length as an explicit
+preview input.
+
 ## Next work
 
 Add optional measured mass-flow histories, explicit separation impulses, and a

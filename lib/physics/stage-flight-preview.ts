@@ -7,6 +7,11 @@ import {
   verticalLaunchOrientationBodyToEnu,
 } from "./rocket-loads.ts";
 import {
+  simulateRailGuidedLaunch,
+  type LaunchRailConfig,
+  type RailGuidedLaunchResult,
+} from "./launch-rail.ts";
+import {
   simulateRigidBody6D,
   type AppliedRigidBodyEvent,
   type RigidBodyState,
@@ -20,7 +25,7 @@ import type { WindLayer } from "./curves.ts";
 import type { MassProperties } from "./mass-properties.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.1.0";
+  "kestrel-stage-flight-preview-0.2.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -39,10 +44,12 @@ export type StageFlightPreviewInput = Readonly<{
   separationTransitionWindowS?: number;
   initialState?: Partial<Pick<
     RigidBodyState,
-    "positionWorldM" | "velocityWorldMps" | "orientationBodyToWorld" | "angularVelocityBodyRadS"
+    "positionWorldM" | "velocityWorldMps" | "orientationBodyToWorld" | "angularVelocityBodyRadS" | "discreteState"
   >>;
   events?: readonly ScheduledRigidBodyEvent[];
   stateEvents?: readonly StateTriggeredRigidBodyEvent[];
+  launchRail?: LaunchRailConfig;
+  launchRailMaximumSteps?: number;
   additionalWarnings?: readonly string[];
   additionalAssumptions?: readonly string[];
 }>;
@@ -59,7 +66,7 @@ export type StageFlightTracePoint = Readonly<{
 export type StageFlightEvent = Readonly<{
   id: string;
   label: string;
-  kind: AppliedRigidBodyEvent["kind"];
+  kind: AppliedRigidBodyEvent["kind"] | "rail";
   timeS: number;
   attachedStageIdsBefore: readonly string[];
   attachedStageIdsAfter: readonly string[];
@@ -71,7 +78,8 @@ export type StageFlightPreviewResult = Readonly<{
   stagingModelVersion: string;
   aerodynamicsModelVersion: string;
   loadsModelVersion: string;
-  simulation: SixDofSimulationResult;
+  simulation: SixDofSimulationResult | null;
+  rail: RailGuidedLaunchResult | null;
   trace: readonly StageFlightTracePoint[];
   events: readonly StageFlightEvent[];
   maxAltitudeAglM: number;
@@ -114,6 +122,7 @@ function defaultInitialState(
     velocityWorldMps,
     orientationBodyToWorld,
     angularVelocityBodyRadS,
+    discreteState: input.initialState?.discreteState,
   };
 }
 
@@ -201,17 +210,34 @@ export function simulateStageFlightPreview(
         .filter((timeS) => Number.isFinite(timeS) && timeS >= 0),
     ),
   ];
-  const simulation = simulateRigidBody6D({
-    body: staging.body,
-    initialState,
-    durationS: input.durationS,
-    timeStepS: input.timeStepS,
-    loads: loads.loads,
-    events: input.events,
-    stateEvents: input.stateEvents,
-    scheduledTimesS,
-  });
-  const trace = simulation.trace.map((state): StageFlightTracePoint => {
+  const rail = input.launchRail
+    ? simulateRailGuidedLaunch({
+        body: staging.body,
+        initialState,
+        durationS: input.durationS,
+        timeStepS: input.timeStepS,
+        loads: loads.loads,
+        rail: input.launchRail,
+        scheduledTimesS,
+        events: input.events,
+        stateEvents: input.stateEvents,
+        maximumRailSteps: input.launchRailMaximumSteps,
+      })
+    : null;
+  const simulation = rail?.freeFlight ?? (input.launchRail
+    ? null
+    : simulateRigidBody6D({
+        body: staging.body,
+        initialState,
+        durationS: input.durationS,
+        timeStepS: input.timeStepS,
+        loads: loads.loads,
+        events: input.events,
+        stateEvents: input.stateEvents,
+        scheduledTimesS,
+      }));
+  const simulationTrace = rail?.trace ?? simulation?.trace ?? [];
+  const trace = simulationTrace.map((state): StageFlightTracePoint => {
     const evaluation = staging.evaluate(state);
     return {
       timeS: state.timeS,
@@ -234,14 +260,15 @@ export function simulateStageFlightPreview(
     ...staging.warnings,
     ...aerodynamics.warnings,
     ...loads.warnings,
-    ...simulation.warnings,
+    ...(rail?.warnings ?? simulation?.warnings ?? []),
   ];
   const assumptions = [
     ...(input.additionalAssumptions ?? []),
     ...staging.assumptions,
     ...aerodynamics.assumptions,
     ...loads.assumptions,
-    ...simulation.assumptions,
+    ...(rail?.assumptions ?? simulation?.assumptions ?? []),
+    ...(rail?.freeFlight?.assumptions ?? []),
     "The adapter propagates only the retained vehicle; separated bodies are not spawned or clearance-propagated.",
     "The returned trajectory is a deterministic engineering preview and is not a flight-safety assessment.",
   ];
@@ -252,8 +279,21 @@ export function simulateStageFlightPreview(
     aerodynamicsModelVersion: aerodynamics.modelVersion,
     loadsModelVersion: loads.modelVersion,
     simulation,
+    rail,
     trace,
-    events: simulation.events.map((event) => summarizeEvent(staging, event)),
+    events: [
+      ...(rail?.events.map((event, index): StageFlightEvent => ({
+        id: `launch-rail-${event.type}-${index}`,
+        label: event.label,
+        kind: "rail",
+        timeS: event.timeS,
+        attachedStageIdsBefore: [...stageIdsAt(staging, event.state)],
+        attachedStageIdsAfter: [...stageIdsAt(staging, event.state)],
+      })) ?? []),
+      ...(rail?.appliedEvents ?? simulation?.events ?? []).map((event) =>
+        summarizeEvent(staging, event),
+      ),
+    ].sort((a, b) => a.timeS - b.timeS || a.id.localeCompare(b.id)),
     maxAltitudeAglM,
     maxSpeedMps,
     timeToApogeeS: trace[apogeeIndex]?.timeS ?? 0,

@@ -140,7 +140,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.1.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.2.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.events.length, 2);
   assert.deepEqual(result.events[0].attachedStageIdsBefore, ["booster", "upper"]);
@@ -182,4 +182,56 @@ test("stage-flight adapter preserves caller motor-assignment diagnostics", () =>
   });
   assert.ok(result.warnings.includes("Upper stage motor record unavailable; global fallback used."));
   assert.ok(result.assumptions.includes("Stage-specific motor data came from a local user library."));
+});
+
+test("stage-flight adapter preserves initial discrete failure state", () => {
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages,
+    regimes,
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 0.5,
+    timeStepS: 0.05,
+    launchAltitudeM: 0,
+    initialState: {
+      positionWorldM: { x: 0, y: 0, z: 0 },
+      velocityWorldMps: { x: 0, y: 0, z: 0 },
+      orientationBodyToWorld: { w: 0.7071067811865476, x: 0, y: 0.7071067811865475, z: 0 },
+      angularVelocityBodyRadS: { x: 0, y: 0, z: 0 },
+      discreteState: { "staging.booster.ignitionFailed": true },
+    },
+  });
+
+  assert.equal(result.trace[0].thrustN, 0);
+  assert.ok(result.trace[0].attachedStageIds.includes("booster"));
+});
+
+test("stage-flight adapter preserves staged events across a launch-rail handoff", () => {
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages,
+    regimes,
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 2.5,
+    timeStepS: 0.05,
+    launchAltitudeM: 0,
+    launchRail: {
+      directionWorld: { x: 0, y: 0, z: 1 },
+      lengthM: 0.01,
+    },
+    events: [
+      createScheduledStageSeparationEvent({ stageId: "booster", timeS: 0.75 }),
+    ],
+  });
+
+  assert.ok(result.rail);
+  assert.ok(result.rail.events.some((event) => event.type === "rail_exit"));
+  assert.ok(result.rail.freeFlight);
+  assert.ok(result.rail.appliedEvents.some((event) => event.id === "staging-booster-separation"));
+  assert.ok(result.events.some((event) => event.kind === "rail"));
+  assert.ok(result.events.some((event) => event.id === "staging-booster-separation"));
+  assert.ok(result.trace.some((point) => !point.attachedStageIds.includes("booster")));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("rail")));
 });

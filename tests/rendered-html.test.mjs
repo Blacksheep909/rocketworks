@@ -246,6 +246,8 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(page, /LOCAL_PROJECT_HISTORY_STORAGE_KEY/);
   assert.match(page, /window\.localStorage\.setItem/);
   assert.match(page, /parseLocalProjectSnapshot/);
+  assert.match(page, /setLaunchRailEnabled/);
+  assert.match(page, /launchRailLengthM/);
   assert.match(page, /window\.setTimeout\(\(\) => \{/);
   assert.match(page, /\}, 600\)/);
   assert.match(page, /Local project history/);
@@ -253,6 +255,8 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(page, /Restored revision/);
   assert.match(page, /not cloud sync, collaboration, or a backup/);
   assert.match(projectState, /DEFAULT_LOCAL_HISTORY_LIMIT = 40/);
+  assert.match(projectState, /launchRailEnabled/);
+  assert.match(projectState, /launchRailLengthM/);
   assert.match(projectState, /validateEditableProjectInputs/);
   assert.match(projectState, /Unsupported local project schema version/);
   assert.match(stylesheet, /\.history-entry button:focus-visible/);
@@ -328,6 +332,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Force ignition failure/);
   assert.match(page, /Topology-aware preview/);
   assert.match(page, /Run staged preview/);
+  assert.match(page, /Launch rail constraint/);
+  assert.match(page, /launchRailEnabled/);
+  assert.match(page, /stage-flight-rail/);
   assert.match(page, /stageFlightResult\.validationStatus/);
   assert.match(page, /stage-flight-warnings/);
   assert.match(page, /Staged 6DOF trace/);
@@ -342,6 +349,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(topology, /Parallel stage/);
   assert.match(topology, /parent must appear earlier/);
   assert.match(stagePreview, /simulateStageFlightPreview/);
+  assert.match(stagePreview, /simulateRailGuidedLaunch/);
+  assert.match(stagePreview, /launchRailMaximumSteps/);
   assert.match(stagePreview, /mathematical-regression-tests-only/);
   assert.match(stagePreview, /separated bodies/);
   assert.match(stylesheet, /\.topology-stage/);

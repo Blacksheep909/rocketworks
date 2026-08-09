@@ -140,6 +140,89 @@ test("scheduled force step uses exact left and right limits on the pad", () => {
   close(exit.timeS, 1, 2e-12, "scheduled rail exit");
 });
 
+test("scheduled and root-found discrete events survive rail release", () => {
+  const result = launch({
+    events: [{
+      id: "scheduled-marker",
+      label: "Scheduled marker",
+      timeS: 0.5,
+      apply: (state) => ({
+        ...state,
+        discreteState: { ...(state.discreteState ?? {}), scheduled: true },
+      }),
+    }],
+    stateEvents: [{
+      id: "root-marker",
+      label: "Root marker",
+      direction: "rising",
+      value: (state) => state.timeS - 0.75,
+      apply: (state) => ({
+        ...state,
+        discreteState: { ...(state.discreteState ?? {}), rooted: true },
+      }),
+    }],
+  });
+
+  assert.ok(result.events.some((event) => event.type === "rail_exit"));
+  assert.deepEqual(
+    result.appliedEvents.map((event) => event.id),
+    ["scheduled-marker", "root-marker"],
+  );
+  assert.equal(result.freeFlight.trace[0].discreteState.scheduled, true);
+  assert.equal(result.freeFlight.trace[0].discreteState.rooted, true);
+});
+
+test("scheduled events after rail exit remain in free flight", () => {
+  const result = launch({
+    rail: { directionWorld: { x: 0, y: 0, z: 1 }, lengthM: 0.1 },
+    durationS: 1,
+    timeStepS: 0.05,
+    events: [{
+      id: "post-rail-marker",
+      label: "Post-rail marker",
+      timeS: 0.5,
+      apply: (state) => ({
+        ...state,
+        discreteState: { ...(state.discreteState ?? {}), postRail: true },
+      }),
+    }],
+  });
+
+  const exit = result.events.find((event) => event.type === "rail_exit");
+  assert.ok(exit.timeS < 0.5);
+  assert.equal(result.appliedEvents[0].id, "post-rail-marker");
+  assert.equal(result.appliedEvents[0].kind, "scheduled");
+  assert.equal(result.appliedEvents[0].stateBefore.discreteState?.postRail, undefined);
+  assert.equal(result.finalState.discreteState?.postRail, true);
+});
+
+test("rail reversal is stopped and exposed instead of returning a negative guide state", () => {
+  const result = launch({
+    rail: { directionWorld: { x: 0, y: 0, z: 1 }, lengthM: 10 },
+    loads: (state) => ({
+      forceWorldN: {
+        x: 0,
+        y: 0,
+        z: state.discreteState?.reverse === true ? -10 : 4,
+      },
+    }),
+    events: [{
+      id: "reverse-load",
+      label: "Reverse load",
+      timeS: 0.5,
+      apply: (state) => ({
+        ...state,
+        discreteState: { ...(state.discreteState ?? {}), reverse: true },
+      }),
+    }],
+  });
+
+  assert.equal(result.freeFlight, null);
+  assert.ok(result.events.some((event) => event.type === "rail_reversal"));
+  assert.ok(result.finalState.positionWorldM.z >= -1e-12);
+  assert.ok(result.warnings.some((warning) => warning.includes("lost positive rail travel")));
+});
+
 test("misaligned attitude and off-axis initial position are rejected", () => {
   assert.throws(
     () =>

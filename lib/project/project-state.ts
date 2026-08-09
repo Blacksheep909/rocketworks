@@ -17,6 +17,8 @@ export type EditableProjectInputs = Readonly<{
   dragCoefficient: number;
   launchAltitudeM: number;
   windSpeedMps: number;
+  launchRailEnabled: boolean;
+  launchRailLengthM: number;
   recoveryEnabled: boolean;
   recoveryDelayS: number;
   recoveryDiameterM: number;
@@ -45,7 +47,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "recoveryEnabled">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "recoveryEnabled" | "launchRailEnabled">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   payloadMassKg: [0.001, 20],
@@ -54,6 +56,7 @@ const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material
   dragCoefficient: [0.1, 2],
   launchAltitudeM: [-400, 10000],
   windSpeedMps: [0, 80],
+  launchRailLengthM: [0.25, 12],
   recoveryDelayS: [0, 30],
   recoveryDiameterM: [0.1, 3],
 };
@@ -91,7 +94,7 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   const input = objectValue(value, "Project inputs");
   const validated = {} as Record<string, number>;
   for (const [key, [minimum, maximum]] of Object.entries(numericRanges)) {
-    const candidate = input[key];
+    const candidate = input[key] ?? (key === "launchRailLengthM" ? 1.2 : undefined);
     if (typeof candidate !== "number" || !Number.isFinite(candidate) || candidate < minimum || candidate > maximum) {
       throw new Error(`${key} must be a finite number from ${minimum} to ${maximum}.`);
     }
@@ -103,6 +106,10 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   if (typeof input.recoveryEnabled !== "boolean") {
     throw new Error("recoveryEnabled must be boolean.");
   }
+  const launchRailEnabled = input.launchRailEnabled === undefined ? true : input.launchRailEnabled;
+  if (typeof launchRailEnabled !== "boolean") {
+    throw new Error("launchRailEnabled must be boolean.");
+  }
   return {
     lengthMm: validated.lengthMm,
     diameterMm: validated.diameterMm,
@@ -113,6 +120,8 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     dragCoefficient: validated.dragCoefficient,
     launchAltitudeM: validated.launchAltitudeM,
     windSpeedMps: validated.windSpeedMps,
+    launchRailEnabled,
+    launchRailLengthM: validated.launchRailLengthM,
     recoveryEnabled: input.recoveryEnabled,
     recoveryDelayS: validated.recoveryDelayS,
     recoveryDiameterM: validated.recoveryDiameterM,
@@ -176,6 +185,8 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   dragCoefficient: "drag coefficient",
   launchAltitudeM: "launch altitude",
   windSpeedMps: "wind speed",
+  launchRailEnabled: "launch rail constraint",
+  launchRailLengthM: "effective rail travel",
   recoveryEnabled: "recovery system",
   recoveryDelayS: "recovery delay",
   recoveryDiameterM: "canopy diameter",

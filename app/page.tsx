@@ -23,7 +23,8 @@ import {
   createLaunchEnvironmentModel,
   createMotorDataRecord,
   createMultiStageVehicleModel,
-  createScheduledStageIgnitionFailureEvent,
+  failStageIgnition,
+  stageFlightPreviewInitialState,
   exportMotorThrustCsv,
   importMotorThrustCsv,
   combineMassProperties,
@@ -579,6 +580,8 @@ function createStageFlightPreviewInputs({
   userMotorRecords,
   dragCoefficient,
   environmentAt,
+  launchRailEnabled,
+  launchRailLengthM,
 }: {
   topology: LocalVehicleTopology;
   assembly: VehicleAssemblyEvaluation;
@@ -587,10 +590,13 @@ function createStageFlightPreviewInputs({
   userMotorRecords: readonly MotorDataRecord[];
   dragCoefficient: number;
   environmentAt: LaunchEnvironmentProvider;
+  launchRailEnabled: boolean;
+  launchRailLengthM: number;
 }): Parameters<typeof simulateStageFlightPreview>[0] {
   const stageById = new Map(topology.stages.map((stage) => [stage.id, stage]));
   const activeStages = topology.stages.filter((stage) => stage.enabled);
   const motorAssignmentWarnings: string[] = [];
+  const stageFailureWarnings: string[] = [];
   const motorAssignmentAssumptions = [
     "A stage without an explicit motor assignment uses the current global motor selection.",
   ];
@@ -704,17 +710,14 @@ function createStageFlightPreviewInputs({
     const plan = stageById.get(stage.id);
     return index === 0 || plan?.attachment === "parallel" || plan?.role === "booster";
   }).map((stage) => stage.id);
+  const initialState = stages
+    .filter((stage) => stageById.get(stage.id)?.ignitionFailure)
+    .reduce((state, stage) => {
+      stageFailureWarnings.push(`${stage.name} ignition failure is configured at pad initialization for this preview.`);
+      return failStageIgnition(state, stage.id);
+    }, stageFlightPreviewInitialState());
   const stateEvents: StateTriggeredRigidBodyEvent[] = [];
   const events: ScheduledRigidBodyEvent[] = [];
-  for (const stage of stages) {
-    if (stageById.get(stage.id)?.ignitionFailure) {
-      events.push(createScheduledStageIgnitionFailureEvent({
-        stageId: stage.id,
-        timeS: 0,
-        label: `${stage.name} ignition failure (configured preview)`,
-      }));
-    }
-  }
   let serialSourceId = initialStage.id;
   for (const stage of stages.slice(1)) {
     const plan = stageById.get(stage.id);
@@ -749,9 +752,14 @@ function createStageFlightPreviewInputs({
     environmentAt,
     alwaysActiveGeometryStageIds: [...geometryStageIds],
     separationTransitionWindowS: 0.2,
+    launchRail: launchRailEnabled
+      ? { directionWorld: { x: 0, y: 0, z: 1 }, lengthM: launchRailLengthM }
+      : undefined,
+    launchRailMaximumSteps: 250_000,
+    initialState,
     events,
     stateEvents,
-    additionalWarnings: motorAssignmentWarnings,
+    additionalWarnings: [...motorAssignmentWarnings, ...stageFailureWarnings],
     additionalAssumptions: motorAssignmentAssumptions,
   };
 }
@@ -1160,6 +1168,8 @@ export default function Home() {
   const [dragCoefficient, setDragCoefficient] = useState(0.52);
   const [launchAltitude, setLaunchAltitude] = useState(80);
   const [windSpeed, setWindSpeed] = useState(4);
+  const [launchRailEnabled, setLaunchRailEnabled] = useState(true);
+  const [launchRailLengthM, setLaunchRailLengthM] = useState(1.2);
   const [recoveryEnabled, setRecoveryEnabled] = useState(true);
   const [recoveryDelay, setRecoveryDelay] = useState(0);
   const [recoveryDiameter, setRecoveryDiameter] = useState(0.45);
@@ -1220,11 +1230,13 @@ export default function Home() {
       dragCoefficient,
       launchAltitudeM: launchAltitude,
       windSpeedMps: windSpeed,
+      launchRailEnabled,
+      launchRailLengthM,
       recoveryEnabled,
       recoveryDelayS: recoveryDelay,
       recoveryDiameterM: recoveryDiameter,
     }),
-    [burnTime, diameter, dragCoefficient, launchAltitude, length, material, payloadMass, recoveryDelay, recoveryDiameter, recoveryEnabled, thrust, windSpeed],
+    [burnTime, diameter, dragCoefficient, launchAltitude, launchRailEnabled, launchRailLengthM, length, material, payloadMass, recoveryDelay, recoveryDiameter, recoveryEnabled, thrust, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -1480,6 +1492,8 @@ export default function Home() {
         setDragCoefficient(inputs.dragCoefficient);
         setLaunchAltitude(inputs.launchAltitudeM);
         setWindSpeed(inputs.windSpeedMps);
+        setLaunchRailEnabled(inputs.launchRailEnabled);
+        setLaunchRailLengthM(inputs.launchRailLengthM);
         setRecoveryEnabled(inputs.recoveryEnabled);
         setRecoveryDelay(inputs.recoveryDelayS);
         setRecoveryDiameter(inputs.recoveryDiameterM);
@@ -1642,6 +1656,8 @@ export default function Home() {
     setDragCoefficient(inputs.dragCoefficient);
     setLaunchAltitude(inputs.launchAltitudeM);
     setWindSpeed(inputs.windSpeedMps);
+    setLaunchRailEnabled(inputs.launchRailEnabled);
+    setLaunchRailLengthM(inputs.launchRailLengthM);
     setRecoveryEnabled(inputs.recoveryEnabled);
     setRecoveryDelay(inputs.recoveryDelayS);
     setRecoveryDiameter(inputs.recoveryDiameterM);
@@ -2028,6 +2044,8 @@ export default function Home() {
             userMotorRecords,
             dragCoefficient,
             environmentAt: previewEnvironment.at,
+            launchRailEnabled,
+            launchRailLengthM,
           }),
         );
         setStageFlightResult(nextResult);
@@ -2376,6 +2394,14 @@ export default function Home() {
                       <div><span>Apogee estimate</span><strong>{stageFlightResult.timeToApogeeS.toFixed(1)} s</strong></div>
                       <div><span>Events applied</span><strong>{stageFlightResult.events.length}</strong></div>
                     </div>
+                    {stageFlightResult.rail && (
+                      <div className="stage-flight-rail" aria-label="Launch rail handoff">
+                        <div><span>RAIL CONSTRAINT</span><strong>{stageFlightResult.rail.freeFlight ? "Released to free flight" : "No rail exit"}</strong></div>
+                        <div><span>TRAVEL</span><strong>{stageFlightResult.rail.events.find((event) => event.type === "rail_exit")?.distanceAlongRailM.toFixed(2) ?? launchRailLengthM.toFixed(2)} m</strong></div>
+                        <div><span>EXIT SPEED</span><strong>{stageFlightResult.rail.events.find((event) => event.type === "rail_exit")?.speedAlongRailMps.toFixed(1) ?? "—"} m/s</strong></div>
+                        <div><span>HANDOFF</span><strong>{stageFlightResult.rail.events.find((event) => event.type === "rail_exit")?.timeS.toFixed(2) ?? "—"} s</strong></div>
+                      </div>
+                    )}
                     <div className="stage-flight-events" aria-label="Staged flight events">
                       {stageFlightResult.events.length === 0 ? (
                         <span className="stage-flight-empty">No staging transitions were reached in this run.</span>
@@ -2390,7 +2416,7 @@ export default function Home() {
                     <div className="stage-flight-status">
                       <span>MODEL STATUS</span>
                       <strong>{stageFlightResult.validationStatus}</strong>
-                      <small>{stageFlightResult.stagingModelVersion} · {stageFlightResult.aerodynamicsModelVersion}</small>
+                      <small>{stageFlightResult.stagingModelVersion} · {stageFlightResult.aerodynamicsModelVersion}{stageFlightResult.rail ? ` · ${stageFlightResult.rail.modelVersion}` : ""}</small>
                     </div>
                     <div className="stage-flight-warnings" role="note">
                       <span>WARNINGS</span>
@@ -2688,6 +2714,17 @@ export default function Home() {
             <NumberField id="drag" label="Drag coefficient" value={dragCoefficient} unit="Cd" min={0.1} max={2} step={0.01} onChange={setDragCoefficient} />
             <NumberField id="launch-altitude" label="Launch-site altitude" value={launchAltitude} unit="m" min={-400} max={10000} step={10} onChange={setLaunchAltitude} />
             <NumberField id="wind-speed" label="Wind at 500 m" value={windSpeed} unit="m/s" min={0} max={80} step={0.5} onChange={setWindSpeed} />
+            <div className="field-group rail-control-group">
+              <label htmlFor="launch-rail-enabled">Launch rail constraint</label>
+              <select id="launch-rail-enabled" value={launchRailEnabled ? "enabled" : "disabled"} onChange={(event) => { setLaunchRailEnabled(event.target.value === "enabled"); setStageFlightResult(null); }}>
+                <option value="enabled">Enabled · vertical rail handoff</option>
+                <option value="disabled">Disabled · unconstrained start</option>
+              </select>
+            </div>
+            {launchRailEnabled && <>
+              <NumberField id="launch-rail-length" label="Effective rail travel" value={launchRailLengthM} unit="m" min={0.25} max={12} step={0.05} onChange={(value) => { setLaunchRailLengthM(value); setStageFlightResult(null); }} />
+              <p className="rail-provenance">The staged preview holds attitude and lateral motion on a fixed vertical rail, then hands the exact release state to free flight. Guide hardware, friction, tip-off, and launcher motion are not modeled.</p>
+            </>}
             <div className="field-group">
               <label htmlFor="recovery-enabled">Recovery model</label>
               <select id="recovery-enabled" value={recoveryEnabled ? "enabled" : "disabled"} onChange={(event) => setRecoveryEnabled(event.target.value === "enabled")}>

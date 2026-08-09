@@ -1,4 +1,4 @@
-# Stage-aware flight preview 0.1
+# Stage-aware flight preview 0.2
 
 Status: implemented composition adapter; mathematical regression tests only.
 This preview is not flight-safety validated and must not be used for launch
@@ -14,22 +14,26 @@ models for:
 2. exact-topology aerodynamic geometry, CP, drag, and applicability warnings;
 3. atmosphere, wind, turbulence, and launch-site environment queries;
 4. preliminary body loads; and
-5. the event-aware six-degree-of-freedom rigid-body integrator.
+5. an optional straight launch-rail constraint and exact release handoff; and
+6. the event-aware six-degree-of-freedom rigid-body integrator.
 
 The adapter returns the underlying model versions, the full 6-DOF trace, stage
 sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
-`mathematical-regression-tests-only`.
+`mathematical-regression-tests-only`. The composition model version is
+`kestrel-stage-flight-preview-0.2.0`.
 
 ## Event and state policy
 
 The caller supplies initial ignition stages and scheduled or state-triggered
 events. The adapter initializes ignition through the shared staging state keys,
-passes exact event times to the integrator, and summarizes every applied event
-with its attached-stage set before and after the state change. It does not
-invent ignition delays, separation impulses, failure probabilities, or
-clearance trajectories.
+passes exact event times through the rail and free-flight phases, and summarizes
+every applied event with its attached-stage set before and after the state
+change. When `launchRail` is present, the result includes rail liftoff and
+release events, the effective travel distance, and the exact free-flight
+handoff state. It does not invent ignition delays, separation impulses, failure
+probabilities, or clearance trajectories.
 
 The initial attitude defaults to the documented vertical-launch quaternion,
 which maps the body nose direction to ENU up. A caller may provide a different
@@ -42,8 +46,12 @@ initial position, velocity, attitude, or body rate for analysis cases.
   the configured transition window.
 - The supplied aerodynamic regime table must contain an exact regime for every
   attached-stage topology reached by the event sequence.
+- The optional launch rail is straight, fixed, vertical in the browser adapter,
+  and frictionless; guide-button spacing, tip-off, flexure, and launcher motion
+  are not modeled. Rail-phase state resets must preserve the constrained axis
+  and attitude.
 - Results inherit every applicability warning from the staging, aerodynamic,
-  load, environment, and six-degree-of-freedom models.
+  load, environment, launch-rail, and six-degree-of-freedom models.
 - Integration and coupling checks are software and mathematical regressions,
   not wind-tunnel, instrumented-flight, or certification evidence.
 
