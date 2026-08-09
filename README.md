@@ -18,6 +18,7 @@ research, standards, and original code.
 - mass, centre-of-gravity, inertia, static stability, and centre-of-pressure
   calculations with model versions and assumptions;
 - serial, parallel, radial, clustered, and multi-stage vehicle topology;
+- bounded canted-motor configuration with radial instance alignment;
 - motor and aerodynamic coefficient libraries for user-supplied,
   provenance-qualified data;
 - atmosphere, launch-site, wind, turbulence, launch-rail, recovery, and

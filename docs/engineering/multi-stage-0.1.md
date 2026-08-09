@@ -13,7 +13,9 @@ The model tracks one retained flight vehicle as attached stages ignite, consume
 propellant, burn out, fail to ignite, and separate. Each stage contains fixed
 structural mass properties and one or more independently delayed motors. A
 motor carries its own dry and propellant mass properties, thrust curve, thrust
-axis, and application point.
+axis, and application point. The browser topology layer can derive that axis
+from a bounded stage-level cant angle and azimuth; repeated radial instances
+rotate the azimuth with their placement.
 
 The result supplies the 6-DOF kernel with one consistent, state-dependent:
 
@@ -113,6 +115,7 @@ The regression suite verifies:
 - inertia-tensor rate against centered finite differences
 - end-to-end stage switching in the coupled 6-DOF kernel
 - propulsion-adapter force, moment, and live-CG consistency
+- canted motor axes remain finite, unit-length, and visible in stage topology
 - explicit rejection of invalid configuration and discrete state
 
 These checks validate equations and software state transitions, not physical

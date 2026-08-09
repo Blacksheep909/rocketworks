@@ -18,8 +18,11 @@ Kestrel Lab now exposes a local topology editor for:
   a global selection fallback;
 - per-stage ignition delay, separation delay, and an explicit deterministic
   ignition-failure switch for the preview run.
+- bounded per-stage motor cant up to 15 degrees, with an azimuth that rotates
+  with repeated radial instances so outward/inward thrust alignment remains
+  inspectable.
 
-The editor produces a validated `LocalVehicleTopology` document with schema `dev.kestrel-lab.local-vehicle-topology`, version 1. It is stored under `kestrel.project.arc54.vehicle-topology.v1` and is bounded to eight stages. IDs, optional motor and aerodynamic-table assignments, stage order, parent references, attachment type, roles, repeat count, and radius are checked before persistence. Motor and aerodynamic-table assignments are migration-by-default: older v1 records without either optional field continue to use the global selection.
+The editor produces a validated `LocalVehicleTopology` document with schema `dev.kestrel-lab.local-vehicle-topology`, version 1. It is stored under `kestrel.project.arc54.vehicle-topology.v1` and is bounded to eight stages. IDs, optional motor and aerodynamic-table assignments, stage order, parent references, attachment type, roles, repeat count, radius, and bounded cant angles are checked before persistence. Motor, aerodynamic-table, and cant assignments are migration-by-default: older v1 records without either optional field continue to use the global selection and axial thrust.
 
 ## Assembly mapping
 
@@ -37,6 +40,13 @@ When a staged run is requested, the assigned motor's thrust curve and mass
 properties feed that stage's independent propulsion model. A missing local
 motor record falls back to the global selection and emits a visible warning in
 the result; it is never silently treated as certified data.
+
+The stage cant controls map to a unit body-frame thrust axis. A cant angle of
+`α` and azimuth `φ` use `(-cos α, sin α cos φ, sin α sin φ)`; repeated radial
+instances add their placement angle to `φ`. This keeps symmetric booster sets
+radially balanced when they use the same outward cant. The 0--15 degree limit
+is an interface guardrail, not a claim that larger cant angles are physically
+invalid.
 
 Each exact attached-stage regime also resolves its aerodynamic source. If all
 active stages point to one available table, that table is used for the regime.

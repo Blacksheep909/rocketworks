@@ -99,6 +99,7 @@ import {
   createStagePlan,
   parseVehicleTopology,
   serializeVehicleTopology,
+  stageThrustAxisBody,
   type LocalVehicleTopology,
   type VehicleStageAttachment,
   type VehicleStagePlan,
@@ -820,7 +821,7 @@ function createStageFlightPreviewInputs({
             { rotation: instance.transform.rotation, translationM: originBodyM },
           ),
           thrustApplicationPointBodyM: originBodyM,
-          thrustAxisBody: { x: -1, y: 0, z: 0 },
+          thrustAxisBody: stageThrustAxisBody(stage, instance.stageInstanceIndex),
         };
       });
     if (motors.length === 0) {
@@ -4396,7 +4397,7 @@ export default function Home() {
               <div>
                 <span className="eyebrow">Vehicle architecture</span>
                 <h2 id="topology-title">Stages, boosters & clusters</h2>
-                <p id="topology-description">Build an assembly topology from serial stages, parallel booster sets, and repeated radial instances. Mass and inertia update through the shared analytical assembly model, while each stage can select a provenance-qualified aerodynamic table for its isolated regime.</p>
+                <p id="topology-description">Build an assembly topology from serial stages, parallel booster sets, repeated radial instances, and bounded motor cant. Mass and inertia update through the shared analytical assembly model, while each stage can select a provenance-qualified aerodynamic table for its isolated regime.</p>
               </div>
               <button
                 ref={topologyCloseRef}
@@ -4442,13 +4443,15 @@ export default function Home() {
                       <label>Parent stage<select value={stage.parentStageId ?? ""} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { parentStageId: event.target.value || undefined })}>{vehicleTopology.stages.slice(0, index).map((candidate) => <option value={candidate.id} key={candidate.id}>{candidate.name}</option>)}</select></label>
                       <label>Repeat count<input type="number" min="1" max="8" value={stage.repeatCount} onChange={(event) => updateTopologyStage(stage.id, { repeatCount: Number(event.target.value) })} /></label>
                       <label>Radial radius (m)<input type="number" min="0" max="2" step="0.01" value={stage.repeatRadiusM} onChange={(event) => updateTopologyStage(stage.id, { repeatRadiusM: Number(event.target.value) })} /></label>
+                      <label>Motor cant (deg)<input type="number" min="0" max="15" step="0.1" value={stage.thrustCantAngleDeg} disabled={stage.role === "payload"} onChange={(event) => updateTopologyStage(stage.id, { thrustCantAngleDeg: Number(event.target.value) })} /></label>
+                      <label>Cant azimuth (deg)<input type="number" min="-180" max="180" step="1" value={stage.thrustCantAzimuthDeg} disabled={stage.role === "payload"} onChange={(event) => updateTopologyStage(stage.id, { thrustCantAzimuthDeg: Number(event.target.value) })} /></label>
                     </div>
                     <div className="topology-stage-events">
                       <label>Ignition delay (s)<input type="number" min="0" max="120" step="0.01" value={stage.ignitionDelayS} onChange={(event) => updateTopologyStage(stage.id, { ignitionDelayS: Number(event.target.value) })} /></label>
                       <label>Separation delay (s)<input type="number" min="0" max="120" step="0.01" value={stage.separationDelayS} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { separationDelayS: Number(event.target.value) })} /></label>
                       <label className="topology-failure-toggle"><input type="checkbox" checked={stage.ignitionFailure} onChange={(event) => updateTopologyStage(stage.id, { ignitionFailure: event.target.checked })} /> Force ignition failure in preview</label>
                     </div>
-                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>
+                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>
                   </div>
                 </article>
               ))}

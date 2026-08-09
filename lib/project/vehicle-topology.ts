@@ -17,10 +17,39 @@ export type VehicleStagePlan = Readonly<{
   enabled: boolean;
   repeatCount: number;
   repeatRadiusM: number;
+  thrustCantAngleDeg: number;
+  thrustCantAzimuthDeg: number;
   ignitionDelayS: number;
   separationDelayS: number;
   ignitionFailure: boolean;
 }>;
+
+export type VehicleThrustAxis = Readonly<{
+  x: number;
+  y: number;
+  z: number;
+}>;
+
+/**
+ * Derive a unit body-frame thrust axis from the topology editor's bounded
+ * cant controls. Radial instances rotate the requested azimuth with their
+ * placement so identical booster settings remain symmetric.
+ */
+export function stageThrustAxisBody(
+  stage: Pick<VehicleStagePlan, "repeatCount" | "thrustCantAngleDeg" | "thrustCantAzimuthDeg">,
+  instanceIndex = 0,
+): VehicleThrustAxis {
+  const cantAngleRad = (stage.thrustCantAngleDeg * Math.PI) / 180;
+  if (!(cantAngleRad > 0)) return { x: -1, y: 0, z: 0 };
+  const instanceAzimuthRad = (2 * Math.PI * instanceIndex) / Math.max(stage.repeatCount, 1);
+  const azimuthRad = (stage.thrustCantAzimuthDeg * Math.PI) / 180 + instanceAzimuthRad;
+  const transverse = Math.sin(cantAngleRad);
+  return {
+    x: -Math.cos(cantAngleRad),
+    y: transverse * Math.cos(azimuthRad),
+    z: transverse * Math.sin(azimuthRad),
+  };
+}
 
 export type LocalVehicleTopology = Readonly<{
   schema: typeof LOCAL_VEHICLE_TOPOLOGY_SCHEMA_ID;
@@ -57,6 +86,14 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
   if (typeof stage.repeatRadiusM !== "number" || !Number.isFinite(stage.repeatRadiusM) || stage.repeatRadiusM < 0 || stage.repeatRadiusM > 2) {
     throw new Error(`Stage ${id} repeatRadiusM must be a finite value from 0 through 2 m.`);
   }
+  const thrustCantAngleDeg = stage.thrustCantAngleDeg ?? 0;
+  if (typeof thrustCantAngleDeg !== "number" || !Number.isFinite(thrustCantAngleDeg) || thrustCantAngleDeg < 0 || thrustCantAngleDeg > 15) {
+    throw new Error(`Stage ${id} thrustCantAngleDeg must be a finite value from 0 through 15 degrees.`);
+  }
+  const thrustCantAzimuthDeg = stage.thrustCantAzimuthDeg ?? 0;
+  if (typeof thrustCantAzimuthDeg !== "number" || !Number.isFinite(thrustCantAzimuthDeg) || thrustCantAzimuthDeg < -180 || thrustCantAzimuthDeg > 180) {
+    throw new Error(`Stage ${id} thrustCantAzimuthDeg must be a finite value from -180 through 180 degrees.`);
+  }
   if (stage.parentStageId !== undefined && (typeof stage.parentStageId !== "string" || !ID_PATTERN.test(stage.parentStageId))) {
     throw new Error(`Stage ${id} parentStageId is invalid.`);
   }
@@ -87,6 +124,8 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     enabled: stage.enabled,
     repeatCount: stage.repeatCount as number,
     repeatRadiusM: stage.repeatRadiusM,
+    thrustCantAngleDeg,
+    thrustCantAzimuthDeg,
     ignitionDelayS,
     separationDelayS,
     ignitionFailure,
@@ -127,6 +166,8 @@ export function createDefaultVehicleTopology(): LocalVehicleTopology {
       enabled: true,
       repeatCount: 1,
       repeatRadiusM: 0,
+      thrustCantAngleDeg: 0,
+      thrustCantAzimuthDeg: 0,
       ignitionDelayS: 0,
       separationDelayS: 0.1,
       ignitionFailure: false,
@@ -156,6 +197,8 @@ export function createStagePlan(input: Readonly<{
   aerodynamicTableId?: string;
   repeatCount?: number;
   repeatRadiusM?: number;
+  thrustCantAngleDeg?: number;
+  thrustCantAzimuthDeg?: number;
   ignitionDelayS?: number;
   separationDelayS?: number;
   ignitionFailure?: boolean;
@@ -165,6 +208,8 @@ export function createStagePlan(input: Readonly<{
     enabled: true,
     repeatCount: input.repeatCount ?? 1,
     repeatRadiusM: input.repeatRadiusM ?? 0,
+    thrustCantAngleDeg: input.thrustCantAngleDeg ?? 0,
+    thrustCantAzimuthDeg: input.thrustCantAzimuthDeg ?? 0,
     ignitionDelayS: input.ignitionDelayS ?? 0,
     separationDelayS: input.separationDelayS ?? 0.1,
     ignitionFailure: input.ignitionFailure ?? false,

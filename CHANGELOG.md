@@ -8,6 +8,9 @@ flight-readiness claims.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.
+- Added bounded per-stage motor cant and azimuth controls; radial instances
+  rotate the cant direction and feed the resulting unit axes into the staged
+  propulsion model.
 
 ## 0.1.0-preview — 2026-08-09
 
