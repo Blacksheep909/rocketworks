@@ -27,6 +27,8 @@ export type EditableProjectInputs = Readonly<{
   launchAltitudeM: number;
   windSpeedMps: number;
   relativeHumidityPercent: number;
+  surfacePressureHpa: number;
+  surfaceTemperatureC: number;
   launchRailEnabled: boolean;
   launchRailLengthM: number;
   launchRailInclinationDeg: number;
@@ -78,6 +80,8 @@ const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material
   launchAltitudeM: [-400, 10000],
   windSpeedMps: [0, 80],
   relativeHumidityPercent: [0, 100],
+  surfacePressureHpa: [20, 1100],
+  surfaceTemperatureC: [-90, 70],
   launchRailLengthM: [0.25, 12],
   launchRailInclinationDeg: [0, 30],
   launchRailAzimuthDeg: [-180, 180],
@@ -99,6 +103,8 @@ const numericDefaults: Readonly<Partial<Record<keyof typeof numericRanges, numbe
   launchRailInclinationDeg: 0,
   launchRailAzimuthDeg: 0,
   relativeHumidityPercent: 60,
+  surfacePressureHpa: 1004,
+  surfaceTemperatureC: 15,
   recoveryMassKg: 0.06,
   recoveryDeploymentSuccessProbability: 0.9,
 };
@@ -187,6 +193,8 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     launchAltitudeM: validated.launchAltitudeM,
     windSpeedMps: validated.windSpeedMps,
     relativeHumidityPercent: validated.relativeHumidityPercent,
+    surfacePressureHpa: validated.surfacePressureHpa,
+    surfaceTemperatureC: validated.surfaceTemperatureC,
     launchRailEnabled,
     launchRailLengthM: validated.launchRailLengthM,
     launchRailInclinationDeg: validated.launchRailInclinationDeg,
@@ -265,6 +273,8 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   launchAltitudeM: "launch altitude",
   windSpeedMps: "wind speed",
   relativeHumidityPercent: "relative humidity",
+  surfacePressureHpa: "surface pressure",
+  surfaceTemperatureC: "surface temperature",
   launchRailEnabled: "launch rail constraint",
   launchRailLengthM: "effective rail travel",
   launchRailInclinationDeg: "launch rail inclination",

@@ -99,6 +99,9 @@ export type EngineeringReportInput = Readonly<{
     siteName: string;
     elevationM: number;
     meanWindAt500Mps: number;
+    surfacePressureHpa?: number;
+    surfaceTemperatureC?: number;
+    relativeHumidityPercent?: number;
     modelVersion: string;
     validationStatus: string;
     provenance: string;
@@ -733,6 +736,15 @@ export function createEngineeringReportMarkdown(
     `- Site: ${markdownText(input.environment.siteName)}`,
     `- Site elevation: ${formatNumber(input.environment.elevationM, 0)} m`,
     `- Mean wind at 500 m AGL: ${formatNumber(input.environment.meanWindAt500Mps, 2)} m/s`,
+    ...(input.environment.surfacePressureHpa === undefined
+      ? []
+      : [`- Pad pressure observation: ${formatNumber(input.environment.surfacePressureHpa, 1)} hPa`]),
+    ...(input.environment.surfaceTemperatureC === undefined
+      ? []
+      : [`- Pad temperature observation: ${formatNumber(input.environment.surfaceTemperatureC, 1)} °C`]),
+    ...(input.environment.relativeHumidityPercent === undefined
+      ? []
+      : [`- Relative humidity observation: ${formatNumber(input.environment.relativeHumidityPercent, 0)}%`]),
     `- Model: \`${markdownText(input.environment.modelVersion)}\``,
     `- Status: \`${markdownText(input.environment.validationStatus)}\``,
     `- Provenance: ${markdownText(input.environment.provenance)}`,

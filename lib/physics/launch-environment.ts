@@ -1,8 +1,8 @@
 import {
-  applyRelativeHumidityToAtmosphere,
-  dynamicViscosityAirPaS,
+  atmosphereFromSurfaceObservation,
   standardAtmosphere,
   type AtmosphereState,
+  type SurfaceAtmosphereObservation,
 } from "./atmosphere.ts";
 import {
   interpolateWind,
@@ -17,9 +17,6 @@ import {
 
 export const LAUNCH_ENVIRONMENT_MODEL_VERSION = "kestrel-launch-environment-0.2.0";
 export const LAUNCH_ENVIRONMENT_MODEL_STATUS = "engineering-preview-unvalidated";
-
-const SPECIFIC_GAS_CONSTANT_AIR = 287.05287;
-const HEAT_CAPACITY_RATIO = 1.4;
 
 export type LaunchSite = Readonly<{
   name: string;
@@ -45,11 +42,7 @@ export type WeatherDataProvenance = Readonly<{
     | "synthetic-unvalidated";
 }>;
 
-export type SurfaceWeatherObservation = Readonly<{
-  stationPressurePa: number;
-  temperatureK: number;
-  relativeHumidityFraction?: number;
-}>;
+export type SurfaceWeatherObservation = SurfaceAtmosphereObservation;
 
 export type DrydenShapedTurbulenceConfig = Readonly<{
   seed: string;
@@ -230,28 +223,7 @@ function adjustedAtmosphere(
 ): AtmosphereState {
   const standard = standardAtmosphere(altitudeAslM);
   if (!observation) return standard;
-  const siteStandard = standardAtmosphere(siteElevationM);
-  const temperatureOffsetK = observation.temperatureK - siteStandard.temperatureK;
-  const temperatureK = standard.temperatureK + temperatureOffsetK;
-  if (!(temperatureK > 0)) throw new Error("weather-adjusted atmosphere temperature became non-positive");
-  const pressurePa = standard.pressurePa * (observation.stationPressurePa / siteStandard.pressurePa);
-  const densityKgM3 = pressurePa / (SPECIFIC_GAS_CONSTANT_AIR * temperatureK);
-  const dynamicViscosityPaS = dynamicViscosityAirPaS(temperatureK);
-  const dryAtmosphere: AtmosphereState = {
-    ...standard,
-    temperatureK,
-    pressurePa,
-    densityKgM3,
-    speedOfSoundMps: Math.sqrt(HEAT_CAPACITY_RATIO * SPECIFIC_GAS_CONSTANT_AIR * temperatureK),
-    dynamicViscosityPaS,
-    kinematicViscosityM2S: dynamicViscosityPaS / densityKgM3,
-  };
-  return observation.relativeHumidityFraction === undefined
-    ? dryAtmosphere
-    : applyRelativeHumidityToAtmosphere(
-        dryAtmosphere,
-        observation.relativeHumidityFraction,
-      );
+  return atmosphereFromSurfaceObservation(altitudeAslM, siteElevationM, observation);
 }
 
 export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefinition): LaunchEnvironmentModel {
@@ -402,6 +374,9 @@ export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefini
     definition,
     at,
     warnings: [
+      ...(observation
+        ? ["Surface pressure and temperature are anchored to the supplied launch-site observation and are not live weather data."]
+        : []),
       ...(observation?.relativeHumidityFraction !== undefined
         ? ["Relative humidity is coupled to water-vapor partial pressure, virtual temperature, density, and speed of sound in version 0.2; condensation and humidity-dependent viscosity are not modeled."]
         : []),

@@ -79,6 +79,8 @@ const portableConfiguration = {
     launchAltitudeM: 80,
     windSpeedMps: 4,
     relativeHumidityPercent: 60,
+    surfacePressureHpa: 1004,
+    surfaceTemperatureC: 15,
     launchRailEnabled: true,
     launchRailLengthM: 1.2,
     recoveryEnabled: true,
@@ -338,6 +340,9 @@ test("engineering report leads with status and preserves calculations and limita
       siteName: "Test range",
       elevationM: 80,
       meanWindAt500Mps: 4.08,
+      surfacePressureHpa: 1004,
+      surfaceTemperatureC: 15,
+      relativeHumidityPercent: 60,
       modelVersion: "environment-fixture",
       validationStatus: "synthetic-unvalidated",
       provenance: "Synthetic fixture",
@@ -415,6 +420,8 @@ test("engineering report leads with status and preserves calculations and limita
     },
   });
   assert.match(report, /^# ARC 54 — Preliminary Engineering Report/);
+  assert.match(report, /Pad pressure observation: 1004\.0 hPa/);
+  assert.match(report, /Relative humidity observation: 60%/);
   assert.ok(report.indexOf("Not flight-safe or manufacturing-approved") < report.indexOf("## Vehicle summary"));
   assert.match(report, /\| Static margin \| 2\.93 calibres \|/);
   assert.match(report, /## Recovery landing footprint/);

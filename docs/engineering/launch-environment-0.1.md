@@ -23,7 +23,9 @@ east-north-up position and time:
 - deterministic one-minus-cosine discrete gust events
 - source, version, licence, attribution, observation time, and validation status
 
-The same provider can be supplied to the preliminary 6DOF rocket-load and
+The same surface-observation anchor is also available to the fast vertical
+flight adapter, so browser estimates can share pressure, temperature, and
+humidity inputs with the coupled preview. The same provider can be supplied to the preliminary 6DOF rocket-load and
 recovery-load adapters. Supplying both this provider and their legacy launch
 altitude or wind-profile inputs is rejected to avoid conflicting environments.
 

@@ -29,6 +29,8 @@ const inputs = {
   recoveryEnabled: true,
   recoveryDelayS: 0,
   recoveryDiameterM: 0.45,
+  surfacePressureHpa: 1004,
+  surfaceTemperatureC: 15,
 };
 
 function snapshot(revision, overrides = {}) {
@@ -56,8 +58,17 @@ test("local project snapshots round-trip through a strict versioned schema", () 
   assert.equal(source.inputs.recoveryMassKg, 0.06);
   assert.equal(source.inputs.recoveryDeploymentSuccessProbability, 0.9);
   assert.equal(source.inputs.relativeHumidityPercent, 60);
+  assert.equal(source.inputs.surfacePressureHpa, 1004);
+  assert.equal(source.inputs.surfaceTemperatureC, 15);
   assert.equal(JSON.parse(serialized).schema, LOCAL_PROJECT_SCHEMA_ID);
   assert.equal(projectInputFingerprint(source.inputs), projectInputFingerprint({ ...inputs }));
+});
+
+test("legacy snapshots receive explicit surface-weather defaults", () => {
+  const legacy = snapshot(1, { relativeHumidityPercent: undefined, surfacePressureHpa: undefined, surfaceTemperatureC: undefined });
+  assert.equal(legacy.inputs.relativeHumidityPercent, 60);
+  assert.equal(legacy.inputs.surfacePressureHpa, 1004);
+  assert.equal(legacy.inputs.surfaceTemperatureC, 15);
 });
 
 test("invalid, unsupported, and out-of-range snapshots fail explicitly", () => {
@@ -89,6 +100,14 @@ test("invalid, unsupported, and out-of-range snapshots fail explicitly", () => {
   assert.throws(
     () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, relativeHumidityPercent: 100.1 } }),
     /relativeHumidityPercent/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, surfacePressureHpa: 10 } }),
+    /surfacePressureHpa/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, surfaceTemperatureC: -91 } }),
+    /surfaceTemperatureC/,
   );
   assert.throws(
     () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, noseProfile: "parabolic" } }),

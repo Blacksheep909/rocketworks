@@ -1,8 +1,10 @@
 import {
   applyRelativeHumidityToAtmosphere,
+  atmosphereFromSurfaceObservation,
   gravityAtAltitude,
   reynoldsNumber,
   standardAtmosphere,
+  type SurfaceAtmosphereObservation,
 } from "./atmosphere.ts";
 import type { AerodynamicCoefficientTableModel } from "./aerodynamic-coefficients.ts";
 import {
@@ -16,7 +18,7 @@ import {
   type WindLayer,
 } from "./curves.ts";
 
-export const VERTICAL_MODEL_VERSION = "kestrel-vertical-0.2.1-alpha";
+export const VERTICAL_MODEL_VERSION = "kestrel-vertical-0.2.2-alpha";
 export const VERTICAL_MODEL_STATUS = "engineering-preview-unvalidated";
 
 export type FlightEventType =
@@ -66,6 +68,8 @@ export type VerticalFlightConfig = {
   environment?: {
     launchAltitudeM?: number;
     windProfile?: WindLayer[];
+    surfaceObservation?: SurfaceAtmosphereObservation;
+    /** Backward-compatible shorthand for a standard-atmosphere humidity correction. */
     relativeHumidityFraction?: number;
   };
   integration?: {
@@ -143,6 +147,31 @@ function validateConfig(config: VerticalFlightConfig) {
   ) {
     throw new Error("Relative humidity fraction must be from 0 through 1.");
   }
+  const surfaceObservation = config.environment?.surfaceObservation;
+  if (surfaceObservation) {
+    if (!Number.isFinite(surfaceObservation.stationPressurePa) || surfaceObservation.stationPressurePa <= 0) {
+      throw new Error("Surface observation pressure must be positive and finite.");
+    }
+    if (!Number.isFinite(surfaceObservation.temperatureK) || surfaceObservation.temperatureK <= 0) {
+      throw new Error("Surface observation temperature must be positive and finite.");
+    }
+    if (
+      surfaceObservation.relativeHumidityFraction !== undefined &&
+      (!Number.isFinite(surfaceObservation.relativeHumidityFraction) ||
+        surfaceObservation.relativeHumidityFraction < 0 ||
+        surfaceObservation.relativeHumidityFraction > 1)
+    ) {
+      throw new Error("Surface observation relative humidity must be from 0 through 1.");
+    }
+  }
+  if (
+    surfaceObservation?.relativeHumidityFraction !== undefined &&
+    config.environment?.relativeHumidityFraction !== undefined &&
+    surfaceObservation.relativeHumidityFraction !==
+      config.environment.relativeHumidityFraction
+  ) {
+    throw new Error("Surface observation humidity and shorthand humidity must match.");
+  }
   if (config.recovery?.enabled) {
     assertPositive(config.recovery.dragAreaM2, "Recovery drag area");
     assertPositive(config.recovery.dragCoefficient, "Recovery drag coefficient");
@@ -164,7 +193,20 @@ export function simulateVerticalFlight(
 
   const launchAltitudeM = config.environment?.launchAltitudeM ?? 0;
   const windProfile = config.environment?.windProfile ?? [];
+  const surfaceObservation = config.environment?.surfaceObservation;
   const relativeHumidityFraction = config.environment?.relativeHumidityFraction;
+  const effectiveSurfaceObservation = surfaceObservation
+    ? {
+        ...surfaceObservation,
+        ...(surfaceObservation.relativeHumidityFraction === undefined &&
+        relativeHumidityFraction !== undefined
+          ? { relativeHumidityFraction }
+          : {}),
+      }
+    : undefined;
+  const humidityActive =
+    effectiveSurfaceObservation?.relativeHumidityFraction !== undefined ||
+    relativeHumidityFraction !== undefined;
   const thrustCurve = config.motor.thrustCurve;
   const burnoutTimeS = thrustCurve.at(-1)!.timeS;
   const launchMassKg =
@@ -208,15 +250,22 @@ export function simulateVerticalFlight(
     sampleState: State,
     chuteDeployed: boolean,
   ) => {
-    const dryAtmosphere = standardAtmosphere(
-      launchAltitudeM + Math.max(0, sampleState.altitudeAglM),
-    );
-    const atmosphere = relativeHumidityFraction === undefined
-      ? dryAtmosphere
-      : applyRelativeHumidityToAtmosphere(
-          dryAtmosphere,
-          relativeHumidityFraction,
-        );
+    const altitudeAslM = launchAltitudeM + Math.max(0, sampleState.altitudeAglM);
+    const atmosphere = effectiveSurfaceObservation
+      ? atmosphereFromSurfaceObservation(
+          altitudeAslM,
+          launchAltitudeM,
+          effectiveSurfaceObservation,
+        )
+      : (() => {
+          const dryAtmosphere = standardAtmosphere(altitudeAslM);
+          return relativeHumidityFraction === undefined
+            ? dryAtmosphere
+            : applyRelativeHumidityToAtmosphere(
+                dryAtmosphere,
+                relativeHumidityFraction,
+              );
+        })();
     const consumed = propellantFractionConsumed(thrustCurve, sampleTimeS);
     const massKg =
       config.vehicle.dryMassKg +
@@ -495,13 +544,22 @@ export function simulateVerticalFlight(
         "Horizontal wind interpolation is ready for the future 6-DOF model; this 1D solver only couples vertical air motion.",
     });
   }
-  if (relativeHumidityFraction !== undefined) {
+  if (humidityActive) {
     warnings.push({
       code: "HUMID_AIR_CORRECTION",
       severity: "info",
       title: "Moist-air correction is active",
       explanation:
         "Density and speed of sound use a constant-relative-humidity ideal-mixture approximation; condensation, phase change, and humidity-dependent viscosity are not modeled.",
+    });
+  }
+  if (surfaceObservation) {
+    warnings.push({
+      code: "SURFACE_WEATHER_ANCHOR",
+      severity: "info",
+      title: "Surface weather anchor is active",
+      explanation:
+        "Pressure and temperature are anchored to the launch-site observation and then offset through the standard atmosphere profile; the observation is not a forecast or live weather feed.",
     });
   }
   warnings.push({
@@ -539,9 +597,14 @@ export function simulateVerticalFlight(
         : "User-supplied drag coefficient is constant with Mach and Reynolds number",
       "Thrust curve is linearly interpolated",
       "Propellant depletion is proportional to delivered impulse",
-      ...(relativeHumidityFraction !== undefined
-        ? ["Relative humidity is applied to the standard atmosphere as a constant-altitude-profile ideal-mixture correction."]
+      ...(humidityActive
+        ? [effectiveSurfaceObservation
+            ? "Relative humidity is applied after the surface pressure and temperature anchor as a constant-altitude-profile ideal-mixture correction."
+            : "Relative humidity is applied to the standard atmosphere as a constant-altitude-profile ideal-mixture correction."]
         : ["Dry-air density and speed of sound are used when no relative humidity is supplied."]),
+      ...(effectiveSurfaceObservation
+        ? ["Surface pressure and temperature preserve their offsets from standard conditions through the altitude profile; no live weather assimilation is performed."]
+        : []),
       "Rigid vehicle with no attitude, stability, or structural dynamics",
     ],
   };

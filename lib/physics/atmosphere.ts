@@ -25,6 +25,12 @@ export type AtmosphereState = {
   mixingRatioKgPerKgDryAir?: number;
 };
 
+export type SurfaceAtmosphereObservation = Readonly<{
+  stationPressurePa: number;
+  temperatureK: number;
+  relativeHumidityFraction?: number;
+}>;
+
 export const ATMOSPHERE_MODEL_VERSION = "kestrel-standard-atmosphere-0.4.0";
 
 const EARTH_GEOPOTENTIAL_RADIUS_M = 6_356_766;
@@ -246,6 +252,62 @@ export function standardAtmosphere(
     dynamicViscosityPaS,
     kinematicViscosityM2S,
   };
+}
+
+/**
+ * Anchors the standard profile to a launch-site surface observation.
+ * Pressure is scaled by the ratio of observed to standard site pressure and
+ * temperature keeps its observed offset from the standard profile. The
+ * optional humidity correction is applied after those dry-air adjustments so
+ * the same state can be consumed by the fast vertical and coupled paths.
+ */
+export function atmosphereFromSurfaceObservation(
+  altitudeAslM: number,
+  siteElevationM: number,
+  observation: SurfaceAtmosphereObservation,
+): AtmosphereState {
+  if (!Number.isFinite(observation.stationPressurePa) || observation.stationPressurePa <= 0) {
+    throw new Error("Surface observation pressure must be positive and finite.");
+  }
+  if (!Number.isFinite(observation.temperatureK) || observation.temperatureK <= 0) {
+    throw new Error("Surface observation temperature must be positive and finite.");
+  }
+  if (
+    observation.relativeHumidityFraction !== undefined &&
+    (!Number.isFinite(observation.relativeHumidityFraction) ||
+      observation.relativeHumidityFraction < 0 ||
+      observation.relativeHumidityFraction > 1)
+  ) {
+    throw new Error("Surface observation relative humidity must be from 0 through 1.");
+  }
+  const standard = standardAtmosphere(altitudeAslM);
+  const siteStandard = standardAtmosphere(siteElevationM);
+  const temperatureK =
+    standard.temperatureK + observation.temperatureK - siteStandard.temperatureK;
+  if (!(temperatureK > 0)) {
+    throw new Error("Surface-observation-adjusted atmosphere temperature became non-positive.");
+  }
+  const pressurePa =
+    standard.pressurePa * (observation.stationPressurePa / siteStandard.pressurePa);
+  const densityKgM3 = pressurePa / (SPECIFIC_GAS_CONSTANT_AIR * temperatureK);
+  const dynamicViscosityPaS = dynamicViscosityAirPaS(temperatureK);
+  const dryAtmosphere: AtmosphereState = {
+    ...standard,
+    temperatureK,
+    pressurePa,
+    densityKgM3,
+    speedOfSoundMps: Math.sqrt(
+      HEAT_CAPACITY_RATIO * SPECIFIC_GAS_CONSTANT_AIR * temperatureK,
+    ),
+    dynamicViscosityPaS,
+    kinematicViscosityM2S: dynamicViscosityPaS / densityKgM3,
+  };
+  return observation.relativeHumidityFraction === undefined
+    ? dryAtmosphere
+    : applyRelativeHumidityToAtmosphere(
+        dryAtmosphere,
+        observation.relativeHumidityFraction,
+      );
 }
 
 export function gravityAtAltitude(geometricAltitudeM: number): number {

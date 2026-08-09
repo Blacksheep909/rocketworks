@@ -68,7 +68,7 @@ test("surface observation exactly anchors site pressure and temperature", () => 
   assert.ok((atSite.atmosphere.virtualTemperatureK ?? 0) > atSite.atmosphere.temperatureK);
   assert.ok(atSite.atmosphere.densityKgM3 < dryAtSite.atmosphere.densityKgM3);
   assert.ok(atSite.atmosphere.speedOfSoundMps > dryAtSite.atmosphere.speedOfSoundMps);
-  assert.match(model.warnings[0], /Relative humidity.*coupled/);
+  assert.ok(model.warnings.some((warning) => /Relative humidity.*coupled/.test(warning)));
   assert.ok(model.assumptions.some((assumption) => assumption.includes("held constant")));
 });
 

@@ -411,6 +411,8 @@ function createPreviewEnvironment(
     directionOffsetRad?: number;
     turbulenceScale?: number;
     relativeHumidityPercent?: number;
+    surfacePressureHpa?: number;
+    surfaceTemperatureC?: number;
   }> = {},
 ) {
   const turbulenceScale = options.turbulenceScale ?? 1;
@@ -418,6 +420,8 @@ function createPreviewEnvironment(
   const relativeHumidityFraction = options.relativeHumidityPercent === undefined
     ? undefined
     : options.relativeHumidityPercent / 100;
+  const surfacePressureHpa = options.surfacePressureHpa ?? siteAtmosphere.pressurePa / 100;
+  const surfaceTemperatureC = options.surfaceTemperatureC ?? siteAtmosphere.temperatureK - 273.15;
   return createLaunchEnvironmentModel({
     site: {
       name: "ARC 54 synthetic range",
@@ -437,8 +441,8 @@ function createPreviewEnvironment(
     },
     meanWindProfile: createPreviewWindProfile(windSpeed, options),
     surfaceObservation: {
-      stationPressurePa: siteAtmosphere.pressurePa,
-      temperatureK: siteAtmosphere.temperatureK,
+      stationPressurePa: surfacePressureHpa * 100,
+      temperatureK: surfaceTemperatureC + 273.15,
       ...(relativeHumidityFraction === undefined ? {} : { relativeHumidityFraction }),
     },
     turbulence: {
@@ -1031,6 +1035,8 @@ function createFlightConfig({
   launchAltitude,
   windSpeed,
   relativeHumidityPercent,
+  surfacePressureHpa,
+  surfaceTemperatureC,
   recoveryEnabled,
   recoveryDelay,
   recoveryDiameter,
@@ -1045,6 +1051,8 @@ function createFlightConfig({
   launchAltitude: number;
   windSpeed: number;
   relativeHumidityPercent: number;
+  surfacePressureHpa: number;
+  surfaceTemperatureC: number;
   recoveryEnabled: boolean;
   recoveryDelay: number;
   recoveryDiameter: number;
@@ -1082,7 +1090,11 @@ function createFlightConfig({
     environment: {
       launchAltitudeM: launchAltitude,
       windProfile: createPreviewWindProfile(windSpeed),
-      relativeHumidityFraction: relativeHumidityPercent / 100,
+      surfaceObservation: {
+        stationPressurePa: surfacePressureHpa * 100,
+        temperatureK: surfaceTemperatureC + 273.15,
+        relativeHumidityFraction: relativeHumidityPercent / 100,
+      },
     },
     integration: { timeStepS: 0.02, maxTimeS: 180 },
   };
@@ -1342,6 +1354,8 @@ function createLandingPrediction(
           directionOffsetRad: values.windDirectionOffsetRad,
           turbulenceScale: values.turbulenceScale,
           relativeHumidityPercent: inputs.relativeHumidityPercent,
+          surfacePressureHpa: inputs.surfacePressureHpa,
+          surfaceTemperatureC: inputs.surfaceTemperatureC,
         },
       );
       const ascentDrift = estimateAscentWindDrift({
@@ -1987,6 +2001,8 @@ export default function Home() {
   const [launchAltitude, setLaunchAltitude] = useState(80);
   const [windSpeed, setWindSpeed] = useState(4);
   const [relativeHumidityPercent, setRelativeHumidityPercent] = useState(60);
+  const [surfacePressureHpa, setSurfacePressureHpa] = useState(1004);
+  const [surfaceTemperatureC, setSurfaceTemperatureC] = useState(15);
   const [launchRailEnabled, setLaunchRailEnabled] = useState(true);
   const [launchRailLengthM, setLaunchRailLengthM] = useState(1.2);
   const [launchRailInclinationDeg, setLaunchRailInclinationDeg] = useState(0);
@@ -2071,6 +2087,8 @@ export default function Home() {
       launchAltitudeM: launchAltitude,
       windSpeedMps: windSpeed,
       relativeHumidityPercent,
+      surfacePressureHpa,
+      surfaceTemperatureC,
       launchRailEnabled,
       launchRailLengthM,
       launchRailInclinationDeg,
@@ -2081,7 +2099,7 @@ export default function Home() {
       recoveryMassKg: recoveryMass,
       recoveryDeploymentSuccessProbability,
     }),
-    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, relativeHumidityPercent, thrust, windSpeed],
+    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -2258,8 +2276,12 @@ export default function Home() {
     [editableInputs, previewMotor, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, vehicleTopology],
   );
   const previewEnvironment = useMemo(
-    () => createPreviewEnvironment(launchAltitude, windSpeed, { relativeHumidityPercent }),
-    [launchAltitude, relativeHumidityPercent, windSpeed],
+    () => createPreviewEnvironment(launchAltitude, windSpeed, { relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
+    [launchAltitude, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, windSpeed],
+  );
+  const environmentAtPad = useMemo(
+    () => previewEnvironment.at({ timeS: 0, positionWorldM: { x: 0, y: 0, z: 0 } }),
+    [previewEnvironment],
   );
   const environmentAt500M = useMemo(
     () =>
@@ -2287,6 +2309,8 @@ export default function Home() {
       launchAltitude,
       windSpeed,
       relativeHumidityPercent,
+      surfacePressureHpa,
+      surfaceTemperatureC,
       recoveryEnabled,
       recoveryDelay,
       recoveryDiameter,
@@ -2314,6 +2338,8 @@ export default function Home() {
       launchAltitude,
       windSpeed,
       relativeHumidityPercent,
+      surfacePressureHpa,
+      surfaceTemperatureC,
       recoveryEnabled,
       recoveryDelay,
       recoveryDiameter,
@@ -2333,6 +2359,8 @@ export default function Home() {
           launchAltitude,
           windSpeed,
           relativeHumidityPercent,
+          surfacePressureHpa,
+          surfaceTemperatureC,
           recoveryEnabled,
           recoveryDelay,
           recoveryDiameter,
@@ -2501,6 +2529,8 @@ export default function Home() {
         setLaunchAltitude(inputs.launchAltitudeM);
         setWindSpeed(inputs.windSpeedMps);
         setRelativeHumidityPercent(inputs.relativeHumidityPercent);
+        setSurfacePressureHpa(inputs.surfacePressureHpa);
+        setSurfaceTemperatureC(inputs.surfaceTemperatureC);
         setLaunchRailEnabled(inputs.launchRailEnabled);
         setLaunchRailLengthM(inputs.launchRailLengthM);
         setLaunchRailInclinationDeg(inputs.launchRailInclinationDeg);
@@ -2725,6 +2755,8 @@ export default function Home() {
     setLaunchAltitude(inputs.launchAltitudeM);
     setWindSpeed(inputs.windSpeedMps);
     setRelativeHumidityPercent(inputs.relativeHumidityPercent);
+    setSurfacePressureHpa(inputs.surfacePressureHpa);
+    setSurfaceTemperatureC(inputs.surfaceTemperatureC);
     setLaunchRailEnabled(inputs.launchRailEnabled);
     setLaunchRailLengthM(inputs.launchRailLengthM);
     setLaunchRailInclinationDeg(inputs.launchRailInclinationDeg);
@@ -3176,6 +3208,9 @@ export default function Home() {
               environmentAt500M.meanWindWorldMps.x,
               environmentAt500M.meanWindWorldMps.y,
             ),
+            surfacePressureHpa,
+            surfaceTemperatureC,
+            relativeHumidityPercent,
             modelVersion: previewEnvironment.modelVersion,
             validationStatus: previewEnvironment.validationStatus,
             provenance: `${previewEnvironment.definition.provenance.sourceName} · ${previewEnvironment.definition.provenance.licenseIdentifier} · ${previewEnvironment.definition.provenance.validationStatus}`,
@@ -3211,6 +3246,8 @@ export default function Home() {
       launchAltitude,
       windSpeed,
       relativeHumidityPercent,
+      surfacePressureHpa,
+      surfaceTemperatureC,
       recoveryEnabled,
       recoveryDelay,
       recoveryDiameter,
@@ -3321,6 +3358,8 @@ export default function Home() {
           launchAltitude,
           windSpeed,
           relativeHumidityPercent,
+          surfacePressureHpa,
+          surfaceTemperatureC,
           recoveryEnabled,
           recoveryDelay,
           recoveryDiameter,
@@ -3360,6 +3399,8 @@ export default function Home() {
           launchAltitude,
           windSpeed,
           relativeHumidityPercent,
+          surfacePressureHpa,
+          surfaceTemperatureC,
           recoveryEnabled,
           recoveryDelay,
           recoveryDiameter,
@@ -4241,9 +4282,11 @@ export default function Home() {
             <NumberField id="burn-time" label="Burn time" value={burnTime} unit="s" min={0.1} max={30} step={0.05} onChange={(value) => { setBurnTime(value); markChanged(); }} />
             <NumberField id="drag" label="Drag coefficient" value={dragCoefficient} unit="Cd" min={0.1} max={2} step={0.01} onChange={(value) => { setDragCoefficient(value); markChanged(); }} />
             <NumberField id="launch-altitude" label="Launch-site altitude" value={launchAltitude} unit="m" min={-400} max={10000} step={10} onChange={(value) => { setLaunchAltitude(value); markChanged(); }} />
+            <NumberField id="surface-pressure" label="Pad pressure" value={surfacePressureHpa} unit="hPa" min={20} max={1100} step={0.1} onChange={(value) => { setSurfacePressureHpa(value); markChanged(); }} />
+            <NumberField id="surface-temperature" label="Pad temperature" value={surfaceTemperatureC} unit="°C" min={-90} max={70} step={0.5} onChange={(value) => { setSurfaceTemperatureC(value); markChanged(); }} />
             <NumberField id="wind-speed" label="Wind at 500 m" value={windSpeed} unit="m/s" min={0} max={80} step={0.5} onChange={(value) => { setWindSpeed(value); markChanged(); }} />
             <NumberField id="relative-humidity" label="Relative humidity" value={relativeHumidityPercent} unit="%" min={0} max={100} step={1} onChange={(value) => { setRelativeHumidityPercent(value); markChanged(); }} />
-            <p className="field-help">Coupled to water-vapor pressure, virtual temperature, density, and sound speed in the engineering-preview atmosphere.</p>
+            <p className="field-help">Pressure and temperature anchor the launch-site profile; humidity couples to water-vapor pressure, virtual temperature, density, and sound speed. These are user observations, not a live weather feed.</p>
             <div className="field-group rail-control-group">
               <label htmlFor="launch-rail-enabled">Launch rail constraint</label>
               <select id="launch-rail-enabled" value={launchRailEnabled ? "enabled" : "disabled"} onChange={(event) => { setLaunchRailEnabled(event.target.value === "enabled"); markChanged(); }}>
@@ -4307,6 +4350,8 @@ export default function Home() {
                 <div className="mass-properties-card stability-properties-card">
                   <div><span>Altitude reference</span><strong>{environmentAt500M.altitudeAslM.toFixed(0)} m ASL at 500 m AGL</strong></div>
                   <div><span>Mean wind at 500 m</span><strong>{Math.hypot(environmentAt500M.meanWindWorldMps.x, environmentAt500M.meanWindWorldMps.y).toFixed(1)} m/s</strong></div>
+                  <div><span>Pad pressure</span><strong>{(environmentAtPad.atmosphere.pressurePa / 100).toFixed(1)} hPa</strong></div>
+                  <div><span>Pad temperature</span><strong>{(environmentAtPad.atmosphere.temperatureK - 273.15).toFixed(1)} °C</strong></div>
                   <div><span>Relative humidity</span><strong>{relativeHumidityPercent.toFixed(0)}% · coupled</strong></div>
                   <div><span>Air density @ 500 m</span><strong>{environmentAt500M.atmosphere.densityKgM3.toFixed(3)} kg/m³</strong></div>
                   <div><span>Sound speed @ 500 m</span><strong>{environmentAt500M.atmosphere.speedOfSoundMps.toFixed(1)} m/s</strong></div>

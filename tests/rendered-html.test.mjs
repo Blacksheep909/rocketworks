@@ -222,6 +222,10 @@ test("shows a deterministic provenance-qualified launch environment", async () =
   assert.match(source, /arc54-weather-v1/);
   assert.match(source, /Turbulence RMS L \/ T \/ V/);
   assert.match(source, /relativeHumidityPercent/);
+  assert.match(source, /surfacePressureHpa/);
+  assert.match(source, /surfaceTemperatureC/);
+  assert.match(source, /Pad pressure/);
+  assert.match(source, /Pad temperature/);
   assert.match(source, /Air density @ 500 m/);
   assert.match(source, /Sound speed @ 500 m/);
   assert.match(source, /versioned horizontal ascent-drift proxy/);
@@ -376,6 +380,8 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(projectState, /launchRailAzimuthDeg/);
   assert.match(projectState, /recoveryDeploymentSuccessProbability/);
   assert.match(projectState, /relativeHumidityPercent/);
+  assert.match(projectState, /surfacePressureHpa/);
+  assert.match(projectState, /surfaceTemperatureC/);
   assert.match(projectState, /validateEditableProjectInputs/);
   assert.match(projectState, /Unsupported local project schema version/);
   assert.match(stylesheet, /\.history-entry button:focus-visible/);

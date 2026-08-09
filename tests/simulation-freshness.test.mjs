@@ -19,6 +19,8 @@ const inputs = {
   launchAltitudeM: 80,
   windSpeedMps: 4,
   relativeHumidityPercent: 60,
+  surfacePressureHpa: 1004,
+  surfaceTemperatureC: 15,
   launchRailEnabled: true,
   launchRailLengthM: 1.2,
   recoveryEnabled: true,
@@ -76,6 +78,8 @@ test("simulation fingerprints change when a modeled input or motor changes", () 
   const baseline = fingerprint();
   const windChanged = fingerprint({ inputs: { ...inputs, windSpeedMps: 8 } });
   const humidityChanged = fingerprint({ inputs: { ...inputs, relativeHumidityPercent: 80 } });
+  const pressureChanged = fingerprint({ inputs: { ...inputs, surfacePressureHpa: 990 } });
+  const temperatureChanged = fingerprint({ inputs: { ...inputs, surfaceTemperatureC: 28 } });
   const topologyChanged = fingerprint({
     topology: {
       ...createDefaultVehicleTopology(),
@@ -105,6 +109,8 @@ test("simulation fingerprints change when a modeled input or motor changes", () 
   });
   assert.notEqual(baseline, windChanged);
   assert.notEqual(baseline, humidityChanged);
+  assert.notEqual(baseline, pressureChanged);
+  assert.notEqual(baseline, temperatureChanged);
   assert.notEqual(baseline, topologyChanged);
   assert.notEqual(baseline, motorChanged);
   assert.notEqual(baseline, cantChanged);

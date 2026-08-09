@@ -41,6 +41,9 @@ flight-readiness claims.
   water-vapor partial pressure, virtual temperature, density, sound speed, and
   Reynolds-number inputs across the browser preview, while condensation and
   humidity-dependent viscosity remain explicit limitations.
+- Added persisted pad-pressure and pad-temperature observations. The shared
+  surface-weather anchor now feeds the fast vertical trace, launch environment,
+  landing-dispersion scenarios, engineering report, and expert diagnostics.
 
 ## 0.1.0-preview — 2026-08-09
 

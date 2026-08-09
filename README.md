@@ -34,6 +34,8 @@ research, standards, and original code.
   landing-dispersion previews;
 - optional relative-humidity coupling with explicit water-vapor, virtual-
   temperature, density, sound-speed, and Reynolds-number diagnostics;
+- persisted pad-pressure and pad-temperature observations shared by the fast
+  vertical, launch-environment, landing, and report paths;
 - preliminary vertical flight, coupled 6DOF, staging, ignition delays,
   failure events, and bounded separated-body ballistic checks;
 - interactive vertical and staged trace inspectors with Mach, dynamic-pressure,

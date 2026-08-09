@@ -25,6 +25,9 @@ for flight-safety decisions.
   correction: water-vapor partial pressure changes virtual temperature, density,
   and speed of sound. Condensation, phase change, and humidity-dependent
   viscosity are not modeled.
+- Optional surface pressure and temperature observations use the same
+  launch-site anchor as the coupled environment provider, so the fast vertical
+  trace and the 6DOF preview do not silently use different pad weather states.
 - Thrust and wind profiles use piecewise-linear interpolation.
 - Delivered impulse is integrated by the trapezoidal rule. Until mass-flow data
   is introduced, propellant depletion is assumed proportional to delivered

@@ -9,6 +9,7 @@ import {
   makeConstantThrustCurve,
   simulateVerticalFlight,
   standardAtmosphere,
+  atmosphereFromSurfaceObservation,
   applyRelativeHumidityToAtmosphere,
   saturationVaporPressurePa,
   totalImpulse,
@@ -193,6 +194,40 @@ test("vertical flight propagates the optional humidity correction into its trace
   assert.ok(moist.warnings.some((warning) => warning.code === "HUMID_AIR_CORRECTION"));
   assert.ok(moist.assumptions.some((assumption) => assumption.includes("ideal-mixture")));
   assert.ok(moist.trace[0].densityKgM3 < dry.trace[0].densityKgM3);
+});
+
+test("vertical flight shares the surface pressure and temperature anchor", () => {
+  const observation = {
+    stationPressurePa: 98_700,
+    temperatureK: 301.15,
+    relativeHumidityFraction: 0.55,
+  };
+  const expected = atmosphereFromSurfaceObservation(120, 120, observation);
+  const result = simulateVerticalFlight({
+    vehicle: { dryMassKg: 0.5, propellantMassKg: 0.05, referenceAreaM2: 0.002, dragCoefficient: 0.8 },
+    motor: { thrustCurve: makeConstantThrustCurve(20, 1) },
+    environment: {
+      launchAltitudeM: 120,
+      surfaceObservation: observation,
+    },
+    integration: { timeStepS: 0.02, maxTimeS: 20 },
+  });
+  assert.ok(Math.abs(result.trace[0].densityKgM3 - expected.densityKgM3) < 1e-12);
+  assert.ok(result.warnings.some((warning) => warning.code === "SURFACE_WEATHER_ANCHOR"));
+  assert.ok(result.warnings.some((warning) => warning.code === "HUMID_AIR_CORRECTION"));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("surface pressure and temperature")));
+  assert.throws(
+    () => simulateVerticalFlight({
+      vehicle: { dryMassKg: 0.5, propellantMassKg: 0.05, referenceAreaM2: 0.002, dragCoefficient: 0.8 },
+      motor: { thrustCurve: makeConstantThrustCurve(20, 1) },
+      environment: {
+        surfaceObservation: { ...observation, relativeHumidityFraction: 0.2 },
+        relativeHumidityFraction: 0.8,
+      },
+      integration: { timeStepS: 0.02, maxTimeS: 1 },
+    }),
+    /must match/,
+  );
 });
 
 test("standard atmosphere reproduces the 11 km geopotential boundary", () => {
