@@ -18,13 +18,15 @@ Kestrel Lab now exposes a local topology editor for:
   a global selection fallback;
 - per-stage ignition delay, separation delay, and an explicit deterministic
   ignition-failure switch for the preview run.
+- bounded retained-body axial separation delta-v up to 30 m/s in the body-frame
+  +X (nose) direction; zero remains the conservative default.
 - per-motor failure selection for repeated radial instances, entered as a
   one-based comma-separated list and stored as validated zero-based indices.
 - bounded per-stage motor cant up to 15 degrees, with an azimuth that rotates
   with repeated radial instances so outward/inward thrust alignment remains
   inspectable.
 
-The editor produces a validated `LocalVehicleTopology` document with schema `dev.kestrel-lab.local-vehicle-topology`, version 1. It is stored under `kestrel.project.arc54.vehicle-topology.v1` and is bounded to eight stages. IDs, optional motor and aerodynamic-table assignments, stage order, parent references, attachment type, roles, repeat count, radius, bounded cant angles, and per-motor failure indices are checked before persistence. Motor, aerodynamic-table, cant, and failure assignments are migration-by-default: older v1 records without either optional field continue to use the global selection, axial thrust, and an all-motors-available default.
+The editor produces a validated `LocalVehicleTopology` document with schema `dev.kestrel-lab.local-vehicle-topology`, version 1. It is stored under `kestrel.project.arc54.vehicle-topology.v1` and is bounded to eight stages. IDs, optional motor and aerodynamic-table assignments, stage order, parent references, attachment type, roles, repeat count, radius, bounded cant angles, separation delta-v, and per-motor failure indices are checked before persistence. Motor, aerodynamic-table, cant, failure, and separation-delta-v assignments are migration-by-default: older v1 records without an optional field continue to use the global selection, axial thrust, all-motors-available, or zero-delta-v default.
 
 ## Assembly mapping
 
@@ -42,6 +44,12 @@ clock. The preview emits a warning so a cluster imbalance is never hidden in
 the aggregate thrust number.
 The preview still retains one vehicle body and does not silently model discarded
 stage trajectories or separation clearance.
+
+When configured, separation delta-v is applied instantaneously to the retained
+body in its current body-frame +X direction and is included in the staged event
+label. This is a bounded analytical input rather than a measured pyrotechnic
+impulse; the discarded body does not receive a coupled equal-and-opposite change
+in the retained-body solver.
 
 When a staged run is requested, the assigned motor's thrust curve and mass
 properties feed that stage's independent propulsion model. A missing local

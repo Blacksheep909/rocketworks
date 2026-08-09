@@ -186,14 +186,14 @@ export function simulateSeparatedBodyFlight(
     maxSpeedMps,
     impactTimeS: simulation.termination?.timeS ?? null,
     warnings: [
-      "This separated-body branch is ballistic and applies gravity only; drag, plume interaction, aerodynamic interference, recovery, collision, and separation impulse are not modeled.",
+      "This separated-body branch is ballistic and applies gravity only; drag, plume interaction, aerodynamic interference, recovery, collision, and equal-and-opposite separation impulse are not modeled.",
       "The result is an analytical component check, not a clearance, range-safety, or flight-safety assessment.",
       ...simulation.warnings,
     ],
     assumptions: [
       "The released stage inherits the parent orientation and angular velocity at separation.",
       "The released stage position is offset to its own center of mass and its velocity includes the parent rigid-body angular-rate contribution.",
-      "No separation impulse or spring/pyrotechnic mechanism is supplied.",
+      "The parent preview may apply a configured retained-body delta-v; this branch does not solve the equal-and-opposite discarded-body impulse or a coupled separation mechanism.",
       "Gravity uses the supplied launch-environment altitude when available, otherwise launch altitude plus local AGL position.",
       "A terminal ground-impact crossing is root-found only for the discarded body's ballistic path.",
       ...simulation.assumptions,

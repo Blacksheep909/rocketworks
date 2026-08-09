@@ -21,6 +21,8 @@ export type VehicleStagePlan = Readonly<{
   thrustCantAzimuthDeg: number;
   ignitionDelayS: number;
   separationDelayS: number;
+  /** Retained-body axial separation delta-v in m/s (+X nose direction). */
+  separationDeltaVBodyMps?: number;
   ignitionFailure: boolean;
   /** Zero-based radial motor instance indices that are configured not to ignite. */
   failedMotorInstanceIndices: readonly number[];
@@ -113,6 +115,10 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
   if (typeof separationDelayS !== "number" || !Number.isFinite(separationDelayS) || separationDelayS < 0 || separationDelayS > 120) {
     throw new Error(`Stage ${id} separationDelayS must be a finite value from 0 through 120 s.`);
   }
+  const separationDeltaVBodyMps = stage.separationDeltaVBodyMps ?? 0;
+  if (typeof separationDeltaVBodyMps !== "number" || !Number.isFinite(separationDeltaVBodyMps) || separationDeltaVBodyMps < 0 || separationDeltaVBodyMps > 30) {
+    throw new Error(`Stage ${id} separationDeltaVBodyMps must be a finite value from 0 through 30 m/s.`);
+  }
   const ignitionFailure = stage.ignitionFailure ?? false;
   if (typeof ignitionFailure !== "boolean") throw new Error(`Stage ${id} ignitionFailure must be boolean.`);
   const failedMotorInstanceIndices = stage.failedMotorInstanceIndices ?? [];
@@ -148,6 +154,7 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     thrustCantAzimuthDeg,
     ignitionDelayS,
     separationDelayS,
+    separationDeltaVBodyMps,
     ignitionFailure,
     failedMotorInstanceIndices: [...failedMotorSet].sort((left, right) => left - right),
   };
@@ -191,6 +198,7 @@ export function createDefaultVehicleTopology(): LocalVehicleTopology {
       thrustCantAzimuthDeg: 0,
       ignitionDelayS: 0,
       separationDelayS: 0.1,
+      separationDeltaVBodyMps: 0,
       ignitionFailure: false,
       failedMotorInstanceIndices: [],
     }],
@@ -223,6 +231,7 @@ export function createStagePlan(input: Readonly<{
   thrustCantAzimuthDeg?: number;
   ignitionDelayS?: number;
   separationDelayS?: number;
+  separationDeltaVBodyMps?: number;
   ignitionFailure?: boolean;
   failedMotorInstanceIndices?: readonly number[];
 }>): VehicleStagePlan {
@@ -235,6 +244,7 @@ export function createStagePlan(input: Readonly<{
     thrustCantAzimuthDeg: input.thrustCantAzimuthDeg ?? 0,
     ignitionDelayS: input.ignitionDelayS ?? 0,
     separationDelayS: input.separationDelayS ?? 0.1,
+    separationDeltaVBodyMps: input.separationDeltaVBodyMps ?? 0,
     ignitionFailure: input.ignitionFailure ?? false,
     failedMotorInstanceIndices: input.failedMotorInstanceIndices ?? [],
   }, 0);

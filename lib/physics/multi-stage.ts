@@ -18,14 +18,15 @@ import {
   shiftInertia,
   type MassProperties,
 } from "./mass-properties.ts";
-import type {
-  RigidBodyLoads,
-  RigidBodyState,
-  ScheduledRigidBodyEvent,
-  StateTriggeredRigidBodyEvent,
+import {
+  rotateBodyToWorld,
+  type RigidBodyLoads,
+  type RigidBodyState,
+  type ScheduledRigidBodyEvent,
+  type StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
 
-export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.2.1";
+export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.2.2";
 
 export type MultiStageMotor = Readonly<{
   id: string;
@@ -45,6 +46,8 @@ export type RocketStage = Readonly<{
   name: string;
   structuralMassProperties: MassProperties;
   motors: readonly MultiStageMotor[];
+  /** Retained-body axial separation delta-v in the body frame (+X nose direction). */
+  separationDeltaVBodyMps?: number;
 }>;
 
 export type StagePhase =
@@ -120,6 +123,7 @@ export type MultiStageVehicleModel = Readonly<{
     stageId: string;
     delayS?: number;
     label?: string;
+    separationDeltaVBodyMps?: number;
   }>) => StateTriggeredRigidBodyEvent;
   createBurnoutIgnitionEvent: (input: Readonly<{
     sourceStageId: string;
@@ -264,9 +268,18 @@ export function igniteStage(
 export function separateStage(
   state: RigidBodyState,
   stageId: string,
+  separationDeltaVBodyMps: Vector3 = ZERO_VECTOR,
 ): RigidBodyState {
+  if (!finiteVector(separationDeltaVBodyMps)) {
+    throw new Error("stage separation delta-v must be finite");
+  }
+  const deltaVelocityWorldMps = rotateBodyToWorld(
+    state.orientationBodyToWorld,
+    separationDeltaVBodyMps,
+  );
   return {
     ...state,
+    velocityWorldMps: addVectors(state.velocityWorldMps, deltaVelocityWorldMps),
     discreteState: {
       ...(state.discreteState ?? {}),
       [stageSeparationKey(stageId)]: true,
@@ -316,13 +329,20 @@ export function createScheduledStageSeparationEvent(input: Readonly<{
   stageId: string;
   timeS: number;
   label?: string;
+  separationDeltaVBodyMps?: Vector3;
 }>): ScheduledRigidBodyEvent {
   validateIdentifier(input.stageId, "stage");
+  if (input.separationDeltaVBodyMps && !finiteVector(input.separationDeltaVBodyMps)) {
+    throw new Error("stage separation delta-v must be finite");
+  }
+  const separationLabel = input.separationDeltaVBodyMps
+    ? ` (body dV ${input.separationDeltaVBodyMps.x.toFixed(2)},${input.separationDeltaVBodyMps.y.toFixed(2)},${input.separationDeltaVBodyMps.z.toFixed(2)} m/s)`
+    : "";
   return {
     id: `staging-${input.stageId}-separation`,
-    label: input.label ?? `${input.stageId} stage separation`,
+    label: input.label ?? `${input.stageId} stage separation${separationLabel}`,
     timeS: input.timeS,
-    apply: (state) => separateStage(state, input.stageId),
+    apply: (state) => separateStage(state, input.stageId, input.separationDeltaVBodyMps),
   };
 }
 
@@ -380,6 +400,8 @@ export function createMultiStageVehicleModel(input: Readonly<{
     validateIdentifier(stage.id, "stage");
     if (!stage.name.trim()) throw new Error("stages must have names");
     validateMassProperties(stage.structuralMassProperties, `stage ${stage.id} structure`);
+    const separationDeltaVBodyMps = stage.separationDeltaVBodyMps ?? 0;
+    assertNonNegative(separationDeltaVBodyMps, `stage ${stage.id} separation delta-v`);
     if (stage.motors.length === 0) {
       throw new Error(`stage ${stage.id} requires at least one motor`);
     }
@@ -423,6 +445,7 @@ export function createMultiStageVehicleModel(input: Readonly<{
     }
     return {
       ...stage,
+      separationDeltaVBodyMps,
       motors,
       burnoutOffsetS: Math.max(
         0,
@@ -665,17 +688,23 @@ export function createMultiStageVehicleModel(input: Readonly<{
     stageId: string;
     delayS?: number;
     label?: string;
+    separationDeltaVBodyMps?: number;
   }>): StateTriggeredRigidBodyEvent => {
     const stage = requireStage(eventInput.stageId);
     const delayS = eventInput.delayS ?? 0;
     assertNonNegative(delayS, "stage separation delay");
+    const separationDeltaVBodyMps = eventInput.separationDeltaVBodyMps ?? stage.separationDeltaVBodyMps ?? 0;
+    assertNonNegative(separationDeltaVBodyMps, "stage separation delta-v");
+    const separationLabel = separationDeltaVBodyMps > 0
+      ? ` (+${separationDeltaVBodyMps.toFixed(2)} m/s body +X)`
+      : "";
     return {
       id: `staging-${stage.id}-burnout-separation`,
-      label: eventInput.label ?? `${stage.name} separation after burnout`,
+      label: eventInput.label ?? `${stage.name} separation after burnout${separationLabel}`,
       direction: "rising",
       value: (state) =>
         burnoutEventValue(state, stage.id, stage.burnoutOffsetS, delayS, false),
-      apply: (state) => separateStage(state, stage.id),
+      apply: (state) => separateStage(state, stage.id, { x: separationDeltaVBodyMps, y: 0, z: 0 }),
     };
   };
 
@@ -762,11 +791,11 @@ export function createMultiStageVehicleModel(input: Readonly<{
       "Stage ignition commands establish motor-local time; each motor may add a deterministic delay",
       "Propellant consumption is proportional to delivered impulse",
       "Separated stages, their motors, and remaining propellant leave the tracked vehicle immediately",
-      "Separation without a supplied external impulse preserves the retained vehicle translational and angular velocity",
+      "A configured separation delta-v is applied instantaneously to the retained body in its body-frame +X direction; a zero value preserves translational and angular velocity",
     ],
     warnings: [
       "This staging model has analytical component checks only and is not flight-safety validated.",
-      "Pyrotechnic impulse, spring forces, joint constraints, plume impingement, collision risk, and coupled discarded-stage trajectories are not modeled; the browser adapter may expose a separate ballistic component check.",
+      "Pyrotechnic mechanism, spring forces, joint constraints, plume impingement, collision risk, equal-and-opposite discarded-stage impulse, and coupled discarded-stage trajectories are not modeled; the browser adapter may expose a separate ballistic component check.",
       "Stage separation is an instantaneous topology change; use a dedicated multi-body model for separation-clearance analysis.",
       "Impulse-proportional depletion is approximate unless thrust tracks propellant mass flow at effectively constant exhaust velocity.",
     ],

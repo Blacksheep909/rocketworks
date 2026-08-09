@@ -23,7 +23,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.4.2`.
+`kestrel-stage-flight-preview-0.4.3`.
 
 ## Event and state policy
 
@@ -127,6 +127,9 @@ flight-safety prediction.
 - The retained-body staging model remains a single tracked vehicle; the new
   separated-body branch is an independent gravity-only preview, not a coupled
   multi-body solver.
+- A configured separation delta-v is applied to the retained body in body-frame
+  +X. The discarded-body branch does not yet solve the equal-and-opposite
+  momentum exchange or a coupled separation mechanism.
 - Stage-separation proximity aerodynamics remain explicitly unsupported during
   the configured transition window.
 - The supplied aerodynamic regime table must contain an exact regime for every

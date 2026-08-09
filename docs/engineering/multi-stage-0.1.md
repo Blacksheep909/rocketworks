@@ -118,6 +118,7 @@ The regression suite verifies:
   and active-motor burnout timing
 - prevention of false burnout transitions after ignition failure
 - exact scheduled ignition, failure, and separation changes
+- retained-body separation delta-v in the current body attitude
 - inertia-tensor rate against centered finite differences
 - end-to-end stage switching in the coupled 6-DOF kernel
 - propulsion-adapter force, moment, and live-CG consistency
@@ -136,7 +137,9 @@ flight performance.
   pressure buildup, and thrust uncertainty are not included.
 - Separation is instantaneous and removes the source stage from the retained
   tracked body. The optional separated-body preview is ballistic only and is
-  not suitable for clearance, range-safety, or flight-safety decisions.
+  not suitable for clearance, range-safety, or flight-safety decisions. A
+  bounded body-frame +X delta-v may be applied to the retained body, but the
+  discarded body does not receive a coupled equal-and-opposite impulse.
 - Pyrotechnic and spring impulses, joint forces, tip-off, flexure, plume
   impingement, wake interaction, collision, and recontact are absent.
 - Stage-aware aerodynamics 0.1 now reconfigures retained-body geometry, CP,
@@ -189,8 +192,9 @@ preview input.
 
 ## Next work
 
-Add optional measured mass-flow histories, explicit separation impulses, and a
-coupled multi-body branch that resolves discarded stages. Monte Carlo event uncertainty
+Add optional measured mass-flow histories, measured separation impulses, and a
+coupled multi-body branch that resolves discarded stages and momentum exchange.
+Monte Carlo event uncertainty
 should then vary
 ignition delay, failure, separation impulse, thrust, mass, and alignment while
 preserving deterministic reproducibility from a recorded random seed.

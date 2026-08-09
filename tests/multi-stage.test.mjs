@@ -169,6 +169,22 @@ test("burnout sequencing honors deterministic coast delays", () => {
   close(result.events[1].timeS, 2.4, 2e-9, "delayed ignition");
 });
 
+test("separation delta-v is applied in the retained body's current attitude", () => {
+  const direct = separateStage(state(), "booster", { x: 2.5, y: 0, z: 0 });
+  assert.deepEqual(direct.velocityWorldMps, { x: 2.5, y: 0, z: 0 });
+
+  const staging = model([{ separationDeltaVBodyMps: 3.2 }]);
+  const result = simulateRigidBody6D({
+    body: staging.body,
+    initialState: initializeMultiStageState(state(), ["booster"]),
+    durationS: 3,
+    timeStepS: 0.6,
+    stateEvents: [staging.createBurnoutSeparationEvent({ stageId: "booster" })],
+  });
+  assert.equal(result.events.length, 1);
+  close(result.events[0].stateAfter.velocityWorldMps.x, 3.2, 2e-9, "configured separation delta-v");
+});
+
 test("multiple motors support delayed ignition and off-axis moments", () => {
   const clusteredStage = stage("cluster", 1);
   clusteredStage.motors = [
@@ -386,5 +402,12 @@ test("invalid stage configurations and state transitions fail explicitly", () =>
   assert.throws(
     () => model().createBurnoutSeparationEvent({ stageId: "missing" }),
     /unknown stage/,
+  );
+  assert.throws(
+    () => createMultiStageVehicleModel({
+      retainedMassProperties: properties(1, 0),
+      stages: [{ ...stage("invalid-dv", 0, 1, {}), separationDeltaVBodyMps: -1 }],
+    }),
+    /separation delta-v/,
   );
 });

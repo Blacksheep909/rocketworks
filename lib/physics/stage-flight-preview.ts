@@ -29,7 +29,7 @@ import {
 } from "./separated-body-flight.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.4.2";
+  "kestrel-stage-flight-preview-0.4.3";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -599,7 +599,7 @@ export function simulateStageFlightPreview(
     ...(primaryRun.rail?.freeFlight?.assumptions ?? []),
     ...convergence.assumptions,
     "Explicit separation events spawn a separate ballistic gravity-only preview for each newly detached stage; separated bodies are represented independently.",
-    "Separated-body previews do not model drag, plume interaction, aerodynamic interference, recovery, collision, clearance, or separation impulse.",
+    "Separated-body previews do not model drag, plume interaction, aerodynamic interference, recovery, collision, clearance, or the equal-and-opposite discarded-body separation impulse.",
     "The returned trajectory is a deterministic engineering preview and is not a flight-safety assessment.",
   ];
   return {

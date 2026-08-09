@@ -31,6 +31,11 @@ flight-readiness claims.
 - Expanded the display-only 3D scene from a single vehicle into the saved
   enabled serial and radial topology instances, including scale, offset, and
   repeated-stage rotation.
+- Added bounded body-frame +X separation delta-v controls to topology stages;
+  the retained-body 6DOF event applies the configured delta-v and records it in
+  the timeline while preserving the explicit non-coupled discarded-body limit.
+- Bumped the multi-stage and stage-flight composition model versions to expose
+  the new event semantics in exported provenance.
 
 ## 0.1.0-preview — 2026-08-09
 

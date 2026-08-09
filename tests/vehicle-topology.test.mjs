@@ -18,6 +18,7 @@ test("default topology is a strict versioned single-core plan", () => {
   assert.equal(topology.stages[0].role, "core");
   assert.equal(topology.stages[0].ignitionDelayS, 0);
   assert.equal(topology.stages[0].separationDelayS, 0.1);
+  assert.equal(topology.stages[0].separationDeltaVBodyMps, 0);
   assert.equal(topology.stages[0].ignitionFailure, false);
   assert.deepEqual(topology.stages[0].failedMotorInstanceIndices, []);
   assert.equal(topology.stages[0].thrustCantAngleDeg, 0);
@@ -42,6 +43,11 @@ test("serial upper stages and repeated parallel boosters validate in order", () 
   assert.equal(validated.stages[1].aerodynamicTableId, "user.aero-01");
   assert.equal(validated.stages[2].thrustCantAngleDeg, 4.5);
   assert.equal(validated.stages[2].thrustCantAzimuthDeg, 90);
+  const deltaVTopology = validateVehicleTopology({
+    ...topology,
+    stages: topology.stages.map((stage) => stage.id === "upper-01" ? { ...stage, separationDeltaVBodyMps: 2.5 } : stage),
+  });
+  assert.equal(deltaVTopology.stages[1].separationDeltaVBodyMps, 2.5);
   assert.deepEqual(validated.stages[2].failedMotorInstanceIndices, [0, 2]);
 });
 
@@ -52,6 +58,7 @@ test("topology rejects unsafe structure edits explicitly", () => {
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], id: "bad id" }] }), /may contain only/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], ignitionDelayS: -1 }] }), /ignitionDelayS/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], separationDelayS: 121 }] }), /separationDelayS/);
+  assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], separationDeltaVBodyMps: 31 }] }), /separationDeltaVBodyMps/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], thrustCantAngleDeg: 16 }] }), /thrustCantAngleDeg/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], thrustCantAzimuthDeg: 181 }] }), /thrustCantAzimuthDeg/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], ignitionFailure: "yes" }] }), /ignitionFailure/);

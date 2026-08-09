@@ -872,6 +872,7 @@ function createStageFlightPreviewInputs({
       name: stage.name,
       structuralMassProperties,
       motors,
+      separationDeltaVBodyMps: stage.separationDeltaVBodyMps ?? 0,
     };
   });
   if (stages.length === 0) throw new Error("Enable at least one propulsive stage before running a stage preview.");
@@ -949,10 +950,18 @@ function createStageFlightPreviewInputs({
   for (const stage of stages.slice(1)) {
     const plan = stageById.get(stage.id);
     if (plan?.attachment === "parallel" || plan?.role === "booster") {
-      stateEvents.push(staging.createBurnoutSeparationEvent({ stageId: stage.id, delayS: plan?.separationDelayS ?? 0.1 }));
+      stateEvents.push(staging.createBurnoutSeparationEvent({
+        stageId: stage.id,
+        delayS: plan?.separationDelayS ?? 0.1,
+        separationDeltaVBodyMps: plan?.separationDeltaVBodyMps ?? 0,
+      }));
       continue;
     }
-    stateEvents.push(staging.createBurnoutSeparationEvent({ stageId: stage.id, delayS: plan?.separationDelayS ?? 0.1 }));
+    stateEvents.push(staging.createBurnoutSeparationEvent({
+      stageId: stage.id,
+      delayS: plan?.separationDelayS ?? 0.1,
+      separationDeltaVBodyMps: plan?.separationDeltaVBodyMps ?? 0,
+    }));
     stateEvents.push(staging.createBurnoutIgnitionEvent({
       sourceStageId: serialSourceId,
       targetStageId: stage.id,
@@ -964,7 +973,11 @@ function createStageFlightPreviewInputs({
     const plan = stageById.get(stage.id);
     if (plan?.role === "booster" || plan?.attachment === "parallel") {
       if (!stateEvents.some((event) => event.id === `staging-${stage.id}-burnout-separation`)) {
-        stateEvents.push(staging.createBurnoutSeparationEvent({ stageId: stage.id, delayS: plan?.separationDelayS ?? 0.1 }));
+        stateEvents.push(staging.createBurnoutSeparationEvent({
+          stageId: stage.id,
+          delayS: plan?.separationDelayS ?? 0.1,
+          separationDeltaVBodyMps: plan?.separationDeltaVBodyMps ?? 0,
+        }));
       }
     }
   }
@@ -4622,10 +4635,11 @@ export default function Home() {
                     <div className="topology-stage-events">
                       <label>Ignition delay (s)<input type="number" min="0" max="120" step="0.01" value={stage.ignitionDelayS} onChange={(event) => updateTopologyStage(stage.id, { ignitionDelayS: Number(event.target.value) })} /></label>
                       <label>Separation delay (s)<input type="number" min="0" max="120" step="0.01" value={stage.separationDelayS} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { separationDelayS: Number(event.target.value) })} /></label>
+                      <label>Separation dV (+X, m/s)<input type="number" min="0" max="30" step="0.01" value={stage.separationDeltaVBodyMps ?? 0} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { separationDeltaVBodyMps: Number(event.target.value) })} /></label>
                       <label>Failed motors (1-based)<input type="text" inputMode="text" placeholder={stageMotorInstanceCount(stage) > 1 ? "e.g. 1, 3" : "none"} value={topologyFailureDrafts[stage.id] ?? stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")} disabled={stage.role === "payload"} onChange={(event) => { setTopologyFailureDrafts((current) => ({ ...current, [stage.id]: event.target.value })); setTopologyError(""); }} onBlur={() => { const value = topologyFailureDrafts[stage.id]; if (value === undefined) return; if (updateTopologyMotorFailures(stage, value)) { setTopologyFailureDrafts((current) => { const next = { ...current }; delete next[stage.id]; return next; }); } }} /></label>
                       <label className="topology-failure-toggle"><input type="checkbox" checked={stage.ignitionFailure} onChange={(event) => updateTopologyStage(stage.id, { ignitionFailure: event.target.checked })} /> Force ignition failure in preview</label>
                     </div>
-                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{stage.failedMotorInstanceIndices.length > 0 ? ` · failed motor${stage.failedMotorInstanceIndices.length > 1 ? "s" : ""} ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}` : ""}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>
+                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{(stage.separationDeltaVBodyMps ?? 0) > 0 ? ` · separation +${(stage.separationDeltaVBodyMps ?? 0).toFixed(2)} m/s` : ""}{stage.failedMotorInstanceIndices.length > 0 ? ` · failed motor${stage.failedMotorInstanceIndices.length > 1 ? "s" : ""} ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}` : ""}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>
                   </div>
                 </article>
               ))}
