@@ -449,6 +449,8 @@ kbd {
 }
 .flight-heading { margin-bottom: 22px; }
 .flight-heading h2 { margin-top: 6px; font-size: 24px; letter-spacing: -.04em; }
+.flight-heading-badges { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.model-badge-source { border-color: rgba(112,199,167,.32); background: rgba(112,199,167,.08); color: #8de1bd; }
 .stage-flight-card {
   margin-bottom: 12px; padding: 16px; border: 1px solid rgba(47,159,255,.28); border-radius: 5px;
   background:

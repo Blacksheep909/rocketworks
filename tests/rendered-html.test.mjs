@@ -157,6 +157,8 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   );
   assert.match(source, /analyzeVerticalFlightUncertainty/);
   assert.match(source, /Dispersion envelope/);
+  assert.match(source, /aerodynamicCoefficientBasis/);
+  assert.match(source, /CD TABLE/);
   assert.match(source, /arc54-preview-v1/);
   assert.match(source, /convergence/);
   assert.match(source, /formatConvergenceStatus/);

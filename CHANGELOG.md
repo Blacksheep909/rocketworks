@@ -13,6 +13,8 @@ flight-readiness claims.
   propulsion model.
 - Added a ranked apogee-sensitivity view to the dispersion card with signed
   Spearman bars and paired-sample counts.
+- Added a visible flight-heading badge showing whether the nominal drag basis
+  is the selected Mach--Reynolds table or the explicit constant-Cd fallback.
 
 ## 0.1.0-preview — 2026-08-09
 

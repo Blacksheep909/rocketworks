@@ -3465,7 +3465,12 @@ export default function Home() {
           <div className="flight-view">
             <div className="flight-heading">
               <div><span className="eyebrow">Preliminary estimate</span><h2>Vertical flight profile</h2></div>
-              <span className="model-badge">{result.modelVersion}</span>
+              <div className="flight-heading-badges">
+                <span className="model-badge">{result.modelVersion}</span>
+                <span className="model-badge model-badge-source" title={result.aerodynamicModelVersion ?? "Explicit constant drag coefficient"}>
+                  {result.aerodynamicCoefficientBasis === "mach-reynolds-table" ? "CD TABLE" : "CD CONSTANT"}
+                </span>
+              </div>
             </div>
             {!resultIsCurrent && (
               <div className="stale-result-banner" role="status">
