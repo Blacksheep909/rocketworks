@@ -14,9 +14,9 @@ research, standards, and original code.
 
 ## Current release surface
 
-- component-aware 2D geometry and an interactive 3D vehicle view with clickable
-  surface/stage selection, grouped stage visibility, plus enabled serial and
-  radial stage previews;
+- component-aware 2D geometry and an interactive 3D vehicle view driven by
+  expanded assembly components, with clickable surface/stage/component
+  selection, grouped stage visibility, plus enabled serial and radial previews;
 - mass, centre-of-gravity, inertia, static stability, and centre-of-pressure
   calculations with model versions and assumptions;
 - serial, parallel, radial, clustered, and multi-stage vehicle topology;

@@ -17,6 +17,7 @@ import {
   type ProjectedRocketTriangle,
   type RocketPreviewNoseProfile,
   type RocketPreviewSurface,
+  type RocketPreviewComponentInstance,
   type RocketPreviewStageInstance,
 } from "../lib/visualization/rocket-preview-3d.ts";
 
@@ -53,8 +54,10 @@ export function Rocket3DViewport({
   centerOfMassXM,
   centerOfPressureXM,
   stageInstances,
+  componentInstances,
   highlightSurface = null,
   onSurfaceSelect,
+  onComponentSelect,
   onStageSelect,
 }: Readonly<{
   noseLengthM: number;
@@ -70,8 +73,10 @@ export function Rocket3DViewport({
   centerOfMassXM: number;
   centerOfPressureXM: number;
   stageInstances?: readonly RocketPreviewStageInstance[];
+  componentInstances?: readonly RocketPreviewComponentInstance[];
   highlightSurface?: RocketPreviewSurface | null;
   onSurfaceSelect?: (surface: RocketPreviewSurface) => void;
+  onComponentSelect?: (componentId: string) => void;
   onStageSelect?: (stageId: string) => void;
 }>) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -87,30 +92,42 @@ export function Rocket3DViewport({
   const [zoom, setZoom] = useState(0.86);
   const [hiddenStageIds, setHiddenStageIds] = useState<readonly string[]>([]);
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
+  const controlInstances = componentInstances ?? stageInstances;
   const stageGroups = useMemo(() => {
-    if (!stageInstances) return [];
-    const groups = new Map<string, { id: string; label: string; count: number }>();
-    for (const instance of stageInstances) {
+    if (!controlInstances) return [];
+    const groups = new Map<string, { id: string; label: string; instanceKeys: Set<string> }>();
+    for (const instance of controlInstances) {
       const id = instance.stageId ?? instance.id;
+      const instanceIndex = "stageInstanceIndex" in instance
+        ? instance.stageInstanceIndex
+        : instance.instanceIndex ?? instance.id;
       const existing = groups.get(id);
       if (existing) {
-        existing.count += 1;
+        existing.instanceKeys.add(String(instanceIndex));
       } else {
         groups.set(id, {
           id,
           label: instance.stageLabel ?? id,
-          count: 1,
+          instanceKeys: new Set([String(instanceIndex)]),
         });
       }
     }
-    return [...groups.values()];
-  }, [stageInstances]);
+    return [...groups.values()].map(({ instanceKeys, ...group }) => ({
+      ...group,
+      count: instanceKeys.size,
+    }));
+  }, [controlInstances]);
   const hiddenStageIdSet = useMemo(() => new Set(hiddenStageIds), [hiddenStageIds]);
   const visibleStageInstances = useMemo(() => {
     if (!stageInstances) return undefined;
     const visible = stageInstances.filter((instance) => !hiddenStageIdSet.has(instance.stageId ?? instance.id));
     return visible.length > 0 ? visible : stageInstances.slice(0, 1);
   }, [hiddenStageIdSet, stageInstances]);
+  const visibleComponentInstances = useMemo(() => {
+    if (!componentInstances) return undefined;
+    const visible = componentInstances.filter((instance) => !hiddenStageIdSet.has(instance.stageId));
+    return visible.length > 0 ? visible : componentInstances.slice(0, 1);
+  }, [componentInstances, hiddenStageIdSet]);
   const mesh = useMemo(
     () =>
       createRocketPreviewMesh({
@@ -124,9 +141,11 @@ export function Rocket3DViewport({
         finSweepM,
         finSpanM,
         finThicknessM,
-        stageInstances: visibleStageInstances,
+        ...(visibleComponentInstances
+          ? { componentInstances: visibleComponentInstances }
+          : { stageInstances: visibleStageInstances }),
       }),
-    [bodyDiameterM, bodyLengthM, finCount, finRootChordM, finSpanM, finSweepM, finThicknessM, finTipChordM, noseLengthM, noseProfile, visibleStageInstances],
+    [bodyDiameterM, bodyLengthM, finCount, finRootChordM, finSpanM, finSweepM, finThicknessM, finTipChordM, noseLengthM, noseProfile, visibleComponentInstances, visibleStageInstances],
   );
 
   const draw = useCallback(() => {
@@ -273,7 +292,7 @@ export function Rocket3DViewport({
     const pointer = pointerRef.current;
     if (pointer?.pointerId === event.pointerId) {
       pointerRef.current = null;
-      if (!pointer.moved && (onSurfaceSelect || onStageSelect)) {
+      if (!pointer.moved && (onSurfaceSelect || onComponentSelect || onStageSelect)) {
         const bounds = event.currentTarget.getBoundingClientRect();
         const part = pickProjectedRocketPart(projectedRef.current, {
           x: event.clientX - bounds.left,
@@ -283,7 +302,11 @@ export function Rocket3DViewport({
           setSelectedStageId(part.stageId);
           onStageSelect?.(part.stageId);
         }
-        if (part) onSurfaceSelect?.(part.surface);
+        if (part?.componentId && onComponentSelect) {
+          onComponentSelect?.(part.componentId);
+        } else if (part) {
+          onSurfaceSelect?.(part.surface);
+        }
       }
     }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -329,6 +352,7 @@ export function Rocket3DViewport({
   };
 
   const visibleStageCount = stageGroups.filter((group) => !hiddenStageIdSet.has(group.id)).length;
+  const renderedInstanceCount = controlInstances?.length ?? 1;
 
   return (
     <div className="rocket-3d-viewport">
@@ -336,7 +360,7 @@ export function Rocket3DViewport({
         ref={canvasRef}
         tabIndex={0}
         role="img"
-        aria-label={`Interactive three-dimensional ARC 54 preview with ${stageInstances?.length ?? 1} rendered stage instances and ${visibleStageCount} visible stages, a ${noseProfile} nose and ${finCount} fins. Click a rendered surface to select its inspector component and stage. Drag or use arrow keys to orbit, and use the mouse wheel or plus and minus keys to zoom.`}
+        aria-label={`Interactive three-dimensional ARC 54 preview with ${renderedInstanceCount} rendered component instances and ${visibleStageCount} visible stages, a ${noseProfile} nose and ${finCount} fins. Click a rendered surface to select its inspector component and stage. Drag or use arrow keys to orbit, and use the mouse wheel or plus and minus keys to zoom.`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

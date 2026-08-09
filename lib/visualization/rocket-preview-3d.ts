@@ -1,5 +1,15 @@
+import {
+  IDENTITY_MATRIX,
+  addVectors,
+  multiplyMatrices,
+  multiplyMatrixVector,
+  rotationAboutX,
+  type Matrix3,
+} from "../physics/linear-algebra.ts";
+import type { VehicleComponent } from "../physics/vehicle-components.ts";
+
 export const ROCKET_PREVIEW_3D_MODEL_VERSION =
-  "kestrel-rocket-preview-3d-0.4.0";
+  "kestrel-rocket-preview-3d-0.5.0";
 export const ROCKET_PREVIEW_3D_MODEL_STATUS = "display-only-unvalidated";
 
 export type PreviewVector3 = Readonly<{ x: number; y: number; z: number }>;
@@ -23,6 +33,23 @@ export type RocketPreviewStageInstance = Readonly<{
   includeNozzle?: boolean;
 }>;
 
+export type RocketPreviewTransform = Readonly<{
+  translationM: PreviewVector3;
+  rotation: Matrix3;
+}>;
+
+export type RocketPreviewComponentInstance = Readonly<{
+  id: string;
+  sourceComponentId: string;
+  label: string;
+  stageId: string;
+  stageLabel?: string;
+  stageRole?: RocketPreviewStageRole;
+  stageInstanceIndex: number;
+  component: VehicleComponent;
+  transform: RocketPreviewTransform;
+}>;
+
 export type RocketPreviewMeshInput = Readonly<{
   noseLengthM: number;
   noseProfile?: RocketPreviewNoseProfile;
@@ -36,6 +63,7 @@ export type RocketPreviewMeshInput = Readonly<{
   finThicknessM: number;
   radialSegments?: number;
   stageInstances?: readonly RocketPreviewStageInstance[];
+  componentInstances?: readonly RocketPreviewComponentInstance[];
 }>;
 
 export type RocketPreviewTriangle = Readonly<{
@@ -45,6 +73,7 @@ export type RocketPreviewTriangle = Readonly<{
   surface: RocketPreviewSurface;
   stageId?: string;
   stageInstanceId?: string;
+  componentId?: string;
 }>;
 
 export type RocketPreviewMesh = Readonly<{
@@ -67,6 +96,7 @@ export type ProjectedRocketTriangle = Readonly<{
   surface: RocketPreviewSurface;
   stageId?: string;
   stageInstanceId?: string;
+  componentId?: string;
   depth: number;
   lightIntensity: number;
   facingCamera: boolean;
@@ -86,6 +116,7 @@ export type RocketPreviewPart = Readonly<{
   surface: RocketPreviewSurface;
   stageId?: string;
   stageInstanceId?: string;
+  componentId?: string;
 }>;
 
 export function pickProjectedRocketPart(
@@ -114,6 +145,7 @@ export function pickProjectedRocketPart(
         surface: triangle.surface,
         ...(triangle.stageId ? { stageId: triangle.stageId } : {}),
         ...(triangle.stageInstanceId ? { stageInstanceId: triangle.stageInstanceId } : {}),
+        ...(triangle.componentId ? { componentId: triangle.componentId } : {}),
       };
     }
   }
@@ -366,6 +398,378 @@ function createSingleRocketPreviewMesh(input: RocketPreviewMeshInput): RocketPre
   };
 }
 
+function transformedComponentPoint(
+  point: PreviewVector3,
+  transform: RocketPreviewTransform,
+): PreviewVector3 {
+  const rotated = multiplyMatrixVector(transform.rotation, point);
+  return addVectors(rotated, transform.translationM);
+}
+
+function composePreviewTransform(
+  parent: RocketPreviewTransform,
+  child: RocketPreviewTransform,
+): RocketPreviewTransform {
+  return {
+    rotation: multiplyMatrices(parent.rotation, child.rotation),
+    translationM: addVectors(
+      parent.translationM,
+      multiplyMatrixVector(parent.rotation, child.translationM),
+    ),
+  };
+}
+
+function componentLocalTransform(component: VehicleComponent): RocketPreviewTransform {
+  if (component.kind === "axisymmetric") {
+    return {
+      rotation: component.rotation ?? IDENTITY_MATRIX,
+      translationM: component.positionM ?? { x: 0, y: 0, z: 0 },
+    };
+  }
+  if (component.kind === "finSet") {
+    return {
+      rotation: rotationAboutX(component.angularOffsetRad ?? 0),
+      translationM: { x: component.axialPositionM, y: 0, z: 0 },
+    };
+  }
+  return {
+    rotation: IDENTITY_MATRIX,
+    translationM: component.positionM,
+  };
+}
+
+function validatePreviewMatrix(rotation: Matrix3, label: string): void {
+  if (
+    !Array.isArray(rotation) ||
+    rotation.length !== 3 ||
+    rotation.some((row) => !Array.isArray(row) || row.length !== 3) ||
+    !rotation.flat().every(Number.isFinite)
+  ) {
+    throw new Error(`${label} rotation must contain a finite 3x3 matrix`);
+  }
+}
+
+function validateComponentInstance(
+  instance: RocketPreviewComponentInstance,
+  seenIds: Set<string>,
+): void {
+  for (const [label, value] of [
+    ["id", instance.id],
+    ["source component id", instance.sourceComponentId],
+    ["label", instance.label],
+    ["stage id", instance.stageId],
+  ] as const) {
+    if (typeof value !== "string" || !value.trim()) {
+      throw new Error(`preview component ${label} cannot be empty`);
+    }
+  }
+  if (seenIds.has(instance.id)) {
+    throw new Error(`preview component instance id ${instance.id} must be unique`);
+  }
+  seenIds.add(instance.id);
+  if (!Number.isInteger(instance.stageInstanceIndex) || instance.stageInstanceIndex < 0) {
+    throw new Error(`preview component ${instance.id} stage instance index must be a non-negative integer`);
+  }
+  if (instance.stageRole !== undefined && !["core", "upper", "booster", "payload"].includes(instance.stageRole)) {
+    throw new Error(`preview component ${instance.id} stage role is invalid`);
+  }
+  if (!instance.component || typeof instance.component !== "object") {
+    throw new Error(`preview component ${instance.id} source component is invalid`);
+  }
+  if (
+    !instance.transform ||
+    typeof instance.transform !== "object" ||
+    !instance.transform.translationM ||
+    typeof instance.transform.translationM !== "object" ||
+    !instance.transform.rotation
+  ) {
+    throw new Error(`preview component ${instance.id} transform is invalid`);
+  }
+  if (
+    ![instance.transform.translationM.x, instance.transform.translationM.y, instance.transform.translationM.z].every(Number.isFinite)
+  ) {
+    throw new Error(`preview component ${instance.id} translation must be finite`);
+  }
+  validatePreviewMatrix(instance.transform.rotation, `preview component ${instance.id}`);
+}
+
+function componentSurface(component: VehicleComponent): RocketPreviewSurface {
+  if (component.kind === "finSet") return "fin";
+  if (component.kind === "pointMass") return /(^|-)motor$/.test(component.id) ? "nozzle" : "accent";
+  return /(^|-)nose$/.test(component.id) ? "nose" : "skin";
+}
+
+type ComponentTriangleContext = Readonly<{
+  componentId: string;
+  stageId: string;
+  stageInstanceId: string;
+  transform: RocketPreviewTransform;
+}>;
+
+function addComponentTriangle(
+  triangles: RocketPreviewTriangle[],
+  context: ComponentTriangleContext,
+  first: PreviewVector3,
+  second: PreviewVector3,
+  third: PreviewVector3,
+  surface: RocketPreviewSurface,
+): void {
+  triangles.push({
+    a: transformedComponentPoint(first, context.transform),
+    b: transformedComponentPoint(second, context.transform),
+    c: transformedComponentPoint(third, context.transform),
+    surface,
+    componentId: context.componentId,
+    stageId: context.stageId,
+    stageInstanceId: context.stageInstanceId,
+  });
+}
+
+function addComponentQuad(
+  triangles: RocketPreviewTriangle[],
+  context: ComponentTriangleContext,
+  first: PreviewVector3,
+  second: PreviewVector3,
+  third: PreviewVector3,
+  fourth: PreviewVector3,
+  surface: RocketPreviewSurface,
+): void {
+  addComponentTriangle(triangles, context, first, second, third, surface);
+  addComponentTriangle(triangles, context, first, third, fourth, surface);
+}
+
+function appendAxisymmetricComponent(
+  triangles: RocketPreviewTriangle[],
+  instance: RocketPreviewComponentInstance,
+  context: ComponentTriangleContext,
+): void {
+  if (instance.component.kind !== "axisymmetric") return;
+  const stations = instance.component.stations;
+  if (stations.length < 2) throw new Error(`preview component ${instance.id} needs at least two stations`);
+  const radialSegments = 20;
+  const surface = componentSurface(instance.component);
+  for (let stationIndex = 0; stationIndex < stations.length - 1; stationIndex += 1) {
+    const firstStation = stations[stationIndex];
+    const secondStation = stations[stationIndex + 1];
+    if (
+      !Number.isFinite(firstStation.xM) ||
+      !Number.isFinite(secondStation.xM) ||
+      !Number.isFinite(firstStation.outerRadiusM) ||
+      !Number.isFinite(secondStation.outerRadiusM) ||
+      firstStation.outerRadiusM < 0 ||
+      secondStation.outerRadiusM < 0 ||
+      secondStation.xM <= firstStation.xM
+    ) {
+      throw new Error(`preview component ${instance.id} has invalid profile stations`);
+    }
+    for (let radialIndex = 0; radialIndex < radialSegments; radialIndex += 1) {
+      const angle = (2 * Math.PI * radialIndex) / radialSegments;
+      const nextAngle = (2 * Math.PI * (radialIndex + 1)) / radialSegments;
+      const first = pointOnRing(firstStation.xM, firstStation.outerRadiusM, angle);
+      const second = pointOnRing(secondStation.xM, secondStation.outerRadiusM, angle);
+      const third = pointOnRing(secondStation.xM, secondStation.outerRadiusM, nextAngle);
+      const fourth = pointOnRing(firstStation.xM, firstStation.outerRadiusM, nextAngle);
+      addComponentQuad(triangles, context, first, second, third, fourth, surface);
+    }
+  }
+  const firstStation = stations[0];
+  const lastStation = stations[stations.length - 1];
+  if (firstStation.outerRadiusM > 1e-12) {
+    const center = { x: firstStation.xM, y: 0, z: 0 };
+    for (let radialIndex = 0; radialIndex < radialSegments; radialIndex += 1) {
+      const angle = (2 * Math.PI * radialIndex) / radialSegments;
+      const nextAngle = (2 * Math.PI * (radialIndex + 1)) / radialSegments;
+      addComponentTriangle(
+        triangles,
+        context,
+        center,
+        pointOnRing(firstStation.xM, firstStation.outerRadiusM, nextAngle),
+        pointOnRing(firstStation.xM, firstStation.outerRadiusM, angle),
+        "rear",
+      );
+    }
+  }
+  if (lastStation.outerRadiusM > 1e-12) {
+    const center = { x: lastStation.xM, y: 0, z: 0 };
+    for (let radialIndex = 0; radialIndex < radialSegments; radialIndex += 1) {
+      const angle = (2 * Math.PI * radialIndex) / radialSegments;
+      const nextAngle = (2 * Math.PI * (radialIndex + 1)) / radialSegments;
+      addComponentTriangle(
+        triangles,
+        context,
+        center,
+        pointOnRing(lastStation.xM, lastStation.outerRadiusM, angle),
+        pointOnRing(lastStation.xM, lastStation.outerRadiusM, nextAngle),
+        "rear",
+      );
+    }
+  }
+}
+
+function appendFinSetComponent(
+  triangles: RocketPreviewTriangle[],
+  instance: RocketPreviewComponentInstance,
+  context: ComponentTriangleContext,
+): void {
+  if (instance.component.kind !== "finSet") return;
+  const component = instance.component;
+  if (!Number.isInteger(component.count) || component.count < 1 || component.count > 32) {
+    throw new Error(`preview component ${instance.id} fin count is invalid`);
+  }
+  for (const [label, value] of [
+    ["body radius", component.bodyRadiusM],
+    ["root chord", component.rootChordM],
+    ["tip chord", component.tipChordM],
+    ["span", component.spanM],
+    ["thickness", component.thicknessM],
+  ] as const) {
+    assertPositive(value, `preview component ${instance.id} ${label}`);
+  }
+  if (!Number.isFinite(component.sweepM) || component.sweepM < 0) {
+    throw new Error(`preview component ${instance.id} fin sweep must be non-negative and finite`);
+  }
+  if (component.sweepM + component.tipChordM > component.rootChordM + 1e-12) {
+    throw new Error(`preview component ${instance.id} fin tip must remain in the root-chord envelope`);
+  }
+  const halfThickness = component.thicknessM / 2;
+  for (let finIndex = 0; finIndex < component.count; finIndex += 1) {
+    const angle = (2 * Math.PI * finIndex) / component.count;
+    const radial = { y: Math.cos(angle), z: Math.sin(angle) };
+    const tangent = { y: -Math.sin(angle), z: Math.cos(angle) };
+    const profile = [
+      { x: 0, radius: component.bodyRadiusM },
+      { x: component.rootChordM, radius: component.bodyRadiusM },
+      {
+        x: component.sweepM + component.tipChordM,
+        radius: component.bodyRadiusM + component.spanM,
+      },
+      {
+        x: component.sweepM,
+        radius: component.bodyRadiusM + component.spanM,
+      },
+    ];
+    const side = (sign: number) => profile.map(
+      (point): PreviewVector3 => ({
+        x: point.x,
+        y: point.radius * radial.y + sign * halfThickness * tangent.y,
+        z: point.radius * radial.z + sign * halfThickness * tangent.z,
+      }),
+    );
+    const near = side(-1);
+    const far = side(1);
+    addComponentQuad(triangles, context, near[0], near[1], near[2], near[3], "fin");
+    addComponentQuad(triangles, context, far[3], far[2], far[1], far[0], "fin");
+    for (let edgeIndex = 0; edgeIndex < 4; edgeIndex += 1) {
+      const nextEdge = (edgeIndex + 1) % 4;
+      addComponentQuad(
+        triangles,
+        context,
+        near[edgeIndex],
+        far[edgeIndex],
+        far[nextEdge],
+        near[nextEdge],
+        "fin",
+      );
+    }
+  }
+}
+
+function appendPointMassComponent(
+  triangles: RocketPreviewTriangle[],
+  instance: RocketPreviewComponentInstance,
+  context: ComponentTriangleContext,
+): void {
+  if (instance.component.kind !== "pointMass") return;
+  assertPositive(instance.component.massKg, `preview component ${instance.id} mass`);
+  const size = Math.max(0.006, Math.min(0.028, Math.cbrt(instance.component.massKg) * 0.018));
+  const vertices = {
+    left: { x: -size, y: 0, z: 0 },
+    right: { x: size, y: 0, z: 0 },
+    top: { x: 0, y: size, z: 0 },
+    bottom: { x: 0, y: -size, z: 0 },
+    front: { x: 0, y: 0, z: size },
+    rear: { x: 0, y: 0, z: -size },
+  } satisfies Record<string, PreviewVector3>;
+  const faces: readonly (readonly [PreviewVector3, PreviewVector3, PreviewVector3])[] = [
+    [vertices.right, vertices.top, vertices.front],
+    [vertices.right, vertices.front, vertices.bottom],
+    [vertices.right, vertices.bottom, vertices.rear],
+    [vertices.right, vertices.rear, vertices.top],
+    [vertices.left, vertices.front, vertices.top],
+    [vertices.left, vertices.bottom, vertices.front],
+    [vertices.left, vertices.rear, vertices.bottom],
+    [vertices.left, vertices.top, vertices.rear],
+  ];
+  faces.forEach(([first, second, third]) => addComponentTriangle(
+    triangles,
+    context,
+    first,
+    second,
+    third,
+    "accent",
+  ));
+}
+
+function createComponentRocketPreviewMesh(
+  input: RocketPreviewMeshInput,
+): RocketPreviewMesh {
+  const componentInstances = input.componentInstances;
+  if (!componentInstances || componentInstances.length === 0) {
+    throw new Error("preview component instances cannot be empty");
+  }
+  const seenIds = new Set<string>();
+  const triangles: RocketPreviewTriangle[] = [];
+  for (const instance of componentInstances) {
+    validateComponentInstance(instance, seenIds);
+    const context: ComponentTriangleContext = {
+      componentId: instance.sourceComponentId,
+      stageId: instance.stageId,
+      stageInstanceId: instance.id,
+      transform: composePreviewTransform(
+        instance.transform,
+        componentLocalTransform(instance.component),
+      ),
+    };
+    if (instance.component.kind === "axisymmetric") {
+      appendAxisymmetricComponent(triangles, instance, context);
+    } else if (instance.component.kind === "finSet") {
+      appendFinSetComponent(triangles, instance, context);
+    } else {
+      appendPointMassComponent(triangles, instance, context);
+    }
+  }
+  if (triangles.length === 0) {
+    throw new Error("preview component instances produced no display triangles");
+  }
+  return summarizeRocketPreviewTriangles(triangles);
+}
+
+function summarizeRocketPreviewTriangles(
+  triangles: readonly RocketPreviewTriangle[],
+): RocketPreviewMesh {
+  const vertices = triangles.flatMap((triangle) => [triangle.a, triangle.b, triangle.c]);
+  const minimum: MutableVector3 = { x: Infinity, y: Infinity, z: Infinity };
+  const maximum: MutableVector3 = { x: -Infinity, y: -Infinity, z: -Infinity };
+  let maximumRadiusM = 0;
+  vertices.forEach((vertex) => {
+    minimum.x = Math.min(minimum.x, vertex.x);
+    minimum.y = Math.min(minimum.y, vertex.y);
+    minimum.z = Math.min(minimum.z, vertex.z);
+    maximum.x = Math.max(maximum.x, vertex.x);
+    maximum.y = Math.max(maximum.y, vertex.y);
+    maximum.z = Math.max(maximum.z, vertex.z);
+    maximumRadiusM = Math.max(maximumRadiusM, Math.hypot(vertex.y, vertex.z));
+  });
+  return {
+    modelVersion: ROCKET_PREVIEW_3D_MODEL_VERSION,
+    validationStatus: ROCKET_PREVIEW_3D_MODEL_STATUS,
+    triangles,
+    longitudinalLengthM: maximum.x - minimum.x,
+    maximumRadiusM,
+    bounds: { minimum, maximum },
+  };
+}
+
 function transformedStagePoint(
   point: PreviewVector3,
   stage: RocketPreviewStageInstance,
@@ -428,6 +832,12 @@ function validateStageInstance(
 }
 
 export function createRocketPreviewMesh(input: RocketPreviewMeshInput): RocketPreviewMesh {
+  if (input.componentInstances !== undefined) {
+    if (input.stageInstances !== undefined) {
+      throw new Error("preview component and stage instances cannot be combined");
+    }
+    return createComponentRocketPreviewMesh(input);
+  }
   const stageInstances = input.stageInstances;
   if (stageInstances === undefined) return createSingleRocketPreviewMesh(input);
   if (stageInstances.length === 0) {

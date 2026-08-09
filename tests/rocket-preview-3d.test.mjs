@@ -127,6 +127,101 @@ test("preview mesh expands enabled serial and radial stage instances", () => {
   assert.equal(payloadOnly.triangles.some((triangle) => triangle.surface === "nozzle"), false);
 });
 
+test("preview mesh renders expanded assembly component instances with stage and component metadata", () => {
+  const identity = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  const transform = { translationM: { x: 0, y: 0, z: 0 }, rotation: identity };
+  const result = mesh({
+    componentInstances: [
+      {
+        id: "core:0:nose:0",
+        sourceComponentId: "nose",
+        label: "Nose cone",
+        stageId: "core",
+        stageLabel: "Sustainer",
+        stageRole: "core",
+        stageInstanceIndex: 0,
+        component: {
+          id: "nose",
+          name: "Nose cone",
+          stageId: "core",
+          kind: "axisymmetric",
+          densityKgM3: 1150,
+          stations: [{ xM: 0, outerRadiusM: 0 }, { xM: 0.18, outerRadiusM: 0.027 }],
+        },
+        transform,
+      },
+      {
+        id: "core:0:body:0",
+        sourceComponentId: "body",
+        label: "Airframe",
+        stageId: "core",
+        stageLabel: "Sustainer",
+        stageRole: "core",
+        stageInstanceIndex: 0,
+        component: {
+          id: "body",
+          name: "Airframe",
+          stageId: "core",
+          kind: "axisymmetric",
+          densityKgM3: 950,
+          positionM: { x: 0.18, y: 0, z: 0 },
+          stations: [{ xM: 0, outerRadiusM: 0.027 }, { xM: 0.71, outerRadiusM: 0.027 }],
+        },
+        transform,
+      },
+      {
+        id: "core:0:fins:0",
+        sourceComponentId: "fins",
+        label: "Fin set",
+        stageId: "core",
+        stageLabel: "Sustainer",
+        stageRole: "core",
+        stageInstanceIndex: 0,
+        component: {
+          id: "fins",
+          name: "Fin set",
+          stageId: "core",
+          kind: "finSet",
+          count: 3,
+          axialPositionM: 0.76,
+          bodyRadiusM: 0.027,
+          rootChordM: 0.13,
+          tipChordM: 0.055,
+          sweepM: 0.045,
+          spanM: 0.075,
+          thicknessM: 0.003,
+          densityKgM3: 600,
+        },
+        transform,
+      },
+      {
+        id: "core:0:motor:0",
+        sourceComponentId: "motor",
+        label: "Motor and mount allowance",
+        stageId: "core",
+        stageLabel: "Sustainer",
+        stageRole: "core",
+        stageInstanceIndex: 0,
+        component: {
+          id: "motor",
+          name: "Motor and mount allowance",
+          stageId: "core",
+          kind: "pointMass",
+          massKg: 0.16,
+          positionM: { x: 0.8, y: 0, z: 0 },
+        },
+        transform,
+      },
+    ],
+  });
+  assert.ok(result.triangles.some((triangle) => triangle.surface === "nose"));
+  assert.ok(result.triangles.some((triangle) => triangle.surface === "fin"));
+  assert.ok(result.triangles.some((triangle) => triangle.surface === "accent"));
+  assert.deepEqual(new Set(result.triangles.map((triangle) => triangle.componentId)), new Set(["nose", "body", "fins", "motor"]));
+  assert.ok(result.triangles.every((triangle) => triangle.stageId === "core"));
+  assert.ok(result.bounds.maximum.x > 0.8);
+});
+
 test("editable nose profiles produce distinct finite display geometry", () => {
   const ogive = mesh({ noseProfile: "ogive" });
   const conical = mesh({ noseProfile: "conical" });
@@ -222,6 +317,7 @@ test("stage-aware picking preserves the selected display instance identity", () 
       surface: "skin",
       stageId: "booster",
       stageInstanceId: "booster-preview-2",
+      componentId: "booster-body",
       depth: 0,
       lightIntensity: 1,
       facingCamera: true,
@@ -231,6 +327,7 @@ test("stage-aware picking preserves the selected display instance identity", () 
     surface: "skin",
     stageId: "booster",
     stageInstanceId: "booster-preview-2",
+    componentId: "booster-body",
   });
 });
 
@@ -266,5 +363,9 @@ test("invalid mesh and camera inputs fail explicitly", () => {
   assert.throws(
     () => mesh({ stageInstances: [{ id: "bad-role", stageRole: "invalid", translationXM: 0 }] }),
     /stage role is invalid/,
+  );
+  assert.throws(
+    () => mesh({ stageInstances: [{ id: "stage", translationXM: 0 }], componentInstances: [] }),
+    /cannot be combined/,
   );
 });

@@ -1,4 +1,4 @@
-# Three-dimensional design preview 0.4
+# Three-dimensional design preview 0.5
 
 Status: `display-only-unvalidated`
 
@@ -24,6 +24,8 @@ vehicle. It currently visualizes:
 - live center-of-gravity and center-of-pressure markers
 - enabled serial stages and repeated radial booster instances from the saved
   vehicle topology
+- expanded axisymmetric, fin-set, and point-mass component instances from the
+  validated assembly graph, with component identity retained for selection
 
 The preview mesh is deliberately separate from the versioned mass-property,
 static-aerodynamic, assembly, and flight models. It consumes their current
@@ -46,13 +48,16 @@ The body uses triangulated cylindrical sections. Each fin is constructed as a
 thin closed trapezoidal prism oriented evenly around the body axis. The nozzle
 is a tapered cylindrical display surface.
 
-Version 0.4 renders those triangles through an original perspective projection,
+Version 0.5 renders those triangles through an original perspective projection,
 depth-sort painter, and directional intensity calculation. It expands each
 enabled topology stage into a display instance with its validated axial
-translation, radial offset, scale, and repeated-instance rotation. Stage
-identity is carried as display metadata only, allowing the viewport to group
-repeated instances, hide/show a stage without changing the engineering model,
-and report the selected stage when a projected surface is clicked. It uses the
+translation, radial offset, scale, and repeated-instance rotation. The browser
+now supplies the renderer with every expanded assembly component instance;
+axisymmetric profiles, fin sets, and point masses are tessellated independently
+and transformed by the assembly placement. Stage and component identity are
+carried as display metadata only, allowing the viewport to group repeated
+instances, hide/show a stage without changing the engineering model, and report
+the selected stage/component when a projected surface is clicked. It uses the
 Canvas 2D API rather than a third-party 3D or CAD library.
 
 ## Interaction and accessibility
@@ -68,6 +73,9 @@ Canvas 2D API rather than a third-party 3D or CAD library.
 - Clicking a stage-aware triangle retains both the surface component and stage
   identity; the browser viewport highlights that stage and can notify the
   surrounding inspector.
+- Component-aware triangles select the corresponding nose, airframe, fin,
+  motor, or recovery inspector entry. Point masses are display markers only;
+  they are not rendered as structural solids.
 - Mouse-wheel zoom and dedicated buttons adjust scale.
 - Arrow keys orbit; plus and minus zoom; zero resets the view.
 - The canvas is keyboard focusable and has a descriptive accessible label.
@@ -93,6 +101,9 @@ Automated tests cover:
   filtering
 - stage metadata propagation, repeated-instance grouping, visibility fallback,
   and stage-aware projected picking
+- expanded assembly component rendering for axisymmetric profiles, fin sets,
+  and point-mass markers, including transformed bounds and component-aware
+  picking
 - invalid geometry, camera, and viewport rejection
 - UI presence, pointer/touch controls, keyboard controls, accessible label, and
   surface selection, and explicit display-only qualification
@@ -103,12 +114,11 @@ flight safety.
 
 ## Known limitations
 
-- The preview still maps the browser's generated stage geometry and topology
-  instances, not every node or arbitrary transform in the general assembly
-  graph. Internal components and arbitrary node-level selection are not yet
-  implemented.
-- No internal components, transparency, section cuts, exploded views, stage
-  separation animation, or material texture.
+- The preview now maps expanded component instances supplied by the browser's
+  assembly graph, but arbitrary custom group visual primitives and nested CAD
+  solids still need dedicated display schemas.
+- No internal transparent solids, section cuts, exploded views, stage separation
+  animation, or material texture; point-mass markers are intentionally abstract.
 - Painter-style triangle sorting can produce minor overlap artifacts for future
   deeply nested or transparent geometry.
 - Surface picking is a projected-triangle hit test, not a full 3D ray or CAD
@@ -119,7 +129,6 @@ flight safety.
 - CG and CP labels are projected annotations; their screen placement is not a
   dimensional measurement.
 
-The next geometry increment should generate the preview from every expanded
-assembly component instance and reuse that same original scene graph for
-CAD-friendly exports without treating the render mesh itself as authoritative
-engineering geometry.
+The next geometry increment should add dedicated custom-group display schemas,
+section/exploded views, and a reusable scene graph for CAD-friendly exports
+without treating the render mesh itself as authoritative engineering geometry.

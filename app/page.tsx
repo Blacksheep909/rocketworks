@@ -5,6 +5,7 @@ import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { LandingFootprintChart } from "./landing-footprint-chart.tsx";
 import { Rocket3DViewport } from "./rocket-3d-viewport.tsx";
+import type { RocketPreviewComponentInstance } from "../lib/visualization/rocket-preview-3d.ts";
 import {
   createEngineeringReportMarkdown,
   createFlightTraceCsv,
@@ -2202,44 +2203,33 @@ export default function Home() {
     () => createVehicleAssemblyModel(assemblyDefinition).evaluate(),
     [assemblyDefinition],
   );
-  const previewStageInstances = useMemo(
-    () =>
-      createStagePlacements(vehicleTopology.stages, length / 1000, noseLength / 1000).flatMap(
-        ({ stage, translationXM, instanceCount }) =>
-          stage.enabled
-            ? Array.from({ length: instanceCount }, (_, instanceIndex) => {
-                const rotationRad = stage.attachment === "parallel"
-                  ? (instanceIndex * 2 * Math.PI) / Math.max(instanceCount, 1)
-                  : 0;
-                return {
-                  id: `${stage.id}-preview-${instanceIndex + 1}`,
-                  stageId: stage.id,
-                  stageLabel: stage.name,
-                  stageRole: stage.role,
-                  instanceIndex,
-                  translationXM,
-                  radialOffsetM: stage.attachment === "parallel"
-                    ? {
-                        y: stage.repeatRadiusM * Math.cos(rotationRad),
-                        z: stage.repeatRadiusM * Math.sin(rotationRad),
-                      }
-                    : { y: 0, z: 0 },
-                  rotationRad,
-                  lengthScale: stageScaleForRole(stage.role),
-                  radiusScale: stage.role === "core"
-                    ? 1
-                    : stage.role === "booster"
-                      ? 0.8
-                      : 0.72,
-                  includeNose: true,
-                  includeFins: stage.role !== "payload",
-                  includeNozzle: stage.role !== "payload",
-                };
-              })
-            : [],
-      ),
-    [length, noseLength, vehicleTopology.stages],
-  );
+  const assemblyComponentCatalog = useMemo(() => {
+    const catalog = new Map<string, VehicleComponent>();
+    for (const stage of assemblyDefinition.stages) {
+      for (const child of stage.children) {
+        if (child.kind === "component") catalog.set(child.component.id, child.component);
+      }
+    }
+    return catalog;
+  }, [assemblyDefinition]);
+  const previewComponentInstances = useMemo<readonly RocketPreviewComponentInstance[]>(() => {
+    const stagesById = new Map(vehicleTopology.stages.map((stage) => [stage.id, stage]));
+    return assembly.componentInstances.flatMap((instance) => {
+      const component = assemblyComponentCatalog.get(instance.sourceComponentId);
+      if (!component) return [];
+      const stage = stagesById.get(instance.stageId);
+      return [{
+        id: instance.instanceId,
+        sourceComponentId: instance.sourceComponentId,
+        label: component.name,
+        stageId: instance.stageId,
+        ...(stage ? { stageLabel: stage.name, stageRole: stage.role } : {}),
+        stageInstanceIndex: instance.stageInstanceIndex,
+        component,
+        transform: instance.transform,
+      }];
+    });
+  }, [assembly.componentInstances, assemblyComponentCatalog, vehicleTopology.stages]);
   const massProperties = assembly.massProperties;
   const mass = massProperties.massKg;
   const syntheticMotor = useMemo(
@@ -3783,7 +3773,7 @@ export default function Home() {
                 finThicknessM={finThickness / 1000}
                 centerOfMassXM={massProperties.centerOfMassM.x}
                 centerOfPressureXM={staticStability.centerOfPressureXM}
-                stageInstances={previewStageInstances}
+                componentInstances={previewComponentInstances}
                 highlightSurface={
                   selected === "nose"
                     ? "nose"
@@ -3793,7 +3783,9 @@ export default function Home() {
                         ? "fin"
                         : selected === "mount"
                           ? "nozzle"
-                          : null
+                          : selected === "recovery"
+                            ? "accent"
+                            : null
                 }
                 onSurfaceSelect={(surface) => {
                   const component: ComponentKey =
@@ -3804,6 +3796,20 @@ export default function Home() {
                         : surface === "nozzle" || surface === "rear"
                           ? "mount"
                           : "body";
+                  setSelected(component);
+                  setView("design");
+                }}
+                onComponentSelect={(componentId) => {
+                  const component: ComponentKey =
+                    componentId === "nose" || componentId.endsWith("-nose")
+                      ? "nose"
+                      : componentId === "fins" || componentId.endsWith("-fins")
+                        ? "fins"
+                        : componentId === "motor" || componentId.endsWith("-motor")
+                          ? "mount"
+                          : componentId === "recovery" || componentId.endsWith("-recovery")
+                            ? "recovery"
+                            : "body";
                   setSelected(component);
                   setView("design");
                 }}

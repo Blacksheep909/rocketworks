@@ -277,10 +277,11 @@ test("ships an accessible interactive original 3D design viewport", async () => 
     "utf8",
   );
   assert.match(page, /Rocket3DViewport/);
-  assert.match(page, /previewStageInstances/);
-  assert.match(page, /stageInstances={previewStageInstances}/);
+  assert.match(page, /previewComponentInstances/);
+  assert.match(page, /componentInstances={previewComponentInstances}/);
   assert.match(page, /highlightSurface/);
   assert.match(page, /onSurfaceSelect/);
+  assert.match(page, /onComponentSelect/);
   assert.match(page, /Design visualization mode/);
   assert.match(page, />3D<\/button>/);
   assert.match(viewport, /createRocketPreviewMesh/);

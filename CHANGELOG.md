@@ -11,6 +11,9 @@ flight-readiness claims.
 - Added stage-aware metadata, grouped stage visibility controls, and projected
   stage selection to the original display-only 3D viewport; visibility changes
   never alter engineering inputs or results.
+- Added component-instance display geometry for expanded assembly axisymmetric
+  profiles, fin sets, and point-mass markers, with component-aware picking and
+  explicit display-only qualification.
 - Added validated browser design-share links for editable inputs and stage
   topology; local motor/aerodynamic source data remain unbundled and missing
   references fall back with an explicit review note.
