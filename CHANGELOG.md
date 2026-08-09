@@ -28,6 +28,9 @@ flight-readiness claims.
   propellant visibility.
 - Added projected 3D surface picking and selection highlights so clicking the
   nose, airframe, fins, or nozzle keeps the design inspector synchronized.
+- Expanded the display-only 3D scene from a single vehicle into the saved
+  enabled serial and radial topology instances, including scale, offset, and
+  repeated-stage rotation.
 
 ## 0.1.0-preview — 2026-08-09
 

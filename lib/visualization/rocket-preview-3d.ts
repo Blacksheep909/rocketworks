@@ -1,10 +1,37 @@
 export const ROCKET_PREVIEW_3D_MODEL_VERSION =
-  "kestrel-rocket-preview-3d-0.2.1";
+  "kestrel-rocket-preview-3d-0.3.0";
 export const ROCKET_PREVIEW_3D_MODEL_STATUS = "display-only-unvalidated";
 
 export type PreviewVector3 = Readonly<{ x: number; y: number; z: number }>;
 export type RocketPreviewSurface = "nose" | "skin" | "accent" | "fin" | "rear" | "nozzle";
 export type RocketPreviewNoseProfile = "ogive" | "conical" | "elliptical";
+
+export type RocketPreviewStageInstance = Readonly<{
+  id: string;
+  translationXM: number;
+  radialOffsetM?: Readonly<{ y: number; z: number }>;
+  rotationRad?: number;
+  lengthScale?: number;
+  radiusScale?: number;
+  includeNose?: boolean;
+  includeFins?: boolean;
+  includeNozzle?: boolean;
+}>;
+
+export type RocketPreviewMeshInput = Readonly<{
+  noseLengthM: number;
+  noseProfile?: RocketPreviewNoseProfile;
+  bodyLengthM: number;
+  bodyRadiusM: number;
+  finCount: number;
+  finRootChordM: number;
+  finTipChordM: number;
+  finSweepM: number;
+  finSpanM: number;
+  finThicknessM: number;
+  radialSegments?: number;
+  stageInstances?: readonly RocketPreviewStageInstance[];
+}>;
 
 export type RocketPreviewTriangle = Readonly<{
   a: PreviewVector3;
@@ -124,19 +151,7 @@ export function tangentOgiveRadiusM(
   );
 }
 
-export function createRocketPreviewMesh(input: Readonly<{
-  noseLengthM: number;
-  noseProfile?: RocketPreviewNoseProfile;
-  bodyLengthM: number;
-  bodyRadiusM: number;
-  finCount: number;
-  finRootChordM: number;
-  finTipChordM: number;
-  finSweepM: number;
-  finSpanM: number;
-  finThicknessM: number;
-  radialSegments?: number;
-}>): RocketPreviewMesh {
+function createSingleRocketPreviewMesh(input: RocketPreviewMeshInput): RocketPreviewMesh {
   assertPositive(input.noseLengthM, "preview nose length");
   assertPositive(input.bodyLengthM, "preview body length");
   assertPositive(input.bodyRadiusM, "preview body radius");
@@ -325,6 +340,114 @@ export function createRocketPreviewMesh(input: Readonly<{
   };
 }
 
+function transformedStagePoint(
+  point: PreviewVector3,
+  stage: RocketPreviewStageInstance,
+): PreviewVector3 {
+  const rotationRad = stage.rotationRad ?? 0;
+  const cosRotation = Math.cos(rotationRad);
+  const sinRotation = Math.sin(rotationRad);
+  const radialOffset = stage.radialOffsetM ?? { y: 0, z: 0 };
+  return {
+    x: point.x + stage.translationXM,
+    y: point.y * cosRotation - point.z * sinRotation + radialOffset.y,
+    z: point.y * sinRotation + point.z * cosRotation + radialOffset.z,
+  };
+}
+
+function validateStageInstance(
+  stage: RocketPreviewStageInstance,
+  seenIds: Set<string>,
+): void {
+  if (typeof stage.id !== "string" || !stage.id.trim()) {
+    throw new Error("preview stage instance id cannot be empty");
+  }
+  if (seenIds.has(stage.id)) {
+    throw new Error(`preview stage instance id ${stage.id} must be unique`);
+  }
+  seenIds.add(stage.id);
+  if (!Number.isFinite(stage.translationXM)) {
+    throw new Error(`preview stage ${stage.id} translation must be finite`);
+  }
+  if (stage.rotationRad !== undefined && !Number.isFinite(stage.rotationRad)) {
+    throw new Error(`preview stage ${stage.id} rotation must be finite`);
+  }
+  for (const [label, value] of [
+    ["length scale", stage.lengthScale],
+    ["radius scale", stage.radiusScale],
+  ] as const) {
+    if (value !== undefined && (!Number.isFinite(value) || value <= 0)) {
+      throw new Error(`preview stage ${stage.id} ${label} must be positive and finite`);
+    }
+  }
+  if (stage.radialOffsetM) {
+    if (!Number.isFinite(stage.radialOffsetM.y) || !Number.isFinite(stage.radialOffsetM.z)) {
+      throw new Error(`preview stage ${stage.id} radial offset must be finite`);
+    }
+  }
+}
+
+export function createRocketPreviewMesh(input: RocketPreviewMeshInput): RocketPreviewMesh {
+  const stageInstances = input.stageInstances;
+  if (stageInstances === undefined) return createSingleRocketPreviewMesh(input);
+  if (stageInstances.length === 0) {
+    throw new Error("preview stage instances cannot be empty");
+  }
+
+  const seenIds = new Set<string>();
+  const triangles: RocketPreviewTriangle[] = [];
+  for (const stage of stageInstances) {
+    validateStageInstance(stage, seenIds);
+    const lengthScale = stage.lengthScale ?? 1;
+    const local = createSingleRocketPreviewMesh({
+      ...input,
+      noseLengthM: input.noseLengthM * lengthScale,
+      bodyLengthM: input.bodyLengthM * lengthScale,
+      bodyRadiusM: input.bodyRadiusM * (stage.radiusScale ?? lengthScale),
+      finRootChordM: input.finRootChordM * lengthScale,
+      finTipChordM: input.finTipChordM * lengthScale,
+      finSweepM: input.finSweepM * lengthScale,
+      finSpanM: input.finSpanM * lengthScale,
+      stageInstances: undefined,
+    });
+    for (const triangle of local.triangles) {
+      if (triangle.surface === "nose" && stage.includeNose === false) continue;
+      if (triangle.surface === "fin" && stage.includeFins === false) continue;
+      if (triangle.surface === "nozzle" && stage.includeNozzle === false) continue;
+      triangles.push({
+        ...triangle,
+        a: transformedStagePoint(triangle.a, stage),
+        b: transformedStagePoint(triangle.b, stage),
+        c: transformedStagePoint(triangle.c, stage),
+      });
+    }
+  }
+  if (triangles.length === 0) {
+    throw new Error("preview stage instances produced no display triangles");
+  }
+  const vertices = triangles.flatMap((triangle) => [triangle.a, triangle.b, triangle.c]);
+  const minimum: MutableVector3 = { x: Infinity, y: Infinity, z: Infinity };
+  const maximum: MutableVector3 = { x: -Infinity, y: -Infinity, z: -Infinity };
+  let maximumRadiusM = 0;
+  vertices.forEach((vertex) => {
+    minimum.x = Math.min(minimum.x, vertex.x);
+    minimum.y = Math.min(minimum.y, vertex.y);
+    minimum.z = Math.min(minimum.z, vertex.z);
+    maximum.x = Math.max(maximum.x, vertex.x);
+    maximum.y = Math.max(maximum.y, vertex.y);
+    maximum.z = Math.max(maximum.z, vertex.z);
+    maximumRadiusM = Math.max(maximumRadiusM, Math.hypot(vertex.y, vertex.z));
+  });
+  return {
+    modelVersion: ROCKET_PREVIEW_3D_MODEL_VERSION,
+    validationStatus: ROCKET_PREVIEW_3D_MODEL_STATUS,
+    triangles,
+    longitudinalLengthM: maximum.x - minimum.x,
+    maximumRadiusM,
+    bounds: { minimum, maximum },
+  };
+}
+
 function rotatePoint(
   point: PreviewVector3,
   centerX: number,
@@ -374,7 +497,7 @@ export function projectRocketPreview(
   if (!Number.isFinite(padding) || padding < 0 || padding * 2 >= Math.min(viewport.width, viewport.height)) {
     throw new Error("preview viewport padding is invalid");
   }
-  const centerX = mesh.longitudinalLengthM / 2;
+  const centerX = (mesh.bounds.minimum.x + mesh.bounds.maximum.x) / 2;
   const cameraDistanceM = Math.max(
     mesh.longitudinalLengthM * 3.2,
     mesh.maximumRadiusM * 8,

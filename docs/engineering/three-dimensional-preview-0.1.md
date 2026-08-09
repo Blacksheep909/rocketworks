@@ -1,4 +1,4 @@
-# Three-dimensional design preview 0.2
+# Three-dimensional design preview 0.3
 
 Status: `display-only-unvalidated`
 
@@ -22,6 +22,8 @@ vehicle. It currently visualizes:
 - the current fin count and editable trapezoidal planform
 - rear closure and motor nozzle
 - live center-of-gravity and center-of-pressure markers
+- enabled serial stages and repeated radial booster instances from the saved
+  vehicle topology
 
 The preview mesh is deliberately separate from the versioned mass-property,
 static-aerodynamic, assembly, and flight models. It consumes their current
@@ -44,15 +46,19 @@ The body uses triangulated cylindrical sections. Each fin is constructed as a
 thin closed trapezoidal prism oriented evenly around the body axis. The nozzle
 is a tapered cylindrical display surface.
 
-Version 0.2 renders those triangles through an original perspective projection,
-depth-sort painter, and directional intensity calculation. It uses the Canvas
-2D API rather than a third-party 3D or CAD library.
+Version 0.3 renders those triangles through an original perspective projection,
+depth-sort painter, and directional intensity calculation. It expands each
+enabled topology stage into a display instance with its validated axial
+translation, radial offset, scale, and repeated-instance rotation. It uses the
+Canvas 2D API rather than a third-party 3D or CAD library.
 
 ## Interaction and accessibility
 
 - Pointer or touch drag orbits the model.
 - Clicking a rendered nose, body, fin, or nozzle surface selects its matching
   inspector component; the selected surface receives a bright outline.
+- Disabled topology stages are omitted from the display mesh, so the design view
+  follows the active assembly configuration.
 - Mouse-wheel zoom and dedicated buttons adjust scale.
 - Arrow keys orbit; plus and minus zoom; zero resets the view.
 - The canvas is keyboard focusable and has a descriptive accessible label.
@@ -74,6 +80,8 @@ Automated tests cover:
 - finite perspective coordinates and depth ordering
 - linear zoom response
 - foremost-triangle surface picking and empty-space misses
+- serial and radial stage-instance expansion, transforms, bounds, and surface
+  filtering
 - invalid geometry, camera, and viewport rejection
 - UI presence, pointer/touch controls, keyboard controls, accessible label, and
   surface selection, and explicit display-only qualification
@@ -84,11 +92,11 @@ flight safety.
 
 ## Known limitations
 
-- The preview currently maps the browser's single-stage ARC 54 dimensions and
-  current component geometry, not
-  every node in the general assembly graph.
-- Stage visibility and expanded assembly-instance rendering are not yet
-  implemented.
+- The preview currently maps the browser's generated stage geometry and topology
+  instances, not every node or arbitrary transform in the general assembly
+  graph.
+- Per-stage visibility controls, internal components, and independently
+  selectable stage identities are not yet implemented.
 - No internal components, transparency, section cuts, exploded views, stage
   separation animation, or material texture.
 - Painter-style triangle sorting can produce minor overlap artifacts for future
@@ -102,6 +110,6 @@ flight safety.
   dimensional measurement.
 
 The next geometry increment should generate the preview from every expanded
-assembly instance, add stage visibility, and reuse that same original scene
-graph for CAD-friendly exports without treating the render mesh itself as
-authoritative engineering geometry.
+assembly component instance, add per-stage visibility and stage-aware picking,
+and reuse that same original scene graph for CAD-friendly exports without
+treating the render mesh itself as authoritative engineering geometry.

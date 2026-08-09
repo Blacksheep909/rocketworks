@@ -57,6 +57,61 @@ test("preview mesh contains finite display surfaces and expected extents", () =>
   }
 });
 
+test("preview mesh expands enabled serial and radial stage instances", () => {
+  const result = mesh({
+    stageInstances: [
+      {
+        id: "core-preview-1",
+        translationXM: 0,
+        radialOffsetM: { y: 0, z: 0 },
+        lengthScale: 1,
+        radiusScale: 1,
+      },
+      {
+        id: "booster-preview-1",
+        translationXM: 0,
+        radialOffsetM: { y: 0.12, z: 0 },
+        rotationRad: Math.PI / 2,
+        lengthScale: 0.72,
+        radiusScale: 0.8,
+        includeNose: true,
+        includeFins: true,
+        includeNozzle: true,
+      },
+      {
+        id: "upper-preview-1",
+        translationXM: -0.45,
+        radialOffsetM: { y: 0, z: 0 },
+        lengthScale: 0.62,
+        radiusScale: 0.72,
+        includeFins: true,
+        includeNozzle: true,
+      },
+    ],
+  });
+  assert.ok(result.bounds.minimum.x < 0);
+  assert.ok(result.bounds.maximum.x > 0.89);
+  assert.ok(result.maximumRadiusM > 0.12);
+  assert.ok(result.triangles.length > mesh().triangles.length);
+  assert.ok(result.triangles.every((triangle) =>
+    [triangle.a, triangle.b, triangle.c]
+      .flatMap((point) => [point.x, point.y, point.z])
+      .every(Number.isFinite),
+  ));
+  const payloadOnly = mesh({
+    stageInstances: [{
+      id: "payload-preview-1",
+      translationXM: 0,
+      lengthScale: 0.48,
+      radiusScale: 0.72,
+      includeFins: false,
+      includeNozzle: false,
+    }],
+  });
+  assert.equal(payloadOnly.triangles.some((triangle) => triangle.surface === "fin"), false);
+  assert.equal(payloadOnly.triangles.some((triangle) => triangle.surface === "nozzle"), false);
+});
+
 test("editable nose profiles produce distinct finite display geometry", () => {
   const ogive = mesh({ noseProfile: "ogive" });
   const conical = mesh({ noseProfile: "conical" });
@@ -155,5 +210,14 @@ test("invalid mesh and camera inputs fail explicitly", () => {
   assert.throws(
     () => projectRocketPreview(mesh(), { yawRad: 0, pitchRad: 0, zoom: 1 }, { width: 20, height: 20, padding: 10 }),
     /padding/,
+  );
+  assert.throws(() => mesh({ stageInstances: [] }), /cannot be empty/);
+  assert.throws(
+    () => mesh({ stageInstances: [{ id: "invalid", translationXM: 0, lengthScale: 0 }] }),
+    /length scale/,
+  );
+  assert.throws(
+    () => mesh({ stageInstances: [{ id: "duplicate", translationXM: 0 }, { id: "duplicate", translationXM: 1 }] }),
+    /unique/,
   );
 });

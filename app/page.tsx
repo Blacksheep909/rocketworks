@@ -2148,6 +2148,40 @@ export default function Home() {
     () => createVehicleAssemblyModel(assemblyDefinition).evaluate(),
     [assemblyDefinition],
   );
+  const previewStageInstances = useMemo(
+    () =>
+      createStagePlacements(vehicleTopology.stages, length / 1000, noseLength / 1000).flatMap(
+        ({ stage, translationXM, instanceCount }) =>
+          stage.enabled
+            ? Array.from({ length: instanceCount }, (_, instanceIndex) => {
+                const rotationRad = stage.attachment === "parallel"
+                  ? (instanceIndex * 2 * Math.PI) / Math.max(instanceCount, 1)
+                  : 0;
+                return {
+                  id: `${stage.id}-preview-${instanceIndex + 1}`,
+                  translationXM,
+                  radialOffsetM: stage.attachment === "parallel"
+                    ? {
+                        y: stage.repeatRadiusM * Math.cos(rotationRad),
+                        z: stage.repeatRadiusM * Math.sin(rotationRad),
+                      }
+                    : { y: 0, z: 0 },
+                  rotationRad,
+                  lengthScale: stageScaleForRole(stage.role),
+                  radiusScale: stage.role === "core"
+                    ? 1
+                    : stage.role === "booster"
+                      ? 0.8
+                      : 0.72,
+                  includeNose: true,
+                  includeFins: stage.role !== "payload",
+                  includeNozzle: stage.role !== "payload",
+                };
+              })
+            : [],
+      ),
+    [length, noseLength, vehicleTopology.stages],
+  );
   const massProperties = assembly.massProperties;
   const mass = massProperties.massKg;
   const syntheticMotor = useMemo(
@@ -3537,6 +3571,7 @@ export default function Home() {
                 finThicknessM={finThickness / 1000}
                 centerOfMassXM={massProperties.centerOfMassM.x}
                 centerOfPressureXM={staticStability.centerOfPressureXM}
+                stageInstances={previewStageInstances}
                 highlightSurface={
                   selected === "nose"
                     ? "nose"

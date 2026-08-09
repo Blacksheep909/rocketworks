@@ -17,6 +17,7 @@ import {
   type ProjectedRocketTriangle,
   type RocketPreviewNoseProfile,
   type RocketPreviewSurface,
+  type RocketPreviewStageInstance,
 } from "../lib/visualization/rocket-preview-3d.ts";
 
 const SURFACE_COLORS: Record<RocketPreviewSurface, readonly [number, number, number]> = {
@@ -51,6 +52,7 @@ export function Rocket3DViewport({
   finThicknessM,
   centerOfMassXM,
   centerOfPressureXM,
+  stageInstances,
   highlightSurface = null,
   onSurfaceSelect,
 }: Readonly<{
@@ -66,6 +68,7 @@ export function Rocket3DViewport({
   finThicknessM: number;
   centerOfMassXM: number;
   centerOfPressureXM: number;
+  stageInstances?: readonly RocketPreviewStageInstance[];
   highlightSurface?: RocketPreviewSurface | null;
   onSurfaceSelect?: (surface: RocketPreviewSurface) => void;
 }>) {
@@ -93,8 +96,9 @@ export function Rocket3DViewport({
         finSweepM,
         finSpanM,
         finThicknessM,
+        stageInstances,
       }),
-    [bodyDiameterM, bodyLengthM, finCount, finRootChordM, finSpanM, finSweepM, finThicknessM, finTipChordM, noseLengthM, noseProfile],
+    [bodyDiameterM, bodyLengthM, finCount, finRootChordM, finSpanM, finSweepM, finThicknessM, finTipChordM, noseLengthM, noseProfile, stageInstances],
   );
 
   const draw = useCallback(() => {
@@ -283,7 +287,7 @@ export function Rocket3DViewport({
         ref={canvasRef}
         tabIndex={0}
         role="img"
-        aria-label={`Interactive three-dimensional ARC 54 preview with a ${noseProfile} nose and ${finCount} fins, ${Math.round(mesh.longitudinalLengthM * 1000)} millimetres long. Click a rendered surface to select its inspector component. Drag or use arrow keys to orbit, and use the mouse wheel or plus and minus keys to zoom.`}
+        aria-label={`Interactive three-dimensional ARC 54 preview with ${stageInstances?.length ?? 1} rendered stage instances, a ${noseProfile} nose and ${finCount} fins. Click a rendered surface to select its inspector component. Drag or use arrow keys to orbit, and use the mouse wheel or plus and minus keys to zoom.`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
