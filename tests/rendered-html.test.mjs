@@ -221,6 +221,9 @@ test("shows a deterministic provenance-qualified launch environment", async () =
   assert.match(source, /Flight environment/);
   assert.match(source, /arc54-weather-v1/);
   assert.match(source, /Turbulence RMS L \/ T \/ V/);
+  assert.match(source, /relativeHumidityPercent/);
+  assert.match(source, /Air density @ 500 m/);
+  assert.match(source, /Sound speed @ 500 m/);
   assert.match(source, /versioned horizontal ascent-drift proxy/);
   assert.match(source, /Synthetic deterministic Dryden-shaped environment/);
 });
@@ -290,6 +293,7 @@ test("ships a provenance-qualified recovery landing footprint", async () => {
   assert.match(page, /arc54-landing-v1/);
   assert.match(page, /recoveryDeploymentSuccess/);
   assert.match(page, /recoveryDeploymentSuccessProbability/);
+  assert.match(page, /relativeHumidityPercent/);
   assert.match(page, /Deployment success assumption/);
   assert.match(page, /recovery-provenance/);
   assert.match(page, /estimateAscentWindDrift/);
@@ -371,6 +375,7 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(projectState, /launchRailInclinationDeg/);
   assert.match(projectState, /launchRailAzimuthDeg/);
   assert.match(projectState, /recoveryDeploymentSuccessProbability/);
+  assert.match(projectState, /relativeHumidityPercent/);
   assert.match(projectState, /validateEditableProjectInputs/);
   assert.match(projectState, /Unsupported local project schema version/);
   assert.match(stylesheet, /\.history-entry button:focus-visible/);

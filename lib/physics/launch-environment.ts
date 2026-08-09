@@ -1,4 +1,5 @@
 import {
+  applyRelativeHumidityToAtmosphere,
   dynamicViscosityAirPaS,
   standardAtmosphere,
   type AtmosphereState,
@@ -14,7 +15,7 @@ import {
   type Vector3,
 } from "./linear-algebra.ts";
 
-export const LAUNCH_ENVIRONMENT_MODEL_VERSION = "kestrel-launch-environment-0.1.0";
+export const LAUNCH_ENVIRONMENT_MODEL_VERSION = "kestrel-launch-environment-0.2.0";
 export const LAUNCH_ENVIRONMENT_MODEL_STATUS = "engineering-preview-unvalidated";
 
 const SPECIFIC_GAS_CONSTANT_AIR = 287.05287;
@@ -236,7 +237,7 @@ function adjustedAtmosphere(
   const pressurePa = standard.pressurePa * (observation.stationPressurePa / siteStandard.pressurePa);
   const densityKgM3 = pressurePa / (SPECIFIC_GAS_CONSTANT_AIR * temperatureK);
   const dynamicViscosityPaS = dynamicViscosityAirPaS(temperatureK);
-  return {
+  const dryAtmosphere: AtmosphereState = {
     ...standard,
     temperatureK,
     pressurePa,
@@ -245,6 +246,12 @@ function adjustedAtmosphere(
     dynamicViscosityPaS,
     kinematicViscosityM2S: dynamicViscosityPaS / densityKgM3,
   };
+  return observation.relativeHumidityFraction === undefined
+    ? dryAtmosphere
+    : applyRelativeHumidityToAtmosphere(
+        dryAtmosphere,
+        observation.relativeHumidityFraction,
+      );
 }
 
 export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefinition): LaunchEnvironmentModel {
@@ -396,7 +403,7 @@ export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefini
     at,
     warnings: [
       ...(observation?.relativeHumidityFraction !== undefined
-        ? ["Relative humidity is retained as metadata but humidity effects on density and speed of sound are not coupled in version 0.1."]
+        ? ["Relative humidity is coupled to water-vapor partial pressure, virtual temperature, density, and speed of sound in version 0.2; condensation and humidity-dependent viscosity are not modeled."]
         : []),
       ...(turbulence ? ["Turbulence is a finite-band deterministic Dryden-shaped spectral realization, not a measured gust history."] : []),
       "Weather provenance and observation age must be reviewed before use; Kestrel Lab does not authenticate external weather data.",
@@ -406,6 +413,9 @@ export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefini
       "World coordinates are local east, north, up metres from the launch point.",
       "Mean wind is piecewise-linear in altitude AGL and clamped outside supplied layers.",
       "Surface pressure scales the standard pressure profile and the surface temperature offset persists with altitude.",
+      ...(observation?.relativeHumidityFraction !== undefined
+        ? ["Relative humidity is held constant through the altitude-adjusted profile; condensation, precipitation, and phase change are not modeled."]
+        : ["Without a humidity observation, the dry-air density and speed-of-sound fallback is used."]),
       "Turbulence uses Taylor frozen-field advection along the local horizontal mean-wind direction.",
       "Discrete gusts use a smooth finite one-minus-cosine pulse with zero value at both endpoints.",
     ],

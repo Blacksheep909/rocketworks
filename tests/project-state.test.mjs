@@ -55,6 +55,7 @@ test("local project snapshots round-trip through a strict versioned schema", () 
   assert.equal(source.inputs.finCount, 3);
   assert.equal(source.inputs.recoveryMassKg, 0.06);
   assert.equal(source.inputs.recoveryDeploymentSuccessProbability, 0.9);
+  assert.equal(source.inputs.relativeHumidityPercent, 60);
   assert.equal(JSON.parse(serialized).schema, LOCAL_PROJECT_SCHEMA_ID);
   assert.equal(projectInputFingerprint(source.inputs), projectInputFingerprint({ ...inputs }));
 });
@@ -84,6 +85,10 @@ test("invalid, unsupported, and out-of-range snapshots fail explicitly", () => {
   assert.throws(
     () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, recoveryDeploymentSuccessProbability: 1.1 } }),
     /recoveryDeploymentSuccessProbability/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, relativeHumidityPercent: 100.1 } }),
+    /relativeHumidityPercent/,
   );
   assert.throws(
     () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, noseProfile: "parabolic" } }),

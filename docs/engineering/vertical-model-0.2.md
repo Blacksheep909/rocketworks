@@ -21,6 +21,10 @@ for flight-safety decisions.
   area explicitly supplied by the caller.
 - Temperature, pressure, density, and speed of sound use the layer equations
   and constants of the U.S. Standard Atmosphere, 1976, from -500 m to 20 km.
+- Optional relative humidity is applied as a constant-profile ideal-mixture
+  correction: water-vapor partial pressure changes virtual temperature, density,
+  and speed of sound. Condensation, phase change, and humidity-dependent
+  viscosity are not modeled.
 - Thrust and wind profiles use piecewise-linear interpolation.
 - Delivered impulse is integrated by the trapezoidal rule. Until mass-flow data
   is introduced, propellant depletion is assumed proportional to delivered
@@ -32,6 +36,7 @@ Primary references:
 - NASA Glenn, [Drag Equation](https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/drag-equation/)
 - NASA Glenn, [Rocket Thrust Equation](https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/rocket-thrust-equation/)
 - NOAA/NASA/USAF, [U.S. Standard Atmosphere, 1976](https://ntrs.nasa.gov/citations/19770009539)
+- NOAA/WMO, [CWOP/WMO8 water-vapor pressure formulation](https://www.weather.gov/media/epz/mesonet/CWOP-WMO8.pdf)
 
 ## Implemented behavior
 

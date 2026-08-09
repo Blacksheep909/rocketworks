@@ -9,6 +9,8 @@ import {
   makeConstantThrustCurve,
   simulateVerticalFlight,
   standardAtmosphere,
+  applyRelativeHumidityToAtmosphere,
+  saturationVaporPressurePa,
   totalImpulse,
 } from "../lib/physics/index.ts";
 
@@ -25,6 +27,18 @@ test("standard atmosphere reproduces sea-level reference conditions", () => {
   closeTo(state.pressurePa, 101_325, 1e-6, "pressure");
   closeTo(state.densityKgM3, 1.225, 0.0001, "density");
   closeTo(state.speedOfSoundMps, 340.294, 0.01, "speed of sound");
+});
+
+test("moist-air correction uses water-vapor partial pressure and virtual temperature", () => {
+  const dry = standardAtmosphere(0);
+  const moist = applyRelativeHumidityToAtmosphere(dry, 0.6);
+  assert.equal(moist.relativeHumidityFraction, 0.6);
+  assert.ok(saturationVaporPressurePa(dry.temperatureK) > 1_500);
+  assert.ok((moist.waterVaporPartialPressurePa ?? 0) > 0);
+  assert.ok((moist.virtualTemperatureK ?? 0) > dry.temperatureK);
+  assert.ok(moist.densityKgM3 < dry.densityKgM3);
+  assert.ok(moist.speedOfSoundMps > dry.speedOfSoundMps);
+  assert.throws(() => applyRelativeHumidityToAtmosphere(dry, 1.1), /0 through 1/);
 });
 
 test("structural screen matches the closed-form shell and Euler proxies", () => {
@@ -162,6 +176,23 @@ test("vertical flight can consume a Mach-Reynolds drag table with explicit appli
   assert.equal(tableResult.aerodynamicModelVersion, table.modelVersion);
   assert.ok(tableResult.apogeeM > constantResult.apogeeM);
   assert.ok(tableResult.warnings.some((warning) => warning.code === "REYNOLDS_BELOW_TABLE"));
+});
+
+test("vertical flight propagates the optional humidity correction into its trace", () => {
+  const dry = simulateVerticalFlight({
+    vehicle: { dryMassKg: 0.5, propellantMassKg: 0.05, referenceAreaM2: 0.002, dragCoefficient: 0.8 },
+    motor: { thrustCurve: makeConstantThrustCurve(20, 1) },
+    integration: { timeStepS: 0.02, maxTimeS: 20 },
+  });
+  const moist = simulateVerticalFlight({
+    vehicle: { dryMassKg: 0.5, propellantMassKg: 0.05, referenceAreaM2: 0.002, dragCoefficient: 0.8 },
+    motor: { thrustCurve: makeConstantThrustCurve(20, 1) },
+    environment: { relativeHumidityFraction: 0.8 },
+    integration: { timeStepS: 0.02, maxTimeS: 20 },
+  });
+  assert.ok(moist.warnings.some((warning) => warning.code === "HUMID_AIR_CORRECTION"));
+  assert.ok(moist.assumptions.some((assumption) => assumption.includes("ideal-mixture")));
+  assert.ok(moist.trace[0].densityKgM3 < dry.trace[0].densityKgM3);
 });
 
 test("standard atmosphere reproduces the 11 km geopotential boundary", () => {

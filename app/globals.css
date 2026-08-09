@@ -931,6 +931,7 @@ kbd {
 }
 .field-group input { padding: 0 48px 0 11px; }
 .field-group select { padding: 0 10px; }
+.field-help { margin: 7px 2px 0; color: #73818c; font: 9px/1.45 var(--font-geist-mono), monospace; }
 .input-with-unit { position: relative; }
 .input-with-unit span {
   position: absolute; right: 10px; top: 50%; transform: translateY(-50%);

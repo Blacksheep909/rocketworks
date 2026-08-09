@@ -26,7 +26,7 @@ live atmosphere and wind-relative flight condition.
 
 ## Atmosphere viscosity and Reynolds number
 
-Atmosphere 0.3 adds dry-air dynamic viscosity using Sutherland's relation with
+Atmosphere 0.4 adds dry-air dynamic viscosity using Sutherland's relation with
 reference values `mu0 = 1.716e-5 Pa s`, `T0 = 273.15 K`, and `S = 110.4 K`:
 
 `mu(T) = mu0 (T / T0)^(3/2) (T0 + S) / (T + S)`
@@ -34,6 +34,11 @@ reference values `mu0 = 1.716e-5 Pa s`, `T0 = 273.15 K`, and `S = 110.4 K`:
 Kinematic viscosity is:
 
 `nu = mu / rho`
+
+When a relative-humidity observation is supplied, `rho` is the atmosphere's
+virtual-temperature moist-air density. The viscosity remains the documented
+dry-air Sutherland approximation, so humidity changes Reynolds number through
+density but not through a separate humidity-viscosity model.
 
 For wind-relative speed `V` and topology reference length `L`:
 
@@ -176,4 +181,3 @@ options, covariance and correlation metadata, deterministic seeded dispersion,
 and importer validation for user CSV/JSON coefficient packages. Experimental
 benchmarks must then compare complete force and moment histories, not only
 interpolation mechanics.
-

@@ -54,10 +54,39 @@ test("surface observation exactly anchors site pressure and temperature", () => 
     },
   }));
   const atSite = model.at({ timeS: 0, positionWorldM: { x: 0, y: 0, z: 0 } });
+  const dryModel = createLaunchEnvironmentModel(definition({
+    surfaceObservation: {
+      stationPressurePa: 99_500,
+      temperatureK: 293.15,
+    },
+  }));
+  const dryAtSite = dryModel.at({ timeS: 0, positionWorldM: { x: 0, y: 0, z: 0 } });
   assert.ok(Math.abs(atSite.atmosphere.pressurePa - 99_500) < 1e-9);
   assert.ok(Math.abs(atSite.atmosphere.temperatureK - 293.15) < 1e-12);
-  assert.ok(Math.abs(atSite.atmosphere.densityKgM3 - 99_500 / (287.05287 * 293.15)) < 1e-12);
-  assert.match(model.warnings[0], /Relative humidity/);
+  assert.equal(atSite.atmosphere.relativeHumidityFraction, 0.7);
+  assert.ok((atSite.atmosphere.waterVaporPartialPressurePa ?? 0) > 0);
+  assert.ok((atSite.atmosphere.virtualTemperatureK ?? 0) > atSite.atmosphere.temperatureK);
+  assert.ok(atSite.atmosphere.densityKgM3 < dryAtSite.atmosphere.densityKgM3);
+  assert.ok(atSite.atmosphere.speedOfSoundMps > dryAtSite.atmosphere.speedOfSoundMps);
+  assert.match(model.warnings[0], /Relative humidity.*coupled/);
+  assert.ok(model.assumptions.some((assumption) => assumption.includes("held constant")));
+});
+
+test("zero humidity preserves dry-air atmosphere while exposing explicit diagnostics", () => {
+  const dry = createLaunchEnvironmentModel(definition({
+    surfaceObservation: { stationPressurePa: 99_500, temperatureK: 293.15 },
+  })).at({ timeS: 0, positionWorldM: { x: 0, y: 0, z: 0 } });
+  const zeroHumidity = createLaunchEnvironmentModel(definition({
+    surfaceObservation: {
+      stationPressurePa: 99_500,
+      temperatureK: 293.15,
+      relativeHumidityFraction: 0,
+    },
+  })).at({ timeS: 0, positionWorldM: { x: 0, y: 0, z: 0 } });
+  assert.equal(zeroHumidity.atmosphere.relativeHumidityFraction, 0);
+  assert.equal(zeroHumidity.atmosphere.waterVaporPartialPressurePa, 0);
+  assert.ok(Math.abs(zeroHumidity.atmosphere.densityKgM3 - dry.atmosphere.densityKgM3) < 1e-12);
+  assert.ok(Math.abs(zeroHumidity.atmosphere.speedOfSoundMps - dry.atmosphere.speedOfSoundMps) < 1e-12);
 });
 
 test("one-minus-cosine gust is zero at endpoints and reaches peak at midpoint", () => {

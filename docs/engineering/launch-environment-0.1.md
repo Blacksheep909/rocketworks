@@ -1,4 +1,4 @@
-# Launch environment model 0.1
+# Launch environment model 0.2
 
 Status: `engineering-preview-unvalidated`
 
@@ -16,6 +16,8 @@ east-north-up position and time:
 
 - WGS84 launch-site metadata and AGL/ASL altitude bookkeeping
 - standard or surface-observation-adjusted pressure and temperature
+- optional relative-humidity coupling to water-vapor pressure, virtual
+  temperature, density, and speed of sound
 - altitude-interpolated mean wind
 - seeded, finite-band Dryden-shaped turbulence
 - deterministic one-minus-cosine discrete gust events
@@ -29,7 +31,7 @@ altitude or wind-profile inputs is rejected to avoid conflicting environments.
 
 Without an observation, the existing Kestrel standard atmosphere is evaluated
 at geometric ASL altitude. With station pressure `ps` and station temperature
-`Ts`, version 0.1 preserves their offsets from standard conditions at the site:
+`Ts`, version 0.2 preserves their offsets from standard conditions at the site:
 
 ```text
 p(h) = pstd(h) ps / pstd(hs)
@@ -38,10 +40,24 @@ rho(h) = p(h) / (Rair T(h))
 a(h) = sqrt(gamma Rair T(h))
 ```
 
-Dynamic viscosity uses Sutherland's law. Relative humidity is retained as
-metadata but is not yet coupled to density or speed of sound. The offset method
-is a transparent engineering approximation, not a forecast or full
-hypsometric profile reconstruction.
+If relative humidity `RH` is supplied, the dry state is corrected with a
+bounded ideal-mixture approximation. Saturation vapour pressure `es(T)` uses
+the WMO Annex 4.B liquid-water/ice form, then:
+
+```text
+e = RH es(T)
+w = epsilon e / (p - e)
+Tv = T (1 + w / epsilon) / (1 + w)
+rho = p / (Rair Tv)
+a = sqrt(gamma_d Rair Tv)
+```
+
+Here `epsilon = Rair / Rv`. Relative humidity is held constant through the
+altitude-adjusted profile. Dynamic viscosity still uses dry-air Sutherland's
+law; condensation, precipitation, phase change, and humidity-dependent
+viscosity are outside this model. The offset method is a transparent
+engineering approximation, not a forecast or full hypsometric profile
+reconstruction.
 
 ## Mean wind and turbulence
 
@@ -107,8 +123,8 @@ software.
   atmospheric fronts, precipitation, icing, or convective cells.
 - No live weather download, authentication, station-age policy, or forecast
   uncertainty.
-- No humidity correction, vertical pressure-profile assimilation, or spatially
-  varying temperature observation.
+- No condensation, precipitation, phase change, vertical moisture assimilation,
+  or spatially varying temperature/humidity observation.
 - Finite wavelength band and finite mode count; turbulence is stationary and
   advected only along the local mean horizontal wind.
 - No rotational turbulence or gust-gradient aerodynamic model.
@@ -121,3 +137,8 @@ software.
   https://ntrs.nasa.gov/api/citations/19840020734/downloads/19840020734.pdf
 - NOAA MADIS, *Meteorological Calculations and Pressure Reduction Notes*:
   https://madis.ncep.noaa.gov/madis_rwis_qc_notes.shtml
+- World Meteorological Organization, *Guide to Instruments and Methods of
+  Observation*, Annex 4.B water-vapour pressure formulation:
+  https://www.weather.gov/media/epz/mesonet/CWOP-WMO8.pdf
+- UCAR/NCAR, *Water Vapor Pressure Formulations*:
+  https://www.eol.ucar.edu/data-software/conventions-and-standards/water-vapor-pressure-formulations

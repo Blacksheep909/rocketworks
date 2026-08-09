@@ -1,4 +1,5 @@
 import {
+  applyRelativeHumidityToAtmosphere,
   gravityAtAltitude,
   reynoldsNumber,
   standardAtmosphere,
@@ -15,7 +16,7 @@ import {
   type WindLayer,
 } from "./curves.ts";
 
-export const VERTICAL_MODEL_VERSION = "kestrel-vertical-0.2.0-alpha";
+export const VERTICAL_MODEL_VERSION = "kestrel-vertical-0.2.1-alpha";
 export const VERTICAL_MODEL_STATUS = "engineering-preview-unvalidated";
 
 export type FlightEventType =
@@ -65,6 +66,7 @@ export type VerticalFlightConfig = {
   environment?: {
     launchAltitudeM?: number;
     windProfile?: WindLayer[];
+    relativeHumidityFraction?: number;
   };
   integration?: {
     timeStepS?: number;
@@ -133,6 +135,14 @@ function validateConfig(config: VerticalFlightConfig) {
   }
   validateThrustCurve(config.motor.thrustCurve);
   validateWindProfile(config.environment?.windProfile ?? []);
+  if (
+    config.environment?.relativeHumidityFraction !== undefined &&
+    (!Number.isFinite(config.environment.relativeHumidityFraction) ||
+      config.environment.relativeHumidityFraction < 0 ||
+      config.environment.relativeHumidityFraction > 1)
+  ) {
+    throw new Error("Relative humidity fraction must be from 0 through 1.");
+  }
   if (config.recovery?.enabled) {
     assertPositive(config.recovery.dragAreaM2, "Recovery drag area");
     assertPositive(config.recovery.dragCoefficient, "Recovery drag coefficient");
@@ -154,6 +164,7 @@ export function simulateVerticalFlight(
 
   const launchAltitudeM = config.environment?.launchAltitudeM ?? 0;
   const windProfile = config.environment?.windProfile ?? [];
+  const relativeHumidityFraction = config.environment?.relativeHumidityFraction;
   const thrustCurve = config.motor.thrustCurve;
   const burnoutTimeS = thrustCurve.at(-1)!.timeS;
   const launchMassKg =
@@ -197,9 +208,15 @@ export function simulateVerticalFlight(
     sampleState: State,
     chuteDeployed: boolean,
   ) => {
-    const atmosphere = standardAtmosphere(
+    const dryAtmosphere = standardAtmosphere(
       launchAltitudeM + Math.max(0, sampleState.altitudeAglM),
     );
+    const atmosphere = relativeHumidityFraction === undefined
+      ? dryAtmosphere
+      : applyRelativeHumidityToAtmosphere(
+          dryAtmosphere,
+          relativeHumidityFraction,
+        );
     const consumed = propellantFractionConsumed(thrustCurve, sampleTimeS);
     const massKg =
       config.vehicle.dryMassKg +
@@ -478,6 +495,15 @@ export function simulateVerticalFlight(
         "Horizontal wind interpolation is ready for the future 6-DOF model; this 1D solver only couples vertical air motion.",
     });
   }
+  if (relativeHumidityFraction !== undefined) {
+    warnings.push({
+      code: "HUMID_AIR_CORRECTION",
+      severity: "info",
+      title: "Moist-air correction is active",
+      explanation:
+        "Density and speed of sound use a constant-relative-humidity ideal-mixture approximation; condensation, phase change, and humidity-dependent viscosity are not modeled.",
+    });
+  }
   warnings.push({
     code: "MODEL_UNVALIDATED",
     severity: "info",
@@ -513,6 +539,9 @@ export function simulateVerticalFlight(
         : "User-supplied drag coefficient is constant with Mach and Reynolds number",
       "Thrust curve is linearly interpolated",
       "Propellant depletion is proportional to delivered impulse",
+      ...(relativeHumidityFraction !== undefined
+        ? ["Relative humidity is applied to the standard atmosphere as a constant-altitude-profile ideal-mixture correction."]
+        : ["Dry-air density and speed of sound are used when no relative humidity is supplied."]),
       "Rigid vehicle with no attitude, stability, or structural dynamics",
     ],
   };

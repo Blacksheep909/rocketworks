@@ -37,6 +37,10 @@ flight-readiness claims.
   result while preserving the explicit non-coupled discarded-body limit.
 - Bumped the rigid-body, separated-body, multi-stage, and stage-flight model
   versions to expose the new event semantics in exported provenance.
+- Added a clean-room moist-air atmosphere slice: relative humidity now drives
+  water-vapor partial pressure, virtual temperature, density, sound speed, and
+  Reynolds-number inputs across the browser preview, while condensation and
+  humidity-dependent viscosity remain explicit limitations.
 
 ## 0.1.0-preview — 2026-08-09
 

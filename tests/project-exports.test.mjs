@@ -78,6 +78,7 @@ const portableConfiguration = {
     dragCoefficient: 0.52,
     launchAltitudeM: 80,
     windSpeedMps: 4,
+    relativeHumidityPercent: 60,
     launchRailEnabled: true,
     launchRailLengthM: 1.2,
     recoveryEnabled: true,

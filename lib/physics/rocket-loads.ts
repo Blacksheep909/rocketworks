@@ -642,7 +642,7 @@ export function createPreliminaryRocketLoadModel(
     warnings: [
       "This coupling is not a validated flight simulation.",
       "Normal force is disabled outside forward low-speed flow and bounded at the small-angle limit.",
-      "Atmosphere version 0.3 is limited to -500 m through 20 km geometric altitude.",
+      "Atmosphere version 0.4 is limited to -500 m through 20 km geometric altitude; moist-air corrections remain bounded ideal-mixture approximations.",
       "No ground contact, terrain, Coriolis, Earth rotation, curvature, or geodesy is included; launch rail, recovery, and staging require explicitly composed providers.",
     ],
   };

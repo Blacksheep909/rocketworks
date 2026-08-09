@@ -32,6 +32,8 @@ research, standards, and original code.
   provenance-qualified data;
 - atmosphere, launch-site, wind, turbulence, launch-rail, recovery, and
   landing-dispersion previews;
+- optional relative-humidity coupling with explicit water-vapor, virtual-
+  temperature, density, sound-speed, and Reynolds-number diagnostics;
 - preliminary vertical flight, coupled 6DOF, staging, ignition delays,
   failure events, and bounded separated-body ballistic checks;
 - interactive vertical and staged trace inspectors with Mach, dynamic-pressure,

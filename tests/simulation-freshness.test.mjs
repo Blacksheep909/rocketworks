@@ -18,6 +18,7 @@ const inputs = {
   dragCoefficient: 0.52,
   launchAltitudeM: 80,
   windSpeedMps: 4,
+  relativeHumidityPercent: 60,
   launchRailEnabled: true,
   launchRailLengthM: 1.2,
   recoveryEnabled: true,
@@ -74,6 +75,7 @@ test("simulation fingerprints are stable across object key order", () => {
 test("simulation fingerprints change when a modeled input or motor changes", () => {
   const baseline = fingerprint();
   const windChanged = fingerprint({ inputs: { ...inputs, windSpeedMps: 8 } });
+  const humidityChanged = fingerprint({ inputs: { ...inputs, relativeHumidityPercent: 80 } });
   const topologyChanged = fingerprint({
     topology: {
       ...createDefaultVehicleTopology(),
@@ -102,6 +104,7 @@ test("simulation fingerprints change when a modeled input or motor changes", () 
     inputs: { ...inputs, launchRailInclinationDeg: 8 },
   });
   assert.notEqual(baseline, windChanged);
+  assert.notEqual(baseline, humidityChanged);
   assert.notEqual(baseline, topologyChanged);
   assert.notEqual(baseline, motorChanged);
   assert.notEqual(baseline, cantChanged);

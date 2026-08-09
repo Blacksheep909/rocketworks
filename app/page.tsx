@@ -42,6 +42,7 @@ import {
   sweepVerticalFlight,
   simulateRecoveryDescent,
   estimateAscentWindDrift,
+  standardAtmosphere,
   simulateVerticalFlight,
   computeStructuralScreen,
   resolveStageAerodynamicTable,
@@ -409,9 +410,14 @@ function createPreviewEnvironment(
     windScale?: number;
     directionOffsetRad?: number;
     turbulenceScale?: number;
+    relativeHumidityPercent?: number;
   }> = {},
 ) {
   const turbulenceScale = options.turbulenceScale ?? 1;
+  const siteAtmosphere = standardAtmosphere(launchAltitude);
+  const relativeHumidityFraction = options.relativeHumidityPercent === undefined
+    ? undefined
+    : options.relativeHumidityPercent / 100;
   return createLaunchEnvironmentModel({
     site: {
       name: "ARC 54 synthetic range",
@@ -430,6 +436,11 @@ function createPreviewEnvironment(
       validationStatus: "synthetic-unvalidated",
     },
     meanWindProfile: createPreviewWindProfile(windSpeed, options),
+    surfaceObservation: {
+      stationPressurePa: siteAtmosphere.pressurePa,
+      temperatureK: siteAtmosphere.temperatureK,
+      ...(relativeHumidityFraction === undefined ? {} : { relativeHumidityFraction }),
+    },
     turbulence: {
       seed: options.seed ?? "arc54-weather-v1",
       rmsVelocityMps: {
@@ -1019,6 +1030,7 @@ function createFlightConfig({
   burnTime,
   launchAltitude,
   windSpeed,
+  relativeHumidityPercent,
   recoveryEnabled,
   recoveryDelay,
   recoveryDiameter,
@@ -1032,6 +1044,7 @@ function createFlightConfig({
   burnTime: number;
   launchAltitude: number;
   windSpeed: number;
+  relativeHumidityPercent: number;
   recoveryEnabled: boolean;
   recoveryDelay: number;
   recoveryDiameter: number;
@@ -1069,6 +1082,7 @@ function createFlightConfig({
     environment: {
       launchAltitudeM: launchAltitude,
       windProfile: createPreviewWindProfile(windSpeed),
+      relativeHumidityFraction: relativeHumidityPercent / 100,
     },
     integration: { timeStepS: 0.02, maxTimeS: 180 },
   };
@@ -1327,6 +1341,7 @@ function createLandingPrediction(
           windScale: values.windScale,
           directionOffsetRad: values.windDirectionOffsetRad,
           turbulenceScale: values.turbulenceScale,
+          relativeHumidityPercent: inputs.relativeHumidityPercent,
         },
       );
       const ascentDrift = estimateAscentWindDrift({
@@ -1971,6 +1986,7 @@ export default function Home() {
   const [dragCoefficient, setDragCoefficient] = useState(0.52);
   const [launchAltitude, setLaunchAltitude] = useState(80);
   const [windSpeed, setWindSpeed] = useState(4);
+  const [relativeHumidityPercent, setRelativeHumidityPercent] = useState(60);
   const [launchRailEnabled, setLaunchRailEnabled] = useState(true);
   const [launchRailLengthM, setLaunchRailLengthM] = useState(1.2);
   const [launchRailInclinationDeg, setLaunchRailInclinationDeg] = useState(0);
@@ -2054,6 +2070,7 @@ export default function Home() {
       dragCoefficient,
       launchAltitudeM: launchAltitude,
       windSpeedMps: windSpeed,
+      relativeHumidityPercent,
       launchRailEnabled,
       launchRailLengthM,
       launchRailInclinationDeg,
@@ -2064,7 +2081,7 @@ export default function Home() {
       recoveryMassKg: recoveryMass,
       recoveryDeploymentSuccessProbability,
     }),
-    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, thrust, windSpeed],
+    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, relativeHumidityPercent, thrust, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -2241,8 +2258,8 @@ export default function Home() {
     [editableInputs, previewMotor, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, vehicleTopology],
   );
   const previewEnvironment = useMemo(
-    () => createPreviewEnvironment(launchAltitude, windSpeed),
-    [launchAltitude, windSpeed],
+    () => createPreviewEnvironment(launchAltitude, windSpeed, { relativeHumidityPercent }),
+    [launchAltitude, relativeHumidityPercent, windSpeed],
   );
   const environmentAt500M = useMemo(
     () =>
@@ -2269,6 +2286,7 @@ export default function Home() {
       burnTime,
       launchAltitude,
       windSpeed,
+      relativeHumidityPercent,
       recoveryEnabled,
       recoveryDelay,
       recoveryDiameter,
@@ -2295,6 +2313,7 @@ export default function Home() {
       burnTime,
       launchAltitude,
       windSpeed,
+      relativeHumidityPercent,
       recoveryEnabled,
       recoveryDelay,
       recoveryDiameter,
@@ -2313,6 +2332,7 @@ export default function Home() {
           burnTime,
           launchAltitude,
           windSpeed,
+          relativeHumidityPercent,
           recoveryEnabled,
           recoveryDelay,
           recoveryDiameter,
@@ -2480,6 +2500,7 @@ export default function Home() {
         setDragCoefficient(inputs.dragCoefficient);
         setLaunchAltitude(inputs.launchAltitudeM);
         setWindSpeed(inputs.windSpeedMps);
+        setRelativeHumidityPercent(inputs.relativeHumidityPercent);
         setLaunchRailEnabled(inputs.launchRailEnabled);
         setLaunchRailLengthM(inputs.launchRailLengthM);
         setLaunchRailInclinationDeg(inputs.launchRailInclinationDeg);
@@ -2703,6 +2724,7 @@ export default function Home() {
     setDragCoefficient(inputs.dragCoefficient);
     setLaunchAltitude(inputs.launchAltitudeM);
     setWindSpeed(inputs.windSpeedMps);
+    setRelativeHumidityPercent(inputs.relativeHumidityPercent);
     setLaunchRailEnabled(inputs.launchRailEnabled);
     setLaunchRailLengthM(inputs.launchRailLengthM);
     setLaunchRailInclinationDeg(inputs.launchRailInclinationDeg);
@@ -3188,6 +3210,7 @@ export default function Home() {
       burnTime,
       launchAltitude,
       windSpeed,
+      relativeHumidityPercent,
       recoveryEnabled,
       recoveryDelay,
       recoveryDiameter,
@@ -3297,6 +3320,7 @@ export default function Home() {
           burnTime,
           launchAltitude,
           windSpeed,
+          relativeHumidityPercent,
           recoveryEnabled,
           recoveryDelay,
           recoveryDiameter,
@@ -3335,6 +3359,7 @@ export default function Home() {
           burnTime,
           launchAltitude,
           windSpeed,
+          relativeHumidityPercent,
           recoveryEnabled,
           recoveryDelay,
           recoveryDiameter,
@@ -4217,6 +4242,8 @@ export default function Home() {
             <NumberField id="drag" label="Drag coefficient" value={dragCoefficient} unit="Cd" min={0.1} max={2} step={0.01} onChange={(value) => { setDragCoefficient(value); markChanged(); }} />
             <NumberField id="launch-altitude" label="Launch-site altitude" value={launchAltitude} unit="m" min={-400} max={10000} step={10} onChange={(value) => { setLaunchAltitude(value); markChanged(); }} />
             <NumberField id="wind-speed" label="Wind at 500 m" value={windSpeed} unit="m/s" min={0} max={80} step={0.5} onChange={(value) => { setWindSpeed(value); markChanged(); }} />
+            <NumberField id="relative-humidity" label="Relative humidity" value={relativeHumidityPercent} unit="%" min={0} max={100} step={1} onChange={(value) => { setRelativeHumidityPercent(value); markChanged(); }} />
+            <p className="field-help">Coupled to water-vapor pressure, virtual temperature, density, and sound speed in the engineering-preview atmosphere.</p>
             <div className="field-group rail-control-group">
               <label htmlFor="launch-rail-enabled">Launch rail constraint</label>
               <select id="launch-rail-enabled" value={launchRailEnabled ? "enabled" : "disabled"} onChange={(event) => { setLaunchRailEnabled(event.target.value === "enabled"); markChanged(); }}>
@@ -4280,6 +4307,9 @@ export default function Home() {
                 <div className="mass-properties-card stability-properties-card">
                   <div><span>Altitude reference</span><strong>{environmentAt500M.altitudeAslM.toFixed(0)} m ASL at 500 m AGL</strong></div>
                   <div><span>Mean wind at 500 m</span><strong>{Math.hypot(environmentAt500M.meanWindWorldMps.x, environmentAt500M.meanWindWorldMps.y).toFixed(1)} m/s</strong></div>
+                  <div><span>Relative humidity</span><strong>{relativeHumidityPercent.toFixed(0)}% · coupled</strong></div>
+                  <div><span>Air density @ 500 m</span><strong>{environmentAt500M.atmosphere.densityKgM3.toFixed(3)} kg/m³</strong></div>
+                  <div><span>Sound speed @ 500 m</span><strong>{environmentAt500M.atmosphere.speedOfSoundMps.toFixed(1)} m/s</strong></div>
                   <div><span>Turbulence RMS L / T / V</span><strong>{(windSpeed * 0.12).toFixed(2)} / {(windSpeed * 0.1).toFixed(2)} / {(windSpeed * 0.06).toFixed(2)} m/s</strong></div>
                   <div><span>Replay seed</span><strong>arc54-weather-v1</strong></div>
                 </div>
