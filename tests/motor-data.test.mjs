@@ -7,7 +7,9 @@ import {
   createMotorLibrary,
   createMultiStageVehicleModel,
   estimateMotorImpulseClass,
+  exportMotorRaspEng,
   exportMotorThrustCsv,
+  importMotorRaspEng,
   importMotorThrustCsv,
   motorRecordToImpulseBasedMotor,
   motorRecordToMultiStageMotor,
@@ -86,6 +88,29 @@ test("strict CSV import accepts comments and round-trips curve values", () => {
   );
   assert.equal(record.metrics.totalImpulseNs, 20);
   assert.equal(exportMotorThrustCsv(record), "time_s,thrust_n\n0,0\n1,20\n2,0");
+});
+
+test("RASP/ENG import derives SI metadata and round-trips a local record", () => {
+  const record = importMotorRaspEng(
+    "; public-format fixture\nC6 18 70 0,3,5 12.0 24.0 Estes\n0.000 0.000\n0.500 4.000\n1.000 0.000\n",
+    {
+      id: "rasp.estes.C6",
+      provenance,
+    },
+  );
+  assert.equal(record.manufacturer, "Estes");
+  assert.equal(record.designation, "C6");
+  assert.equal(record.diameterM, 0.018);
+  assert.equal(record.lengthM, 0.07);
+  assert.equal(record.launchMassKg, 0.024);
+  assert.equal(record.dryMassKg, 0.012);
+  assert.deepEqual(record.ejectionDelaysS, [0, 3, 5]);
+  assert.equal(record.metrics.totalImpulseNs, 2);
+  const exported = exportMotorRaspEng(record);
+  assert.match(exported, /C6 18 70 0,3,5 12 24 Estes/);
+  const reparsed = importMotorRaspEng(exported, { id: "rasp.estes.C6.copy", provenance });
+  assert.deepEqual(reparsed.thrustCurve, record.thrustCurve);
+  assert.deepEqual(reparsed.ejectionDelaysS, record.ejectionDelaysS);
 });
 
 test("motor mass properties use the declared local geometry", () => {
@@ -181,4 +206,7 @@ test("invalid metadata, curves, CSV, masses, and geometry fail explicitly", () =
   assert.throws(() => importMotorThrustCsv("time,thrust\n0,0\n1,0", metadata), /header/);
   assert.throws(() => importMotorThrustCsv("time_s,thrust_n\n0,0\n\"1\",2\n2,0", metadata), /quoted fields/);
   assert.throws(() => importMotorThrustCsv("time_s,thrust_n\n0,0\n1,comma\n2,0", metadata), /two decimal numbers/);
+  assert.throws(() => importMotorRaspEng("C6 18 70 0 12 10 Estes\n0 0\n1 0", { id: "bad", provenance }), /greater than positive propellant/);
+  assert.throws(() => importMotorRaspEng("C6 18 70 0,3,3 12 24 Estes\n0 0\n1 0", { id: "bad", provenance }), /delays must be unique/);
+  assert.throws(() => importMotorRaspEng("C6 18 70 0 12 24 Estes\n0 nope\n1 0", { id: "bad", provenance }), /decimal number/);
 });

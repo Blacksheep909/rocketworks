@@ -35,7 +35,9 @@ import {
   createMultiStageVehicleModel,
   failStageIgnition,
   stageFlightPreviewInitialState,
+  exportMotorRaspEng,
   exportMotorThrustCsv,
+  importMotorRaspEng,
   importMotorThrustCsv,
   combineMassProperties,
   transformMassProperties,
@@ -3650,25 +3652,37 @@ export default function Home() {
   const importUserMotor = () => {
     try {
       const draft = motorImportDraft;
-      const record = importMotorThrustCsv(draft.csv, {
-        id: draft.id.trim(),
-        manufacturer: draft.manufacturer.trim(),
-        designation: draft.designation.trim(),
-        description: draft.description.trim() || undefined,
-        diameterM: Number(draft.diameterMm) / 1000,
-        lengthM: Number(draft.lengthMm) / 1000,
-        launchMassKg: Number(draft.launchMassKg),
-        dryMassKg: Number(draft.dryMassKg),
-        provenance: {
-          sourceName: draft.sourceName.trim(),
-          sourceKind: "user-supplied",
-          dataVersion: draft.dataVersion.trim(),
-          licenseIdentifier: draft.licenseIdentifier.trim(),
-          attribution: draft.attribution.trim(),
-          sourceUrl: draft.sourceUrl.trim() || undefined,
-          validationStatus: "user-supplied-unvalidated",
-        },
-      });
+      const provenance = {
+        sourceName: draft.sourceName.trim(),
+        sourceKind: "user-supplied" as const,
+        dataVersion: draft.dataVersion.trim(),
+        licenseIdentifier: draft.licenseIdentifier.trim(),
+        attribution: draft.attribution.trim(),
+        sourceUrl: draft.sourceUrl.trim() || undefined,
+        validationStatus: "user-supplied-unvalidated" as const,
+      };
+      const firstContentLine = draft.csv
+        .replace(/^\uFEFF/, "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find((line) => line && !line.startsWith("#") && !line.startsWith(";")) ?? "";
+      const record = /^time_s\s*,\s*thrust_n$/i.test(firstContentLine)
+        ? importMotorThrustCsv(draft.csv, {
+            id: draft.id.trim(),
+            manufacturer: draft.manufacturer.trim(),
+            designation: draft.designation.trim(),
+            description: draft.description.trim() || undefined,
+            diameterM: Number(draft.diameterMm) / 1000,
+            lengthM: Number(draft.lengthMm) / 1000,
+            launchMassKg: Number(draft.launchMassKg),
+            dryMassKg: Number(draft.dryMassKg),
+            provenance,
+          })
+        : importMotorRaspEng(draft.csv, {
+            id: draft.id.trim(),
+            description: draft.description.trim() || undefined,
+            provenance,
+          });
       const nextRecords = upsertLocalMotorRecord(userMotorRecords, record);
       persistMotorRecords(nextRecords);
       setSelectedMotorId(record.id);
@@ -5652,6 +5666,7 @@ export default function Home() {
                   <div className="motor-record-actions">
                     <span>{record.provenance.licenseIdentifier} · {record.provenance.validationStatus}</span>
                     <button onClick={() => downloadTextArtifact(`${record.id}.csv`, "text/csv;charset=utf-8", exportMotorThrustCsv(record))}>CSV</button>
+                    <button onClick={() => downloadTextArtifact(`${record.id}.eng`, "text/plain;charset=utf-8", exportMotorRaspEng(record))}>ENG</button>
                     <button onClick={() => selectMotor(record.id)}>{selectedMotorId === record.id ? "Selected" : "Use motor"}</button>
                     <button className="danger-button" onClick={() => removeUserMotor(record.id)}>Remove</button>
                   </div>
@@ -5677,7 +5692,7 @@ export default function Home() {
                 <label>Source URL (optional)<input inputMode="url" value={motorImportDraft.sourceUrl} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, sourceUrl: event.target.value }))} /></label>
               </div>
               <label className="motor-description-field">Description (optional)<input value={motorImportDraft.description} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, description: event.target.value }))} /></label>
-              <label className="motor-csv-field">Thrust curve CSV <small>Required header: time_s,thrust_n · SI units · first point at 0 s · final thrust 0 N</small><textarea value={motorImportDraft.csv} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, csv: event.target.value }))} spellCheck={false} /></label>
+              <label className="motor-csv-field">Thrust curve CSV or RASP .eng <small>CSV Required header: time_s,thrust_n · RASP header: designation diameter_mm length_mm delays propellant_g total_g manufacturer · SI thrust rows</small><textarea value={motorImportDraft.csv} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, csv: event.target.value }))} spellCheck={false} /></label>
               {motorError && <p className="motor-import-error" role="alert">{motorError}</p>}
               <div className="motor-import-actions"><button className="primary-button" onClick={importUserMotor}>Validate and save motor</button><span>Strict parser · max 2 MB · user-supplied-unvalidated</span></div>
             </div>

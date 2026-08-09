@@ -33,7 +33,7 @@ research, standards, and original code.
 - bounded launch-rail inclination and ENU azimuth controls with aligned 6DOF
   handoff;
 - motor and aerodynamic coefficient libraries for user-supplied,
-  provenance-qualified data;
+  provenance-qualified data, including one-record RASP/ENG motor interchange;
 - atmosphere, launch-site, wind, turbulence, launch-rail, recovery, and
   landing-dispersion previews;
 - user-configurable recovery reefing schedules shared by the vertical preview,

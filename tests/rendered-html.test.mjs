@@ -201,6 +201,9 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(source, /UncertaintySettingsEditor/);
   assert.match(source, /uncertaintyCorrelations/);
   assert.match(source, /FlightDataComparisonCard/);
+  assert.match(source, /importMotorRaspEng/);
+  assert.match(source, /exportMotorRaspEng/);
+  assert.match(source, /RASP \.eng/);
   assert.match(source, /parseFlightDataCsv/);
   assert.match(source, /compareFlightDataToStageTrace/);
   assert.match(source, /createFlightDataComparisonCsv/);

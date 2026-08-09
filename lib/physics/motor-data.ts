@@ -74,6 +74,23 @@ export type MotorImpulseClass =
   | "O"
   | "above-O";
 
+export type RaspEngImportMetadata = Readonly<{
+  /** Stable local identifier chosen by the importing project. */
+  id: string;
+  description?: string;
+  provenance: MotorDataProvenance;
+}>;
+
+export type RaspEngMotorHeader = Readonly<{
+  designation: string;
+  diameterMm: number;
+  lengthMm: number;
+  ejectionDelaysS: readonly number[];
+  propellantMassG: number;
+  launchMassG: number;
+  manufacturer: string;
+}>;
+
 export type MotorPerformanceMetrics = Readonly<{
   totalImpulseNs: number;
   burnDurationS: number;
@@ -299,8 +316,126 @@ export function importMotorThrustCsv(
   return createMotorDataRecord({ ...metadata, thrustCurve });
 }
 
+function raspRows(text: string): Array<{ line: string; lineNumber: number }> {
+  if (new TextEncoder().encode(text).byteLength > MAX_CSV_BYTES) {
+    throw new Error("RASP motor file exceeds the 2 MB import limit");
+  }
+  return text
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .map((line, index) => ({ line: line.trim(), lineNumber: index + 1 }))
+    .filter((row) => row.line && !row.line.startsWith(";") && !row.line.startsWith("#"));
+}
+
+function raspNumber(value: string, label: string): number {
+  if (!NUMBER_PATTERN.test(value)) throw new Error(`RASP ${label} must be a decimal number`);
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) throw new Error(`RASP ${label} must be finite`);
+  return parsed;
+}
+
+function parseRaspDelays(value: string): number[] {
+  if (value.toUpperCase() === "P") return [];
+  const tokens = value.split(/[\-,/]+/).filter(Boolean);
+  if (tokens.length === 0) throw new Error("RASP delay field must contain a delay or P");
+  const delays = tokens.map((token) => raspNumber(token, "delay"));
+  delays.forEach((delay) => {
+    if (delay < 0) throw new Error("RASP delays must be non-negative");
+  });
+  if (new Set(delays).size !== delays.length) throw new Error("RASP delays must be unique");
+  return delays;
+}
+
+/**
+ * Parse one motor from the public RASP/ENG interchange format. The parser is
+ * intentionally single-record: callers choose the local ID and provide
+ * provenance rather than silently importing a third-party database.
+ */
+export function parseMotorRaspEng(text: string): Readonly<{
+  header: RaspEngMotorHeader;
+  thrustCurve: readonly ThrustPoint[];
+}> {
+  const rows = raspRows(text);
+  if (rows.length < 3) throw new Error("RASP motor file requires a header and at least two thrust rows");
+  const headerRow = rows[0]!;
+  const headerFields = headerRow.line.split(/\s+/);
+  if (headerFields.length < 7) {
+    throw new Error(`RASP header line ${headerRow.lineNumber} must contain designation, dimensions, delays, masses, and manufacturer`);
+  }
+  const designation = headerFields[0]!;
+  const diameterMm = raspNumber(headerFields[1]!, "diameter");
+  const lengthMm = raspNumber(headerFields[2]!, "length");
+  const ejectionDelaysS = parseRaspDelays(headerFields[3]!);
+  const propellantMassG = raspNumber(headerFields[4]!, "propellant mass");
+  const launchMassG = raspNumber(headerFields[5]!, "total mass");
+  const manufacturer = headerFields.slice(6).join(" ").trim();
+  if (!designation || !manufacturer) throw new Error("RASP designation and manufacturer cannot be empty");
+  if (!(diameterMm > 0) || !(lengthMm > 0)) throw new Error("RASP dimensions must be positive");
+  if (!(propellantMassG > 0) || !(launchMassG > propellantMassG)) {
+    throw new Error("RASP total mass must be greater than positive propellant mass");
+  }
+  const thrustCurve = rows.slice(1).map((row): ThrustPoint => {
+    const fields = row.line.split(/\s+/);
+    if (fields.length !== 2) throw new Error(`RASP curve line ${row.lineNumber} must contain time and thrust`);
+    return {
+      timeS: raspNumber(fields[0]!, `curve time on line ${row.lineNumber}`),
+      thrustN: raspNumber(fields[1]!, `curve thrust on line ${row.lineNumber}`),
+    };
+  });
+  return {
+    header: {
+      designation,
+      diameterMm,
+      lengthMm,
+      ejectionDelaysS,
+      propellantMassG,
+      launchMassG,
+      manufacturer,
+    },
+    thrustCurve,
+  };
+}
+
+export function importMotorRaspEng(
+  text: string,
+  metadata: RaspEngImportMetadata,
+): MotorDataRecord {
+  const parsed = parseMotorRaspEng(text);
+  return createMotorDataRecord({
+    id: metadata.id,
+    manufacturer: parsed.header.manufacturer,
+    designation: parsed.header.designation,
+    description: metadata.description,
+    diameterM: parsed.header.diameterMm / 1000,
+    lengthM: parsed.header.lengthMm / 1000,
+    launchMassKg: parsed.header.launchMassG / 1000,
+    dryMassKg: (parsed.header.launchMassG - parsed.header.propellantMassG) / 1000,
+    thrustCurve: parsed.thrustCurve,
+    ejectionDelaysS: parsed.header.ejectionDelaysS,
+    provenance: metadata.provenance,
+  });
+}
+
 export function exportMotorThrustCsv(record: MotorDataRecord): string {
   return ["time_s,thrust_n", ...record.thrustCurve.map((point) => `${point.timeS},${point.thrustN}`)].join("\n");
+}
+
+export function exportMotorRaspEng(record: MotorDataRecord): string {
+  const delays = record.ejectionDelaysS.length > 0 ? record.ejectionDelaysS.join(",") : "P";
+  const header = [
+    record.designation,
+    record.diameterM * 1000,
+    record.lengthM * 1000,
+    delays,
+    record.metrics.propellantMassKg * 1000,
+    record.launchMassKg * 1000,
+    record.manufacturer,
+  ].join(" ");
+  return [
+    `; Kestrel Lab RASP/ENG export · ${record.provenance.sourceName}`,
+    header,
+    ...record.thrustCurve.map((point) => `${point.timeS} ${point.thrustN}`),
+  ].join("\n");
 }
 
 function translated(properties: MassProperties, originBodyM: Vector3): MassProperties {

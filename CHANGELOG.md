@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a clean-room, single-record RASP/ENG motor interchange path. Users can
+  import a public-format motor header and thrust curve with their own
+  provenance, export local records as `.eng`, and keep third-party motor files
+  out of the repository and browser bundle.
 - Extended measured-flight CSV comparison to select the current vertical 1D or
   coupled 6DOF trace, normalize duplicate stage-event timestamps, derive a
   clearly qualified diagnostic acceleration channel, and include trace-source
