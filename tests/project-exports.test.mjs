@@ -364,6 +364,7 @@ test("engineering report leads with status and preserves calculations and limita
       maxAltitudeAglM: 298,
       maxSpeedMps: 49.4,
       timeToApogeeS: 6.1,
+      clusterDiagnostics: [{ stageName: "Booster", activeMotorCount: 1, motorCount: 2, failedMotorCount: 1, failedPropellantMassKg: 0.2, status: "watch" }],
       convergence: {
         status: "watch",
         baseTimeStepS: 0.02,
@@ -422,6 +423,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /## Coupled 6DOF preview/);
   assert.match(report, /Step convergence \| watch/);
   assert.match(report, /Fixture convergence warning/);
+  assert.match(report, /### Motor-state diagnostics/);
+  assert.match(report, /\| Booster \| 1 \/ 2 \| 1 \| 0\.200 kg \| watch \|/);
   assert.match(report, /### Separated-body trajectories/);
   assert.match(report, /\| Booster \| 4\.20 s \| 11\.80 s \| 182\.0 m \| 41\.60 m\/s \|/);
   assert.match(report, /Convergence status: converged/);

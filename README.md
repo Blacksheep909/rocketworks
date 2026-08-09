@@ -21,6 +21,8 @@ research, standards, and original code.
 - bounded canted-motor configuration with radial instance alignment;
 - deterministic per-motor cluster-failure preview with retained failed-motor
   propellant and explicit imbalance warnings;
+- staged motor-state diagnostics in the Flight workspace and engineering
+  report, including active/failed counts and retained failed propellant;
 - bounded launch-rail inclination and ENU azimuth controls with aligned 6DOF
   handoff;
 - motor and aerodynamic coefficient libraries for user-supplied,

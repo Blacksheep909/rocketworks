@@ -792,6 +792,21 @@ export function createEngineeringReportMarkdown(
           "",
           ...input.stageFlight.convergence.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
           ...input.stageFlight.convergence.warnings.map((warning) => `- **Convergence warning:** ${markdownText(warning)}`),
+          ...((input.stageFlight.clusterDiagnostics ?? []).length > 0
+            ? [
+                "",
+                "### Motor-state diagnostics",
+                "",
+                "| Stage | Available motors | Failed motors | Retained failed propellant | Status |",
+                "|---|---:|---:|---:|---|",
+                ...(input.stageFlight.clusterDiagnostics ?? []).map(
+                  (diagnostic) =>
+                    `| ${markdownText(diagnostic.stageName)} | ${diagnostic.activeMotorCount} / ${diagnostic.motorCount} | ${diagnostic.failedMotorCount} | ${formatNumber(diagnostic.failedPropellantMassKg, 3)} kg | ${markdownText(diagnostic.status)} |`,
+                ),
+                "",
+                "> Motor-state diagnostics are deterministic configuration checks; they do not estimate ignition probability, hardware health, or flight safety.",
+              ]
+            : []),
           ...((input.stageFlight.separatedBodies ?? []).length > 0
             ? [
                 "",

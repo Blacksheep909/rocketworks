@@ -140,7 +140,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.4.1");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.4.2");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.events.length, 2);
   assert.deepEqual(result.events[0].attachedStageIdsBefore, ["booster", "upper"]);
@@ -161,6 +161,36 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.equal(result.separatedBodies[0].stageId, "booster");
   assert.equal(result.separatedBodies[0].releaseTimeS, 1);
   assert.ok(result.separatedBodies[0].warnings.some((warning) => warning.includes("ballistic")));
+  assert.deepEqual(result.clusterDiagnostics, []);
+});
+
+test("stage-flight adapter exposes configured cluster failure diagnostics", () => {
+  const clusterStage = {
+    ...stages[0],
+    motors: [
+      motor("booster-motor-1", 1.3),
+      { ...motor("booster-motor-2", 1.3), ignitionFailure: true },
+    ],
+  };
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components: components.filter((component) => component.stageId === "booster"),
+    stages: [clusterStage],
+    regimes: [{ id: "cluster-only", label: "Cluster only", activeStageIds: ["booster"], dragCoefficient: 0.65 }],
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 0.5,
+    timeStepS: 0.05,
+    launchAltitudeM: 0,
+  });
+
+  assert.equal(result.clusterDiagnostics.length, 1);
+  assert.equal(result.clusterDiagnostics[0].stageId, "booster");
+  assert.equal(result.clusterDiagnostics[0].motorCount, 2);
+  assert.equal(result.clusterDiagnostics[0].activeMotorCount, 1);
+  assert.equal(result.clusterDiagnostics[0].failedMotorCount, 1);
+  assert.equal(result.clusterDiagnostics[0].status, "watch");
+  assert.equal(result.clusterDiagnostics[0].failedPropellantMassKg, 0.2);
+  assert.match(result.clusterDiagnostics[0].note, /partial cluster failure/i);
 });
 
 test("stage-flight adapter supports a single-stage coupled 6DOF preview", () => {

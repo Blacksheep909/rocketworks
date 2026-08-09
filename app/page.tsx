@@ -3600,6 +3600,34 @@ export default function Home() {
                         <div><span>HANDOFF</span><strong>{stageFlightResult.rail.events.find((event) => event.type === "rail_exit")?.timeS.toFixed(2) ?? "—"} s</strong></div>
                       </div>
                     )}
+                    {stageFlightResult.clusterDiagnostics.length > 0 && (
+                      <section className="stage-flight-clusters" aria-labelledby="stage-flight-clusters-title">
+                        <div className="stage-flight-clusters-heading">
+                          <div>
+                            <span className="eyebrow">Propulsion readiness</span>
+                            <h4 id="stage-flight-clusters-title">Motor-state diagnostics</h4>
+                            <p>Configured cluster availability and retained failed-motor propellant at pad initialization. This is a deterministic preview check, not a hardware-health or ignition-probability estimate.</p>
+                          </div>
+                          <span className="stage-flight-clusters-count">{stageFlightResult.clusterDiagnostics.length} cluster{stageFlightResult.clusterDiagnostics.length === 1 ? "" : "s"}</span>
+                        </div>
+                        <div className="stage-flight-cluster-list">
+                          {stageFlightResult.clusterDiagnostics.map((diagnostic) => (
+                            <article className={`stage-flight-cluster stage-flight-cluster-${diagnostic.status}`} key={diagnostic.stageId}>
+                              <div className="stage-flight-cluster-title">
+                                <div><strong>{diagnostic.stageName}</strong><span>{diagnostic.activeMotorCount} / {diagnostic.motorCount} motors available</span></div>
+                                <em>{diagnostic.status}</em>
+                              </div>
+                              <div className="stage-flight-cluster-grid">
+                                <div><span>Failed</span><strong>{diagnostic.failedMotorCount}</strong></div>
+                                <div><span>Attached propellant</span><strong>{diagnostic.attachedPropellantMassKg.toFixed(3)} kg</strong></div>
+                                <div><span>Retained by failures</span><strong>{diagnostic.failedPropellantMassKg.toFixed(3)} kg</strong></div>
+                              </div>
+                              <p>{diagnostic.note}</p>
+                            </article>
+                          ))}
+                        </div>
+                      </section>
+                    )}
                     <section className="stage-flight-convergence" aria-labelledby="stage-flight-convergence-title">
                       <div className="stage-flight-convergence-heading">
                         <div>
@@ -4536,7 +4564,7 @@ export default function Home() {
                     <div className="topology-stage-events">
                       <label>Ignition delay (s)<input type="number" min="0" max="120" step="0.01" value={stage.ignitionDelayS} onChange={(event) => updateTopologyStage(stage.id, { ignitionDelayS: Number(event.target.value) })} /></label>
                       <label>Separation delay (s)<input type="number" min="0" max="120" step="0.01" value={stage.separationDelayS} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { separationDelayS: Number(event.target.value) })} /></label>
-                      <label>Failed motors (1-based)<input type="text" inputMode="numeric" placeholder={stageMotorInstanceCount(stage) > 1 ? "e.g. 1, 3" : "none"} value={topologyFailureDrafts[stage.id] ?? stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")} disabled={stage.role === "payload"} onChange={(event) => { setTopologyFailureDrafts((current) => ({ ...current, [stage.id]: event.target.value })); setTopologyError(""); }} onBlur={() => { const value = topologyFailureDrafts[stage.id]; if (value === undefined) return; if (updateTopologyMotorFailures(stage, value)) { setTopologyFailureDrafts((current) => { const next = { ...current }; delete next[stage.id]; return next; }); } }} /></label>
+                      <label>Failed motors (1-based)<input type="text" inputMode="text" placeholder={stageMotorInstanceCount(stage) > 1 ? "e.g. 1, 3" : "none"} value={topologyFailureDrafts[stage.id] ?? stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")} disabled={stage.role === "payload"} onChange={(event) => { setTopologyFailureDrafts((current) => ({ ...current, [stage.id]: event.target.value })); setTopologyError(""); }} onBlur={() => { const value = topologyFailureDrafts[stage.id]; if (value === undefined) return; if (updateTopologyMotorFailures(stage, value)) { setTopologyFailureDrafts((current) => { const next = { ...current }; delete next[stage.id]; return next; }); } }} /></label>
                       <label className="topology-failure-toggle"><input type="checkbox" checked={stage.ignitionFailure} onChange={(event) => updateTopologyStage(stage.id, { ignitionFailure: event.target.checked })} /> Force ignition failure in preview</label>
                     </div>
                     <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{stage.failedMotorInstanceIndices.length > 0 ? ` · failed motor${stage.failedMotorInstanceIndices.length > 1 ? "s" : ""} ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}` : ""}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>

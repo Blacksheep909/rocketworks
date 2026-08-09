@@ -23,7 +23,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.4.1`.
+`kestrel-stage-flight-preview-0.4.2`.
 
 ## Event and state policy
 
@@ -75,6 +75,18 @@ coupled 6DOF preview. The comparison is intentionally labeled diagnostic:
 the models use different force, attitude, environment, and rail pathways, so a
 delta is not a validation result or a reason to prefer one model without
 independent evidence.
+
+## Cluster readiness diagnostics
+
+The adapter also returns a `clusterDiagnostics` list for multi-motor stages or
+any stage with a configured ignition failure. Each entry reports the active and
+failed motor counts, attached propellant mass, propellant retained by failed
+motors, and a `nominal`, `watch`, or `failed` status. A partial failure is a
+`watch` condition because the retained body can experience asymmetric thrust
+and changing mass properties; an all-motor failure is `failed` for powered
+flight while still retaining its hardware and propellant in the mass model.
+These are deterministic configuration diagnostics, not probabilities or
+hardware-health measurements.
 
 ## Numerical convergence diagnostic
 

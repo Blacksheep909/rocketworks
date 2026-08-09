@@ -23,6 +23,9 @@ flight-readiness claims.
 - Added bounded per-motor cluster-failure topology controls; failed motors keep
   their attached dry/propellant mass, contribute no thrust or depletion, and
   remain visible as explicit warnings and ignition-failed phases.
+- Added staged motor-state diagnostics to the coupled Flight card and
+  engineering report, with nominal/watch/failed statuses and retained
+  propellant visibility.
 
 ## 0.1.0-preview — 2026-08-09
 

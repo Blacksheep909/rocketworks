@@ -29,7 +29,7 @@ import {
 } from "./separated-body-flight.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.4.1";
+  "kestrel-stage-flight-preview-0.4.2";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -72,6 +72,18 @@ export type StageFlightTracePoint = Readonly<{
   attachedStageIds: readonly string[];
 }>;
 
+export type StageFlightClusterDiagnostic = Readonly<{
+  stageId: string;
+  stageName: string;
+  motorCount: number;
+  failedMotorCount: number;
+  activeMotorCount: number;
+  attachedPropellantMassKg: number;
+  failedPropellantMassKg: number;
+  status: "nominal" | "watch" | "failed";
+  note: string;
+}>;
+
 export type StageFlightEvent = Readonly<{
   id: string;
   label: string;
@@ -111,6 +123,7 @@ export type StageFlightPreviewResult = Readonly<{
   maxAltitudeAglM: number;
   maxSpeedMps: number;
   timeToApogeeS: number;
+  clusterDiagnostics: readonly StageFlightClusterDiagnostic[];
   separatedBodies: readonly SeparatedBodyTrajectory[];
   convergence: StageFlightConvergenceDiagnostic;
   warnings: readonly string[];
@@ -381,6 +394,47 @@ export function simulateStageFlightPreview(
     baseState,
     initiallyIgnitedStageIds,
   );
+  const initialEvaluation = staging.evaluate(initialState);
+  const clusterDiagnostics: readonly StageFlightClusterDiagnostic[] =
+    initialEvaluation.stages
+      .filter(
+        (stage) =>
+          stage.motors.length > 1 ||
+          stage.motors.some((motor) => motor.phase === "ignition-failed"),
+      )
+      .map((stage): StageFlightClusterDiagnostic => {
+        const failedMotors = stage.motors.filter(
+          (motor) => motor.phase === "ignition-failed",
+        );
+        const failedMotorCount = failedMotors.length;
+        const status: StageFlightClusterDiagnostic["status"] =
+          failedMotorCount === 0
+            ? "nominal"
+            : failedMotorCount === stage.motors.length
+              ? "failed"
+              : "watch";
+        const note = stage.ignitionFailed
+          ? "Stage-level ignition failure is armed; all motor propellant remains attached."
+          : failedMotorCount === stage.motors.length
+            ? "All motor instances are ignition-failed; the stage retains its propellant and has no powered thrust."
+            : failedMotorCount > 0
+              ? "A partial cluster failure is configured; retained propellant and off-axis imbalance remain in scope."
+              : "All motor instances are available at pad initialization; no deterministic cluster failure is configured.";
+        return {
+          stageId: stage.id,
+          stageName: stage.name,
+          motorCount: stage.motors.length,
+          failedMotorCount,
+          activeMotorCount: stage.motors.length - failedMotorCount,
+          attachedPropellantMassKg: stage.propellantMassKg,
+          failedPropellantMassKg: failedMotors.reduce(
+            (sum, motor) => sum + motor.propellantMassKg,
+            0,
+          ),
+          status,
+          note,
+        };
+      });
   const scheduledTimesS = [
     ...new Set(
       (input.events ?? [])
@@ -561,6 +615,7 @@ export function simulateStageFlightPreview(
     maxAltitudeAglM: primaryRun.maxAltitudeAglM,
     maxSpeedMps: primaryRun.maxSpeedMps,
     timeToApogeeS: primaryRun.timeToApogeeS,
+    clusterDiagnostics,
     separatedBodies,
     convergence,
     warnings: [...new Set(warnings)],

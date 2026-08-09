@@ -479,6 +479,27 @@ kbd {
 .stage-flight-rail div { min-width: 0; padding: 8px 9px; background: rgba(36,20,16,.76); }
 .stage-flight-rail span { display: block; color: #b87866; font: 650 7px var(--font-geist-mono),monospace; letter-spacing: .08em; }
 .stage-flight-rail strong { display: block; margin-top: 5px; overflow-wrap: anywhere; color: #ffd0c1; font: 700 10px var(--font-geist-mono),monospace; }
+.stage-flight-clusters { margin-top: 12px; padding: 12px; border: 1px solid rgba(47,159,255,.2); border-radius: 3px; background: linear-gradient(135deg, rgba(47,159,255,.065), rgba(10,16,22,.72) 62%); }
+.stage-flight-clusters-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.stage-flight-clusters-heading h4 { margin-top: 4px; color: #eaf2f6; font-size: 11px; letter-spacing: .02em; }
+.stage-flight-clusters-heading p { max-width: 720px; margin-top: 4px; color: #8498a4; font-size: 8px; line-height: 1.45; }
+.stage-flight-clusters-count { flex: 0 0 auto; padding: 5px 7px; border: 1px solid rgba(47,159,255,.3); border-radius: 2px; color: #86cdf9; font: 650 7px var(--font-geist-mono),monospace; letter-spacing: .08em; text-transform: uppercase; }
+.stage-flight-cluster-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; margin-top: 10px; }
+.stage-flight-cluster { min-width: 0; padding: 9px; border: 1px solid rgba(117,153,180,.2); border-radius: 3px; background: rgba(12,18,24,.82); }
+.stage-flight-cluster-watch { border-color: rgba(244,163,64,.34); background: linear-gradient(135deg, rgba(244,163,64,.09), rgba(12,18,24,.84)); }
+.stage-flight-cluster-failed { border-color: rgba(219,128,94,.38); background: linear-gradient(135deg, rgba(219,128,94,.1), rgba(12,18,24,.84)); }
+.stage-flight-cluster-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.stage-flight-cluster-title > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.stage-flight-cluster-title strong { overflow: hidden; color: #e9f4f9; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.stage-flight-cluster-title span { color: #8498a4; font: 8px var(--font-geist-mono),monospace; }
+.stage-flight-cluster-title em { flex: 0 0 auto; color: #7bd0ff; font: normal 650 7px var(--font-geist-mono),monospace; letter-spacing: .08em; text-transform: uppercase; }
+.stage-flight-cluster-watch .stage-flight-cluster-title em { color: #ffc477; }
+.stage-flight-cluster-failed .stage-flight-cluster-title em { color: #ffae98; }
+.stage-flight-cluster-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1px; margin-top: 8px; background: rgba(117,153,180,.14); }
+.stage-flight-cluster-grid div { min-width: 0; padding: 6px; background: rgba(17,24,30,.92); }
+.stage-flight-cluster-grid span { display: block; color: #768b98; font-size: 7px; }
+.stage-flight-cluster-grid strong { display: block; margin-top: 3px; overflow: hidden; color: #d5eaf5; font: 700 9px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-flight-cluster p { margin-top: 8px; color: #a2b1ba; font-size: 7px; line-height: 1.45; }
 .stage-flight-events { display: flex; flex-direction: column; gap: 5px; margin-top: 11px; }
 .stage-flight-events > div { display: grid; grid-template-columns: 52px minmax(0,1fr) minmax(130px,auto); align-items: center; gap: 9px; padding: 7px 8px; border-left: 2px solid var(--accent); background: rgba(47,159,255,.045); }
 .stage-flight-events span { color: #82c8ff; font: 650 8px var(--font-geist-mono),monospace; }
@@ -1308,6 +1329,8 @@ kbd {
   .metric-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .mission-rack > div { padding: 0 7px; }
   .stage-flight-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .stage-flight-clusters-heading { flex-direction: column; }
+  .stage-flight-cluster-list { grid-template-columns: 1fr; }
   .sweep-controls { grid-template-columns: minmax(150px,1.4fr) repeat(3,minmax(78px,.7fr)); }
   .sweep-controls .primary-button { grid-column: 1 / -1; justify-self: start; }
 }
