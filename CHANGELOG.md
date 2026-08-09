@@ -12,6 +12,8 @@ flight-readiness claims.
   independent recovery-load model into retained-vehicle 6DOF/rail loads, with
   apogee command events, canopy-area/drag trace telemetry, and explicit
   detached-stage recovery scope limits.
+- Bumped the coupled uncertainty adapter to 0.2.0 and added bounded recovery
+  reference-area variation plus peak recovery-drag/effective-area metrics.
 - Added independently keyed repeated physical stage instances to the original
   multi-stage model: per-copy ignition/failure/separation state, burnout event
   targeting, nested diagnostics, and live per-copy mass-property lookup while

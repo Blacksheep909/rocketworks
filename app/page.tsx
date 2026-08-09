@@ -3696,6 +3696,15 @@ export default function Home() {
               label: "Drag coefficient",
               distribution: { kind: "triangular", minimum: 0.9, mode: 1, maximum: 1.1 },
             },
+            ...(recoveryEnabled
+              ? [
+                  {
+                    key: "recoveryAreaScale" as const,
+                    label: "Recovery area",
+                    distribution: { kind: "triangular" as const, minimum: 0.8, mode: 1, maximum: 1.2 },
+                  },
+                ]
+              : []),
             {
               key: "windScale",
               label: "Wind profile",
@@ -5427,7 +5436,7 @@ function StageFlightUncertaintyCard({
         <div>
           <span className="eyebrow">Coupled dispersion</span>
           <h4 id="stage-flight-uncertainty-title">6DOF uncertainty envelope</h4>
-          <p>Propagates bounded mass, thrust, drag, and wind assumptions through staging, launch-rail constraints, topology aerodynamics, and the coupled rigid-body run.</p>
+          <p>Propagates bounded mass, thrust, drag, recovery-area, and wind assumptions through staging, launch-rail constraints, topology aerodynamics, and the coupled rigid-body run.</p>
         </div>
         <button className="secondary-button" type="button" onClick={onRun} disabled={running || !current}>
           {running ? "Sampling…" : result ? "Rerun dispersion" : "Run dispersion"}
@@ -5454,6 +5463,12 @@ function StageFlightUncertaintyCard({
             <UncertaintyMetric label="Peak speed P05 / P50 / P95" summary={result.metrics.maxSpeedMps} unit="m/s" decimals={1} />
             <UncertaintyMetric label="Maximum q P05 / P50 / P95" summary={result.metrics.maxDynamicPressurePa} unit="Pa" />
             <UncertaintyMetric label="Final speed P05 / P50 / P95" summary={result.metrics.finalSpeedMps} unit="m/s" decimals={1} />
+            {result.metrics.maxRecoveryDragN && (
+              <UncertaintyMetric label="Peak recovery drag P05 / P50 / P95" summary={result.metrics.maxRecoveryDragN} unit="N" decimals={1} />
+            )}
+            {result.metrics.maxRecoveryEffectiveAreaM2 && (
+              <UncertaintyMetric label="Peak canopy area P05 / P50 / P95" summary={result.metrics.maxRecoveryEffectiveAreaM2} unit="m²" decimals={3} />
+            )}
           </div>
           <UncertaintySensitivityList result={result} metricKey="maxAltitudeAglM" metricLabel="Peak altitude" />
           <div className="uncertainty-convergence" aria-label="Coupled uncertainty convergence diagnostic">

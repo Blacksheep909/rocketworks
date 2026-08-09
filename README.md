@@ -46,8 +46,8 @@ research, standards, and original code.
   failure events, retained-vehicle recovery loads, and bounded separated-body
   trajectories with optional isotropic point-drag basis;
 - seeded coupled 6DOF uncertainty envelopes that propagate bounded mass,
-  propellant, thrust, drag, and wind assumptions through stage events and
-  launch-rail handoff;
+  propellant, thrust, drag, recovery-area, and wind assumptions through stage
+  events and launch-rail handoff, with recovery-load percentile telemetry;
 - interactive vertical and staged trace inspectors with Mach, dynamic-pressure,
   axial/recovery drag, canopy area, angle-of-attack, sideslip, event, and
   topology readouts;

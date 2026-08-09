@@ -23,13 +23,14 @@ import {
 } from "./stage-flight-preview.ts";
 
 export const STAGE_FLIGHT_UNCERTAINTY_ADAPTER_VERSION =
-  "kestrel-stage-flight-uncertainty-0.1.0";
+  "kestrel-stage-flight-uncertainty-0.2.0";
 
 export type StageFlightUncertaintyFactorKey =
   | "dryMassScale"
   | "propellantMassScale"
   | "thrustScale"
   | "dragCoefficientScale"
+  | "recoveryAreaScale"
   | "windScale";
 
 export type StageFlightUncertaintyFactor = {
@@ -171,6 +172,10 @@ export function createStageFlightVariant(
     values.dragCoefficientScale ?? 1,
     "drag coefficient scale",
   );
+  const recoveryAreaScale = positiveScale(
+    values.recoveryAreaScale ?? 1,
+    "recovery area scale",
+  );
   const windScale = positiveScale(values.windScale ?? 1, "wind scale");
   return {
     ...base,
@@ -190,6 +195,10 @@ export function createStageFlightVariant(
     environmentAt: base.environmentAt
       ? scaleEnvironmentProvider(base.environmentAt, windScale)
       : undefined,
+    recoveryDevices: base.recoveryDevices?.map((device) => ({
+      ...device,
+      referenceAreaM2: device.referenceAreaM2 * recoveryAreaScale,
+    })),
     dragCoefficientScale,
   };
 }
@@ -236,7 +245,19 @@ export function analyzeStageFlightUncertainty({
         createStageFlightVariant(baseInput, values),
       );
       const final = finalStateVector(result);
-      return {
+      const recoveryMetrics = result.recoveryModelVersion
+        ? {
+            maxRecoveryDragN: Math.max(
+              0,
+              ...result.trace.map((point) => point.recoveryDragN),
+            ),
+            maxRecoveryEffectiveAreaM2: Math.max(
+              0,
+              ...result.trace.map((point) => point.recoveryEffectiveAreaM2),
+            ),
+          }
+        : {};
+      const outputs: Record<string, number | null> = {
         maxAltitudeAglM: result.maxAltitudeAglM,
         maxSpeedMps: result.maxSpeedMps,
         timeToApogeeS: result.timeToApogeeS,
@@ -250,6 +271,8 @@ export function analyzeStageFlightUncertainty({
         separatedBodyCount: result.separatedBodies.length,
         converged: result.convergence.status === "converged" ? 1 : 0,
       };
+      Object.assign(outputs, recoveryMetrics);
+      return outputs;
     },
     }),
   };

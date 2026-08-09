@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   analyzeStageFlightUncertainty,
   createApogeeRecoveryDeploymentEvent,
+  createScheduledRecoveryDeploymentEvent,
   createScheduledStageIgnitionEvent,
   createScheduledStageSeparationEvent,
   createStageFlightVariant,
@@ -251,7 +252,7 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
     sampleCount: 6,
   });
 
-  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-0.1.0");
+  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-0.2.0");
   assert.equal(first.requestedSampleCount, 6);
   assert.equal(first.successfulSampleCount, 6);
   assert.deepEqual(first.samples, second.samples);
@@ -270,6 +271,39 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
   assert.ok(Math.abs(variant.stages[0].motors[0].initialPropellantMassProperties.massKg - 0.18) < 1e-12);
   assert.equal(variant.stages[0].motors[0].thrustCurve[1].thrustN, 31.5);
   assert.equal(variant.dragCoefficientScale, 1.2);
+
+  const recoveryBase = {
+    ...baseInput,
+    recoveryDevices: [
+      {
+        id: "main",
+        name: "Main canopy",
+        dragCoefficient: 0.75,
+        referenceAreaM2: 0.2,
+      },
+    ],
+  };
+  const recoveryVariant = createStageFlightVariant(recoveryBase, {
+    recoveryAreaScale: 1.25,
+  });
+  assert.equal(recoveryVariant.recoveryDevices[0].referenceAreaM2, 0.25);
+  assert.equal(recoveryBase.recoveryDevices[0].referenceAreaM2, 0.2);
+  const recoveryUncertainty = analyzeStageFlightUncertainty({
+    baseInput: {
+      ...recoveryBase,
+      events: [createScheduledRecoveryDeploymentEvent({ deviceId: "main", timeS: 0.5 })],
+    },
+    factors: [
+      {
+        key: "recoveryAreaScale",
+        label: "Recovery area",
+        distribution: { kind: "uniform", minimum: 0.9, maximum: 1.1 },
+      },
+    ],
+    seed: "recovery-area-fixture",
+    sampleCount: 4,
+  });
+  assert.ok(recoveryUncertainty.metrics.maxRecoveryDragN.p95 !== null);
 
   const providerVariant = createStageFlightVariant(
     {
