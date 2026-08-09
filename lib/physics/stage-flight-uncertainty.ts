@@ -5,6 +5,7 @@ import {
   type UncertaintyAnalysisResult,
 } from "./uncertainty-analysis.ts";
 import type { LaunchEnvironmentProvider } from "./launch-environment.ts";
+import { failRecoveryDevice } from "./recovery-system.ts";
 import {
   scaleMatrix,
   scaleVector,
@@ -31,6 +32,7 @@ export type StageFlightUncertaintyFactorKey =
   | "thrustScale"
   | "dragCoefficientScale"
   | "recoveryAreaScale"
+  | "recoveryDeploymentSuccess"
   | "windScale";
 
 export type StageFlightUncertaintyFactor = {
@@ -176,7 +178,21 @@ export function createStageFlightVariant(
     values.recoveryAreaScale ?? 1,
     "recovery area scale",
   );
+  const recoveryDeploymentSuccess = values.recoveryDeploymentSuccess ?? 1;
+  if (recoveryDeploymentSuccess !== 0 && recoveryDeploymentSuccess !== 1) {
+    throw new Error("recovery deployment success must be exactly 0 or 1");
+  }
   const windScale = positiveScale(values.windScale ?? 1, "wind scale");
+  const initialTimeS = 0;
+  const failureEvents = recoveryDeploymentSuccess === 0
+    ? (base.recoveryDevices ?? []).map((device) => ({
+        id: `uncertainty-${device.id}-recovery-failure`,
+        label: `${device.name} failed deployment scenario`,
+        timeS: initialTimeS + Math.min(1e-6, base.durationS / 2),
+        apply: (state: Parameters<typeof failRecoveryDevice>[0]) =>
+          failRecoveryDevice(state, device.id),
+      }))
+    : [];
   return {
     ...base,
     retainedMassProperties: scaleMassProperties(
@@ -199,6 +215,9 @@ export function createStageFlightVariant(
       ...device,
       referenceAreaM2: device.referenceAreaM2 * recoveryAreaScale,
     })),
+    events: failureEvents.length > 0
+      ? [...(base.events ?? []), ...failureEvents].sort((left, right) => left.timeS - right.timeS || left.id.localeCompare(right.id))
+      : base.events,
     dragCoefficientScale,
   };
 }

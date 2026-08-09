@@ -182,6 +182,7 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(source, /UncertaintySensitivityList/);
   assert.match(source, /Apogee sensitivity/);
   assert.match(source, /recoveryAreaScale/);
+  assert.match(source, /recoveryDeploymentSuccess/);
   assert.match(source, /maxRecoveryDragN/);
   assert.match(source, /not validation, certification, or a flight-safety assessment/);
   assert.match(stylesheet, /\.uncertainty-grid/);

@@ -288,6 +288,11 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
   });
   assert.equal(recoveryVariant.recoveryDevices[0].referenceAreaM2, 0.25);
   assert.equal(recoveryBase.recoveryDevices[0].referenceAreaM2, 0.2);
+  const failedRecoveryVariant = createStageFlightVariant(recoveryBase, {
+    recoveryDeploymentSuccess: 0,
+  });
+  assert.ok(failedRecoveryVariant.events.some((event) => event.id === "uncertainty-main-recovery-failure"));
+  assert.ok(failedRecoveryVariant.events[0].timeS > 0);
   const recoveryUncertainty = analyzeStageFlightUncertainty({
     baseInput: {
       ...recoveryBase,
@@ -299,10 +304,16 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
         label: "Recovery area",
         distribution: { kind: "uniform", minimum: 0.9, maximum: 1.1 },
       },
+      {
+        key: "recoveryDeploymentSuccess",
+        label: "Recovery deployment",
+        distribution: { kind: "bernoulli", successProbability: 0.5 },
+      },
     ],
     seed: "recovery-area-fixture",
     sampleCount: 4,
   });
+  assert.equal(recoveryUncertainty.failedSampleCount, 0);
   assert.ok(recoveryUncertainty.metrics.maxRecoveryDragN.p95 !== null);
 
   const providerVariant = createStageFlightVariant(

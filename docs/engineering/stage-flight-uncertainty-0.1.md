@@ -18,13 +18,17 @@ rigid-body models. It does not import or reuse an external rocket simulator.
 
 The default browser factors are independent bounded distributions for dry mass,
 propellant mass, delivered thrust, drag coefficient, recovery area (when a
+retained recovery device is configured), recovery deployment outcome (when a
 retained recovery device is configured), and wind magnitude. The variant
 builder scales structural and dry motor mass properties with the dry-mass
 factor, initial propellant mass properties with the propellant factor, every
 thrust-curve ordinate with the thrust factor, selected aerodynamic drag with
 the drag factor, configured recovery-device reference areas with the recovery
 area factor, and both profile/provider wind vectors with the wind factor. The
-input object and its nested stage/motor/recovery records are never mutated.
+When a Bernoulli recovery outcome is sampled as failure, the variant inserts a
+small positive-time failure event for each configured recovery device; the
+device remains failed even if a later apogee command fires. The input object
+and its nested stage/motor/recovery records are never mutated.
 
 ## Reported metrics
 

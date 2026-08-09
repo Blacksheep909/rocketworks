@@ -3703,6 +3703,11 @@ export default function Home() {
                     label: "Recovery area",
                     distribution: { kind: "triangular" as const, minimum: 0.8, mode: 1, maximum: 1.2 },
                   },
+                  {
+                    key: "recoveryDeploymentSuccess" as const,
+                    label: "Recovery deployment",
+                    distribution: { kind: "bernoulli" as const, successProbability: recoveryDeploymentSuccessProbability },
+                  },
                 ]
               : []),
             {
