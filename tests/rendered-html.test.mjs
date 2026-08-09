@@ -275,6 +275,9 @@ test("ships explicit constraint-aware design optimization", async () => {
   assert.match(source, /Constraint-aware Pareto tradeoffs/);
   assert.match(source, /Your current design is not changed until you apply a recommendation/);
   assert.match(source, /evolutionary search cannot prove a global optimum/);
+  assert.match(source, /Find robust designs/);
+  assert.match(source, /robustApogeeP05M/);
+  assert.match(source, /finite Latin-hypercube uncertainty scenarios/);
   assert.match(source, /Preview-model Mach applicability/);
   assert.match(source, /Canopy diameter/);
   assert.match(stylesheet, /\.optimization-card/);

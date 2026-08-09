@@ -1,4 +1,4 @@
-# Design optimization 0.1
+# Design optimization 0.2
 
 Status: `engineering-preview-unvalidated`
 
@@ -28,7 +28,7 @@ is uniquely best or globally optimal.
 
 ## Search method
 
-Version 0.1 uses a deterministic, constrained, non-dominated evolutionary
+Version 0.2 uses a deterministic, constrained, non-dominated evolutionary
 search inspired by the public NSGA-II method:
 
 1. The declared initial design is evaluated.
@@ -83,6 +83,26 @@ payload mass merely to improve a score. Its guardrails currently require:
 Those limits are preview defaults, not universal launch requirements or
 structural allowables.
 
+## Opt-in robust screen
+
+The vertical adapter also accepts an explicit `robustness` block. When it is
+enabled, every candidate is propagated through a seeded Latin-hypercube
+ensemble using the declared bounded uncertainty factors and optional
+correlation pairs. The evaluator reports finite-sample metrics alongside the
+nominal metrics:
+
+- `robustApogeeP05M` — lower-tail apogee floor;
+- `robustMaxDynamicPressureP95Pa` — upper-tail maximum dynamic pressure;
+- `robustImpactSpeedP95Mps` — upper-tail impact speed when recovery is active;
+- `robustFailureRate` — failed scenarios divided by requested scenarios.
+
+The browser's **Find robust designs** action uses 12 scenarios per candidate,
+the persisted dependence model is filtered to the supported factors, and
+additional guardrails reject candidates with excessive scenario failures or
+upper-tail loads. This is a transparent risk screen, not a reliability claim:
+the ensemble is intentionally small, scenario failures remain visible, and
+quantiles are not confidence bounds. Nominal optimization remains the default.
+
 ## Verification
 
 Automated tests cover:
@@ -93,6 +113,8 @@ Automated tests cover:
 - constraint dominance against an objectively attractive infeasible region
 - preservation of a broad two-objective Pareto front
 - vertical-flight metric and constraint integration
+- deterministic finite-sample robust metrics, scenario-failure constraints,
+  and invalid robust-settings rejection
 - invalid bounds, search sizes, weights, missing metrics, and non-finite metrics
 
 These tests establish deterministic numerical behavior and component-level
@@ -106,7 +128,9 @@ certification rules.
 - Continuous bounded variables only; no categorical component selection,
   integer variables, topology mutation, or mixed discrete-continuous search.
 - Synchronous single-process evaluation; no worker pool or checkpoint/resume.
-- No robust or reliability-based optimization across uncertainty samples yet.
+- Robust mode is a finite-sample screening ensemble, not a reliability method;
+  it has no confidence bounds, adaptive sampling, importance sampling,
+  surrogate model, or certification interpretation.
 - Constraints use user-supplied normalization or the magnitude of their limit;
   poor scaling can distort infeasible-candidate ranking.
 - The weighted compromise is sensitive to the discovered front's extrema.

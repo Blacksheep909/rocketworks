@@ -148,6 +148,7 @@ type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
   baseRecoveryDiameterM: number;
+  mode: "nominal" | "robust";
 }>;
 
 type CommandAction = Readonly<{
@@ -1383,8 +1384,10 @@ function createSweepResult(
 }
 
 function createOptimizationResult(
-  inputs: Parameters<typeof createFlightConfig>[0],
+  inputs: Parameters<typeof createFlightConfig>[0] & Readonly<{ uncertaintyCorrelations?: readonly ProjectUncertaintyCorrelation[] }>,
+  mode: "nominal" | "robust" = "nominal",
 ): DesignOptimizationResult {
+  const robust = mode === "robust";
   const variables = [
     {
       key: "thrustScale" as const,
@@ -1424,6 +1427,15 @@ function createOptimizationResult(
       ...(inputs.recoveryEnabled
         ? [{ metricKey: "impactSpeedMps" as const, label: "Impact speed", direction: "minimize" as const, weight: 0.3 }]
         : []),
+      ...(robust
+        ? [
+            { metricKey: "robustApogeeP05M" as const, label: "Robust apogee floor", direction: "maximize" as const, weight: 0.3 },
+            { metricKey: "robustMaxDynamicPressureP95Pa" as const, label: "Robust maximum dynamic pressure", direction: "minimize" as const, weight: 0.2 },
+            ...(inputs.recoveryEnabled
+              ? [{ metricKey: "robustImpactSpeedP95Mps" as const, label: "Robust impact speed", direction: "minimize" as const, weight: 0.2 }]
+              : []),
+          ]
+        : []),
     ],
     constraints: [
       { metricKey: "liftedOff", label: "Vehicle lifts off", relation: "greater-than-or-equal", limit: 1 },
@@ -1434,7 +1446,41 @@ function createOptimizationResult(
       ...(inputs.recoveryEnabled
         ? [{ metricKey: "impactSpeedMps" as const, label: "Impact-speed guardrail", relation: "less-than-or-equal" as const, limit: 15 }]
         : []),
+      ...(robust
+        ? [
+            { metricKey: "robustFailureRate" as const, label: "Robust scenario failure rate", relation: "less-than-or-equal" as const, limit: 0.25 },
+            { metricKey: "robustMaxDynamicPressureP95Pa" as const, label: "Robust dynamic-pressure guardrail", relation: "less-than-or-equal" as const, limit: 30_000 },
+            ...(inputs.recoveryEnabled
+              ? [{ metricKey: "robustImpactSpeedP95Mps" as const, label: "Robust impact-speed guardrail", relation: "less-than-or-equal" as const, limit: 18 }]
+              : []),
+          ]
+        : []),
     ],
+    ...(robust
+      ? {
+          robustness: {
+            sampleCount: 12,
+            seed: "arc54-optimizer-robust-v1",
+            factors: [
+              { key: "dryMassScale" as const, label: "Dry mass", distribution: { kind: "triangular" as const, minimum: 0.97, mode: 1, maximum: 1.03 } },
+              { key: "propellantMassScale" as const, label: "Propellant mass", distribution: { kind: "triangular" as const, minimum: 0.95, mode: 1, maximum: 1.05 } },
+              { key: "dragCoefficientScale" as const, label: "Drag coefficient", distribution: { kind: "triangular" as const, minimum: 0.9, mode: 1, maximum: 1.1 } },
+              { key: "thrustScale" as const, label: "Delivered thrust", distribution: { kind: "normal" as const, mean: 1, standardDeviation: 0.04, minimum: 0.85, maximum: 1.15 } },
+              { key: "windScale" as const, label: "Wind profile", distribution: { kind: "uniform" as const, minimum: 0.8, maximum: 1.2 } },
+              ...(inputs.recoveryEnabled
+                ? [
+                    { key: "recoveryDragAreaScale" as const, label: "Recovery area", distribution: { kind: "triangular" as const, minimum: 0.8, mode: 1, maximum: 1.2 } },
+                    { key: "recoveryDelayS" as const, label: "Recovery delay", distribution: { kind: "normal" as const, mean: 0, standardDeviation: 0.18, minimum: -0.3, maximum: 0.5 } },
+                  ]
+                : []),
+            ],
+            correlations: filterUncertaintyCorrelations(
+              inputs.uncertaintyCorrelations ?? [],
+              ["dryMassScale", "propellantMassScale", "dragCoefficientScale", "thrustScale", "windScale", ...(inputs.recoveryEnabled ? ["recoveryDragAreaScale", "recoveryDelayS"] : [])],
+            ),
+          },
+        }
+      : {}),
   });
 }
 
@@ -2214,6 +2260,7 @@ export default function Home() {
   const [running, setRunning] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [optimization, setOptimization] = useState<OptimizationPreview | null>(null);
+  const [optimizationMode, setOptimizationMode] = useState<"nominal" | "robust">("nominal");
   const [sweepParameter, setSweepParameter] =
     useState<VerticalFlightSweepParameterKey>("thrustScale");
   const [sweepMinimum, setSweepMinimum] = useState(0.75);
@@ -3857,8 +3904,9 @@ export default function Home() {
       }
     }, 20);
   };
-  const optimize = () => {
+  const optimize = (mode: "nominal" | "robust" = optimizationMode) => {
     setOptimizing(true);
+    setOptimizationMode(mode);
     setView("flight");
     window.setTimeout(() => {
       try {
@@ -3880,15 +3928,17 @@ export default function Home() {
           recoveryReefingEnabled,
           recoveryReefingDurationS,
           recoveryReefingStartAreaFraction,
+          uncertaintyCorrelations,
           motorRecord: previewMotor,
           aerodynamicTable: selectedAerodynamicTable,
         };
         setOptimization({
-          result: createOptimizationResult(inputs),
+          result: createOptimizationResult(inputs, mode),
           baseThrustN: thrust,
           baseRecoveryDiameterM: recoveryDiameter,
+          mode,
         });
-        notify("Design tradeoffs ready");
+        notify(mode === "robust" ? "Robust design tradeoffs ready" : "Design tradeoffs ready");
       } catch (error) {
         notify(error instanceof Error ? error.message : "Unable to optimize design");
       } finally {
@@ -4475,7 +4525,7 @@ export default function Home() {
                 </div>
                 <span>
                   {optimization
-                    ? `${optimization.result.paretoFront.length} Pareto candidates`
+                    ? `${optimization.result.paretoFront.length} Pareto candidates · ${optimization.mode === "robust" ? "robust screen" : "nominal"}`
                     : "Deterministic preview"}
                 </span>
               </div>
@@ -4487,18 +4537,37 @@ export default function Home() {
               ) : optimization && optimizationRecommendation ? (
                 <>
                   <div className="optimization-summary">
-                    <div>
-                      <span>Compromise apogee</span>
-                      <strong>{optimizationRecommendation.metrics.apogeeM.toFixed(0)} m</strong>
-                    </div>
-                    <div>
-                      <span>Impact speed</span>
-                      <strong>{optimizationRecommendation.metrics.impactSpeedMps.toFixed(1)} m/s</strong>
-                    </div>
-                    <div>
-                      <span>Maximum q</span>
-                      <strong>{Math.round(optimizationRecommendation.metrics.maxDynamicPressurePa)} Pa</strong>
-                    </div>
+                    {optimization.mode === "robust" ? (
+                      <>
+                        <div>
+                          <span>Robust apogee floor</span>
+                          <strong>{(optimizationRecommendation.metrics.robustApogeeP05M ?? 0).toFixed(0)} m P05</strong>
+                        </div>
+                        <div>
+                          <span>Robust maximum q</span>
+                          <strong>{Math.round(optimizationRecommendation.metrics.robustMaxDynamicPressureP95Pa ?? 0)} Pa P95</strong>
+                        </div>
+                        <div>
+                          <span>{recoveryEnabled ? "Robust impact speed" : "Scenario failures"}</span>
+                          <strong>{recoveryEnabled ? `${(optimizationRecommendation.metrics.robustImpactSpeedP95Mps ?? 0).toFixed(1)} m/s P95` : `${((optimizationRecommendation.metrics.robustFailureRate ?? 0) * 100).toFixed(0)}%`}</strong>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <span>Compromise apogee</span>
+                          <strong>{optimizationRecommendation.metrics.apogeeM.toFixed(0)} m</strong>
+                        </div>
+                        <div>
+                          <span>Impact speed</span>
+                          <strong>{optimizationRecommendation.metrics.impactSpeedMps.toFixed(1)} m/s</strong>
+                        </div>
+                        <div>
+                          <span>Maximum q</span>
+                          <strong>{Math.round(optimizationRecommendation.metrics.maxDynamicPressurePa)} Pa</strong>
+                        </div>
+                      </>
+                    )}
                     <div>
                       <span>Search effort</span>
                       <strong>{optimization.result.evaluationCount} runs</strong>
@@ -4512,32 +4581,37 @@ export default function Home() {
                         <small>
                           {candidate.variables.recoveryDragAreaScale === undefined
                             ? "Ballistic descent"
-                            : `${Math.round(optimization.baseRecoveryDiameterM * Math.sqrt(candidate.variables.recoveryDragAreaScale) * 1000)} mm canopy`} · {candidate.metrics.apogeeM.toFixed(0)} m apogee
+                            : `${Math.round(optimization.baseRecoveryDiameterM * Math.sqrt(candidate.variables.recoveryDragAreaScale) * 1000)} mm canopy`} · {optimization.mode === "robust"
+                              ? `${(candidate.metrics.robustApogeeP05M ?? 0).toFixed(0)} m floor · ${((candidate.metrics.robustFailureRate ?? 0) * 100).toFixed(0)}% failures`
+                              : `${candidate.metrics.apogeeM.toFixed(0)} m apogee`}
                         </small>
                       </div>
                     ))}
                   </div>
                   <div className="optimization-actions">
                     <button onClick={applyOptimizationRecommendation}>Apply compromise</button>
-                    <button onClick={optimize}>Run again</button>
+                    <button onClick={() => optimize(optimization.mode)}>Run again</button>
+                    {optimization.mode === "nominal" && <button onClick={() => optimize("robust")}>Try robust screen</button>}
                   </div>
                 </>
               ) : optimization ? (
                 <div className="optimization-empty">
                   <strong>No feasible candidate found</strong>
                   <p>Widen the design bounds or review the Mach, dynamic-pressure, thrust-to-weight, and impact-speed guardrails.</p>
-                  <button onClick={optimize}>Retry search</button>
+                  <button onClick={() => optimize(optimization.mode)}>Retry search</button>
+                  {optimization.mode === "nominal" && <button onClick={() => optimize("robust")}>Try robust screen</button>}
                 </div>
               ) : (
                 <div className="optimization-empty">
                   <strong>Explore motor and recovery tradeoffs</strong>
-                  <p>Runs 144 deterministic candidate simulations and returns a Pareto set. Your current design is not changed until you apply a recommendation.</p>
-                  <button onClick={optimize}>Find better designs</button>
+                  <p>Compare bounded motor and recovery tradeoffs. Your current design is not changed until you apply a recommendation. The robust screen repeats each candidate across a seeded uncertainty ensemble.</p>
+                  <button onClick={() => optimize("nominal")}>Find better designs</button>
+                  <button onClick={() => optimize("robust")}>Find robust designs</button>
                 </div>
               )}
               <div className="optimization-disclaimer">
                 <span>UNVALIDATED SEARCH</span>
-                <p>Seed arc54-optimizer-v1 · evolutionary search cannot prove a global optimum and may exploit model error. Independently validate before manufacturing or flight.</p>
+                <p>{optimization?.mode === "robust" ? "Seed arc54-optimizer-robust-v1 · 12 finite Latin-hypercube uncertainty scenarios per candidate. Quantiles are a screening aid, not a reliability guarantee." : "Seed arc54-optimizer-v1 · evolutionary search cannot prove a global optimum and may exploit model error."} Independently validate before manufacturing or flight.</p>
               </div>
             </div>
             {landingPrediction && (
@@ -4910,7 +4984,7 @@ export default function Home() {
                 <button className="quiet-button" onClick={() => changeExperienceMode("expert")}>Show expert details</button>
               </div>
             )}
-            <button className="optimizer-button" onClick={optimize} disabled={optimizing}>{optimizing ? "Searching tradeoffs…" : "Optimize design"}</button>
+            <button className="optimizer-button" onClick={() => optimize()} disabled={optimizing}>{optimizing ? "Searching tradeoffs…" : "Optimize design"}</button>
             <button className="full-run-button" onClick={simulate}>Recalculate flight</button>
           </>
         )}

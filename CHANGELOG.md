@@ -15,6 +15,10 @@ flight-readiness claims.
 - Added a browser Dependence model editor that persists validated correlation
   pairs through local checkpoints, share links, and portable project JSON, with
   adapter-specific filtering and explicit scope hints.
+- Added an opt-in finite-sample robust optimization screen for vertical flight:
+  each candidate can be replayed across seeded uncertainty scenarios, ranked by
+  explicit P05/P95 metrics, and constrained by observed scenario failure rate.
+  The browser labels this as a risk screen rather than a reliability claim.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.

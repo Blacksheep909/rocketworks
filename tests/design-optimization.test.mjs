@@ -126,6 +126,76 @@ test("vertical-flight adapter exposes physical metrics and respects safety const
   assert.ok(result.paretoFront.every((candidate) => candidate.metrics.apogeeM > 0));
 });
 
+test("vertical optimization can rank finite-sample robust metrics deterministically", () => {
+  const baseConfig = {
+    vehicle: {
+      dryMassKg: 0.42,
+      propellantMassKg: 0.06,
+      referenceAreaM2: Math.PI * (0.054 / 2) ** 2,
+      dragCoefficient: 0.52,
+    },
+    motor: { thrustCurve: makeConstantThrustCurve(22, 1.6) },
+    recovery: {
+      enabled: true,
+      dragAreaM2: Math.PI * (0.45 / 2) ** 2,
+      dragCoefficient: 0.75,
+      deploymentDelayAfterApogeeS: 0,
+    },
+    environment: { launchAltitudeM: 80 },
+    integration: { timeStepS: 0.02, maxTimeS: 180 },
+  };
+  const input = {
+    baseConfig,
+    seed: "robust-vertical-seed",
+    populationSize: 8,
+    generations: 2,
+    variables: [{ key: "thrustScale", label: "Motor thrust scale", minimum: 0.85, maximum: 1.15, initial: 1 }],
+    objectives: [
+      { metricKey: "robustApogeeP05M", label: "Robust apogee floor", direction: "maximize" },
+      { metricKey: "robustMaxDynamicPressureP95Pa", label: "Robust maximum q", direction: "minimize" },
+    ],
+    constraints: [
+      { metricKey: "robustFailureRate", label: "Scenario failure rate", relation: "less-than-or-equal", limit: 0.25 },
+    ],
+    robustness: {
+      sampleCount: 8,
+      seed: "robust-scenario-seed",
+      factors: [
+        { key: "dryMassScale", label: "Dry mass", distribution: { kind: "uniform", minimum: 0.98, maximum: 1.02 } },
+        { key: "thrustScale", label: "Thrust", distribution: { kind: "uniform", minimum: 0.95, maximum: 1.05 } },
+      ],
+      correlations: [{ firstParameterKey: "dryMassScale", secondParameterKey: "thrustScale", coefficient: -0.3 }],
+    },
+  };
+  const first = optimizeVerticalFlightDesign(input);
+  const replay = optimizeVerticalFlightDesign(input);
+  assert.deepEqual(first, replay);
+  assert.ok(first.paretoFront.length > 0);
+  assert.ok(first.paretoFront.every((candidate) => Number.isFinite(candidate.metrics.robustApogeeP05M)));
+  assert.ok(first.paretoFront.every((candidate) => candidate.metrics.robustFailureRate <= 0.25));
+  assert.ok(first.assumptions.some((assumption) => assumption.includes("uncertainty scenarios")));
+  assert.ok(first.warnings.some((warning) => warning.includes("finite-sample risk screen")));
+});
+
+test("robust optimization rejects invalid scenario settings before search", () => {
+  const baseConfig = {
+    vehicle: { dryMassKg: 0.4, propellantMassKg: 0.05, referenceAreaM2: 0.002, dragCoefficient: 0.5 },
+    motor: { thrustCurve: makeConstantThrustCurve(20, 1) },
+    environment: { launchAltitudeM: 0 },
+    integration: { timeStepS: 0.02, maxTimeS: 30 },
+  };
+  const base = {
+    baseConfig,
+    seed: "invalid-robust",
+    populationSize: 8,
+    generations: 1,
+    variables: [{ key: "thrustScale", label: "Thrust", minimum: 0.8, maximum: 1.2 }],
+    objectives: [{ metricKey: "apogeeM", label: "Apogee", direction: "maximize" }],
+  };
+  assert.throws(() => optimizeVerticalFlightDesign({ ...base, robustness: { sampleCount: 7, seed: "x", factors: [{ key: "thrustScale", label: "Thrust", distribution: { kind: "uniform", minimum: 0.9, maximum: 1.1 } }] } }), /sample count/);
+  assert.throws(() => optimizeVerticalFlightDesign({ ...base, robustness: { sampleCount: 8, seed: "", factors: [{ key: "thrustScale", label: "Thrust", distribution: { kind: "uniform", minimum: 0.9, maximum: 1.1 } }] } }), /seed/);
+});
+
 test("invalid bounds, search sizes, weights, and evaluator outputs fail explicitly", () => {
   const base = {
     seed: "validation-seed",
