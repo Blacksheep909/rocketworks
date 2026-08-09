@@ -17,13 +17,13 @@ Kestrel Lab now uses a restrained launch-console language inspired by contempora
 
 ## Interaction hierarchy
 
-The top bar establishes mission identity (`KST-01`), persistence state, experience mode, template access, export, and the primary run action. The workspace toolbar establishes the current design/flight loop and vehicle topology, then exposes a small telemetry rack (`CONFIG`, `STAGES`, `CHECK`) so the operator can read state at a glance. Side panels hold editable inputs and explainable diagnostics. Modal centers are reserved for templates, local history, motor data, and exports.
+The top bar establishes mission identity (`KST-01`), persistence state, experience mode, template access, export, and the primary run action. The workspace toolbar establishes the current design/flight loop and vehicle topology, then exposes a small telemetry rack (`CONFIG`, `STAGES`, `CHECK`) so the operator can read state at a glance. Side panels hold editable inputs and explainable diagnostics. Modal centers are reserved for templates, local history, motor data, exports, and a keyboard-first command search (`Ctrl/Cmd+K`) that routes the highest-value actions without forcing a pointer-only workflow.
 
 This hierarchy is intentionally original. It borrows broad aerospace control-room conventions—status bands, telemetry labels, dark surfaces, and clear state transitions—not any protected visual asset or implementation.
 
 ## Accessibility constraints
 
-Blue is not the only state signal: labels, button text, and dialog descriptions carry the meaning. Focus rings remain visible, modal buttons receive focus on open, Escape and backdrop dismissal are supported, and responsive breakpoints collapse data cards without hiding the primary run action. Beginner mode reduces secondary detail while preserving model warnings and validation status.
+Blue is not the only state signal: labels, button text, and dialog descriptions carry the meaning. Focus rings remain visible, modal inputs receive focus on open, command search supports arrow-key navigation and Enter execution, Escape and backdrop dismissal are supported, and responsive breakpoints collapse data cards without hiding the primary run action. Beginner mode reduces secondary detail while preserving model warnings and validation status.
 
 ## Engineering boundary
 

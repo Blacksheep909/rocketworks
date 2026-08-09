@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { LandingFootprintChart } from "./landing-footprint-chart.tsx";
@@ -101,6 +101,14 @@ type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
   baseRecoveryDiameterM: number;
+}>;
+
+type CommandAction = Readonly<{
+  id: string;
+  label: string;
+  description: string;
+  shortcut?: string;
+  run: () => void;
 }>;
 
 type SweepParameterDefinition = Readonly<{
@@ -1012,6 +1020,10 @@ export default function Home() {
   const [sweepResult, setSweepResult] =
     useState<VerticalFlightSweepResult | null>(null);
   const [sweepError, setSweepError] = useState("");
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
+  const [commandIndex, setCommandIndex] = useState(0);
+  const commandInputRef = useRef<HTMLInputElement>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const exportCloseRef = useRef<HTMLButtonElement>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
@@ -1418,9 +1430,37 @@ export default function Home() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [topologyOpen]);
 
+  useEffect(() => {
+    const openOnShortcut = (event: globalThis.KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandQuery("");
+        setCommandIndex(0);
+        setCommandOpen(true);
+      }
+    };
+    window.addEventListener("keydown", openOnShortcut);
+    return () => window.removeEventListener("keydown", openOnShortcut);
+  }, []);
+
+  useEffect(() => {
+    if (!commandOpen) return;
+    commandInputRef.current?.focus();
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setCommandOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [commandOpen]);
+
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 2200);
+  };
+  const openCommandPalette = () => {
+    setCommandQuery("");
+    setCommandIndex(0);
+    setCommandOpen(true);
   };
   const markChanged = () => {
     setSaved(false);
@@ -1954,6 +1994,43 @@ export default function Home() {
     markChanged();
     notify("Recommendation applied; rerun the estimate to review it");
   };
+  const commandActions: readonly CommandAction[] = [
+    { id: "run-estimate", label: "Run vertical estimate", description: "Propagate the current vehicle through the preliminary vertical model", shortcut: "R", run: simulate },
+    { id: "run-sweep", label: "Run parameter sweep", description: "Evaluate a bounded one-variable trade study", shortcut: "S", run: runSweep },
+    { id: "run-staged", label: "Run staged 6DOF preview", description: "Propagate the active stage graph and event transitions", run: runStageAwareEstimate },
+    { id: "open-topology", label: "Edit stages and boosters", description: "Open the serial, parallel, and radial topology editor", run: () => setTopologyOpen(true) },
+    { id: "open-motors", label: "Open motor library", description: "Review or import a provenance-qualified user motor curve", run: () => setMotorLibraryOpen(true) },
+    { id: "open-templates", label: "Choose a project template", description: "Start from a beginner, high-power, weather, or diagnostic setup", run: () => setTemplatesOpen(true) },
+    { id: "open-history", label: "Open local project history", description: "Restore a validated device-local checkpoint", run: () => setHistoryOpen(true) },
+    { id: "open-export", label: "Open artifact center", description: "Export project JSON, traces, reports, and CAD references", run: () => setExportOpen(true) },
+    { id: "toggle-mode", label: experienceMode === "beginner" ? "Switch to expert mode" : "Switch to beginner mode", description: "Change how much of the workbench is exposed", run: () => changeExperienceMode(experienceMode === "beginner" ? "expert" : "beginner") },
+  ];
+  const filteredCommandActions = commandActions.filter((action) =>
+    `${action.label} ${action.description}`.toLowerCase().includes(commandQuery.trim().toLowerCase()),
+  );
+  const activeCommandIndex = Math.min(
+    commandIndex,
+    Math.max(filteredCommandActions.length - 1, 0),
+  );
+  const executeCommand = (action: CommandAction) => {
+    setCommandOpen(false);
+    setCommandQuery("");
+    setCommandIndex(0);
+    action.run();
+  };
+  const handleCommandKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setCommandIndex((current) => Math.min(current + 1, Math.max(filteredCommandActions.length - 1, 0)));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setCommandIndex((current) => Math.max(current - 1, 0));
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      const action = filteredCommandActions[activeCommandIndex];
+      if (action) executeCommand(action);
+    }
+  };
 
   return (
     <main className="app-shell">
@@ -1968,7 +2045,7 @@ export default function Home() {
         </div>
         <div className="top-actions">
           <div className="mission-chip" aria-label="Mission status"><span>MISSION</span><strong>KST-01</strong><em>PRELIMINARY</em></div>
-          <button className="quiet-button command-button" onClick={() => notify("Command search is planned next")}>
+          <button className="quiet-button command-button" onClick={openCommandPalette} aria-haspopup="dialog" aria-expanded={commandOpen}>
             <span>Search actions</span><kbd>⌘ K</kbd>
           </button>
           <div className="mode-switch" role="group" aria-label="Experience mode">
@@ -2505,6 +2582,54 @@ export default function Home() {
           <p>{view === "design" ? "Static aerodynamics are low-speed and small-angle only. Transonic behavior, damping, viscous effects, and experimental validation remain outstanding." : "Analytical regression tests pass. Experimental and independent benchmark validation are still required; do not use these results for flight-safety decisions."}</p>
         </div>
       </aside>
+      {commandOpen && (
+        <div
+          className="export-backdrop command-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setCommandOpen(false);
+          }}
+        >
+          <section className="command-dialog" role="dialog" aria-modal="true" aria-labelledby="command-title">
+            <div className="command-search">
+              <span className="command-mark" aria-hidden="true">⌘</span>
+              <div>
+                <strong id="command-title">Command search</strong>
+                <input
+                  ref={commandInputRef}
+                  value={commandQuery}
+                  onChange={(event) => { setCommandQuery(event.target.value); setCommandIndex(0); }}
+                  onKeyDown={handleCommandKeyDown}
+                  placeholder="Search mission actions…"
+                  aria-label="Search mission actions"
+                  aria-controls="command-list"
+                  aria-activedescendant={filteredCommandActions[activeCommandIndex] ? `command-${filteredCommandActions[activeCommandIndex].id}` : undefined}
+                />
+              </div>
+              <button className="command-close" onClick={() => setCommandOpen(false)} aria-label="Close command search">Esc</button>
+            </div>
+            <div className="command-list" id="command-list" role="listbox" aria-label="Available mission actions">
+              {filteredCommandActions.length === 0 ? (
+                <div className="command-empty"><strong>No matching actions</strong><span>Try “estimate”, “sweep”, “stage”, or “export”.</span></div>
+              ) : filteredCommandActions.map((action, index) => (
+                <button
+                  className="command-item"
+                  id={`command-${action.id}`}
+                  key={action.id}
+                  role="option"
+                  aria-selected={index === activeCommandIndex}
+                  onMouseEnter={() => setCommandIndex(index)}
+                  onClick={() => executeCommand(action)}
+                >
+                  <span className="command-item-icon" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                  <span><strong>{action.label}</strong><small>{action.description}</small></span>
+                  {action.shortcut ? <kbd>{action.shortcut}</kbd> : <em>↵</em>}
+                </button>
+              ))}
+            </div>
+            <div className="command-footer"><span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span><span><kbd>↵</kbd> Run</span><span><kbd>Esc</kbd> Close</span></div>
+          </section>
+        </div>
+      )}
       {templatesOpen && (
         <div
           className="export-backdrop"

@@ -301,6 +301,11 @@ test("ships a provenance-aware local motor library and mission-control visual la
   assert.match(stylesheet, /\.mission-rack/);
   assert.match(stylesheet, /\.status-pulse/);
   assert.match(stylesheet, /\.workspace-status/);
+  assert.match(page, /Command search/);
+  assert.match(page, /openCommandPalette/);
+  assert.match(page, /runSweep/);
+  assert.match(stylesheet, /\.command-dialog/);
+  assert.match(stylesheet, /\.command-item/);
 });
 
 test("ships an interactive multi-stage, booster, and radial-topology editor", async () => {
