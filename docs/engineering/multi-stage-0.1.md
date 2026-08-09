@@ -152,6 +152,14 @@ inputs plus an explicit ignition-failure preview switch. The resulting Flight
 card reports event topology and retains the status
 `mathematical-regression-tests-only`.
 
+The browser assembly now applies a topology-derived axial transform to serial
+upper/payload stages and expands repeated parallel stages into radial geometry
+instances before the stage-aware aerodynamic adapter runs. The mass-property
+assembly and aerodynamic geometry therefore no longer place every stage at the
+same origin. Radial static-aero effects are still projected into the current
+axisymmetric/fin coefficient representation; lateral interference and
+separation proximity remain outside the model.
+
 ## Next work
 
 Add optional measured mass-flow histories, explicit separation impulses, and a

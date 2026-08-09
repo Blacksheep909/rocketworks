@@ -329,6 +329,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /MODEL BOUNDARY/);
   assert.match(page, /LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY/);
   assert.match(page, /createVehicleAssemblyModel\(assemblyDefinition\)/);
+  assert.match(page, /createStagePlacements/);
+  assert.match(page, /stageEnvelopeLengthM/);
+  assert.match(page, /makePlacedStageComponents/);
   assert.match(topology, /MAX_VEHICLE_STAGES = 8/);
   assert.match(topology, /Parallel stage/);
   assert.match(topology, /parent must appear earlier/);

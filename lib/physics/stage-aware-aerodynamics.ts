@@ -411,11 +411,13 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       "The regime coefficient source uses the active geometry reference area",
       "Mass, center of mass, and attached-stage state come from the shared staging model",
       "Topology coefficients switch instantaneously at the separation event",
+      "Radial component instances are projected into the current axial static-aerodynamic representation",
     ],
     warnings: [
       "This topology adapter has analytical component checks only and is not flight-safety validated.",
       "Coefficient data are supplied externally and must use the same axes, signs, and reference conventions as the selected topology.",
       "The static aerodynamic method remains low-speed, small-angle, slender-body preliminary analysis.",
+      "Lateral booster interference, asymmetric crossflow, and radial fin-to-fin flow are not modeled.",
       "Proximity flow, plume interaction, and multi-body aerodynamics are explicitly unsupported around separation.",
     ],
   };

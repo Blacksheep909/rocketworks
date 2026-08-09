@@ -414,13 +414,110 @@ function makeDesignComponents({
   ];
 }
 
+function stageScaleForRole(role: VehicleStageRole): number {
+  return role === "core" ? 1 : role === "booster" ? 0.72 : role === "payload" ? 0.48 : 0.62;
+}
+
+function stageEnvelopeLengthM(role: VehicleStageRole, lengthM: number): number {
+  return 0.18 + lengthM * stageScaleForRole(role);
+}
+
+type StagePlacement = Readonly<{
+  stage: VehicleStagePlan;
+  translationXM: number;
+  instanceCount: number;
+}>;
+
+function createStagePlacements(
+  stages: readonly VehicleStagePlan[],
+  lengthM: number,
+): readonly StagePlacement[] {
+  const placementById = new Map<string, StagePlacement>();
+  return stages.map((stage) => {
+    const parentTranslationXM = stage.parentStageId
+      ? placementById.get(stage.parentStageId)?.translationXM ?? 0
+      : 0;
+    const translationXM = stage.role === "core"
+      ? 0
+      : stage.attachment === "serial"
+        ? parentTranslationXM - stageEnvelopeLengthM(stage.role, lengthM)
+        : parentTranslationXM;
+    const placement = {
+      stage,
+      translationXM,
+      instanceCount: stage.attachment === "parallel" ? stage.repeatCount : 1,
+    } satisfies StagePlacement;
+    placementById.set(stage.id, placement);
+    return placement;
+  });
+}
+
+function placeStageComponent(
+  component: VehicleComponent,
+  placement: StagePlacement,
+  instanceIndex: number,
+): VehicleComponent {
+  const angle = placement.stage.attachment === "parallel"
+    ? (instanceIndex * 2 * Math.PI) / Math.max(placement.instanceCount, 1)
+    : 0;
+  const radialTranslation = placement.stage.attachment === "parallel"
+    ? {
+        y: placement.stage.repeatRadiusM * Math.cos(angle),
+        z: placement.stage.repeatRadiusM * Math.sin(angle),
+      }
+    : { y: 0, z: 0 };
+  const idSuffix = placement.instanceCount > 1 ? `-instance-${instanceIndex + 1}` : "";
+  if (component.kind === "axisymmetric") {
+    const position = component.positionM ?? { x: 0, y: 0, z: 0 };
+    return {
+      ...component,
+      id: `${component.id}${idSuffix}`,
+      positionM: {
+        x: position.x + placement.translationXM,
+        y: position.y + radialTranslation.y,
+        z: position.z + radialTranslation.z,
+      },
+    };
+  }
+  if (component.kind === "finSet") {
+    return {
+      ...component,
+      id: `${component.id}${idSuffix}`,
+      axialPositionM: component.axialPositionM + placement.translationXM,
+      angularOffsetRad: (component.angularOffsetRad ?? 0) + angle,
+    };
+  }
+  return {
+    ...component,
+    id: `${component.id}${idSuffix}`,
+    positionM: {
+      x: component.positionM.x + placement.translationXM,
+      y: component.positionM.y + radialTranslation.y,
+      z: component.positionM.z + radialTranslation.z,
+    },
+  };
+}
+
+function makePlacedStageComponents(
+  stages: readonly VehicleStagePlan[],
+  baseComponents: readonly VehicleComponent[],
+  inputs: Readonly<{ lengthM: number; diameterM: number; material: MaterialKey; payloadMassKg: number }>,
+): VehicleComponent[] {
+  return createStagePlacements(stages, inputs.lengthM).flatMap((placement) => {
+    const stageComponents = makeAssemblyStageComponents(placement.stage, baseComponents, inputs);
+    return Array.from({ length: placement.instanceCount }, (_, instanceIndex) =>
+      stageComponents.map((component) => placeStageComponent(component, placement, instanceIndex)),
+    ).flat();
+  });
+}
+
 function makeAssemblyStageComponents(
   stage: VehicleStagePlan,
   baseComponents: readonly VehicleComponent[],
   inputs: Readonly<{ lengthM: number; diameterM: number; material: MaterialKey; payloadMassKg: number }>,
 ): VehicleComponent[] {
-  if (stage.id === "sustainer") return baseComponents.map((component) => ({ ...component, stageId: stage.id }));
-  const stageScale = stage.role === "booster" ? 0.72 : stage.role === "payload" ? 0.48 : 0.62;
+  if (stage.role === "core") return baseComponents.map((component) => ({ ...component, stageId: stage.id }));
+  const stageScale = stageScaleForRole(stage.role);
   const generated = makeDesignComponents({
     lengthM: inputs.lengthM * stageScale,
     diameterM: inputs.diameterM * (stage.role === "booster" ? 0.8 : 0.72),
@@ -527,7 +624,7 @@ function createStageFlightPreviewInputs({
     .filter((component) => stageById.get(component.stageId)?.enabled !== false)
     .map((component) => {
       if (
-        component.stageId === "sustainer" &&
+        stageById.get(component.stageId)?.role === "core" &&
         (component.id === "recovery" || component.id === "payload")
       ) {
         return { ...component, stageId: "retained" };
@@ -1083,21 +1180,20 @@ export default function Home() {
     [diameter, length, material, payloadMass],
   );
   const stageFlightComponents = useMemo(
-    () =>
-      vehicleTopology.stages.flatMap((stage) =>
-        makeAssemblyStageComponents(stage, vehicleComponents, {
-          lengthM: length / 1000,
-          diameterM: diameter / 1000,
-          material,
-          payloadMassKg: payloadMass,
-        }),
-      ),
+    () => makePlacedStageComponents(vehicleTopology.stages, vehicleComponents, {
+      lengthM: length / 1000,
+      diameterM: diameter / 1000,
+      material,
+      payloadMassKg: payloadMass,
+    }),
     [diameter, length, material, payloadMass, vehicleComponents, vehicleTopology],
   );
-  const assemblyDefinition = useMemo(() => ({
-    id: "arc54-assembly",
-    name: "ARC 54 assembly",
-    stages: vehicleTopology.stages.map((stage) => {
+  const assemblyDefinition = useMemo(() => {
+    const placements = createStagePlacements(vehicleTopology.stages, length / 1000);
+    return {
+      id: "arc54-assembly",
+      name: "ARC 54 assembly",
+      stages: placements.map(({ stage, translationXM }) => {
       const stageComponents = makeAssemblyStageComponents(stage, vehicleComponents, {
         lengthM: length / 1000,
         diameterM: diameter / 1000,
@@ -1111,6 +1207,7 @@ export default function Home() {
         attachment: stage.attachment,
         ...(stage.parentStageId ? { parentStageId: stage.parentStageId } : {}),
         enabled: stage.enabled,
+        transform: { translationM: { x: translationXM, y: 0, z: 0 } },
         ...(stage.repeatCount > 1 ? {
           repeat: {
             count: stage.repeatCount,
@@ -1125,8 +1222,9 @@ export default function Home() {
           component,
         })),
       };
-    }),
-  }), [diameter, length, material, payloadMass, vehicleComponents, vehicleTopology]);
+      }),
+    };
+  }, [diameter, length, material, payloadMass, vehicleComponents, vehicleTopology]);
   const assembly = useMemo(
     () => createVehicleAssemblyModel(assemblyDefinition).evaluate(),
     [assemblyDefinition],

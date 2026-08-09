@@ -8,9 +8,11 @@ other rocket simulator.
 
 ## Purpose
 
-Version 0.2 establishes a testable physics boundary for the browser product. It
-is intentionally a one-dimensional model. It is not a substitute for the
-planned rigid-body six-degree-of-freedom solver.
+Version 0.2 establishes a testable one-dimensional physics boundary for the
+browser product. It remains the fast nominal/uncertainty/optimization adapter;
+the separate rigid-body six-degree-of-freedom kernel and stage-aware preview
+now cover the higher-dimensional experimental path. Neither path is validated
+for flight-safety decisions.
 
 ## Equations and public references
 
@@ -54,13 +56,16 @@ This is numerical verification, not full physical validation. Missing validation
 includes wind-tunnel drag data, instrumented flights, published benchmark
 trajectories, transonic aerodynamics, off-axis dynamics, and uncertainty bounds.
 
-## Next architecture steps
+## Current adjacent architecture
 
-1. Component geometry, mass properties, centre of gravity, and inertia tensors.
-2. Barrowman-class slender-body stability calculations derived from original
-   reports and modern published corrections.
-3. Mach- and Reynolds-dependent drag build-up.
-4. Quaternion-based rigid-body 6-DOF propagation with rail constraints.
-5. Staging, clustered thrust vectors, discrete events, turbulence, and dispersions.
-6. Independent benchmark corpus and experimental validation ledger.
+The browser also exposes independently implemented component mass properties,
+static stability, launch-environment profiles, launch-rail handoff, quaternion
+6-DOF propagation, topology-aware staging, recovery dispersion, uncertainty,
+bounded parameter sweeps, and constrained optimization. These are deliberately
+separate adapters so the fast vertical result remains easy to inspect and
+regression-test.
 
+Remaining work includes Mach- and Reynolds-dependent drag build-up, complete
+discarded-body staging trajectories, an independent benchmark corpus, and an
+experimental validation ledger. None of those gaps are hidden by the vertical
+model or its UI status badges.
