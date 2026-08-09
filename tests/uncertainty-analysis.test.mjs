@@ -91,6 +91,40 @@ test("summaries use sample standard deviation and interpolated quantiles", () =>
   close(summary.p95, 3.85, 1e-12, "p95");
 });
 
+test("convergence diagnostics expose deterministic split-sample quantile stability", () => {
+  const result = runUncertaintyAnalysis({
+    seed: "convergence-stable",
+    sampleCount: 32,
+    parameters: [parameters[0]],
+    evaluator: () => ({ response: 10 }),
+  });
+  assert.equal(result.convergence.method, "contiguous-halves");
+  assert.equal(result.convergence.status, "converged");
+  assert.equal(result.convergence.successfulSampleCount, 32);
+  assert.equal(result.convergence.lowerHalfSampleCount, 16);
+  assert.equal(result.convergence.upperHalfSampleCount, 16);
+  assert.equal(result.convergence.metrics.response.maximumRelativeQuantileShift, 0);
+  assert.equal(result.convergence.maximumRelativeQuantileShift, 0);
+  assert.ok(result.convergence.assumptions.some((assumption) => assumption.includes("contiguous halves")));
+});
+
+test("convergence diagnostics flag small ensembles and threshold-rate uncertainty", () => {
+  const result = runUncertaintyAnalysis({
+    seed: "convergence-watch",
+    sampleCount: 12,
+    parameters: [parameters[0]],
+    evaluator: (_inputs, index) => ({ response: index }),
+    thresholds: [{ id: "high", metric: "response", comparison: "greater-than-or-equal", value: 6 }],
+  });
+  assert.equal(result.convergence.status, "insufficient-data");
+  assert.equal(result.convergence.thresholds.length, 1);
+  assert.equal(result.convergence.thresholds[0].lowerHalfValidSampleCount, 6);
+  assert.equal(result.convergence.thresholds[0].upperHalfValidSampleCount, 6);
+  assert.equal(result.convergence.thresholds[0].status, "insufficient-data");
+  assert.ok(result.convergence.thresholds[0].wilson95Width > 0);
+  assert.ok(result.convergence.warnings.some((warning) => warning.includes("32 successful samples")));
+});
+
 test("failed and missing outputs remain explicit", () => {
   const result = runUncertaintyAnalysis({
     seed: "failures",

@@ -1,4 +1,4 @@
-export const UNCERTAINTY_MODEL_VERSION = "kestrel-uncertainty-0.2.0";
+export const UNCERTAINTY_MODEL_VERSION = "kestrel-uncertainty-0.3.0";
 export const UNCERTAINTY_MODEL_STATUS = "engineering-preview-unvalidated";
 
 export type ProbabilityDistribution =
@@ -56,6 +56,47 @@ export type SensitivityResult = {
   pairedSampleCount: number;
 };
 
+export type ConvergenceStatus = "converged" | "watch" | "insufficient-data";
+
+export type QuantileConvergenceDiagnostic = {
+  p05: number | null;
+  p50: number | null;
+  p95: number | null;
+};
+
+export type MetricConvergenceDiagnostic = {
+  metric: string;
+  lowerHalfCount: number;
+  upperHalfCount: number;
+  quantileRelativeShift: QuantileConvergenceDiagnostic;
+  maximumRelativeQuantileShift: number | null;
+  status: ConvergenceStatus;
+};
+
+export type ThresholdConvergenceDiagnostic = {
+  thresholdId: string;
+  lowerHalfValidSampleCount: number;
+  upperHalfValidSampleCount: number;
+  halfProbabilityShift: number | null;
+  wilson95Width: number | null;
+  status: ConvergenceStatus;
+};
+
+export type UncertaintyConvergenceDiagnostic = {
+  method: "contiguous-halves";
+  successfulSampleCount: number;
+  lowerHalfSampleCount: number;
+  upperHalfSampleCount: number;
+  minimumRecommendedSampleCount: number;
+  status: ConvergenceStatus;
+  metrics: Record<string, MetricConvergenceDiagnostic>;
+  thresholds: ThresholdConvergenceDiagnostic[];
+  maximumRelativeQuantileShift: number | null;
+  maximumThresholdProbabilityShift: number | null;
+  warnings: string[];
+  assumptions: string[];
+};
+
 export type UncertaintySample = {
   index: number;
   inputs: Record<string, number>;
@@ -75,6 +116,7 @@ export type UncertaintyAnalysisResult = {
   samples: UncertaintySample[];
   metrics: Record<string, MetricSummary>;
   thresholds: ThresholdResult[];
+  convergence: UncertaintyConvergenceDiagnostic;
   sensitivityByMetric: Record<string, SensitivityResult[]>;
   warnings: string[];
   assumptions: string[];
@@ -299,6 +341,176 @@ function wilson95(successes: number, total: number) {
   return { lower: Math.max(0, center - radius), upper: Math.min(1, center + radius) };
 }
 
+const MINIMUM_RECOMMENDED_CONVERGENCE_SAMPLE_COUNT = 32;
+const MINIMUM_CONVERGENCE_HALF_COUNT = 8;
+
+function relativeDifference(left: number | null, right: number | null): number | null {
+  if (left === null || right === null || !Number.isFinite(left) || !Number.isFinite(right)) {
+    return null;
+  }
+  return Math.abs(left - right) / Math.max(Math.abs(left), Math.abs(right), 1e-12);
+}
+
+function convergenceStatus({
+  successfulSampleCount,
+  lowerHalfCount,
+  upperHalfCount,
+  maximumShift,
+}: {
+  successfulSampleCount: number;
+  lowerHalfCount: number;
+  upperHalfCount: number;
+  maximumShift: number | null;
+}): ConvergenceStatus {
+  if (
+    successfulSampleCount < MINIMUM_RECOMMENDED_CONVERGENCE_SAMPLE_COUNT ||
+    lowerHalfCount < MINIMUM_CONVERGENCE_HALF_COUNT ||
+    upperHalfCount < MINIMUM_CONVERGENCE_HALF_COUNT ||
+    maximumShift === null
+  ) {
+    return "insufficient-data";
+  }
+  return maximumShift <= 0.1 ? "converged" : "watch";
+}
+
+function thresholdMatches(value: number, threshold: ThresholdDefinition): boolean {
+  if (threshold.comparison === "greater-than") return value > threshold.value;
+  if (threshold.comparison === "greater-than-or-equal") return value >= threshold.value;
+  if (threshold.comparison === "less-than") return value < threshold.value;
+  return value <= threshold.value;
+}
+
+function thresholdRate(
+  samples: readonly UncertaintySample[],
+  threshold: ThresholdDefinition,
+): Readonly<{ validSampleCount: number; exceedanceCount: number; probability: number | null }> {
+  const values = samples
+    .map((sample) => sample.outputs?.[threshold.metric] ?? null)
+    .filter((value): value is number => value !== null && Number.isFinite(value));
+  const exceedanceCount = values.filter((value) => thresholdMatches(value, threshold)).length;
+  return {
+    validSampleCount: values.length,
+    exceedanceCount,
+    probability: values.length === 0 ? null : exceedanceCount / values.length,
+  };
+}
+
+function maximumNonNull(values: readonly (number | null)[]): number | null {
+  const valid = values.filter((value): value is number => value !== null && Number.isFinite(value));
+  return valid.length === 0 ? null : Math.max(...valid);
+}
+
+function assessConvergence({
+  samples,
+  successfulSampleCount,
+  metrics,
+  thresholds,
+}: {
+  samples: readonly UncertaintySample[];
+  successfulSampleCount: number;
+  metrics: Record<string, MetricSummary>;
+  thresholds: readonly ThresholdResult[];
+}): UncertaintyConvergenceDiagnostic {
+  const splitIndex = Math.ceil(samples.length / 2);
+  const lowerHalf = samples.filter((sample) => sample.index < splitIndex);
+  const upperHalf = samples.filter((sample) => sample.index >= splitIndex);
+  const metricDiagnostics = Object.fromEntries(
+    Object.keys(metrics).sort().map((metric): [string, MetricConvergenceDiagnostic] => {
+      const lowerSummary = summarize(lowerHalf.map((sample) => sample.outputs?.[metric] ?? null));
+      const upperSummary = summarize(upperHalf.map((sample) => sample.outputs?.[metric] ?? null));
+      const quantileRelativeShift = {
+        p05: relativeDifference(lowerSummary.p05, upperSummary.p05),
+        p50: relativeDifference(lowerSummary.p50, upperSummary.p50),
+        p95: relativeDifference(lowerSummary.p95, upperSummary.p95),
+      };
+      const maximumRelativeQuantileShift = maximumNonNull(Object.values(quantileRelativeShift));
+      return [
+        metric,
+        {
+          metric,
+          lowerHalfCount: lowerSummary.count,
+          upperHalfCount: upperSummary.count,
+          quantileRelativeShift,
+          maximumRelativeQuantileShift,
+          status: convergenceStatus({
+            successfulSampleCount,
+            lowerHalfCount: lowerSummary.count,
+            upperHalfCount: upperSummary.count,
+            maximumShift: maximumRelativeQuantileShift,
+          }),
+        },
+      ];
+    }),
+  ) as Record<string, MetricConvergenceDiagnostic>;
+  const thresholdDiagnostics = thresholds.map((threshold): ThresholdConvergenceDiagnostic => {
+    const lowerRate = thresholdRate(lowerHalf, threshold);
+    const upperRate = thresholdRate(upperHalf, threshold);
+    const halfProbabilityShift = lowerRate.probability === null || upperRate.probability === null
+      ? null
+      : Math.abs(lowerRate.probability - upperRate.probability);
+    const wilson95Width = threshold.wilson95 === null
+      ? null
+      : threshold.wilson95.upper - threshold.wilson95.lower;
+    const maximumShift = maximumNonNull([halfProbabilityShift, wilson95Width]);
+    return {
+      thresholdId: threshold.id,
+      lowerHalfValidSampleCount: lowerRate.validSampleCount,
+      upperHalfValidSampleCount: upperRate.validSampleCount,
+      halfProbabilityShift,
+      wilson95Width,
+      status: convergenceStatus({
+        successfulSampleCount,
+        lowerHalfCount: lowerRate.validSampleCount,
+        upperHalfCount: upperRate.validSampleCount,
+        maximumShift,
+      }),
+    };
+  });
+  const statuses = [
+    ...Object.values(metricDiagnostics).map((diagnostic) => diagnostic.status),
+    ...thresholdDiagnostics.map((diagnostic) => diagnostic.status),
+  ];
+  const status: ConvergenceStatus = statuses.length === 0 || statuses.includes("insufficient-data")
+    ? "insufficient-data"
+    : statuses.includes("watch")
+      ? "watch"
+      : "converged";
+  const maximumRelativeQuantileShift = maximumNonNull(
+    Object.values(metricDiagnostics).map((diagnostic) => diagnostic.maximumRelativeQuantileShift),
+  );
+  const maximumThresholdProbabilityShift = maximumNonNull(
+    thresholdDiagnostics.map((diagnostic) => diagnostic.halfProbabilityShift),
+  );
+  const warnings = [
+    "Split-sample convergence is a heuristic finite-sample stability check; it does not address model-form, numerical, or validation error.",
+    ...(status === "insufficient-data"
+      ? [`At least ${MINIMUM_RECOMMENDED_CONVERGENCE_SAMPLE_COUNT} successful samples and ${MINIMUM_CONVERGENCE_HALF_COUNT} valid samples per half are recommended before interpreting stability.`]
+      : []),
+    ...(status === "watch"
+      ? ["One or more split-sample quantile or threshold-rate shifts exceeded the convergence watch threshold of 10%."]
+      : []),
+  ];
+  const assumptions = [
+    "Samples are split by deterministic sample index into lower and upper contiguous halves.",
+    "Quantile shifts use absolute half-sample differences normalized by the larger absolute half value.",
+    "Threshold-rate stability considers the half-sample probability shift and the full Wilson interval width.",
+  ];
+  return {
+    method: "contiguous-halves",
+    successfulSampleCount,
+    lowerHalfSampleCount: lowerHalf.length,
+    upperHalfSampleCount: upperHalf.length,
+    minimumRecommendedSampleCount: MINIMUM_RECOMMENDED_CONVERGENCE_SAMPLE_COUNT,
+    status,
+    metrics: metricDiagnostics,
+    thresholds: thresholdDiagnostics,
+    maximumRelativeQuantileShift,
+    maximumThresholdProbabilityShift,
+    warnings,
+    assumptions,
+  };
+}
+
 export function runUncertaintyAnalysis({
   seed,
   method = "latin-hypercube",
@@ -395,6 +607,12 @@ export function runUncertaintyAnalysis({
     };
   });
   const failedSampleCount = samples.length - successful.length;
+  const convergence = assessConvergence({
+    samples,
+    successfulSampleCount: successful.length,
+    metrics,
+    thresholds: thresholdResults,
+  });
   return {
     modelVersion: UNCERTAINTY_MODEL_VERSION,
     validationStatus: UNCERTAINTY_MODEL_STATUS,
@@ -407,17 +625,20 @@ export function runUncertaintyAnalysis({
     samples,
     metrics,
     thresholds: thresholdResults,
+    convergence,
     sensitivityByMetric,
     warnings: [
       ...(failedSampleCount > 0 ? [`${failedSampleCount} sample evaluations failed and remain visible in the result.`] : []),
       "Input distributions are user/model assumptions; they are not inferred from test data.",
       "Spearman rank correlation measures monotonic association, not causation or independent contribution.",
-      "Finite-sample quantiles and probabilities have sampling error; only threshold probabilities include a Wilson interval.",
+      "Finite-sample quantiles and probabilities have sampling error; convergence diagnostics are heuristic split-sample checks and threshold probabilities include a Wilson interval.",
+      ...convergence.warnings,
     ],
     assumptions: [
       "Uncertain inputs are sampled independently; correlations are not modeled in version 0.1.",
       "Latin-hypercube sampling places one sample in each equal-probability stratum per parameter.",
       "Reported percentiles use linear interpolation between ordered samples.",
+      ...convergence.assumptions,
       "This propagates configured model uncertainty and is not validation, certification, or a flight-safety assessment.",
     ],
   };

@@ -97,6 +97,13 @@ remain inspectable together. The browser reports the sampled success/failure
 counts and a Wilson 95% interval; the configured success probability is an
 assumption, not a reliability claim about hardware.
 
+The landing uncertainty result also carries the reusable split-sample
+convergence diagnostic. It reports whether the seeded ensemble has enough
+successful samples to make a heuristic stability check, plus the largest
+quantile shift and any threshold-rate diagnostics. A `converged` label is not
+validation evidence and does not make a small or approximate physical model
+flight-safe.
+
 ## WGS84 conversion
 
 The footprint is integrated in a local ENU tangent plane. Small local offsets

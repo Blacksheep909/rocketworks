@@ -1649,6 +1649,49 @@ body {
 .landing-ascent-drift span { color: #98cfee; }
 .landing-ascent-drift strong { color: #d8efff; }
 .landing-ascent-drift small { color: #7ea7bd; }
+.landing-metrics .landing-convergence {
+  background: linear-gradient(90deg, rgba(244, 163, 64, .1), rgba(244, 163, 64, .035));
+  box-shadow: inset 2px 0 0 var(--signal-amber);
+}
+.landing-convergence span { color: #e2b474; }
+.landing-convergence strong { color: #ffd5a1; }
+.landing-convergence small { color: #af916b; }
+
+.uncertainty-card-heading-meta { display: flex; align-items: center; gap: 8px; }
+.uncertainty-card-heading-meta > span { color: #8296a1; font: 8px var(--font-geist-mono), monospace; }
+.uncertainty-status {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  padding: 3px 5px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  font: 650 7px var(--font-geist-mono), monospace;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.uncertainty-status-converged { color: #98d6b1; background: rgba(98, 184, 134, .08); }
+.uncertainty-status-watch { color: #f2ba73; background: rgba(244, 163, 64, .08); }
+.uncertainty-status-insufficient-data { color: #ffae98; background: rgba(255, 112, 67, .08); }
+.uncertainty-convergence {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(198, 212, 221, .15);
+  border-radius: 3px;
+  background: rgba(198, 212, 221, .15);
+}
+.uncertainty-convergence > div { min-width: 0; padding: 10px; background: rgba(12, 18, 24, .84); }
+.uncertainty-convergence span { display: block; color: #8497a2; font-size: 8px; }
+.uncertainty-convergence strong { display: block; margin-top: 5px; }
+.uncertainty-convergence small { display: block; margin-top: 5px; color: #708691; font: 7px/1.45 var(--font-geist-mono), monospace; }
+
+@media (max-width: 760px) {
+  .uncertainty-card-heading-meta { align-items: flex-end; flex-direction: column; gap: 4px; }
+  .uncertainty-convergence { grid-template-columns: 1fr; }
+}
 
 .stage-flight-comparison {
   margin-top: 12px;

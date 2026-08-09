@@ -1,10 +1,10 @@
-# Seeded uncertainty analysis 0.1
+# Seeded uncertainty analysis 0.3
 
 Status: engineering preview, unvalidated. This module is an original Kestrel Lab implementation from public statistical methods. It does not use OpenRocket code, data, assets, or simulation logic.
 
 ## Purpose
 
-The nominal trajectory answers one deterministic question. The uncertainty layer repeatedly evaluates that same solver while varying explicitly declared inputs. Version 0.1 provides seeded Monte Carlo sampling, stratified Latin-hypercube sampling (LHS), parameter sweeps, distribution summaries, threshold probabilities with Wilson 95% intervals, and Spearman rank sensitivity.
+The nominal trajectory answers one deterministic question. The uncertainty layer repeatedly evaluates that same solver while varying explicitly declared inputs. Version 0.3 provides seeded Monte Carlo sampling, stratified Latin-hypercube sampling (LHS), parameter sweeps, distribution summaries, threshold probabilities with Wilson 95% intervals, Spearman rank sensitivity, and deterministic split-sample convergence diagnostics.
 
 This is uncertainty propagation through the configured model. It is not experimental validation, certification, reliability qualification, or a flight-safety assessment.
 
@@ -14,7 +14,10 @@ Supported independent marginal distributions are uniform, triangular, and normal
 
 The pseudorandom stream uses a documented FNV-1a seed reduction and Mulberry32 generator. It is deterministic and non-cryptographic. A different runtime should reproduce the same IEEE-754 calculations when JavaScript number semantics are preserved.
 
-Version 0.1 assumes independent uncertain inputs. Correlation structures, epistemic/aleatory separation, convergence diagnostics, and nested sampling are not yet represented.
+Version 0.3 still assumes independent uncertain inputs and does not separate
+epistemic from aleatory uncertainty. Its convergence diagnostic is a heuristic
+contiguous-half comparison, not a formal stopping rule or proof of model
+adequacy.
 
 ## Output statistics
 
@@ -24,6 +27,27 @@ Threshold estimates report the observed fraction and a two-sided Wilson score in
 
 Sensitivity is Spearman rho: average ranks are assigned to ties and Pearson correlation is applied to those ranks. It is useful for monotonic relationships and does not imply causation, independence, or a variance contribution.
 
+## Convergence diagnostics
+
+Every result now compares the lower and upper contiguous halves of the
+deterministically ordered sample list. For each numeric metric it reports the
+relative shifts in P05, P50, and P95, normalized by the larger absolute
+half-sample value. For every threshold it reports the absolute half-sample
+probability shift and the width of the full Wilson interval.
+
+The aggregate status is:
+
+- `converged` when at least 32 successful samples are available, each half has
+  at least 8 valid samples, and the largest diagnostic shift is at most 10%;
+- `watch` when the minimum counts are met but a quantile or threshold-rate
+  diagnostic exceeds 10%;
+- `insufficient-data` when the minimum counts or valid half-sample coverage are
+  not met.
+
+This check is deliberately conservative and readable in the browser. It does
+not account for model-form error, numerical integration error, correlated
+inputs, rare-event tails, or validation evidence.
+
 ## Vertical-flight adapter
 
 `vertical-flight-uncertainty.ts` maps sampled factors into the existing 1D flight configuration. Version 0.1 can vary dry mass, propellant mass, body drag coefficient, delivered thrust, wind, recovery drag area, recovery delay, and launch altitude. It records apogee, maximum speed, Mach, maximum dynamic pressure, event times, impact speed, thrust-to-weight ratio, impulse, and liftoff state.
@@ -32,7 +56,7 @@ The browser preview uses 48 seeded LHS samples and declares its input assumption
 
 ## Verification
 
-Regression tests cover exact seeded replay, seed changes, one sample per LHS stratum, distribution medians, summary statistics, explicit failures and missing metrics, Wilson interval bounds, Spearman direction, sweep endpoints, validation errors, and a full trajectory-adapter run.
+Regression tests cover exact seeded replay, seed changes, one sample per LHS stratum, distribution medians, summary statistics, explicit failures and missing metrics, Wilson interval bounds, deterministic split-sample convergence statuses, Spearman direction, sweep endpoints, validation errors, and a full trajectory-adapter run.
 
 ## Public references
 
@@ -45,6 +69,8 @@ Regression tests cover exact seeded replay, seed changes, one sample per LHS str
 
 - Distributions are supplied assumptions, not inferred from measurements.
 - Inputs are independent; correlation can materially change output tails.
+- Split-sample convergence is heuristic and should not be used as a formal
+  simulation-credibility gate.
 - The small browser ensemble is not adequate for rare-event estimation.
 - Spearman ranking can miss non-monotonic sensitivity and interactions.
 - Evaluator failures are retained, but no automatic recovery or importance reweighting is attempted.

@@ -12,7 +12,7 @@ import {
   createRocketOpenScad,
   createRocketProfileDxf,
 } from "../lib/export/project-exports.ts";
-import { analyzeLandingFootprint } from "../lib/physics/index.ts";
+import { analyzeLandingFootprint, runUncertaintyAnalysis } from "../lib/physics/index.ts";
 
 const trace = [
   {
@@ -161,6 +161,13 @@ test("engineering report leads with status and preserves calculations and limita
       { id: "c", eastM: 110, northM: 5, impactSpeedMps: 8, descentDurationS: 22 },
     ],
   });
+  const uncertainty = runUncertaintyAnalysis({
+    seed: "report-uncertainty",
+    sampleCount: 128,
+    parameters: [{ key: "scale", label: "Scale", distribution: { kind: "uniform", minimum: 0.9, maximum: 1.1 } }],
+    evaluator: () => ({ response: 10 }),
+    thresholds: [{ id: "high", metric: "response", comparison: "greater-than-or-equal", value: 8 }],
+  });
   const report = createEngineeringReportMarkdown({
     projectName: "ARC 54",
     generatedAtIso: "2026-08-01T00:00:00.000Z",
@@ -209,12 +216,13 @@ test("engineering report leads with status and preserves calculations and limita
       trace,
       assumptions: ["Constant drag coefficient"],
     },
+    uncertainty,
     landing: {
       modelVersion: "landing-fixture",
       validationStatus: "engineering-preview-unvalidated",
       seed: "landing-seed",
       footprint,
-      uncertainty: {},
+      uncertainty,
       ascentDrift: {
         modelVersion: "kestrel-ascent-drift-0.1.0",
         label: "Ascent drift wind-drag proxy",
@@ -238,6 +246,10 @@ test("engineering report leads with status and preserves calculations and limita
   assert.ok(report.indexOf("Not flight-safe or manufacturing-approved") < report.indexOf("## Vehicle summary"));
   assert.match(report, /\| Static margin \| 2\.93 calibres \|/);
   assert.match(report, /## Recovery landing footprint/);
+  assert.match(report, /## Uncertainty analysis/);
+  assert.match(report, /Convergence status: converged/);
+  assert.match(report, /Threshold high convergence/);
+  assert.match(report, /Landing uncertainty convergence/);
   assert.match(report, /Recovery deployment: 1 \/ 24 sampled failures/);
   assert.match(report, /assumed 96\.0%/);
   assert.match(report, /Ascent-to-recovery handoff: Ascent drift wind-drag proxy/);

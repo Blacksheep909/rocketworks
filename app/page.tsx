@@ -1235,6 +1235,14 @@ function formatSignedMetric(value: number, decimals = 1): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(decimals)}`;
 }
 
+function formatConvergenceStatus(
+  status: UncertaintyAnalysisResult["convergence"]["status"],
+): string {
+  if (status === "converged") return "Converged heuristic";
+  if (status === "watch") return "Watch sample stability";
+  return "Insufficient samples";
+}
+
 function StageFlightProfileChart({ result }: { result: StageFlightPreviewResult }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [metric, setMetric] = useState<StageFlightMetricKey>("altitude");
@@ -1752,6 +1760,7 @@ export default function Home() {
         candidate.id === optimization.result.recommendedCandidateId,
     ) ?? null;
   const activeSweepDefinition = sweepParameterDefinition(sweepParameter);
+  const primaryThresholdConvergence = uncertainty.convergence.thresholds[0] ?? null;
 
   useEffect(() => {
     const hydrationTimer = window.setTimeout(() => {
@@ -2285,6 +2294,7 @@ export default function Home() {
             provenance: `${previewEnvironment.definition.provenance.sourceName} · ${previewEnvironment.definition.provenance.licenseIdentifier} · ${previewEnvironment.definition.provenance.validationStatus}`,
           },
           flight: result,
+          uncertainty,
           landing: landingPrediction,
         });
       } else if (format === "dxf") {
@@ -2778,7 +2788,10 @@ export default function Home() {
                   <strong>Dispersion envelope</strong>
                   <span>Seeded input-uncertainty propagation</span>
                 </div>
-                <span>{uncertainty.method} · n={uncertainty.successfulSampleCount}</span>
+                <div className="uncertainty-card-heading-meta">
+                  <span>{uncertainty.method} · n={uncertainty.successfulSampleCount}</span>
+                  <strong className={`uncertainty-status uncertainty-status-${uncertainty.convergence.status}`}>{formatConvergenceStatus(uncertainty.convergence.status)}</strong>
+                </div>
               </div>
               <div className="uncertainty-grid">
                 <UncertaintyMetric
@@ -2799,11 +2812,25 @@ export default function Home() {
                     Spearman ρ {uncertainty.sensitivityByMetric.apogeeM?.[0]?.spearmanRho?.toFixed(2) ?? "—"}
                   </small>
                 </div>
-              </div>
-              <div className="uncertainty-disclaimer">
-                <span>MODEL UNCERTAINTY</span>
-                <p>Assumed independent input distributions · seed {uncertainty.seed} · not validation, certification, or a flight-safety assessment.</p>
-              </div>
+                </div>
+                <div className="uncertainty-convergence" aria-label="Uncertainty convergence diagnostic">
+                  <div>
+                    <span>Split-sample stability</span>
+                    <strong className={`uncertainty-status uncertainty-status-${uncertainty.convergence.status}`}>{formatConvergenceStatus(uncertainty.convergence.status)}</strong>
+                    <small>Max quantile shift {uncertainty.convergence.maximumRelativeQuantileShift === null ? "—" : `${(uncertainty.convergence.maximumRelativeQuantileShift * 100).toFixed(0)}%`} · {uncertainty.convergence.lowerHalfSampleCount}/{uncertainty.convergence.upperHalfSampleCount} generated samples per half</small>
+                  </div>
+                  {primaryThresholdConvergence && (
+                    <div>
+                      <span>Threshold-rate stability</span>
+                      <strong className={`uncertainty-status uncertainty-status-${primaryThresholdConvergence.status}`}>{formatConvergenceStatus(primaryThresholdConvergence.status)}</strong>
+                      <small>Half-rate shift {primaryThresholdConvergence.halfProbabilityShift === null ? "—" : `${(primaryThresholdConvergence.halfProbabilityShift * 100).toFixed(0)}%`} · Wilson width {primaryThresholdConvergence.wilson95Width === null ? "—" : `${(primaryThresholdConvergence.wilson95Width * 100).toFixed(0)}%`}</small>
+                    </div>
+                  )}
+                </div>
+                <div className="uncertainty-disclaimer">
+                  <span>MODEL UNCERTAINTY</span>
+                  <p>Assumed independent input distributions · seed {uncertainty.seed} · convergence is a heuristic finite-sample check, not validation, certification, or a flight-safety assessment.</p>
+                </div>
             </div>
             <ParameterSweepCard
               parameter={sweepParameter}
@@ -2919,6 +2946,11 @@ export default function Home() {
                       <span>Impact speed P50 / P95</span>
                       <strong>{landingPrediction.footprint.impactSpeedMps.p50.toFixed(1)} / {landingPrediction.footprint.impactSpeedMps.p95.toFixed(1)} m/s</strong>
                       <small>{landingPrediction.uncertainty.failedSampleCount} failed scenarios retained</small>
+                    </div>
+                    <div className="landing-convergence">
+                      <span>Sample stability</span>
+                      <strong>{formatConvergenceStatus(landingPrediction.uncertainty.convergence.status)}</strong>
+                      <small>Max quantile shift {landingPrediction.uncertainty.convergence.maximumRelativeQuantileShift === null ? "—" : `${(landingPrediction.uncertainty.convergence.maximumRelativeQuantileShift * 100).toFixed(0)}%`} · split-sample heuristic</small>
                     </div>
                     {landingPrediction.ascentDrift && (
                       <div className="landing-ascent-drift">

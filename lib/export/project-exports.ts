@@ -4,11 +4,14 @@ import type {
   VerticalFlightResult,
 } from "../physics/vertical-flight.ts";
 import type { StageFlightTracePoint } from "../physics/stage-flight-preview.ts";
-import type { ParameterSweepResult } from "../physics/uncertainty-analysis.ts";
+import type {
+  ParameterSweepResult,
+  UncertaintyAnalysisResult,
+} from "../physics/uncertainty-analysis.ts";
 
 export const KESTREL_PROJECT_SCHEMA_ID = "org.kestrel-lab.project";
 export const KESTREL_PROJECT_SCHEMA_VERSION = 1;
-export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.3.0";
+export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.4.0";
 export const KESTREL_EXPORT_VALIDATION_STATUS =
   "engineering-preview-unvalidated";
 
@@ -65,6 +68,7 @@ export type EngineeringReportInput = Readonly<{
     provenance: string;
   }>;
   flight: VerticalFlightResult;
+  uncertainty?: UncertaintyAnalysisResult | null;
   landing?: LandingDispersionResult | null;
 }>;
 
@@ -555,6 +559,24 @@ export function createEngineeringReportMarkdown(
         `| ${markdownText(event.label)} | ${formatNumber(event.timeS, 2)} s | ${formatNumber(event.altitudeAglM, 1)} m | ${formatNumber(event.velocityMps, 2)} m/s |`,
     ),
     "",
+    ...(input.uncertainty
+      ? [
+          "## Uncertainty analysis",
+          "",
+          `- Method: ${markdownText(input.uncertainty.method)}`,
+          `- Successful samples: ${input.uncertainty.successfulSampleCount} / ${input.uncertainty.requestedSampleCount}`,
+          `- Convergence status: ${markdownText(input.uncertainty.convergence.status)}`,
+          `- Maximum split-sample quantile shift: ${input.uncertainty.convergence.maximumRelativeQuantileShift === null ? "not available" : `${formatNumber(input.uncertainty.convergence.maximumRelativeQuantileShift * 100, 1)}%`}`,
+          ...(input.uncertainty.convergence.thresholds.length > 0
+            ? input.uncertainty.convergence.thresholds.map(
+                (threshold) =>
+                  `- Threshold ${markdownText(threshold.thresholdId)} convergence: ${markdownText(threshold.status)}; half-rate shift ${threshold.halfProbabilityShift === null ? "not available" : `${formatNumber(threshold.halfProbabilityShift * 100, 1)}%`}; Wilson width ${threshold.wilson95Width === null ? "not available" : `${formatNumber(threshold.wilson95Width * 100, 1)}%`}`,
+              )
+            : []),
+          ...input.uncertainty.convergence.warnings.map((warning) => `- ${markdownText(warning)}`),
+          "",
+        ]
+      : []),
     ...(landing
       ? [
           "## Recovery landing footprint",
@@ -569,6 +591,7 @@ export function createEngineeringReportMarkdown(
           `- Radial distance P50 / P95: ${formatNumber(landing.radialDistanceM.p50, 1)} / ${formatNumber(landing.radialDistanceM.p95, 1)} m`,
           `- Impact speed P50 / P95: ${formatNumber(landing.impactSpeedMps.p50, 2)} / ${formatNumber(landing.impactSpeedMps.p95, 2)} m/s`,
           `- 95% covariance ellipse semi-axes: ${formatNumber(landing.confidenceEllipses[2].semiMajorM, 1)} × ${formatNumber(landing.confidenceEllipses[2].semiMinorM, 1)} m`,
+          `- Landing uncertainty convergence: ${markdownText(input.landing!.uncertainty.convergence.status)}; maximum split-sample quantile shift ${input.landing!.uncertainty.convergence.maximumRelativeQuantileShift === null ? "not available" : `${formatNumber(input.landing!.uncertainty.convergence.maximumRelativeQuantileShift * 100, 1)}%`}`,
           ...(input.landing!.deploymentScenario
             ? [
                 `- ${markdownText(input.landing!.deploymentScenario.label)}: ${input.landing!.deploymentScenario.failedSampleCount} / ${input.landing!.deploymentScenario.successfulSampleCount + input.landing!.deploymentScenario.failedSampleCount} sampled failures`,

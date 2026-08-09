@@ -106,8 +106,13 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(source, /analyzeVerticalFlightUncertainty/);
   assert.match(source, /Dispersion envelope/);
   assert.match(source, /arc54-preview-v1/);
+  assert.match(source, /convergence/);
+  assert.match(source, /formatConvergenceStatus/);
+  assert.match(source, /Split-sample stability/);
   assert.match(source, /not validation, certification, or a flight-safety assessment/);
   assert.match(stylesheet, /\.uncertainty-grid/);
+  assert.match(stylesheet, /\.uncertainty-convergence/);
+  assert.match(stylesheet, /\.uncertainty-status-converged/);
   assert.match(stylesheet, /rgba\(47,159,255/);
 });
 
@@ -211,6 +216,7 @@ test("ships a provenance-qualified recovery landing footprint", async () => {
   assert.match(page, /estimateAscentWindDrift/);
   assert.match(page, /landingPrediction\.ascentDrift/);
   assert.match(page, /Wind-drag proxy included/);
+  assert.match(page, /Sample stability/);
   assert.match(page, /deploymentScenario/);
   assert.match(page, /Bernoulli/);
   assert.match(page, /failed<\/strong>/);
@@ -223,6 +229,7 @@ test("ships a provenance-qualified recovery landing footprint", async () => {
   assert.match(stylesheet, /\.landing-footprint-chart/);
   assert.match(stylesheet, /\.landing-disclaimer/);
   assert.match(stylesheet, /\.landing-reliability/);
+  assert.match(stylesheet, /\.landing-convergence/);
   assert.match(stylesheet, /\.landing-ascent-drift/);
 });
 

@@ -1,4 +1,4 @@
-# Project, analysis, report, and CAD exports 0.3
+# Project, analysis, report, and CAD exports 0.4
 
 Status: `engineering-preview-unvalidated`
 
@@ -17,7 +17,7 @@ The browser's Export action now opens a keyboard-accessible artifact center.
 Escape or the close button dismisses it. Downloads are created in memory and
 initiated only after the user selects a format.
 
-Version 0.3 offers five inspectable formats:
+Version 0.4 offers five inspectable formats:
 
 1. Versioned Kestrel project JSON
 2. Flight-trace CSV
@@ -36,7 +36,7 @@ The root document declares:
 ```text
 schema: org.kestrel-lab.project
 schemaVersion: 1
-exportModelVersion: kestrel-export-0.3.0
+exportModelVersion: kestrel-export-0.4.0
 validationStatus: engineering-preview-unvalidated
 ```
 
@@ -122,6 +122,8 @@ not-manufacturing-approved warning, then records:
 - motor performance and provenance
 - launch site, wind, environment version, status, and provenance
 - flight metrics and event table
+- vertical uncertainty sample count, convergence status, split-sample quantile
+  shifts, and threshold-rate diagnostics when an uncertainty result is supplied
 - optional recovery landing footprint, ascent handoff proxy, uncertainty seed,
   and deployment success/failure interval
 - model assumptions, warnings, and limitations
