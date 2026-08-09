@@ -72,6 +72,8 @@ research, standards, and original code.
 - measured-flight CSV comparison with strict SI parsing, interpolation-based
   residuals, coverage warnings, deterministic residual CSV export, and
   explicit validation boundaries;
+- on-demand deterministic physics benchmarks for atmosphere, gravity,
+  thrust-curve impulse, and static-aerodynamics regression fixtures;
 - validated project import, device-local autosave/history, templates,
   beginner/expert modes, keyboard command search, and compact browser design
   share links.

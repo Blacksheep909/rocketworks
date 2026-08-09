@@ -47,6 +47,10 @@ flight-readiness claims.
   staged previews. The path comparison reports minimum distance, release
   relative speed, and time-coverage status without presenting geometry-free
   results as collision or range-safety clearance.
+- Added an on-demand deterministic physics benchmark suite for standards
+  anchors and closed-form atmosphere, gravity, thrust, and static-aero
+  fixtures. Passing cases remain regression evidence, not experimental
+  validation or flight-safety evidence.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.

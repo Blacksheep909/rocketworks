@@ -52,6 +52,7 @@ import {
   compareFlightDataToTrace,
   createFlightDataComparisonCsv,
   parseFlightDataCsv,
+  runPhysicsBenchmarkSuite,
   computeStructuralScreen,
   resolveStageAerodynamicTable,
   type DesignOptimizationResult,
@@ -64,6 +65,7 @@ import {
   type VerticalFlightResult,
   type FlightDataComparisonResult,
   type FlightDataSeries,
+  type PhysicsBenchmarkSuiteResult,
   type VehicleComponent,
   type MotorDataRecord,
   type StageFlightPreviewResult,
@@ -2157,6 +2159,59 @@ function FlightDataComparisonCard({
   );
 }
 
+function PhysicsBenchmarkCard({
+  result,
+  running,
+  onRun,
+}: {
+  result: PhysicsBenchmarkSuiteResult | null;
+  running: boolean;
+  onRun: () => void;
+}) {
+  return (
+    <section className="benchmark-card" aria-labelledby="benchmark-title">
+      <div className="benchmark-heading">
+        <div>
+          <span className="eyebrow">Evidence lane</span>
+          <h4 id="benchmark-title">Deterministic physics benchmarks</h4>
+          <p>Re-run fixed SI anchors and closed-form fixtures against the original calculation modules before interpreting a design result.</p>
+        </div>
+        <button type="button" className="benchmark-run" onClick={onRun} disabled={running}>
+          {running ? "Running…" : result ? "Run again" : "Run benchmarks"}
+        </button>
+      </div>
+      {!result ? (
+        <div className="benchmark-empty"><strong>Regression evidence is on demand</strong><span>These checks are mathematical regression signals, not experimental validation or flight-safety evidence.</span></div>
+      ) : (
+        <>
+          <div className="benchmark-meta">
+            <span className={`benchmark-status benchmark-status-${result.status}`}>{result.status === "pass" ? "All fixtures pass" : "Review failed fixtures"}</span>
+            <strong>{result.passedCount}/{result.totalCount}</strong>
+            <span>{result.modelVersion}</span>
+          </div>
+          <div className="benchmark-table" role="table" aria-label="Physics benchmark results">
+            <div className="benchmark-row benchmark-row-header" role="row">
+              <span role="columnheader">Fixture</span>
+              <span role="columnheader">Observed</span>
+              <span role="columnheader">Absolute error</span>
+              <span role="columnheader">Tolerance</span>
+            </div>
+            {result.cases.map((benchmark) => (
+              <div className="benchmark-row" role="row" key={benchmark.id}>
+                <span role="cell"><strong>{benchmark.label}</strong><small>{benchmark.metric} · {benchmark.unit}</small></span>
+                <span role="cell">{benchmark.observed.toFixed(Math.max(3, benchmark.expected === 0 ? 3 : 6))}</span>
+                <span role="cell" className={benchmark.passed ? "benchmark-pass" : "benchmark-fail"}>{benchmark.absoluteError.toExponential(2)}</span>
+                <span role="cell">{benchmark.tolerance.toExponential(1)}</span>
+              </div>
+            ))}
+          </div>
+          {result.warnings.map((warning) => <p className="benchmark-warning" key={warning}>{warning}</p>)}
+        </>
+      )}
+    </section>
+  );
+}
+
 type StageFlightMetricKey =
   | "altitude"
   | "speed"
@@ -2512,6 +2567,8 @@ export default function Home() {
   const [uncertaintySeed, setUncertaintySeed] = useState(DEFAULT_UNCERTAINTY_SEED);
   const [uncertaintyCorrelations, setUncertaintyCorrelations] = useState<ProjectUncertaintyCorrelation[]>([]);
   const [running, setRunning] = useState(false);
+  const [benchmarkRunning, setBenchmarkRunning] = useState(false);
+  const [benchmarkResult, setBenchmarkResult] = useState<PhysicsBenchmarkSuiteResult | null>(null);
   const [optimizing, setOptimizing] = useState(false);
   const [optimization, setOptimization] = useState<OptimizationPreview | null>(null);
   const [optimizationMode, setOptimizationMode] = useState<"nominal" | "robust">("nominal");
@@ -3338,6 +3395,21 @@ export default function Home() {
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 2200);
+  };
+  const runPhysicsBenchmarks = () => {
+    if (benchmarkRunning) return;
+    setBenchmarkRunning(true);
+    window.setTimeout(() => {
+      try {
+        const nextResult = runPhysicsBenchmarkSuite();
+        setBenchmarkResult(nextResult);
+        notify(`${nextResult.passedCount}/${nextResult.totalCount} physics benchmarks passed`);
+      } catch (error) {
+        notify(error instanceof Error ? error.message : "Physics benchmark run failed");
+      } finally {
+        setBenchmarkRunning(false);
+      }
+    }, 0);
   };
   const pinComparisonReference = () => {
     if (!resultIsCurrent) {
@@ -4302,6 +4374,7 @@ export default function Home() {
     { id: "run-estimate", label: "Run vertical estimate", description: "Propagate the current vehicle through the preliminary vertical model", shortcut: "R", run: simulate },
     { id: "run-sweep", label: "Run parameter sweep", description: "Evaluate a bounded one-variable trade study", shortcut: "S", run: runSweep },
     { id: "run-staged", label: activeStageCount > 1 ? "Run staged 6DOF preview" : "Run coupled 6DOF preview", description: activeStageCount > 1 ? "Propagate the active stage graph and event transitions" : "Propagate the current vehicle through the coupled rigid-body preview", run: runStageAwareEstimate },
+    { id: "run-benchmarks", label: "Run physics benchmarks", description: "Check deterministic SI anchors and closed-form regression fixtures", run: runPhysicsBenchmarks },
     { id: "open-topology", label: "Edit stages and boosters", description: "Open the serial, parallel, and radial topology editor", run: () => setTopologyOpen(true) },
     { id: "open-motors", label: "Open motor library", description: "Review or import a provenance-qualified user motor curve", run: () => setMotorLibraryOpen(true) },
     { id: "open-aero", label: "Open aerodynamic data", description: "Review or import Mach-Reynolds coefficient tables", run: () => setAerodynamicLibraryOpen(true) },
@@ -4797,6 +4870,11 @@ export default function Home() {
               onExport={exportFlightDataComparison}
               onImport={importFlightData}
               onClear={clearFlightData}
+            />
+            <PhysicsBenchmarkCard
+              result={benchmarkResult}
+              running={benchmarkRunning}
+              onRun={runPhysicsBenchmarks}
             />
             <div className="uncertainty-card">
               <div className="event-card-heading">

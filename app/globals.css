@@ -701,6 +701,39 @@ kbd {
 .flight-data-warnings { display: flex; flex-direction: column; gap: 3px; margin-top: 9px; padding: 8px 9px; border-left: 2px solid #e0a15f; background: rgba(244,163,64,.055); color: #b69a79; font: 7px/1.45 var(--font-geist-mono), monospace; }
 .flight-data-warnings strong { color: #f2ba73; font-size: 7px; letter-spacing: .08em; text-transform: uppercase; }
 .flight-data-note { margin-top: 9px; color: #7d929e; font: 7px/1.5 var(--font-geist-mono), monospace; }
+.benchmark-card {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid rgba(112,199,167,.23);
+  border-radius: 4px;
+  background: linear-gradient(135deg, rgba(112,199,167,.065), rgba(10,16,22,.96) 60%);
+}
+.benchmark-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.benchmark-heading h4 { margin-top: 4px; color: #eaf2f6; font-size: 11px; letter-spacing: .02em; }
+.benchmark-heading p { max-width: 680px; margin-top: 4px; color: #869aa5; font-size: 8px; line-height: 1.5; }
+.benchmark-run { display: inline-flex; align-items: center; min-height: 26px; padding: 0 9px; border: 1px solid rgba(112,199,167,.38); border-radius: 3px; background: rgba(112,199,167,.09); color: #bcebd7; cursor: pointer; font: 650 7px var(--font-geist-mono), monospace; letter-spacing: .06em; text-transform: uppercase; }
+.benchmark-run:hover { border-color: rgba(132,214,178,.78); background: rgba(112,199,167,.17); }
+.benchmark-run:focus-visible { outline: 2px solid #84d6b2; outline-offset: 2px; }
+.benchmark-run:disabled { cursor: progress; opacity: .55; }
+.benchmark-empty { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 11px; padding: 11px 12px; border: 1px dashed rgba(112,199,167,.27); border-radius: 3px; background: rgba(112,199,167,.035); }
+.benchmark-empty strong { color: #c4e4d5; font-size: 9px; }
+.benchmark-empty span { color: #7d929e; font: 7px/1.45 var(--font-geist-mono), monospace; text-align: right; }
+.benchmark-meta { display: flex; align-items: center; gap: 9px; margin-top: 11px; color: #7d929e; font: 7px var(--font-geist-mono), monospace; }
+.benchmark-meta strong { color: #d1e8f5; font-weight: 650; }
+.benchmark-meta > span:last-child { margin-left: auto; color: #6f8794; }
+.benchmark-status { padding: 4px 6px; border: 1px solid currentColor; border-radius: 2px; font: 650 7px var(--font-geist-mono), monospace; letter-spacing: .05em; text-transform: uppercase; }
+.benchmark-status-pass { color: #8fd7b5; background: rgba(112,199,167,.08); }
+.benchmark-status-fail { color: #ffb08f; background: rgba(255,112,67,.08); }
+.benchmark-table { margin-top: 10px; overflow: hidden; border: 1px solid rgba(112,199,167,.18); border-radius: 3px; background: rgba(112,199,167,.16); }
+.benchmark-row { display: grid; grid-template-columns: minmax(220px,1.6fr) repeat(3,minmax(108px,1fr)); gap: 1px; min-width: 0; background: rgba(112,199,167,.16); }
+.benchmark-row > * { min-width: 0; padding: 8px 9px; background: rgba(12,18,24,.92); color: #a8bbc7; font: 8px var(--font-geist-mono), monospace; text-align: right; }
+.benchmark-row > :first-child { text-align: left; }
+.benchmark-row-header > * { padding-top: 7px; padding-bottom: 7px; background: rgba(112,199,167,.08); color: #82bca4; font-size: 7px; letter-spacing: .06em; text-transform: uppercase; }
+.benchmark-row strong { display: block; overflow: hidden; color: #c9dfe7; font-size: 8px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.benchmark-row small { display: block; margin-top: 3px; color: #6d828e; font-size: 7px; }
+.benchmark-pass { color: #8fd7b5 !important; }
+.benchmark-fail { color: #ffb08f !important; }
+.benchmark-warning { margin-top: 8px; color: #7d929e; font: 7px/1.5 var(--font-geist-mono), monospace; }
 .uncertainty-card {
   margin-top: 12px; padding: 16px 18px; overflow: hidden;
   border: 1px solid rgba(47,159,255,.24); border-radius: 5px;
@@ -2151,6 +2184,14 @@ body {
   .flight-data-meta { align-items: flex-start; flex-direction: column; }
   .flight-data-table { overflow-x: auto; }
   .flight-data-row { min-width: 560px; }
+  .benchmark-heading { flex-direction: column; }
+  .benchmark-run { align-self: flex-start; }
+  .benchmark-empty { align-items: flex-start; flex-direction: column; }
+  .benchmark-empty span { text-align: left; }
+  .benchmark-meta { align-items: flex-start; flex-wrap: wrap; }
+  .benchmark-meta > span:last-child { width: 100%; margin-left: 0; }
+  .benchmark-table { overflow-x: auto; }
+  .benchmark-row { min-width: 650px; }
   .stale-result-banner { grid-template-columns: 1fr; gap: 7px; }
   .stale-result-banner .secondary-button { width: max-content; }
 }
