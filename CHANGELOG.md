@@ -39,6 +39,10 @@ flight-readiness claims.
   include a Bernoulli deployment outcome, a `recoveryDeployed` metric and
   threshold, and an additive delay-offset interpretation clamped at zero so
   bounded negative timing samples cannot become hidden evaluator failures.
+- Added an in-memory measured-flight CSV comparison workflow. Strict SI
+  parsing, linear trace interpolation, residual sign conventions, matched
+  coverage, RMSE/P95 discrepancy metrics, and timestamp warnings are exposed
+  without turning agreement into validation or flight-safety evidence.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.

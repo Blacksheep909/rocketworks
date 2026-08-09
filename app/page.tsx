@@ -49,6 +49,8 @@ import {
   estimateAscentWindDrift,
   standardAtmosphere,
   simulateVerticalFlight,
+  compareFlightDataToTrace,
+  parseFlightDataCsv,
   computeStructuralScreen,
   resolveStageAerodynamicTable,
   type DesignOptimizationResult,
@@ -59,6 +61,8 @@ import {
   type UncertaintyAnalysisResult,
   type VerticalFlightConfig,
   type VerticalFlightResult,
+  type FlightDataComparisonResult,
+  type FlightDataSeries,
   type VehicleComponent,
   type MotorDataRecord,
   type StageFlightPreviewResult,
@@ -2049,6 +2053,96 @@ function FlightComparisonCard({
   );
 }
 
+const FLIGHT_DATA_METRIC_DISPLAY: Readonly<Record<"altitudeM" | "velocityMps" | "accelerationMps2", Readonly<{ label: string; unit: string; decimals: number }>>> = {
+  altitudeM: { label: "Altitude", unit: "m", decimals: 2 },
+  velocityMps: { label: "Velocity", unit: "m/s", decimals: 2 },
+  accelerationMps2: { label: "Acceleration", unit: "m/s²", decimals: 2 },
+};
+
+function formatFlightDataMetric(value: number, metric: keyof typeof FLIGHT_DATA_METRIC_DISPLAY) {
+  const definition = FLIGHT_DATA_METRIC_DISPLAY[metric];
+  return `${value.toFixed(definition.decimals)} ${definition.unit}`;
+}
+
+function FlightDataComparisonCard({
+  series,
+  comparison,
+  error,
+  resultIsCurrent,
+  onImport,
+  onClear,
+}: {
+  series: FlightDataSeries | null;
+  comparison: FlightDataComparisonResult | null;
+  error: string;
+  resultIsCurrent: boolean;
+  onImport: (event: ChangeEvent<HTMLInputElement>) => void;
+  onClear: () => void;
+}) {
+  return (
+    <section className="flight-data-card" aria-labelledby="flight-data-title">
+      <div className="flight-data-heading">
+        <div>
+          <span className="eyebrow">Measured-data check</span>
+          <h4 id="flight-data-title">Compare an instrumented flight</h4>
+          <p>Load a simple SI CSV log to inspect model residuals against measured altitude, velocity, or acceleration. The file stays in this browser session.</p>
+        </div>
+        <div className="flight-data-actions">
+          <label className="flight-data-import-button">
+            <input type="file" accept=".csv,text/csv" onChange={onImport} />
+            {series ? "Replace CSV" : "Import CSV"}
+          </label>
+          {series && <button type="button" className="flight-data-clear" onClick={onClear}>Clear</button>}
+        </div>
+      </div>
+      {error && <div className="flight-data-error" role="alert">{error}</div>}
+      {!series && !error && (
+        <div className="flight-data-empty">
+          <strong>Bring your own telemetry</strong>
+          <span>Required column: <code>time_s</code>. Optional columns: <code>altitude_m</code>, <code>velocity_mps</code>, <code>acceleration_mps2</code>.</span>
+        </div>
+      )}
+      {series && !comparison && !error && (
+        <div className="flight-data-empty flight-data-stale">
+          <strong>Rerun required</strong>
+          <span>{resultIsCurrent ? "The imported log has no overlapping supported metrics." : "Rerun the current flight estimate before comparing measured data."}</span>
+        </div>
+      )}
+      {comparison && (
+        <>
+          <div className="flight-data-meta">
+            <span><strong>{comparison.sourceName}</strong> · {comparison.matchedSampleCount}/{comparison.measuredSampleCount} samples matched</span>
+            <span>time offset {comparison.timeOffsetS.toFixed(2)} s · {comparison.validationStatus}</span>
+          </div>
+          <div className="flight-data-table" role="table" aria-label="Measured flight data comparison">
+            <div className="flight-data-row flight-data-row-header" role="row">
+              <span role="columnheader">Metric</span>
+              <span role="columnheader">Mean residual</span>
+              <span role="columnheader">RMSE</span>
+              <span role="columnheader">P95 |residual|</span>
+            </div>
+            {(Object.keys(FLIGHT_DATA_METRIC_DISPLAY) as Array<keyof typeof FLIGHT_DATA_METRIC_DISPLAY>).map((metric) => {
+              const summary = comparison.metrics[metric];
+              if (!summary) return null;
+              const display = FLIGHT_DATA_METRIC_DISPLAY[metric];
+              return (
+                <div className="flight-data-row" role="row" key={metric}>
+                  <span role="cell">{display.label} <small>n={summary.sampleCount}</small></span>
+                  <strong role="cell" className={summary.meanResidual > 0 ? "positive" : summary.meanResidual < 0 ? "negative" : "neutral"}>{formatFlightDataMetric(summary.meanResidual, metric)}</strong>
+                  <span role="cell">{formatFlightDataMetric(summary.rootMeanSquareError, metric)}</span>
+                  <span role="cell">{formatFlightDataMetric(summary.p95AbsoluteResidual, metric)}</span>
+                </div>
+              );
+            })}
+          </div>
+          {comparison.warnings.length > 0 && <div className="flight-data-warnings"><strong>Coverage notes</strong>{comparison.warnings.map((warning) => <span key={warning}>{warning}</span>)}</div>}
+          <p className="flight-data-note">Residuals are simulated minus measured and use linear interpolation between trace samples. This is an engineering diagnostic, not validation, certification, or flight-safety evidence.</p>
+        </>
+      )}
+    </section>
+  );
+}
+
 type StageFlightMetricKey =
   | "altitude"
   | "speed"
@@ -2720,6 +2814,8 @@ export default function Home() {
   );
   const [comparisonReference, setComparisonReference] = useState<VerticalFlightResult | null>(null);
   const [comparisonReferenceFingerprint, setComparisonReferenceFingerprint] = useState<string | null>(null);
+  const [flightDataSeries, setFlightDataSeries] = useState<FlightDataSeries | null>(null);
+  const [flightDataError, setFlightDataError] = useState("");
   const [stageFlightResult, setStageFlightResult] =
     useState<StageFlightPreviewResult | null>(null);
   const [stageFlightFingerprint, setStageFlightFingerprint] = useState<string | null>(
@@ -2787,6 +2883,15 @@ export default function Home() {
     lastRunFingerprint,
     simulationFingerprint,
   );
+  const flightDataComparisonState = useMemo<{ comparison: FlightDataComparisonResult | null; error: string }>(() => {
+    if (!flightDataSeries) return { comparison: null, error: "" };
+    if (!resultIsCurrent) return { comparison: null, error: "" };
+    try {
+      return { comparison: compareFlightDataToTrace(result.trace, flightDataSeries), error: "" };
+    } catch (error) {
+      return { comparison: null, error: error instanceof Error ? error.message : "Unable to compare measured data." };
+    }
+  }, [flightDataSeries, result, resultIsCurrent]);
   const structuralBody = vehicleComponents.find(
     (component): component is Extract<VehicleComponent, { kind: "axisymmetric" }> =>
       component.kind === "axisymmetric" && component.id === "body",
@@ -3232,6 +3337,25 @@ export default function Home() {
     setComparisonReference(null);
     setComparisonReferenceFingerprint(null);
     notify("Comparison reference cleared");
+  };
+  const importFlightData = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    try {
+      const series = parseFlightDataCsv(await file.text(), file.name);
+      setFlightDataSeries(series);
+      setFlightDataError("");
+      notify(`Loaded ${series.samples.length} measured samples`);
+    } catch (error) {
+      setFlightDataSeries(null);
+      setFlightDataError(error instanceof Error ? error.message : "Unable to import flight data CSV.");
+    }
+  };
+  const clearFlightData = () => {
+    setFlightDataSeries(null);
+    setFlightDataError("");
+    notify("Measured flight data cleared");
   };
   const openCommandPalette = () => {
     setCommandQuery("");
@@ -4631,6 +4755,14 @@ export default function Home() {
               running={running}
               onPin={pinComparisonReference}
               onClear={clearComparisonReference}
+            />
+            <FlightDataComparisonCard
+              series={flightDataSeries}
+              comparison={flightDataComparisonState.comparison}
+              error={flightDataError || flightDataComparisonState.error}
+              resultIsCurrent={resultIsCurrent}
+              onImport={importFlightData}
+              onClear={clearFlightData}
             />
             <div className="uncertainty-card">
               <div className="event-card-heading">

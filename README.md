@@ -68,6 +68,8 @@ research, standards, and original code.
   project JSON;
 - local run comparison that pins a reference estimate and exposes explicit
   metric deltas after a design or environment change;
+- measured-flight CSV comparison with strict SI parsing, interpolation-based
+  residuals, coverage warnings, and explicit validation boundaries;
 - validated project import, device-local autosave/history, templates,
   beginner/expert modes, keyboard command search, and compact browser design
   share links.
