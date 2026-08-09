@@ -1,4 +1,4 @@
-# Project, analysis, report, and CAD exports 0.7
+# Project, analysis, report, and CAD exports 0.8
 
 Status: `engineering-preview-unvalidated`
 
@@ -17,7 +17,7 @@ The browser's Export action now opens a keyboard-accessible artifact center.
 Escape or the close button dismisses it. Downloads are created in memory and
 initiated only after the user selects a format.
 
-Version 0.7 offers seven inspectable formats plus a validated project-import path:
+Version 0.8 offers seven inspectable formats plus a validated project-import path:
 
 1. Versioned Kestrel project JSON
 2. Flight-trace CSV
@@ -45,7 +45,7 @@ validationStatus: engineering-preview-unvalidated
 It preserves the current geometry, material choice, mass properties, static
 stability, assembly summary, vertical-flight result and trace, uncertainty
 analysis, optional optimization Pareto summary, optional landing footprint,
-  and source/licence provenance, including the ascent-to-recovery handoff
+  preliminary structural-screen result, and source/licence provenance, including the ascent-to-recovery handoff
   proxy, recovery deployment reliability assumptions, and sampled outcomes when
   a landing dispersion is present.
 
@@ -74,8 +74,8 @@ requires a rerun for the restored configuration.
 All numbers must be finite and all values must be JSON-compatible. Circular
 references, unsupported values, invalid identifiers, and invalid timestamps are
 rejected rather than silently discarded. The document is designed as the basis
-for future project import and schema migration; version 0.1 does not yet expose
-an importer and therefore does not claim round-trip support.
+for future schema migration. The importer is transactional at the UI boundary;
+restored simulation results remain historical until the configuration is rerun.
 
 ## Flight CSV
 
@@ -151,6 +151,8 @@ not-manufacturing-approved warning, then records:
   shifts, and threshold-rate diagnostics when an uncertainty result is supplied
 - optional recovery landing footprint, ascent handoff proxy, uncertainty seed,
   and deployment success/failure interval
+- optional preliminary structural screen with axial, Euler, fin-root, and
+  static-margin checks, model status, assumptions, and warnings
 - simulation freshness status for vertical and coupled traces (`current`,
   `stale`, or `not-run`) in project JSON; trace and report exports require a
   current matching run

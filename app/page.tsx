@@ -40,6 +40,7 @@ import {
   simulateRecoveryDescent,
   estimateAscentWindDrift,
   simulateVerticalFlight,
+  computeStructuralScreen,
   resolveStageAerodynamicTable,
   type DesignOptimizationResult,
   type AerodynamicCoefficientTableDefinition,
@@ -60,6 +61,8 @@ import {
   type VehicleAssemblyEvaluation,
   type StateTriggeredRigidBodyEvent,
   type ScheduledRigidBodyEvent,
+  type StructuralMaterialModel,
+  type StructuralScreenResult,
 } from "../lib/physics/index.ts";
 import {
   LOCAL_PROJECT_HISTORY_STORAGE_KEY,
@@ -321,11 +324,35 @@ const components: Array<{
 
 const materialModels: Record<
   MaterialKey,
-  Readonly<{ label: string; densityKgM3: number; wallThicknessM: number }>
+  StructuralMaterialModel & Readonly<{ densityKgM3: number; wallThicknessM: number }>
 > = {
-  kraft: { label: "Kraft phenolic", densityKgM3: 850, wallThicknessM: 0.0012 },
-  fiberglass: { label: "Fiberglass", densityKgM3: 1850, wallThicknessM: 0.001 },
-  carbon: { label: "Carbon composite", densityKgM3: 1550, wallThicknessM: 0.0008 },
+  kraft: {
+    label: "Kraft phenolic",
+    densityKgM3: 850,
+    wallThicknessM: 0.0012,
+    youngsModulusPa: 3.0e9,
+    allowableCompressionPa: 20e6,
+    allowableBendingPa: 20e6,
+    allowableShearPa: 8e6,
+  },
+  fiberglass: {
+    label: "Fiberglass",
+    densityKgM3: 1850,
+    wallThicknessM: 0.001,
+    youngsModulusPa: 20e9,
+    allowableCompressionPa: 80e6,
+    allowableBendingPa: 80e6,
+    allowableShearPa: 35e6,
+  },
+  carbon: {
+    label: "Carbon composite",
+    densityKgM3: 1550,
+    wallThicknessM: 0.0008,
+    youngsModulusPa: 45e9,
+    allowableCompressionPa: 180e6,
+    allowableBendingPa: 180e6,
+    allowableShearPa: 70e6,
+  },
 };
 
 function resolveStageMotorMassKg(
@@ -1968,6 +1995,31 @@ export default function Home() {
         result,
       ),
     );
+  const resultIsCurrent = isSimulationFingerprintCurrent(
+    lastRunFingerprint,
+    simulationFingerprint,
+  );
+  const structuralBody = vehicleComponents.find(
+    (component): component is Extract<VehicleComponent, { kind: "axisymmetric" }> =>
+      component.kind === "axisymmetric" && component.id === "body",
+  ) ?? null;
+  const structuralFins = vehicleComponents.find(
+    (component): component is Extract<VehicleComponent, { kind: "finSet" }> =>
+      component.kind === "finSet" && component.id === "fins",
+  ) ?? null;
+  const structuralScreen = useMemo<StructuralScreenResult | null>(() => {
+    if (!structuralBody) return null;
+    return computeStructuralScreen({
+      body: structuralBody,
+      fins: structuralFins,
+      totalMassKg: mass,
+      peakThrustN: previewMotor.metrics.peakThrustN,
+      maxDynamicPressurePa: result.maxDynamicPressurePa,
+      staticMarginCalibers: staticStability.staticMarginCalibers,
+      material: materialModels[material],
+      flightResultCurrent: resultIsCurrent,
+    });
+  }, [mass, material, previewMotor, result.maxDynamicPressurePa, resultIsCurrent, staticStability.staticMarginCalibers, structuralBody, structuralFins]);
 
   const selectedComponent = components.find((component) => component.id === selected)!;
   const componentDetails: Readonly<Record<ComponentKey, string>> = {
@@ -2032,10 +2084,6 @@ export default function Home() {
     ) ?? null;
   const activeSweepDefinition = sweepParameterDefinition(sweepParameter);
   const primaryThresholdConvergence = uncertainty.convergence.thresholds[0] ?? null;
-  const resultIsCurrent = isSimulationFingerprintCurrent(
-    lastRunFingerprint,
-    simulationFingerprint,
-  );
   const stageFlightIsCurrent =
     stageFlightResult !== null &&
     isSimulationFingerprintCurrent(stageFlightFingerprint, simulationFingerprint);
@@ -2656,6 +2704,7 @@ export default function Home() {
           } as unknown as JsonValue,
           analyses: {
             uncertainty,
+            structural: structuralScreen,
             optimization: optimization
               ? {
                   modelVersion: optimization.result.modelVersion,
@@ -2770,6 +2819,7 @@ export default function Home() {
           stageFlight: stageFlightIsCurrent ? stageFlightResult : null,
           uncertainty,
           landing: landingPrediction,
+          structural: structuralScreen,
         });
       } else if (format === "dxf") {
         filename = "arc-54-side-profile.dxf";
@@ -3694,6 +3744,32 @@ export default function Home() {
               <div><span>Axial inertia</span><strong>{massProperties.inertiaAtCenterKgM2[0][0].toFixed(5)} kg·m²</strong></div>
               <div><span>Pitch inertia</span><strong>{massProperties.inertiaAtCenterKgM2[1][1].toFixed(5)} kg·m²</strong></div>
             </div>
+            {structuralScreen && (
+              <div className={`structural-screen-card structural-screen-${structuralScreen.overallStatus}`}>
+                <div className="structural-screen-heading">
+                  <div>
+                    <span>STRUCTURAL SCREEN</span>
+                    <strong>{structuralScreen.overallStatus === "pass" ? "PRELIMINARY PASS" : "REVIEW REQUIRED"}</strong>
+                  </div>
+                  <small>{structuralScreen.material.label}</small>
+                </div>
+                <div className="structural-screen-grid">
+                  <div><span>Axial demand</span><strong>{structuralScreen.loads.axialCompressionN.toFixed(1)} N</strong></div>
+                  <div><span>Euler reserve</span><strong>{structuralScreen.checks.eulerBuckling.factorOfSafety === null ? "—" : `${structuralScreen.checks.eulerBuckling.factorOfSafety.toFixed(1)}×`}</strong></div>
+                  <div><span>Fin-root reserve</span><strong>{structuralScreen.checks.finBending.factorOfSafety === null ? "—" : `${structuralScreen.checks.finBending.factorOfSafety.toFixed(1)}×`}</strong></div>
+                  <div><span>Static margin</span><strong>{staticStability.staticMarginCalibers.toFixed(2)} cal</strong></div>
+                </div>
+                <div className="structural-screen-checks">
+                  {Object.values(structuralScreen.checks).map((check) => (
+                    <div className={`structural-check-row structural-check-${check.status}`} key={check.id}>
+                      <span>{check.status === "pass" ? "✓" : check.status === "review" ? "!" : "—"}</span>
+                      <div><strong>{check.label}</strong><small>{check.factorOfSafety === null ? "Unavailable" : `FoS ${check.factorOfSafety.toFixed(2)}×`} · {check.detail}</small></div>
+                    </div>
+                  ))}
+                </div>
+                <p className="structural-screen-note">Analytical component checks only. Representative material allowables, joints, local buckling, flutter, vibration, and manufacturing effects are not modeled{resultIsCurrent ? "." : "; rerun the flight estimate before using dynamic-pressure trends."}</p>
+              </div>
+            )}
             {experienceMode === "expert" ? (
               <>
                 <div className="property-section-label">

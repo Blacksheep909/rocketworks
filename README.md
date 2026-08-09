@@ -21,6 +21,8 @@ research, standards, and original code.
   landing-dispersion previews;
 - preliminary vertical flight, coupled 6DOF, staging, ignition delays,
   failure events, and bounded separated-body ballistic checks;
+- preliminary structural-readiness screen for axial stress, Euler buckling,
+  fin-root bending/shear, and static-margin review with explicit assumptions;
 - uncertainty analysis, parameter sweeps, sensitivity, and constraint-aware
   optimization;
 - accessible event timelines, trace charts, comparisons, engineering reports,

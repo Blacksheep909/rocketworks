@@ -31,9 +31,11 @@ envelope required by the display and reference-geometry paths.
 The canvas display remains a separate, display-only mesh. It now follows the
 editable nose profile and fin planform, but its triangles are never used as a
 mass or aerodynamic source. The static-aerodynamic result remains a low-speed,
-small-angle analytical preview with `analytical-checks-only` status. Structural
-attachment, fin flutter, local stress, motor retention, couplers, and
-manufacturing tolerances are not modeled.
+small-angle analytical preview with `analytical-checks-only` status. The
+structural-readiness card adds an independent first-pass axial, global-buckling,
+and fin-root stress screen, but structural attachment, fin flutter, local
+shell buckling, motor retention, couplers, and manufacturing tolerances remain
+outside scope. See `structural-screen-0.1.md` for equations and assumptions.
 
 ## Persistence and verification
 
@@ -43,4 +45,3 @@ three-fin ARC 54 geometry. Invalid profile names, non-integral fin counts,
 inverted planforms, and oversized fin envelopes are rejected. Regression tests
 cover default migration, cross-field validation, distinct display profiles,
 component inspector wiring, and the existing mass/aerodynamic contracts.
-

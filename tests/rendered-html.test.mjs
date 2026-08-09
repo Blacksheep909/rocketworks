@@ -313,11 +313,17 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(page, /stageFlight: stageFlightIsCurrent \? stageFlightResult : null/);
   assert.match(page, /createRocketProfileDxf/);
   assert.match(page, /createRocketOpenScad/);
+  assert.match(page, /computeStructuralScreen/);
+  assert.match(page, /STRUCTURAL SCREEN/);
+  assert.match(page, /Analytical component checks only/);
   assert.match(page, /URL\.createObjectURL/);
   assert.match(page, /Run the vertical estimate again before exporting simulation results/);
   assert.match(page, /Rerun the coupled 6DOF preview before exporting its trace/);
   assert.match(page, /reference geometry—not drawings, toleranced solids/);
   assert.match(stylesheet, /\.export-backdrop/);
+  assert.match(stylesheet, /\.structural-screen-card/);
+  assert.match(stylesheet, /\.structural-check-review/);
+  assert.match(stylesheet, /\.structural-check-review/);
   assert.match(stylesheet, /\.export-grid button:focus-visible/);
 });
 

@@ -13,7 +13,7 @@ import {
   createRocketOpenScad,
   createRocketProfileDxf,
 } from "../lib/export/project-exports.ts";
-import { analyzeLandingFootprint, runUncertaintyAnalysis } from "../lib/physics/index.ts";
+import { analyzeLandingFootprint, computeStructuralScreen, runUncertaintyAnalysis } from "../lib/physics/index.ts";
 
 const trace = [
   {
@@ -271,6 +271,43 @@ test("engineering report leads with status and preserves calculations and limita
     evaluator: () => ({ response: 10 }),
     thresholds: [{ id: "high", metric: "response", comparison: "greater-than-or-equal", value: 8 }],
   });
+  const structural = computeStructuralScreen({
+    body: {
+      id: "body",
+      name: "Airframe",
+      stageId: "sustainer",
+      kind: "axisymmetric",
+      densityKgM3: 850,
+      wallThicknessM: 0.001,
+      stations: [{ xM: 0, outerRadiusM: 0.027 }, { xM: 0.71, outerRadiusM: 0.027 }],
+    },
+    fins: {
+      id: "fins",
+      name: "Fin set",
+      stageId: "sustainer",
+      kind: "finSet",
+      count: 3,
+      axialPositionM: 0.58,
+      bodyRadiusM: 0.027,
+      rootChordM: 0.13,
+      tipChordM: 0.055,
+      sweepM: 0.045,
+      spanM: 0.075,
+      thicknessM: 0.003,
+      densityKgM3: 600,
+    },
+    totalMassKg: 0.58,
+    peakThrustN: 22,
+    maxDynamicPressurePa: 1500,
+    staticMarginCalibers: 2.93,
+    material: {
+      label: "Kraft phenolic",
+      youngsModulusPa: 3e9,
+      allowableCompressionPa: 20e6,
+      allowableBendingPa: 20e6,
+      allowableShearPa: 8e6,
+    },
+  });
   const report = createEngineeringReportMarkdown({
     projectName: "ARC 54",
     generatedAtIso: "2026-08-01T00:00:00.000Z",
@@ -347,6 +384,7 @@ test("engineering report leads with status and preserves calculations and limita
       ],
     },
     uncertainty,
+    structural,
     landing: {
       modelVersion: "landing-fixture",
       validationStatus: "engineering-preview-unvalidated",
@@ -376,6 +414,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.ok(report.indexOf("Not flight-safe or manufacturing-approved") < report.indexOf("## Vehicle summary"));
   assert.match(report, /\| Static margin \| 2\.93 calibres \|/);
   assert.match(report, /## Recovery landing footprint/);
+  assert.match(report, /## Preliminary structural screen/);
+  assert.match(report, /Euler column buckling/);
   assert.match(report, /## Uncertainty analysis/);
   assert.match(report, /## Coupled 6DOF preview/);
   assert.match(report, /Step convergence \| watch/);

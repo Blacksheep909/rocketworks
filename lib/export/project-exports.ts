@@ -11,6 +11,7 @@ import type {
   ParameterSweepResult,
   UncertaintyAnalysisResult,
 } from "../physics/uncertainty-analysis.ts";
+import type { StructuralScreenResult } from "../physics/structural-screen.ts";
 import {
   createAerodynamicCoefficientTable,
   type AerodynamicCoefficientTableDefinition,
@@ -106,6 +107,7 @@ export type EngineeringReportInput = Readonly<{
   stageFlight?: StageFlightPreviewResult | null;
   uncertainty?: UncertaintyAnalysisResult | null;
   landing?: LandingDispersionResult | null;
+  structural?: StructuralScreenResult | null;
 }>;
 
 function assertFinite(value: number, label: string): void {
@@ -852,6 +854,30 @@ export function createEngineeringReportMarkdown(
     ),
     ...(input.landing
       ? input.landing.warnings.map((warning) => `- ${markdownText(warning)}`)
+      : []),
+    ...(input.structural
+      ? [
+          "## Preliminary structural screen",
+          "",
+          `Model: \`${markdownText(input.structural.modelVersion)}\`  `,
+          `Status: \`${markdownText(input.structural.validationStatus)}\`  `,
+          `Overall screen: **${markdownText(input.structural.overallStatus).toUpperCase()}**`,
+          "",
+          "| Check | Demand | Capacity | Factor of safety | Status |",
+          "|---|---:|---:|---:|---|",
+          ...Object.values(input.structural.checks).map(
+            (check) =>
+              `| ${markdownText(check.label)} | ${check.demand === null ? "Not available" : `${formatNumber(check.demand, 2)} ${markdownText(check.unit)}`} | ${check.capacity === null ? "Not available" : `${formatNumber(check.capacity, 2)} ${markdownText(check.unit)}`} | ${check.factorOfSafety === null ? "Not available" : `${formatNumber(check.factorOfSafety, 2)}×`} | ${markdownText(check.status)} |`,
+          ),
+          "",
+          `- Axial demand: ${formatNumber(input.structural.loads.axialCompressionN, 2)} N (${formatNumber(input.structural.loads.peakThrustN, 2)} N peak thrust + ${formatNumber(input.structural.loads.weightN, 2)} N weight).`,
+          `- Modeled body: ${formatNumber(input.structural.geometry.bodyLengthM * 1000, 0)} mm long, ${formatNumber(input.structural.geometry.minimumOuterDiameterM * 1000, 1)} mm minimum diameter, ${formatNumber(input.structural.geometry.wallThicknessM * 1000, 2)} mm wall; slenderness ${formatNumber(input.structural.geometry.slendernessRatio, 1)}.`,
+          ...input.structural.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+          ...input.structural.warnings.map((warning) => `- **Structural screen warning:** ${markdownText(warning)}`),
+          "",
+          "> This screen uses representative material properties and simplified component loads. It is not a structural certification, manufacturing release, or flight-safety decision.",
+          "",
+        ]
       : []),
     "",
     "## Independence and provenance",

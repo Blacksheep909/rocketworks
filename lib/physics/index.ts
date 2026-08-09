@@ -25,3 +25,4 @@ export * from "./launch-environment.ts";
 export * from "./design-optimization.ts";
 export * from "./vertical-flight-optimization.ts";
 export * from "./landing-zone.ts";
+export * from "./structural-screen.ts";
