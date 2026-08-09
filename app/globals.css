@@ -1725,7 +1725,32 @@ body {
 .stage-flight-comparison-grid small { display: block; margin-top: 4px; color: #738995; font: 7px var(--font-geist-mono), monospace; }
 .stage-flight-comparison-note { margin-top: 10px; color: #9aabb4; font-size: 8px; line-height: 1.5; }
 
+.stale-result-banner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(244, 163, 64, .34);
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgba(244, 163, 64, .13), rgba(244, 163, 64, .035));
+  box-shadow: inset 2px 0 0 var(--signal-amber);
+}
+.stale-result-banner > span {
+  color: #ffc477;
+  font: 700 8px var(--font-geist-mono), monospace;
+  letter-spacing: .1em;
+  white-space: nowrap;
+}
+.stale-result-banner strong { display: block; color: #ffe1ba; font-size: 10px; }
+.stale-result-banner p { margin-top: 3px; color: #b89b7a; font-size: 8px; line-height: 1.45; }
+.stale-result-banner .secondary-button { border-color: rgba(244, 163, 64, .42); color: #ffd5a1; white-space: nowrap; }
+.stage-stale-result-banner { margin: 0 0 12px; }
+
 @media (max-width: 760px) {
   .stage-flight-comparison-heading { flex-direction: column; }
   .stage-flight-comparison-grid { grid-template-columns: 1fr; }
+  .stale-result-banner { grid-template-columns: 1fr; gap: 7px; }
+  .stale-result-banner .secondary-button { width: max-content; }
 }

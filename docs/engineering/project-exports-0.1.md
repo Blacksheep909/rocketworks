@@ -126,6 +126,9 @@ not-manufacturing-approved warning, then records:
   shifts, and threshold-rate diagnostics when an uncertainty result is supplied
 - optional recovery landing footprint, ascent handoff proxy, uncertainty seed,
   and deployment success/failure interval
+- simulation freshness status for vertical and coupled traces (`current`,
+  `stale`, or `not-run`) in project JSON; trace and report exports require a
+  current matching run
 - model assumptions, warnings, and limitations
 - clean-room independence statement
 

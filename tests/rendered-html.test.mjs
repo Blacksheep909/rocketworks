@@ -62,6 +62,10 @@ test("ships versioned flight results and explainable model UI", async () => {
   assert.match(source, /Flight events/);
   assert.match(source, /modelWarning\.explanation/);
   assert.match(source, /result\.assumptions/);
+  assert.match(source, /createSimulationFingerprint/);
+  assert.match(source, /resultIsCurrent/);
+  assert.match(source, /RERUN REQUIRED/);
+  assert.match(source, /SIMULATION_FRESHNESS_MODEL_VERSION/);
 });
 
 test("ships live center-of-pressure and static-margin feedback", async () => {
@@ -250,6 +254,8 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(page, /createRocketProfileDxf/);
   assert.match(page, /createRocketOpenScad/);
   assert.match(page, /URL\.createObjectURL/);
+  assert.match(page, /Run the vertical estimate again before exporting simulation results/);
+  assert.match(page, /Rerun the coupled 6DOF preview before exporting its trace/);
   assert.match(page, /reference geometry—not drawings, toleranced solids/);
   assert.match(stylesheet, /\.export-backdrop/);
   assert.match(stylesheet, /\.export-grid button:focus-visible/);

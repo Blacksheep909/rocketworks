@@ -95,6 +95,11 @@ import {
   type VehicleStagePlan,
   type VehicleStageRole,
 } from "../lib/project/vehicle-topology.ts";
+import {
+  createSimulationFingerprint,
+  isSimulationFingerprintCurrent,
+  SIMULATION_FRESHNESS_MODEL_VERSION,
+} from "../lib/project/simulation-freshness.ts";
 
 type ComponentKey = "nose" | "body" | "fins" | "mount" | "recovery";
 type ViewKey = "design" | "flight";
@@ -1630,6 +1635,16 @@ export default function Home() {
     () => userMotorRecords.find((record) => record.id === selectedMotorId) ?? syntheticMotor,
     [selectedMotorId, syntheticMotor, userMotorRecords],
   );
+  const simulationFingerprint = useMemo(
+    () =>
+      createSimulationFingerprint({
+        inputs: editableInputs,
+        topology: vehicleTopology,
+        selectedMotorId,
+        motor: previewMotor,
+      }),
+    [editableInputs, previewMotor, selectedMotorId, vehicleTopology],
+  );
   const previewEnvironment = useMemo(
     () => createPreviewEnvironment(launchAltitude, windSpeed),
     [launchAltitude, windSpeed],
@@ -1665,8 +1680,14 @@ export default function Home() {
       motorRecord: previewMotor,
     }),
   );
+  const [lastRunFingerprint, setLastRunFingerprint] = useState<string | null>(
+    () => simulationFingerprint,
+  );
   const [stageFlightResult, setStageFlightResult] =
     useState<StageFlightPreviewResult | null>(null);
+  const [stageFlightFingerprint, setStageFlightFingerprint] = useState<string | null>(
+    null,
+  );
   const [stageFlightRunning, setStageFlightRunning] = useState(false);
   const [stageFlightError, setStageFlightError] = useState("");
   const [uncertainty, setUncertainty] = useState<UncertaintyAnalysisResult>(() =>
@@ -1761,6 +1782,13 @@ export default function Home() {
     ) ?? null;
   const activeSweepDefinition = sweepParameterDefinition(sweepParameter);
   const primaryThresholdConvergence = uncertainty.convergence.thresholds[0] ?? null;
+  const resultIsCurrent = isSimulationFingerprintCurrent(
+    lastRunFingerprint,
+    simulationFingerprint,
+  );
+  const stageFlightIsCurrent =
+    stageFlightResult !== null &&
+    isSimulationFingerprintCurrent(stageFlightFingerprint, simulationFingerprint);
 
   useEffect(() => {
     const hydrationTimer = window.setTimeout(() => {
@@ -2154,6 +2182,12 @@ export default function Home() {
   };
   const exportArtifact = (format: ExportFormat) => {
     try {
+      if ((format === "flight-csv" || format === "report") && !resultIsCurrent) {
+        throw new Error("Run the vertical estimate again before exporting simulation results for this design.");
+      }
+      if (format === "stage-flight-csv" && !stageFlightIsCurrent) {
+        throw new Error("Rerun the coupled 6DOF preview before exporting its trace for this design.");
+      }
       const generatedAtIso = new Date().toISOString();
       const cadGeometry: RocketCadGeometry = {
         projectName: "ARC 54",
@@ -2199,6 +2233,15 @@ export default function Home() {
             verticalFlight: result,
             stageFlight: stageFlightResult,
             verticalSweep: sweepResult,
+            freshness: {
+              modelVersion: SIMULATION_FRESHNESS_MODEL_VERSION,
+              verticalFlight: resultIsCurrent ? "current" : "stale",
+              stageFlight: stageFlightResult === null
+                ? "not-run"
+                : stageFlightIsCurrent
+                  ? "current"
+                  : "stale",
+            },
           } as unknown as JsonValue,
           analyses: {
             uncertainty,
@@ -2313,28 +2356,30 @@ export default function Home() {
     }
   };
   const simulate = () => {
+    const inputs = {
+      mass,
+      diameter,
+      dragCoefficient,
+      thrust,
+      burnTime,
+      launchAltitude,
+      windSpeed,
+      recoveryEnabled,
+      recoveryDelay,
+      recoveryDiameter,
+      recoveryDeploymentSuccessProbability,
+      motorRecord: previewMotor,
+    };
+    const runFingerprint = simulationFingerprint;
     setRunning(true);
     setView("flight");
     window.setTimeout(() => {
       try {
-        const inputs = {
-          mass,
-          diameter,
-          dragCoefficient,
-          thrust,
-          burnTime,
-          launchAltitude,
-          windSpeed,
-          recoveryEnabled,
-          recoveryDelay,
-          recoveryDiameter,
-          recoveryDeploymentSuccessProbability,
-          motorRecord: previewMotor,
-        };
         const nextResult = createFlightResult(inputs);
         setResult(nextResult);
         setUncertainty(createUncertaintyResult(inputs));
         setLandingPrediction(createLandingPrediction(inputs, nextResult));
+        setLastRunFingerprint(runFingerprint);
         setOptimization(null);
         setSweepResult(null);
         setSweepError("");
@@ -2355,6 +2400,7 @@ export default function Home() {
     setStageFlightRunning(true);
     setStageFlightError("");
     setView("flight");
+    const runFingerprint = simulationFingerprint;
     window.setTimeout(() => {
       try {
         const nextResult = simulateStageFlightPreview(
@@ -2371,6 +2417,7 @@ export default function Home() {
           }),
         );
         setStageFlightResult(nextResult);
+        setStageFlightFingerprint(runFingerprint);
         notify(activeStageCount > 1 ? "Stage-aware 6DOF preview complete" : "Coupled 6DOF preview complete");
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to run the staged preview";
@@ -2620,6 +2667,9 @@ export default function Home() {
             <div className={designWarning.good ? "readout-ok" : "readout-warn"}>
               <span>CHECK</span><strong>{readinessLabel}</strong>
             </div>
+            <div className={resultIsCurrent ? "readout-ok" : "readout-warn"}>
+              <span>MODEL</span><strong>{resultIsCurrent ? "CURRENT" : "STALE"}</strong>
+            </div>
           </div>
           <div className="view-tools">
             {view === "design" ? (
@@ -2695,6 +2745,16 @@ export default function Home() {
               <div><span className="eyebrow">Preliminary estimate</span><h2>Vertical flight profile</h2></div>
               <span className="model-badge">{result.modelVersion}</span>
             </div>
+            {!resultIsCurrent && (
+              <div className="stale-result-banner" role="status">
+                <span>RERUN REQUIRED</span>
+                <div>
+                  <strong>This flight profile is from an earlier configuration</strong>
+                  <p>Vehicle, motor, weather, recovery, rail, or topology inputs changed after the last vertical estimate. Recalculate before interpreting or exporting these results.</p>
+                </div>
+                <button className="secondary-button" onClick={simulate} disabled={running}>{running ? "Running…" : "Rerun estimate"}</button>
+              </div>
+            )}
             {activeStageCount > 0 && (
               <section className="stage-flight-card" aria-labelledby="stage-flight-title">
                 <div className="stage-flight-heading">
@@ -2708,6 +2768,16 @@ export default function Home() {
                   </button>
                 </div>
                 {stageFlightError && <div className="stage-flight-error" role="alert">{stageFlightError}</div>}
+                {stageFlightResult && !stageFlightIsCurrent && (
+                  <div className="stale-result-banner stage-stale-result-banner" role="status">
+                    <span>RERUN REQUIRED</span>
+                    <div>
+                      <strong>This coupled trace is from an earlier configuration</strong>
+                      <p>The active vehicle, motor, environment, rail, or stage graph changed after this run. Rerun the coupled preview before using its trace or export.</p>
+                    </div>
+                    <button className="secondary-button" onClick={runStageAwareEstimate} disabled={stageFlightRunning}>{stageFlightRunning ? "Propagating…" : "Rerun 6DOF"}</button>
+                  </div>
+                )}
                 {stageFlightResult ? (
                   <>
                     <div className="stage-flight-metrics">
@@ -3086,32 +3156,32 @@ export default function Home() {
           </>
         ) : (
           <>
-            <NumberField id="thrust" label="Average thrust" value={thrust} unit="N" min={1} max={5000} step={0.5} onChange={setThrust} />
-            <NumberField id="burn-time" label="Burn time" value={burnTime} unit="s" min={0.1} max={30} step={0.05} onChange={setBurnTime} />
-            <NumberField id="drag" label="Drag coefficient" value={dragCoefficient} unit="Cd" min={0.1} max={2} step={0.01} onChange={setDragCoefficient} />
-            <NumberField id="launch-altitude" label="Launch-site altitude" value={launchAltitude} unit="m" min={-400} max={10000} step={10} onChange={setLaunchAltitude} />
-            <NumberField id="wind-speed" label="Wind at 500 m" value={windSpeed} unit="m/s" min={0} max={80} step={0.5} onChange={setWindSpeed} />
+            <NumberField id="thrust" label="Average thrust" value={thrust} unit="N" min={1} max={5000} step={0.5} onChange={(value) => { setThrust(value); markChanged(); }} />
+            <NumberField id="burn-time" label="Burn time" value={burnTime} unit="s" min={0.1} max={30} step={0.05} onChange={(value) => { setBurnTime(value); markChanged(); }} />
+            <NumberField id="drag" label="Drag coefficient" value={dragCoefficient} unit="Cd" min={0.1} max={2} step={0.01} onChange={(value) => { setDragCoefficient(value); markChanged(); }} />
+            <NumberField id="launch-altitude" label="Launch-site altitude" value={launchAltitude} unit="m" min={-400} max={10000} step={10} onChange={(value) => { setLaunchAltitude(value); markChanged(); }} />
+            <NumberField id="wind-speed" label="Wind at 500 m" value={windSpeed} unit="m/s" min={0} max={80} step={0.5} onChange={(value) => { setWindSpeed(value); markChanged(); }} />
             <div className="field-group rail-control-group">
               <label htmlFor="launch-rail-enabled">Launch rail constraint</label>
-              <select id="launch-rail-enabled" value={launchRailEnabled ? "enabled" : "disabled"} onChange={(event) => { setLaunchRailEnabled(event.target.value === "enabled"); setStageFlightResult(null); }}>
+              <select id="launch-rail-enabled" value={launchRailEnabled ? "enabled" : "disabled"} onChange={(event) => { setLaunchRailEnabled(event.target.value === "enabled"); markChanged(); }}>
                 <option value="enabled">Enabled · vertical rail handoff</option>
                 <option value="disabled">Disabled · unconstrained start</option>
               </select>
             </div>
             {launchRailEnabled && <>
-              <NumberField id="launch-rail-length" label="Effective rail travel" value={launchRailLengthM} unit="m" min={0.25} max={12} step={0.05} onChange={(value) => { setLaunchRailLengthM(value); setStageFlightResult(null); }} />
+              <NumberField id="launch-rail-length" label="Effective rail travel" value={launchRailLengthM} unit="m" min={0.25} max={12} step={0.05} onChange={(value) => { setLaunchRailLengthM(value); markChanged(); }} />
               <p className="rail-provenance">The staged preview holds attitude and lateral motion on a fixed vertical rail, then hands the exact release state to free flight. Guide hardware, friction, tip-off, and launcher motion are not modeled.</p>
             </>}
             <div className="field-group">
               <label htmlFor="recovery-enabled">Recovery model</label>
-              <select id="recovery-enabled" value={recoveryEnabled ? "enabled" : "disabled"} onChange={(event) => setRecoveryEnabled(event.target.value === "enabled")}>
+              <select id="recovery-enabled" value={recoveryEnabled ? "enabled" : "disabled"} onChange={(event) => { setRecoveryEnabled(event.target.value === "enabled"); markChanged(); }}>
                 <option value="enabled">450 mm parachute at apogee</option>
                 <option value="disabled">Ballistic descent</option>
               </select>
             </div>
-            {recoveryEnabled && <NumberField id="recovery-delay" label="Deployment delay" value={recoveryDelay} unit="s" min={0} max={30} step={0.1} onChange={setRecoveryDelay} />}
-            {recoveryEnabled && <NumberField id="recovery-diameter" label="Canopy diameter" value={recoveryDiameter} unit="m" min={0.1} max={3} step={0.01} onChange={setRecoveryDiameter} />}
-            {recoveryEnabled && <NumberField id="recovery-deployment-success" label="Deployment success assumption" value={recoveryDeploymentSuccessProbability * 100} unit="%" min={0} max={100} step={1} onChange={(value) => setRecoveryDeploymentSuccessProbability(value / 100)} />}
+            {recoveryEnabled && <NumberField id="recovery-delay" label="Deployment delay" value={recoveryDelay} unit="s" min={0} max={30} step={0.1} onChange={(value) => { setRecoveryDelay(value); markChanged(); }} />}
+            {recoveryEnabled && <NumberField id="recovery-diameter" label="Canopy diameter" value={recoveryDiameter} unit="m" min={0.1} max={3} step={0.01} onChange={(value) => { setRecoveryDiameter(value); markChanged(); }} />}
+            {recoveryEnabled && <NumberField id="recovery-deployment-success" label="Deployment success assumption" value={recoveryDeploymentSuccessProbability * 100} unit="%" min={0} max={100} step={1} onChange={(value) => { setRecoveryDeploymentSuccessProbability(value / 100); markChanged(); }} />}
             {recoveryEnabled && <p className="recovery-provenance">Landing dispersion samples this as a Bernoulli outcome. A failed deployment uses ballistic descent with body drag; the percentage is a modeling assumption, not hardware reliability evidence.</p>}
             <button className="library-button" onClick={() => setMotorLibraryOpen(true)}>
               <span><strong>Motor library</strong><small>{previewMotor.manufacturer} · {previewMotor.designation}</small></span>
