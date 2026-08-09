@@ -44,7 +44,10 @@ adapter only compares the one-dimensional vertical trace; six-degree-of-
 freedom telemetry alignment, barometric altitude bias, GNSS filtering, event
 time synchronization, and covariance-weighted residuals remain future work.
 Imported logs stay in in-memory browser state and are not written to local
-project snapshots or share links.
+project snapshots or share links. A residual CSV export contains only the
+matched rows plus model/version/source metadata, so the comparison can be
+reviewed or attached to an engineering note without changing the project
+state.
 
 ## Verification
 

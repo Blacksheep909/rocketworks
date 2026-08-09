@@ -50,6 +50,7 @@ import {
   standardAtmosphere,
   simulateVerticalFlight,
   compareFlightDataToTrace,
+  createFlightDataComparisonCsv,
   parseFlightDataCsv,
   computeStructuralScreen,
   resolveStageAerodynamicTable,
@@ -2071,6 +2072,7 @@ function FlightDataComparisonCard({
   resultIsCurrent,
   timeOffsetS,
   onTimeOffsetChange,
+  onExport,
   onImport,
   onClear,
 }: {
@@ -2080,6 +2082,7 @@ function FlightDataComparisonCard({
   resultIsCurrent: boolean;
   timeOffsetS: number;
   onTimeOffsetChange: (value: number) => void;
+  onExport: () => void;
   onImport: (event: ChangeEvent<HTMLInputElement>) => void;
   onClear: () => void;
 }) {
@@ -2096,6 +2099,7 @@ function FlightDataComparisonCard({
             <input type="file" accept=".csv,text/csv" onChange={onImport} />
             {series ? "Replace CSV" : "Import CSV"}
           </label>
+          {comparison && <button type="button" onClick={onExport}>Export residuals</button>}
           {series && <button type="button" className="flight-data-clear" onClick={onClear}>Clear</button>}
         </div>
       </div>
@@ -3368,6 +3372,18 @@ export default function Home() {
     setFlightDataError("");
     setFlightDataTimeOffsetS(0);
     notify("Measured flight data cleared");
+  };
+  const exportFlightDataComparison = () => {
+    if (!flightDataComparisonState.comparison) {
+      notify("Import measured data and rerun the current estimate before exporting residuals");
+      return;
+    }
+    downloadTextArtifact(
+      "arc-54-flight-data-residuals.csv",
+      "text/csv;charset=utf-8",
+      createFlightDataComparisonCsv(flightDataComparisonState.comparison),
+    );
+    notify("Measured-data residuals exported");
   };
   const openCommandPalette = () => {
     setCommandQuery("");
@@ -4775,6 +4791,7 @@ export default function Home() {
               resultIsCurrent={resultIsCurrent}
               timeOffsetS={flightDataTimeOffsetS}
               onTimeOffsetChange={(value) => { setFlightDataTimeOffsetS(Number.isFinite(value) ? value : 0); }}
+              onExport={exportFlightDataComparison}
               onImport={importFlightData}
               onClear={clearFlightData}
             />

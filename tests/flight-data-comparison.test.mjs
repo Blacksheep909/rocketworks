@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   compareFlightDataToTrace,
+  createFlightDataComparisonCsv,
   parseFlightDataCsv,
 } from "../lib/physics/index.ts";
 
@@ -35,6 +36,12 @@ test("flight-data comparison linearly interpolates residuals with explicit sign"
   assert.equal(result.metrics.altitudeM.meanResidual, 0.5);
   assert.equal(result.metrics.velocityMps.meanResidual, 1);
   assert.equal(result.metrics.velocityMps.rootMeanSquareError, 1);
+  assert.equal(result.rows.length, 2);
+  const csv = createFlightDataComparisonCsv(result);
+  assert.match(csv, /# model_version,kestrel-flight-data-comparison-0\.1\.0/);
+  assert.match(csv, /time_s,simulation_time_s,altitude_measured_m/);
+  assert.match(csv, /0\.5,0\.5,2,2\.5,0\.5/);
+  assert.match(csv, /\r\n$/);
   assert.ok(result.assumptions.some((assumption) => assumption.includes("simulated minus measured")));
 });
 

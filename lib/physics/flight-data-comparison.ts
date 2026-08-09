@@ -28,6 +28,20 @@ export type FlightDataMetricComparison = Readonly<{
   p95AbsoluteResidual: number;
 }>;
 
+export type FlightDataMetricResidual = Readonly<{
+  measured: number;
+  simulated: number;
+  residual: number;
+}>;
+
+export type FlightDataComparisonRow = Readonly<{
+  timeS: number;
+  simulationTimeS: number;
+  altitudeM?: FlightDataMetricResidual;
+  velocityMps?: FlightDataMetricResidual;
+  accelerationMps2?: FlightDataMetricResidual;
+}>;
+
 export type FlightDataComparisonResult = Readonly<{
   modelVersion: string;
   validationStatus: string;
@@ -38,6 +52,7 @@ export type FlightDataComparisonResult = Readonly<{
   timeOffsetS: number;
   simulationTimeRangeS: readonly [number, number];
   measuredTimeRangeS: readonly [number, number];
+  rows: readonly FlightDataComparisonRow[];
   metrics: Partial<Record<FlightDataMetricKey, FlightDataMetricComparison>>;
   warnings: readonly string[];
   assumptions: readonly string[];
@@ -214,6 +229,21 @@ export function compareFlightDataToTrace(
     warnings.push(`${series.samples.length - matchedSampleCount} measured sample${series.samples.length - matchedSampleCount === 1 ? "" : "s"} fall outside the simulated time range.`);
   }
   if (matchedSampleCount === 0) warnings.push("No measured samples overlap the simulated trace; residual metrics are unavailable.");
+  const rows: FlightDataComparisonRow[] = [];
+  matchedRows.forEach((row) => {
+    const traceSample = row.trace;
+    if (traceSample === null) return;
+    const metricValues: Partial<Record<FlightDataMetricKey, FlightDataMetricResidual>> = {};
+    METRIC_DEFINITIONS.forEach((definition) => {
+      const measured = definition.sample(row.sample);
+      if (measured === undefined) return;
+      const simulated = definition.trace(traceSample);
+      metricValues[definition.key] = { measured, simulated, residual: simulated - measured };
+    });
+    if (Object.keys(metricValues).length > 0) {
+      rows.push({ timeS: row.sample.timeS, simulationTimeS: row.sample.timeS + timeOffsetS, ...metricValues });
+    }
+  });
   const metrics: Partial<Record<FlightDataMetricKey, FlightDataMetricComparison>> = {};
   METRIC_DEFINITIONS.forEach((definition) => {
     const pairs = matchedRows.flatMap((row) => {
@@ -246,6 +276,7 @@ export function compareFlightDataToTrace(
     timeOffsetS,
     simulationTimeRangeS: [firstTraceTime, lastTraceTime],
     measuredTimeRangeS: [measuredTimes[0]!, measuredTimes.at(-1)!],
+    rows,
     metrics,
     warnings,
     assumptions: [
@@ -255,4 +286,42 @@ export function compareFlightDataToTrace(
       "This comparison is an engineering diagnostic, not validation, certification, or a flight-safety assessment.",
     ],
   };
+}
+
+function csvField(value: number | string | null | undefined): string {
+  if (value === null || value === undefined) return "";
+  const text = String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+export function createFlightDataComparisonCsv(result: FlightDataComparisonResult): string {
+  const lines = [
+    `# model_version,${csvField(result.modelVersion)}`,
+    `# validation_status,${csvField(result.validationStatus)}`,
+    `# source_name,${csvField(result.sourceName)}`,
+    `# time_offset_s,${csvField(result.timeOffsetS)}`,
+    `# measured_samples,${csvField(result.measuredSampleCount)}`,
+    `# matched_samples,${csvField(result.matchedSampleCount)}`,
+    "time_s,simulation_time_s,altitude_measured_m,altitude_simulated_m,altitude_residual_m,velocity_measured_mps,velocity_simulated_mps,velocity_residual_mps,acceleration_measured_mps2,acceleration_simulated_mps2,acceleration_residual_mps2",
+  ];
+  result.rows.forEach((row) => {
+    const values = [
+      row.timeS,
+      row.simulationTimeS,
+      row.altitudeM?.measured,
+      row.altitudeM?.simulated,
+      row.altitudeM?.residual,
+      row.velocityMps?.measured,
+      row.velocityMps?.simulated,
+      row.velocityMps?.residual,
+      row.accelerationMps2?.measured,
+      row.accelerationMps2?.simulated,
+      row.accelerationMps2?.residual,
+    ];
+    values.forEach((value, index) => {
+      if (value !== undefined) assertFinite(value, `flight data CSV row ${index + 1}`);
+    });
+    lines.push(values.map((value) => csvField(value)).join(","));
+  });
+  return `${lines.join("\r\n")}\r\n`;
 }
