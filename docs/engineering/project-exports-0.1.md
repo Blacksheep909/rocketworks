@@ -1,4 +1,4 @@
-# Project, analysis, report, and CAD exports 0.5
+# Project, analysis, report, and CAD exports 0.6
 
 Status: `engineering-preview-unvalidated`
 
@@ -17,7 +17,7 @@ The browser's Export action now opens a keyboard-accessible artifact center.
 Escape or the close button dismisses it. Downloads are created in memory and
 initiated only after the user selects a format.
 
-Version 0.5 offers seven inspectable formats:
+Version 0.6 offers seven inspectable formats:
 
 1. Versioned Kestrel project JSON
 2. Flight-trace CSV
@@ -38,7 +38,7 @@ The root document declares:
 ```text
 schema: org.kestrel-lab.project
 schemaVersion: 1
-exportModelVersion: kestrel-export-0.6.0
+exportModelVersion: kestrel-export-0.7.0
 validationStatus: engineering-preview-unvalidated
 ```
 
@@ -53,6 +53,11 @@ When a current coupled 6DOF preview exists, the project JSON retains its
 step-size convergence diagnostic, and the Markdown report includes the same
 status, metric deltas, assumptions, and warnings. These are numerical
 sensitivity checks, not physical validation or flight-safety evidence.
+
+Explicitly separated stages are also retained as ballistic analytical
+component checks, including release state, peak altitude/speed, impact time,
+and the gravity-only model warnings. These traces do not imply aerodynamic
+clearance, range-safety, or flight-safety coverage.
 
 All numbers must be finite and all values must be JSON-compatible. Circular
 references, unsupported values, invalid identifiers, and invalid timestamps are

@@ -1,4 +1,4 @@
-# Stage-aware flight preview 0.3
+# Stage-aware flight preview 0.4
 
 Status: implemented composition adapter; mathematical regression tests only.
 This preview is not flight-safety validated and must not be used for launch
@@ -23,7 +23,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.3.0`.
+`kestrel-stage-flight-preview-0.4.0`.
 
 ## Event and state policy
 
@@ -89,9 +89,28 @@ model validity, uncertainty adequacy, hardware agreement, or flight safety.
 The engineering report and project JSON retain the diagnostic assumptions and
 warnings alongside the primary trace.
 
+## Separated-body analytical branch
+
+When an explicit separation event detaches a stage, the browser also records a
+separate trajectory for that body's own center of mass. The release state is
+derived from the retained body's event state: the stage center-of-mass offset
+is rotated into world coordinates and the parent angular-rate cross-product is
+included in the released velocity. The branch then uses the same original
+6-DOF integrator with altitude-dependent gravity and a terminal ground-impact
+event.
+
+This is intentionally a bounded ballistic component check. It does not invent
+drag coefficients, plume interaction, stage-to-stage aerodynamic interference,
+separation impulse, collision, recovery, or clearance logic. The result status
+is `analytical-component-checks-only`, and the UI, project JSON, and engineering
+report retain the warning so an impact time cannot be mistaken for a range or
+flight-safety prediction.
+
 ## Limitations
 
-- The retained-body staging model does not spawn or propagate discarded stages.
+- The retained-body staging model remains a single tracked vehicle; the new
+  separated-body branch is an independent gravity-only preview, not a coupled
+  multi-body solver.
 - Stage-separation proximity aerodynamics remain explicitly unsupported during
   the configured transition window.
 - The supplied aerodynamic regime table must contain an exact regime for every
@@ -113,5 +132,6 @@ warnings alongside the primary trace.
 This is intentionally a narrow composition layer. Keeping the existing models
 independently versioned makes it possible to improve propulsion, aerodynamics,
 environment, or event mechanics without hiding a new monolithic simulator
-behind the browser UI. Future work can add a multi-body separation branch and
-Monte Carlo event uncertainty while preserving this provenance boundary.
+behind the browser UI. Future work can add a coupled multi-body separation
+solver and Monte Carlo event uncertainty while preserving this provenance
+boundary.

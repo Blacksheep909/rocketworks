@@ -140,7 +140,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.3.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.4.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.events.length, 2);
   assert.deepEqual(result.events[0].attachedStageIdsBefore, ["booster", "upper"]);
@@ -155,6 +155,10 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.equal(result.convergence.refinedTimeStepS, 0.025);
   assert.ok(Number.isFinite(result.convergence.maximumRelativeDifference));
   assert.ok(result.assumptions.some((assumption) => assumption.includes("separated bodies")));
+  assert.equal(result.separatedBodies.length, 1);
+  assert.equal(result.separatedBodies[0].stageId, "booster");
+  assert.equal(result.separatedBodies[0].releaseTimeS, 1);
+  assert.ok(result.separatedBodies[0].warnings.some((warning) => warning.includes("ballistic")));
 });
 
 test("stage-flight adapter supports a single-stage coupled 6DOF preview", () => {
@@ -175,6 +179,7 @@ test("stage-flight adapter supports a single-stage coupled 6DOF preview", () => 
   assert.ok(result.maxSpeedMps > 0);
   assert.ok(result.trace.every((point) => point.attachedStageIds.includes("upper")));
   assert.equal(result.events.length, 0);
+  assert.equal(result.separatedBodies.length, 0);
   assert.ok(Number.isFinite(result.convergence.finalPositionDifferenceM));
 });
 
@@ -258,6 +263,8 @@ test("stage-flight adapter preserves staged events across a launch-rail handoff"
   assert.ok(result.events.some((event) => event.kind === "rail"));
   assert.ok(result.events.some((event) => event.id === "staging-booster-separation"));
   assert.ok(result.trace.some((point) => !point.attachedStageIds.includes("booster")));
+  assert.equal(result.separatedBodies.length, 1);
+  assert.equal(result.separatedBodies[0].stageId, "booster");
   assert.ok(result.assumptions.some((assumption) => assumption.includes("rail")));
   assert.ok(Number.isFinite(result.convergence.maximumEventTimeDifferenceS));
 });

@@ -23,9 +23,13 @@ import { magnitude, type Vector3 } from "./linear-algebra.ts";
 import type { VehicleComponent } from "./vehicle-components.ts";
 import type { WindLayer } from "./curves.ts";
 import type { MassProperties } from "./mass-properties.ts";
+import {
+  simulateSeparatedBodyFlight,
+  type SeparatedBodyTrajectory,
+} from "./separated-body-flight.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.3.0";
+  "kestrel-stage-flight-preview-0.4.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -102,6 +106,7 @@ export type StageFlightPreviewResult = Readonly<{
   maxAltitudeAglM: number;
   maxSpeedMps: number;
   timeToApogeeS: number;
+  separatedBodies: readonly SeparatedBodyTrajectory[];
   convergence: StageFlightConvergenceDiagnostic;
   warnings: readonly string[];
   assumptions: readonly string[];
@@ -176,6 +181,7 @@ type StageFlightRun = Readonly<{
   maxSpeedMps: number;
   timeToApogeeS: number;
   finalState: RigidBodyState;
+  appliedEvents: readonly AppliedRigidBodyEvent[];
 }>;
 
 function relativeDifference(left: number, right: number): number {
@@ -427,6 +433,7 @@ export function simulateStageFlightPreview(
         point.altitudeAglM > points[bestIndex].altitudeAglM ? index : bestIndex,
       0,
     );
+    const appliedEvents = rail?.appliedEvents ?? simulation?.events ?? [];
     const events = [
       ...(rail?.events.map((event, index): StageFlightEvent => ({
         id: `launch-rail-${event.type}-${index}`,
@@ -436,7 +443,7 @@ export function simulateStageFlightPreview(
         attachedStageIdsBefore: [...stageIdsAt(staging, event.state)],
         attachedStageIdsAfter: [...stageIdsAt(staging, event.state)],
       })) ?? []),
-      ...(rail?.appliedEvents ?? simulation?.events ?? []).map((event) =>
+      ...appliedEvents.map((event) =>
         summarizeEvent(staging, event),
       ),
     ].sort((a, b) => a.timeS - b.timeS || a.id.localeCompare(b.id));
@@ -449,6 +456,7 @@ export function simulateStageFlightPreview(
       maxSpeedMps,
       timeToApogeeS: trace[apogeeIndex]?.timeS ?? 0,
       finalState: rail?.finalState ?? simulation?.finalState ?? simulationTrace.at(-1) ?? initialState,
+      appliedEvents,
     };
   };
 
@@ -474,6 +482,40 @@ export function simulateStageFlightPreview(
         ],
       }
     : convergenceBase;
+  const separatedBodies: SeparatedBodyTrajectory[] = [];
+  const separatedBodyWarnings: string[] = [];
+  const stageNames = new Map(input.stages.map((stage) => [stage.id, stage.name]));
+  const spawnedStageIds = new Set<string>();
+  for (const event of primaryRun.appliedEvents) {
+    const before = staging.evaluate(event.stateBefore);
+    const after = staging.evaluate(event.stateAfter);
+    const detachedStageIds = before.attachedStageIds.filter(
+      (stageId) => !after.attachedStageIds.includes(stageId),
+    );
+    for (const stageId of detachedStageIds) {
+      if (spawnedStageIds.has(stageId)) continue;
+      try {
+        separatedBodies.push(
+          simulateSeparatedBodyFlight({
+            stageId,
+            stageName: stageNames.get(stageId) ?? stageId,
+            releaseState: event.stateBefore,
+            stageMassProperties: staging.stageMassProperties(event.stateBefore, stageId),
+            parentCenterOfMassBodyM: before.massProperties.centerOfMassM,
+            durationS: input.durationS,
+            timeStepS: input.timeStepS,
+            launchAltitudeM: input.launchAltitudeM,
+            environmentAt: input.environmentAt,
+          }),
+        );
+        spawnedStageIds.add(stageId);
+      } catch (error) {
+        separatedBodyWarnings.push(
+          `${stageId} separated-body preview unavailable: ${error instanceof Error ? error.message : "unknown error"}`,
+        );
+      }
+    }
+  }
   const warnings = [
     ...(input.additionalWarnings ?? []),
     ...staging.warnings,
@@ -481,6 +523,7 @@ export function simulateStageFlightPreview(
     ...loads.warnings,
     ...(primaryRun.rail?.warnings ?? primaryRun.simulation?.warnings ?? []),
     ...convergence.warnings,
+    ...separatedBodyWarnings,
   ];
   const assumptions = [
     ...(input.additionalAssumptions ?? []),
@@ -490,7 +533,8 @@ export function simulateStageFlightPreview(
     ...(primaryRun.rail?.assumptions ?? primaryRun.simulation?.assumptions ?? []),
     ...(primaryRun.rail?.freeFlight?.assumptions ?? []),
     ...convergence.assumptions,
-    "The adapter propagates only the retained vehicle; separated bodies are not spawned or clearance-propagated.",
+    "Explicit separation events spawn a separate ballistic gravity-only preview for each newly detached stage; separated bodies are represented independently.",
+    "Separated-body previews do not model drag, plume interaction, aerodynamic interference, recovery, collision, clearance, or separation impulse.",
     "The returned trajectory is a deterministic engineering preview and is not a flight-safety assessment.",
   ];
   return {
@@ -506,6 +550,7 @@ export function simulateStageFlightPreview(
     maxAltitudeAglM: primaryRun.maxAltitudeAglM,
     maxSpeedMps: primaryRun.maxSpeedMps,
     timeToApogeeS: primaryRun.timeToApogeeS,
+    separatedBodies,
     convergence,
     warnings: [...new Set(warnings)],
     assumptions: [...new Set(assumptions)],

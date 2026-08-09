@@ -241,6 +241,16 @@ test("engineering report leads with status and preserves calculations and limita
         assumptions: ["Half-step fixture comparison."],
         warnings: ["Fixture convergence warning."],
       },
+      separatedBodies: [
+        {
+          stageId: "booster",
+          stageName: "Booster",
+          releaseTimeS: 4.2,
+          impactTimeS: 11.8,
+          maxAltitudeAglM: 182,
+          maxSpeedMps: 41.6,
+        },
+      ],
     },
     uncertainty,
     landing: {
@@ -276,6 +286,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /## Coupled 6DOF preview/);
   assert.match(report, /Step convergence \| watch/);
   assert.match(report, /Fixture convergence warning/);
+  assert.match(report, /### Separated-body trajectories/);
+  assert.match(report, /\| Booster \| 4\.20 s \| 11\.80 s \| 182\.0 m \| 41\.60 m\/s \|/);
   assert.match(report, /Convergence status: converged/);
   assert.match(report, /Threshold high convergence/);
   assert.match(report, /Landing uncertainty convergence/);

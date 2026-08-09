@@ -77,10 +77,20 @@ burned-out, or separated motor produces zero force and moment.
 
 ## Separation semantics
 
-Version 0.1 propagates only the retained vehicle. A separation event changes
-the retained mass and inertia while preserving its position, velocity,
-orientation, and angular velocity. This represents an ideal, zero-impulse
-release where the retained body has no instantaneous velocity reset.
+Version 0.1 changes the retained mass and inertia while preserving its
+position, velocity, orientation, and angular velocity. This represents an
+ideal, zero-impulse release where the retained body has no instantaneous
+velocity reset. The `stageMassProperties(state, stageId)` adapter exposes the
+detached stage's live structural, dry-motor, and remaining-propellant
+properties at the event state so a caller can construct a separate component
+check without reimplementing the staging equations.
+
+The stage-flight browser adapter uses that lookup to launch a bounded
+gravity-only trajectory for each newly detached stage. It offsets the stage to
+its own center of mass and carries the parent angular-rate contribution into
+the release velocity. This branch is not a coupled multi-body solver and does
+not model drag, plume interaction, separation impulse, collision, recovery, or
+clearance.
 
 It does not conserve the angular momentum of the pre-separation combined stack
 inside the retained body alone; the discarded body carries away its share.
@@ -115,8 +125,9 @@ flight performance.
 - Ignition delay and stage-event delays are deterministic. No distributions,
   misfire probabilities, partial ignition, pressure buildup, or thrust
   uncertainty are included.
-- Separation is instantaneous and removes the source stage from one tracked
-  body. The discarded stage is not spawned or propagated.
+- Separation is instantaneous and removes the source stage from the retained
+  tracked body. The optional separated-body preview is ballistic only and is
+  not suitable for clearance, range-safety, or flight-safety decisions.
 - Pyrotechnic and spring impulses, joint forces, tip-off, flexure, plume
   impingement, wake interaction, collision, and recontact are absent.
 - Stage-aware aerodynamics 0.1 now reconfigures retained-body geometry, CP,
@@ -169,7 +180,7 @@ preview input.
 ## Next work
 
 Add optional measured mass-flow histories, explicit separation impulses, and a
-multi-body branch that spawns discarded stages. Monte Carlo event uncertainty
+coupled multi-body branch that resolves discarded stages. Monte Carlo event uncertainty
 should then vary
 ignition delay, failure, separation impulse, thrust, mass, and alignment while
 preserving deterministic reproducibility from a recorded random seed.

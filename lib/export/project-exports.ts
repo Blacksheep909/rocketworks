@@ -14,7 +14,7 @@ import type {
 
 export const KESTREL_PROJECT_SCHEMA_ID = "org.kestrel-lab.project";
 export const KESTREL_PROJECT_SCHEMA_VERSION = 1;
-export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.6.0";
+export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.7.0";
 export const KESTREL_EXPORT_VALIDATION_STATUS =
   "engineering-preview-unvalidated";
 
@@ -602,6 +602,21 @@ export function createEngineeringReportMarkdown(
           "",
           ...input.stageFlight.convergence.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
           ...input.stageFlight.convergence.warnings.map((warning) => `- **Convergence warning:** ${markdownText(warning)}`),
+          ...((input.stageFlight.separatedBodies ?? []).length > 0
+            ? [
+                "",
+                "### Separated-body trajectories",
+                "",
+                "| Stage | Release | Impact | Peak altitude | Peak speed |",
+                "|---|---:|---:|---:|---:|",
+                ...(input.stageFlight.separatedBodies ?? []).map(
+                  (body) =>
+                    `| ${markdownText(body.stageName)} | ${formatNumber(body.releaseTimeS, 2)} s | ${body.impactTimeS === null ? "Not reached" : `${formatNumber(body.impactTimeS, 2)} s`} | ${formatNumber(body.maxAltitudeAglM, 1)} m | ${formatNumber(body.maxSpeedMps, 2)} m/s |`,
+                ),
+                "",
+                "> Separated-body paths are gravity-only analytical component checks. Drag, plume interaction, aerodynamic clearance, separation impulse, collision, and recovery are not modeled.",
+              ]
+            : []),
           "",
         ]
       : []),

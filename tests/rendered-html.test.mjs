@@ -66,6 +66,9 @@ test("ships versioned flight results and explainable model UI", async () => {
   assert.match(source, /resultIsCurrent/);
   assert.match(source, /RERUN REQUIRED/);
   assert.match(source, /SIMULATION_FRESHNESS_MODEL_VERSION/);
+  assert.match(source, /Separated trajectories/);
+  assert.match(source, /separatedBodies/);
+  assert.match(source, /analytical component check/);
 });
 
 test("ships live center-of-pressure and static-margin feedback", async () => {
@@ -145,6 +148,21 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(stylesheet, /\.uncertainty-convergence/);
   assert.match(stylesheet, /\.uncertainty-status-converged/);
   assert.match(stylesheet, /rgba\(47,159,255/);
+});
+
+test("ships the separated-body telemetry branch with explicit ballistic limits", async () => {
+  const source = await readFile(
+    new URL("../lib/physics/stage-flight-preview.ts", import.meta.url),
+    "utf8",
+  );
+  const stylesheet = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /simulateSeparatedBodyFlight/);
+  assert.match(source, /Explicit separation events spawn a separate ballistic/);
+  assert.match(stylesheet, /\.stage-separated-bodies/);
+  assert.match(stylesheet, /\.stage-separated-body-grid/);
 });
 
 test("routes browser mass properties through the hierarchical assembly graph", async () => {

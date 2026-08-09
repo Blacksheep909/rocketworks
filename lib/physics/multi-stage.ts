@@ -25,7 +25,7 @@ import type {
   StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
 
-export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.1.0";
+export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.2.0";
 
 export type MultiStageMotor = Readonly<{
   id: string;
@@ -99,6 +99,7 @@ export type MultiStageVehicleModel = Readonly<{
   validationStatus: "analytical-component-checks-only";
   stageIds: readonly string[];
   evaluate: (state: RigidBodyState) => MultiStageVehicleEvaluation;
+  stageMassProperties: (state: RigidBodyState, stageId: string) => MassProperties;
   body: (state: RigidBodyState) => Readonly<{
     massKg: number;
     inertiaBodyKgM2: Matrix3;
@@ -687,11 +688,34 @@ export function createMultiStageVehicleModel(input: Readonly<{
     };
   };
 
+  const stageMassProperties = (
+    state: RigidBodyState,
+    stageId: string,
+  ): MassProperties => {
+    const stage = requireStage(stageId);
+    const evaluation = evaluate(state);
+    const stageEvaluation = evaluation.stages.find((item) => item.id === stageId);
+    if (!stageEvaluation?.attached) {
+      throw new Error(`stage ${stageId} is not attached at the requested state`);
+    }
+    const parts: MassProperties[] = [stage.structuralMassProperties];
+    stage.motors.forEach((motor, index) => {
+      parts.push(motor.dryMassProperties);
+      const remainingFraction =
+        stageEvaluation.motors[index]?.remainingPropellantFraction ?? 0;
+      if (remainingFraction > 0) {
+        parts.push(scaledMassProperties(motor.initialPropellantMassProperties, remainingFraction));
+      }
+    });
+    return combineMassProperties(parts);
+  };
+
   return {
     modelVersion: MULTI_STAGE_MODEL_VERSION,
     validationStatus: "analytical-component-checks-only",
     stageIds: stages.map((stage) => stage.id),
     evaluate,
+    stageMassProperties,
     body: (state) => {
       const result = evaluate(state);
       return {

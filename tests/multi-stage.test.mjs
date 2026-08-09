@@ -104,6 +104,19 @@ test("attached stages contribute dry and propellant mass until separation", () =
   assert.equal(separated.stages[0].phase, "separated");
 });
 
+test("stage mass-property lookup returns the detached body's live mass state", () => {
+  const staging = model();
+  const halfBurn = ignitedAtZero(1);
+  const booster = staging.stageMassProperties(halfBurn, "booster");
+
+  close(booster.massKg, 1.75, 1e-15, "half-burn booster mass");
+  close(booster.centerOfMassM.x, 2, 1e-15, "booster centre of mass");
+  assert.throws(
+    () => staging.stageMassProperties(separateStage(halfBurn, "booster"), "booster"),
+    /not attached/,
+  );
+});
+
 test("burnout events root-find simultaneous separation and upper-stage ignition", () => {
   const staging = model();
   const initialState = initializeMultiStageState(state(), ["booster"]);

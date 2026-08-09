@@ -3200,6 +3200,35 @@ export default function Home() {
                         </ul>
                       )}
                     </section>
+                    {stageFlightResult.separatedBodies.length > 0 && (
+                      <section className="stage-separated-bodies" aria-labelledby="stage-separated-bodies-title">
+                        <div className="stage-separated-bodies-heading">
+                          <div>
+                            <span className="eyebrow">Flight dynamics / discard branch</span>
+                            <h4 id="stage-separated-bodies-title">Separated trajectories</h4>
+                            <p>Released stages are carried from the exact event state into an independent ballistic preview. This is an analytical component check—not an aerodynamic clearance or range-safety result.</p>
+                          </div>
+                          <span className="stage-separated-bodies-badge">{stageFlightResult.separatedBodies.length} bod{stageFlightResult.separatedBodies.length === 1 ? "y" : "ies"}</span>
+                        </div>
+                        <div className="stage-separated-body-grid">
+                          {stageFlightResult.separatedBodies.map((body) => (
+                            <article className="stage-separated-body" key={`${body.stageId}-${body.releaseTimeS}`}>
+                              <div className="stage-separated-body-title">
+                                <span>{body.stageName}</span>
+                                <strong>{body.impactTimeS === null ? "No impact in window" : `Impact ${body.impactTimeS.toFixed(2)} s`}</strong>
+                              </div>
+                              <div className="stage-separated-body-metrics">
+                                <div><span>Release</span><strong>{body.releaseTimeS.toFixed(2)} s</strong></div>
+                                <div><span>Peak altitude</span><strong>{body.maxAltitudeAglM.toFixed(1)} m</strong></div>
+                                <div><span>Peak speed</span><strong>{body.maxSpeedMps.toFixed(1)} m/s</strong></div>
+                                <div><span>Model</span><strong>{body.validationStatus}</strong></div>
+                              </div>
+                              <p className="stage-separated-body-note">Gravity-only path; no drag, plume interaction, separation impulse, collision, or recovery model.</p>
+                            </article>
+                          ))}
+                        </div>
+                      </section>
+                    )}
                     <StageFlightProfileChart result={stageFlightResult} />
                     {activeStageCount === 1 && (
                       <section className="stage-flight-comparison" aria-labelledby="stage-flight-comparison-title">
