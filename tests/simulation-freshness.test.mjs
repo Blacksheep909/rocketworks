@@ -95,3 +95,29 @@ test("simulation fingerprints change when a modeled input or motor changes", () 
   assert.equal(isSimulationFingerprintCurrent(baseline, windChanged), false);
   assert.equal(isSimulationFingerprintCurrent(null, baseline), false);
 });
+
+test("simulation fingerprints include the selected aerodynamic data source", () => {
+  const baseline = fingerprint();
+  const selectedTable = fingerprint({
+    selectedAerodynamicTableId: "fixture-table",
+    aerodynamicTable: {
+      id: "fixture-table",
+      name: "Fixture table",
+      machPoints: [0, 1],
+      reynoldsPoints: [1e5, 1e6],
+      dragCoefficient: { values: [[0.4, 0.6], [0.4, 0.6]] },
+      normalForceSlopePerRad: { values: [[4, 4], [4, 4]] },
+      centerOfPressureXM: { values: [[0.5, 0.5], [0.5, 0.5]] },
+      provenance: {
+        sourceName: "Fixture",
+        sourceKind: "user-supplied",
+        dataVersion: "1",
+        licenseIdentifier: "CC0-1.0",
+        attribution: "Fixture",
+        validationStatus: "user-supplied-unvalidated",
+      },
+    },
+  });
+  assert.notEqual(baseline, selectedTable);
+  assert.equal(isSimulationFingerprintCurrent(baseline, selectedTable), false);
+});

@@ -36,7 +36,7 @@ The root document declares:
 ```text
 schema: org.kestrel-lab.project
 schemaVersion: 1
-exportModelVersion: kestrel-export-0.4.0
+exportModelVersion: kestrel-export-0.5.0
 validationStatus: engineering-preview-unvalidated
 ```
 
@@ -131,6 +131,7 @@ not-manufacturing-approved warning, then records:
   `stale`, or `not-run`) in project JSON; trace and report exports require a
   current matching run
 - model assumptions, warnings, and limitations
+- selected aerodynamic coefficient-table definition or the constant-Cd fallback, including provenance and validation status
 - clean-room independence statement
 
 Markdown control characters in user-facing labels are escaped or flattened so

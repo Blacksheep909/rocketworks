@@ -11,7 +11,7 @@ import type {
 
 export const KESTREL_PROJECT_SCHEMA_ID = "org.kestrel-lab.project";
 export const KESTREL_PROJECT_SCHEMA_VERSION = 1;
-export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.4.0";
+export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.5.0";
 export const KESTREL_EXPORT_VALIDATION_STATUS =
   "engineering-preview-unvalidated";
 

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   IDENTITY_QUATERNION,
   createMultiStageVehicleModel,
+  createAerodynamicCoefficientTable,
   createPreliminaryRocketLoadModel,
   createScheduledStageSeparationEvent,
   createStageAwareAerodynamicsModel,
@@ -393,4 +394,48 @@ test("unknown stages, duplicate topologies, and invalid transition windows fail"
     () => aeroModel({ separationTransitionWindowS: -1 }),
     /non-negative/,
   );
+});
+
+test("Mach-Reynolds coefficient tables propagate into topology-aware evaluations", () => {
+  const staging = stagingModel();
+  const coefficientTable = createAerodynamicCoefficientTable({
+    id: "fixture-table",
+    name: "Fixture table",
+    machPoints: [0, 1],
+    reynoldsPoints: [1e5, 1e6],
+    dragCoefficient: {
+      values: [[0.42, 0.62], [0.4, 0.6]],
+      absoluteUncertainty: [[0.01, 0.01], [0.01, 0.01]],
+    },
+    normalForceSlopePerRad: { values: [[4, 3.8], [4.1, 3.9]] },
+    centerOfPressureXM: { values: [[0.51, 0.53], [0.5, 0.52]] },
+    outOfRangePolicy: "clamp-with-warning",
+    provenance: {
+      sourceName: "Regression fixture",
+      sourceKind: "user-supplied",
+      dataVersion: "fixture-1",
+      licenseIdentifier: "CC0-1.0",
+      attribution: "Original test fixture",
+      validationStatus: "user-supplied-unvalidated",
+    },
+  });
+  const aerodynamics = createStageAwareAerodynamicsModel({
+    components,
+    staging,
+    regimes: [
+      {
+        id: "full-table",
+        label: "Full table",
+        activeStageIds: ["booster", "upper"],
+        coefficientTable,
+        coefficientTableDesignPoint: { mach: 0.5, reynoldsNumber: 1e6 },
+      },
+      { id: "upper", label: "Upper", activeStageIds: ["upper"], dragCoefficient: 0.48 },
+    ],
+  });
+  const result = aerodynamics.evaluate(fullStackState());
+  assert.equal(result.coefficientEvaluation?.modelVersion, coefficientTable.modelVersion);
+  assert.equal(result.coefficientEvaluation?.validationStatus, "user-supplied-unvalidated");
+  close(result.dragCoefficient, 0.5, 1e-12, "design-point drag coefficient");
+  assert.equal(result.applicability[0]?.code, "COEFFICIENT_UNCERTAINTY_PRESENT");
 });

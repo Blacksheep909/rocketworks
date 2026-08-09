@@ -19,6 +19,7 @@ import {
 import {
   analyzeRecoveryLandingDispersion,
   ASCENT_DRIFT_MODEL_VERSION,
+  createAerodynamicCoefficientTable,
   computeStaticStability,
   analyzeVerticalFlightUncertainty,
   createLaunchEnvironmentModel,
@@ -39,6 +40,8 @@ import {
   estimateAscentWindDrift,
   simulateVerticalFlight,
   type DesignOptimizationResult,
+  type AerodynamicCoefficientTableDefinition,
+  type AerodynamicCoefficientTableModel,
   type LandingDispersionResult,
   type LandingAscentDriftSummary,
   type UncertaintyAnalysisResult,
@@ -96,6 +99,13 @@ import {
   type VehicleStagePlan,
   type VehicleStageRole,
 } from "../lib/project/vehicle-topology.ts";
+import {
+  LOCAL_AERODYNAMIC_LIBRARY_STORAGE_KEY,
+  LOCAL_AERODYNAMIC_SELECTION_STORAGE_KEY,
+  parseLocalAerodynamicLibrary,
+  serializeLocalAerodynamicLibrary,
+  upsertLocalAerodynamicTable,
+} from "../lib/project/aero-library-state.ts";
 import {
   createSimulationFingerprint,
   isSimulationFingerprintCurrent,
@@ -221,6 +231,58 @@ const defaultMotorImportDraft: MotorImportDraft = {
   attribution: "Provided by the project owner",
   sourceUrl: "",
   csv: "time_s,thrust_n\n0,0\n0.10,18\n0.80,18\n1.00,0",
+};
+
+type AerodynamicTableImportDraft = {
+  json: string;
+};
+
+const defaultAerodynamicTableImportDraft: AerodynamicTableImportDraft = {
+  json: JSON.stringify(
+    {
+      id: "user.aero-table-01",
+      name: "Example Mach-Reynolds surface",
+      machPoints: [0, 0.6, 1.2, 2],
+      reynoldsPoints: [100000, 1000000, 10000000],
+      dragCoefficient: {
+        values: [
+          [0.48, 0.5, 0.58, 0.7],
+          [0.44, 0.46, 0.54, 0.66],
+          [0.4, 0.42, 0.5, 0.62],
+        ],
+        absoluteUncertainty: [
+          [0.04, 0.04, 0.05, 0.06],
+          [0.03, 0.03, 0.04, 0.05],
+          [0.03, 0.03, 0.04, 0.05],
+        ],
+      },
+      normalForceSlopePerRad: {
+        values: [
+          [4.2, 4.1, 3.9, 3.6],
+          [4.4, 4.3, 4.1, 3.8],
+          [4.6, 4.5, 4.3, 4.0],
+        ],
+      },
+      centerOfPressureXM: {
+        values: [
+          [0.56, 0.57, 0.58, 0.6],
+          [0.55, 0.56, 0.57, 0.59],
+          [0.54, 0.55, 0.56, 0.58],
+        ],
+      },
+      outOfRangePolicy: "clamp-with-warning",
+      provenance: {
+        sourceName: "Kestrel Lab example surface",
+        sourceKind: "user-supplied",
+        dataVersion: "example-1",
+        licenseIdentifier: "CC0-1.0",
+        attribution: "Original Kestrel Lab example data; replace before engineering use",
+        validationStatus: "user-supplied-unvalidated",
+      },
+    },
+    null,
+    2,
+  ),
 };
 
 function downloadTextArtifact(
@@ -648,6 +710,7 @@ function createStageFlightPreviewInputs({
   environmentAt,
   launchRailEnabled,
   launchRailLengthM,
+  aerodynamicTable,
 }: {
   topology: LocalVehicleTopology;
   assembly: VehicleAssemblyEvaluation;
@@ -658,6 +721,7 @@ function createStageFlightPreviewInputs({
   environmentAt: LaunchEnvironmentProvider;
   launchRailEnabled: boolean;
   launchRailLengthM: number;
+  aerodynamicTable?: AerodynamicCoefficientTableModel | null;
 }): Parameters<typeof simulateStageFlightPreview>[0] {
   const stageById = new Map(topology.stages.map((stage) => [stage.id, stage]));
   const activeStages = topology.stages.filter((stage) => stage.enabled);
@@ -761,13 +825,23 @@ function createStageFlightPreviewInputs({
       return component;
     });
   const regimes: StageAerodynamicRegime[] = [];
+  const coefficientTableDesignPoint = aerodynamicTable
+    ? {
+        mach: (aerodynamicTable.machRange[0] + aerodynamicTable.machRange[1]) / 2,
+        reynoldsNumber: Math.sqrt(
+          aerodynamicTable.reynoldsRange[0] * aerodynamicTable.reynoldsRange[1],
+        ),
+      }
+    : undefined;
   for (let mask = 0; mask < 2 ** stageIds.length; mask += 1) {
     const activeStageIds = stageIds.filter((_, index) => (mask & (1 << index)) !== 0);
     regimes.push({
       id: `preview-${activeStageIds.join("-") || "retained"}`,
       label: activeStageIds.length > 0 ? `${activeStageIds.join(" + ")} topology` : "Retained payload topology",
       activeStageIds,
-      dragCoefficient,
+      ...(aerodynamicTable
+        ? { coefficientTable: aerodynamicTable, coefficientTableDesignPoint }
+        : { dragCoefficient }),
     });
   }
   const staging = createMultiStageVehicleModel({ retainedMassProperties, stages });
@@ -1584,6 +1658,12 @@ export default function Home() {
   const [selectedMotorId, setSelectedMotorId] = useState("synthetic");
   const [motorImportDraft, setMotorImportDraft] = useState<MotorImportDraft>(defaultMotorImportDraft);
   const [motorError, setMotorError] = useState("");
+  const [aerodynamicLibraryOpen, setAerodynamicLibraryOpen] = useState(false);
+  const aerodynamicLibraryCloseRef = useRef<HTMLButtonElement>(null);
+  const [aerodynamicTableDefinitions, setAerodynamicTableDefinitions] = useState<AerodynamicCoefficientTableDefinition[]>([]);
+  const [selectedAerodynamicTableId, setSelectedAerodynamicTableId] = useState("constant");
+  const [aerodynamicTableImportDraft, setAerodynamicTableImportDraft] = useState<AerodynamicTableImportDraft>(defaultAerodynamicTableImportDraft);
+  const [aerodynamicTableError, setAerodynamicTableError] = useState("");
   const [topologyOpen, setTopologyOpen] = useState(false);
   const topologyCloseRef = useRef<HTMLButtonElement>(null);
   const [vehicleTopology, setVehicleTopology] = useState<LocalVehicleTopology>(() => createDefaultVehicleTopology());
@@ -1738,6 +1818,20 @@ export default function Home() {
     () => userMotorRecords.find((record) => record.id === selectedMotorId) ?? syntheticMotor,
     [selectedMotorId, syntheticMotor, userMotorRecords],
   );
+  const selectedAerodynamicTableDefinition = useMemo(
+    () =>
+      aerodynamicTableDefinitions.find(
+        (definition) => definition.id === selectedAerodynamicTableId,
+      ) ?? null,
+    [aerodynamicTableDefinitions, selectedAerodynamicTableId],
+  );
+  const selectedAerodynamicTable = useMemo(
+    () =>
+      selectedAerodynamicTableDefinition
+        ? createAerodynamicCoefficientTable(selectedAerodynamicTableDefinition)
+        : null,
+    [selectedAerodynamicTableDefinition],
+  );
   const simulationFingerprint = useMemo(
     () =>
       createSimulationFingerprint({
@@ -1745,8 +1839,10 @@ export default function Home() {
         topology: vehicleTopology,
         selectedMotorId,
         motor: previewMotor,
+        selectedAerodynamicTableId,
+        aerodynamicTable: selectedAerodynamicTableDefinition,
       }),
-    [editableInputs, previewMotor, selectedMotorId, vehicleTopology],
+    [editableInputs, previewMotor, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, vehicleTopology],
   );
   const previewEnvironment = useMemo(
     () => createPreviewEnvironment(launchAltitude, windSpeed),
@@ -1924,6 +2020,17 @@ export default function Home() {
         problems.push("the local motor library");
       }
       try {
+        const serialized = window.localStorage.getItem(LOCAL_AERODYNAMIC_LIBRARY_STORAGE_KEY);
+        const restoredTables = serialized ? parseLocalAerodynamicLibrary(serialized) : [];
+        setAerodynamicTableDefinitions(restoredTables);
+        const storedSelection = window.localStorage.getItem(LOCAL_AERODYNAMIC_SELECTION_STORAGE_KEY);
+        if (storedSelection === "constant" || restoredTables.some((table) => table.id === storedSelection)) {
+          setSelectedAerodynamicTableId(storedSelection ?? "constant");
+        }
+      } catch {
+        problems.push("the local aerodynamic library");
+      }
+      try {
         const serialized = window.localStorage.getItem(LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY);
         if (serialized) {
           const restoredTopology = parseVehicleTopology(serialized);
@@ -2060,6 +2167,16 @@ export default function Home() {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [motorLibraryOpen]);
+
+  useEffect(() => {
+    if (!aerodynamicLibraryOpen) return;
+    aerodynamicLibraryCloseRef.current?.focus();
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setAerodynamicLibraryOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [aerodynamicLibraryOpen]);
 
   useEffect(() => {
     if (!topologyOpen) return;
@@ -2232,6 +2349,13 @@ export default function Home() {
     window.localStorage.setItem(LOCAL_MOTOR_LIBRARY_STORAGE_KEY, serializeLocalMotorLibrary(records));
     setUserMotorRecords(records);
   };
+  const persistAerodynamicTables = (records: AerodynamicCoefficientTableDefinition[]) => {
+    window.localStorage.setItem(
+      LOCAL_AERODYNAMIC_LIBRARY_STORAGE_KEY,
+      serializeLocalAerodynamicLibrary(records),
+    );
+    setAerodynamicTableDefinitions(records);
+  };
   const selectMotor = (id: string) => {
     setSelectedMotorId(id);
     setStageFlightResult(null);
@@ -2281,6 +2405,43 @@ export default function Home() {
       notify("User motor removed from this device");
     } catch (error) {
       setMotorError(error instanceof Error ? error.message : "Unable to remove motor");
+    }
+  };
+  const selectAerodynamicTable = (id: string) => {
+    if (id !== "constant" && !aerodynamicTableDefinitions.some((table) => table.id === id)) {
+      setAerodynamicTableError("That aerodynamic table is no longer available on this device.");
+      return;
+    }
+    setSelectedAerodynamicTableId(id);
+    window.localStorage.setItem(LOCAL_AERODYNAMIC_SELECTION_STORAGE_KEY, id);
+    setStageFlightResult(null);
+    setStageFlightError("");
+    setAerodynamicLibraryOpen(false);
+    setAerodynamicTableError("");
+    notify(id === "constant" ? "Constant drag source selected; rerun the 6DOF preview" : "Coefficient table selected; rerun the 6DOF preview");
+  };
+  const importAerodynamicTable = () => {
+    try {
+      const parsed = JSON.parse(aerodynamicTableImportDraft.json) as unknown;
+      const nextTables = upsertLocalAerodynamicTable(aerodynamicTableDefinitions, parsed as AerodynamicCoefficientTableDefinition);
+      const nextTable = nextTables.find((table) => table.id === (parsed as { id?: unknown }).id);
+      persistAerodynamicTables(nextTables);
+      if (nextTable) selectAerodynamicTable(nextTable.id);
+      setAerodynamicTableImportDraft({ json: defaultAerodynamicTableImportDraft.json });
+      setAerodynamicTableError("");
+      notify(`${nextTable?.name ?? "Aerodynamic table"} imported; rerun the 6DOF preview`);
+    } catch (error) {
+      setAerodynamicTableError(error instanceof Error ? error.message : "Unable to import aerodynamic table");
+    }
+  };
+  const removeAerodynamicTable = (id: string) => {
+    try {
+      const nextTables = aerodynamicTableDefinitions.filter((table) => table.id !== id);
+      persistAerodynamicTables(nextTables);
+      if (selectedAerodynamicTableId === id) selectAerodynamicTable("constant");
+      notify("Aerodynamic table removed from this device");
+    } catch (error) {
+      setAerodynamicTableError(error instanceof Error ? error.message : "Unable to remove aerodynamic table");
     }
   };
   const persistVehicleTopology = (next: LocalVehicleTopology) => {
@@ -2437,6 +2598,17 @@ export default function Home() {
           provenance: {
             motor: previewMotor.provenance,
             environment: previewEnvironment.definition.provenance,
+            aerodynamics: selectedAerodynamicTableDefinition
+              ? {
+                  source: selectedAerodynamicTableDefinition,
+                  modelVersion: selectedAerodynamicTable?.modelVersion,
+                  validationStatus: selectedAerodynamicTable?.validationStatus,
+                }
+              : {
+                  source: "constant-drag-coefficient-input",
+                  dragCoefficient,
+                  validationStatus: "engineering-preview-unvalidated",
+                },
             cleanRoomImplementation: true,
           } as unknown as JsonValue,
         });
@@ -2571,6 +2743,7 @@ export default function Home() {
             environmentAt: previewEnvironment.at,
             launchRailEnabled,
             launchRailLengthM,
+            aerodynamicTable: selectedAerodynamicTable,
           }),
         );
         setStageFlightResult(nextResult);
@@ -2708,6 +2881,7 @@ export default function Home() {
     { id: "run-staged", label: activeStageCount > 1 ? "Run staged 6DOF preview" : "Run coupled 6DOF preview", description: activeStageCount > 1 ? "Propagate the active stage graph and event transitions" : "Propagate the current vehicle through the coupled rigid-body preview", run: runStageAwareEstimate },
     { id: "open-topology", label: "Edit stages and boosters", description: "Open the serial, parallel, and radial topology editor", run: () => setTopologyOpen(true) },
     { id: "open-motors", label: "Open motor library", description: "Review or import a provenance-qualified user motor curve", run: () => setMotorLibraryOpen(true) },
+    { id: "open-aero", label: "Open aerodynamic data", description: "Review or import Mach-Reynolds coefficient tables", run: () => setAerodynamicLibraryOpen(true) },
     { id: "open-templates", label: "Choose a project template", description: "Start from a beginner, high-power, weather, or diagnostic setup", run: () => setTemplatesOpen(true) },
     { id: "open-history", label: "Open local project history", description: "Restore a validated device-local checkpoint", run: () => setHistoryOpen(true) },
     { id: "open-export", label: "Open artifact center", description: "Export project JSON, traces, reports, and CAD references", run: () => setExportOpen(true) },
@@ -2914,7 +3088,7 @@ export default function Home() {
                 <span>RERUN REQUIRED</span>
                 <div>
                   <strong>This flight profile is from an earlier configuration</strong>
-                  <p>Vehicle, motor, weather, recovery, rail, or topology inputs changed after the last vertical estimate. Recalculate before interpreting or exporting these results.</p>
+                  <p>Vehicle, motor, weather, recovery, rail, topology, or aerodynamic-table inputs changed after the last vertical estimate. Recalculate before interpreting or exporting these results.</p>
                 </div>
                 <button className="secondary-button" onClick={simulate} disabled={running}>{running ? "Running…" : "Rerun estimate"}</button>
               </div>
@@ -2937,7 +3111,7 @@ export default function Home() {
                     <span>RERUN REQUIRED</span>
                     <div>
                       <strong>This coupled trace is from an earlier configuration</strong>
-                      <p>The active vehicle, motor, environment, rail, or stage graph changed after this run. Rerun the coupled preview before using its trace or export.</p>
+                      <p>The active vehicle, motor, environment, rail, stage graph, or aerodynamic table changed after this run. Rerun the coupled preview before using its trace or export.</p>
                     </div>
                     <button className="secondary-button" onClick={runStageAwareEstimate} disabled={stageFlightRunning}>{stageFlightRunning ? "Propagating…" : "Rerun 6DOF"}</button>
                   </div>
@@ -3415,6 +3589,10 @@ export default function Home() {
             {recoveryEnabled && <NumberField id="recovery-diameter" label="Canopy diameter" value={recoveryDiameter} unit="m" min={0.1} max={3} step={0.01} onChange={(value) => { setRecoveryDiameter(value); markChanged(); }} />}
             {recoveryEnabled && <NumberField id="recovery-deployment-success" label="Deployment success assumption" value={recoveryDeploymentSuccessProbability * 100} unit="%" min={0} max={100} step={1} onChange={(value) => { setRecoveryDeploymentSuccessProbability(value / 100); markChanged(); }} />}
             {recoveryEnabled && <p className="recovery-provenance">Landing dispersion samples this as a Bernoulli outcome. A failed deployment uses ballistic descent with body drag; the percentage is a modeling assumption, not hardware reliability evidence.</p>}
+            <button className="library-button" onClick={() => setAerodynamicLibraryOpen(true)}>
+              <span><strong>Aerodynamic data</strong><small>{selectedAerodynamicTable?.name ?? "Constant drag coefficient"}</small></span>
+              <em>{aerodynamicTableDefinitions.length} saved · Manage</em>
+            </button>
             <button className="library-button" onClick={() => setMotorLibraryOpen(true)}>
               <span><strong>Motor library</strong><small>{previewMotor.manufacturer} · {previewMotor.designation}</small></span>
               <em>{userMotorRecords.length} saved · Manage</em>
@@ -3432,6 +3610,17 @@ export default function Home() {
                   <div><span>Calculated Isp</span><strong>{previewMotor.metrics.specificImpulseS.toFixed(1)} s</strong></div>
                 </div>
                 <p className="motor-provenance">Synthetic preview curve · CC0-1.0 · unvalidated. Letter class is an impulse-band estimate, not motor certification.</p>
+                <div className="property-section-label">
+                  <span>6DOF aerodynamic source</span>
+                  <small>{selectedAerodynamicTable?.modelVersion ?? "constant-Cd"}</small>
+                </div>
+                <div className="mass-properties-card stability-properties-card">
+                  <div><span>Source</span><strong>{selectedAerodynamicTable?.name ?? "Constant Cd"}</strong></div>
+                  <div><span>Mach range</span><strong>{selectedAerodynamicTable ? `${selectedAerodynamicTable.machRange[0].toFixed(2)}–${selectedAerodynamicTable.machRange[1].toFixed(2)}` : "fixed"}</strong></div>
+                  <div><span>Reynolds range</span><strong>{selectedAerodynamicTable ? `${selectedAerodynamicTable.reynoldsRange[0].toExponential(1)}–${selectedAerodynamicTable.reynoldsRange[1].toExponential(1)}` : "fixed"}</strong></div>
+                  <div><span>Validation</span><strong>{selectedAerodynamicTable?.validationStatus ?? "analytical preview"}</strong></div>
+                </div>
+                <p className="motor-provenance">Coefficient tables affect the topology-aware 6DOF preview only. The fast vertical estimate continues to use the explicit Cd input; table data are never promoted to flight certification.</p>
                 <div className="property-section-label">
                   <span>Flight environment</span>
                   <small>{previewEnvironment.modelVersion}</small>
@@ -3555,7 +3744,7 @@ export default function Home() {
                   <h3>{template.name}</h3>
                   <p>{template.description}</p>
                   <div className="template-specs">
-                    <span>{template.inputs.lengthMm + 180} mm overall</span>
+                    <span>{template.inputs.lengthMm + template.inputs.noseLengthMm} mm overall</span>
                     <span>{template.inputs.diameterMm} mm diameter</span>
                     <span>{template.inputs.recoveryEnabled ? `${Math.round(template.inputs.recoveryDiameterM * 1000)} mm recovery` : "Ballistic descent"}</span>
                   </div>
@@ -3654,6 +3843,74 @@ export default function Home() {
             <div className="history-notice">
               <span>DATA BOUNDARY</span>
               <p>Kestrel Lab stores the curve and provenance metadata locally. It does not download, bundle, or infer third-party motor databases, and it does not upgrade user-supplied data to certified status.</p>
+            </div>
+          </section>
+        </div>
+      )}
+      {aerodynamicLibraryOpen && (
+        <div
+          className="export-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setAerodynamicLibraryOpen(false);
+          }}
+        >
+          <section
+            className="export-dialog aerodynamic-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="aerodynamic-library-title"
+            aria-describedby="aerodynamic-library-description"
+          >
+            <div className="export-heading">
+              <div>
+                <span className="eyebrow">Data center</span>
+                <h2 id="aerodynamic-library-title">Aerodynamic data</h2>
+                <p id="aerodynamic-library-description">Import a rectangular Mach–Reynolds coefficient surface with explicit axes, uncertainty, and provenance. Tables are used by the topology-aware 6DOF preview; the fast vertical estimate keeps its explicit constant Cd.</p>
+              </div>
+              <button
+                ref={aerodynamicLibraryCloseRef}
+                className="export-close"
+                aria-label="Close aerodynamic data library"
+                onClick={() => setAerodynamicLibraryOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="aerodynamic-library-list" aria-label="Available aerodynamic coefficient tables">
+              <article className={selectedAerodynamicTableId === "constant" ? "aerodynamic-record active" : "aerodynamic-record"}>
+                <div className="aerodynamic-record-main">
+                  <span className="motor-record-badge">CONSTANT</span>
+                  <div><strong>Explicit drag coefficient</strong><small>Current Cd input · vertical estimate and fallback 6DOF source</small></div>
+                </div>
+                <div className="aerodynamic-record-actions">
+                  <span>Analytical preview · unvalidated</span>
+                  <button onClick={() => selectAerodynamicTable("constant")}>{selectedAerodynamicTableId === "constant" ? "Selected" : "Use source"}</button>
+                </div>
+              </article>
+              {aerodynamicTableDefinitions.map((table) => (
+                <article className={selectedAerodynamicTableId === table.id ? "aerodynamic-record active" : "aerodynamic-record"} key={table.id}>
+                  <div className="aerodynamic-record-main">
+                    <span className="motor-record-badge user">TABLE</span>
+                    <div><strong>{table.name}</strong><small>M {table.machPoints[0]}–{table.machPoints.at(-1)} · Re {table.reynoldsPoints[0].toExponential(1)}–{table.reynoldsPoints.at(-1)?.toExponential(1)} · {table.provenance.sourceName}</small></div>
+                  </div>
+                  <div className="aerodynamic-record-actions">
+                    <span>{table.provenance.licenseIdentifier} · {table.provenance.validationStatus}</span>
+                    <button onClick={() => downloadTextArtifact(`${table.id}.json`, "application/json;charset=utf-8", `${JSON.stringify(table, null, 2)}\n`)}>JSON</button>
+                    <button onClick={() => selectAerodynamicTable(table.id)}>{selectedAerodynamicTableId === table.id ? "Selected" : "Use table"}</button>
+                    <button className="danger-button" onClick={() => removeAerodynamicTable(table.id)}>Remove</button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="aerodynamic-import-section">
+              <div className="motor-import-heading"><div><span className="eyebrow">User-supplied data</span><h3>Import a coefficient table</h3></div><span>{aerodynamicTableDefinitions.length} / 8 saved</span></div>
+              <label className="motor-csv-field">JSON table definition <small>Rows are Reynolds points; columns are Mach points. SI lengths, positive finite coefficient surfaces, and provenance are required.</small><textarea value={aerodynamicTableImportDraft.json} onChange={(event) => setAerodynamicTableImportDraft({ json: event.target.value })} spellCheck={false} /></label>
+              {aerodynamicTableError && <p className="motor-import-error" role="alert">{aerodynamicTableError}</p>}
+              <div className="motor-import-actions"><button className="primary-button" onClick={importAerodynamicTable}>Validate and save table</button><span>Strict schema · max 8 tables · user-supplied-unvalidated</span></div>
+            </div>
+            <div className="history-notice">
+              <span>MODEL BOUNDARY</span>
+              <p>Tables are interpolated in Mach and log10 Reynolds number exactly as supplied, with optional boundary clamping warnings. Kestrel validates the document shape and provenance but does not certify aerodynamic accuracy or source licensing.</p>
             </div>
           </section>
         </div>

@@ -1,12 +1,13 @@
-# Simulation freshness 0.1
+# Simulation freshness 0.2
 
 ## Purpose
 
 Kestrel Lab keeps a deterministic browser-local identity for the configuration
 used by each vertical and coupled-flight preview. The identity covers editable
 vehicle and flight inputs, the active stage topology, the selected motor ID,
-and the selected motor record. A result is current only when its recorded
-identity matches the identity of the controls now on screen.
+and the selected motor record. It also includes the selected aerodynamic table
+definition (or the constant-Cd source). A result is current only when its
+recorded identity matches the identity of the controls now on screen.
 
 This is a presentation and export-safety contract. It is not a cryptographic
 project hash, a model-validation result, or evidence that the underlying
@@ -39,4 +40,3 @@ It does not validate equations, numerical integration, motor data, weather,
 materials, structures, launch operations, or recovery behavior. All Kestrel
 Lab previews remain engineering-preview calculations with explicit model
 versions and independent validation required before any real-world use.
-
