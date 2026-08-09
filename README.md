@@ -46,7 +46,8 @@ research, standards, and original code.
   vertical, launch-environment, landing, and report paths;
 - preliminary vertical flight, coupled 6DOF, staging, ignition delays,
   failure events, retained-vehicle recovery loads, and bounded separated-body
-  trajectories with optional isotropic point-drag basis;
+  trajectories with optional isotropic point-drag basis and retained-versus-
+  detached center-of-mass separation diagnostics;
 - seeded coupled 6DOF uncertainty envelopes that propagate bounded mass,
   propellant, thrust, drag, recovery-area, deployment-outcome, and wind
   assumptions through stage events and launch-rail handoff, with recovery-load

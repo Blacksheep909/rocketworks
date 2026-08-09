@@ -19,6 +19,10 @@ import {
   type RigidBodyState,
   type SixDofSimulationResult,
 } from "./six-dof.ts";
+import {
+  analyzeSeparationClearance,
+  type SeparationClearanceResult,
+} from "./separation-clearance.ts";
 
 export const SEPARATED_BODY_FLIGHT_MODEL_VERSION =
   "kestrel-separated-body-flight-0.3.0";
@@ -59,6 +63,7 @@ export type SeparatedBodyTrajectory = Readonly<{
   /** Constant isotropic drag basis when a bounded detached-stage aero basis is available. */
   referenceAreaM2?: number;
   dragCoefficient?: number;
+  clearance?: SeparationClearanceResult;
   warnings: readonly string[];
   assumptions: readonly string[];
 }>;
@@ -83,6 +88,8 @@ export type SeparatedBodyFlightInput = Readonly<{
   referenceAreaM2?: number;
   /** Detached-stage constant drag coefficient for the bounded isotropic drag branch. */
   dragCoefficient?: number;
+  /** Optional retained-body path used for center-of-mass separation diagnostics. */
+  retainedBodyTrace?: readonly RigidBodyState[];
 }>;
 
 function validateMassProperties(properties: MassProperties): void {
@@ -281,6 +288,13 @@ export function simulateSeparatedBodyFlight(
   }));
   const maxAltitudeAglM = Math.max(...trace.map((point) => point.altitudeAglM));
   const maxSpeedMps = Math.max(...trace.map((point) => point.speedMps));
+  const clearance: SeparationClearanceResult | undefined = input.retainedBodyTrace
+    ? analyzeSeparationClearance({
+        retainedTrace: input.retainedBodyTrace,
+        detachedTrace: trace,
+        releaseTimeS: input.releaseState.timeS,
+      })
+    : undefined;
   return {
     stageId: input.stageId,
     ...(input.instanceId ? { instanceId: input.instanceId } : {}),
@@ -308,6 +322,7 @@ export function simulateSeparatedBodyFlight(
           dragCoefficient: input.dragCoefficient,
         }
       : {}),
+    ...(clearance ? { clearance } : {}),
     warnings: [
       hasReferenceArea && hasDragCoefficient
         ? "This separated-body branch is a ballistic rigid-body propagation with altitude-dependent gravity and isotropic point drag from the supplied constant coefficient and reference area; attitude-dependent aerodynamics, plume interaction, aerodynamic interference, recovery, and collision are not modeled."
@@ -316,6 +331,7 @@ export function simulateSeparatedBodyFlight(
         ? "The detached branch includes the supplied equal-and-opposite linear-momentum delta-v; this is an instantaneous two-body impulse idealization and does not model the separation mechanism, joint dynamics, or angular impulse."
         : "No detached-body separation impulse was supplied; this branch starts from the pre-event release velocity and is not a momentum-balanced separation analysis.",
       "The result is an analytical component check, not a clearance, range-safety, or flight-safety assessment.",
+      ...(clearance?.warnings ?? []),
       ...simulation.warnings,
     ],
     assumptions: [
@@ -328,6 +344,7 @@ export function simulateSeparatedBodyFlight(
       hasReferenceArea && hasDragCoefficient
         ? "When present, drag uses the supplied reference area and constant coefficient against environment-relative velocity; it is an isotropic point-drag approximation with no aerodynamic torque."
         : "A terminal ground-impact crossing is root-found only for the discarded body's ballistic path.",
+      ...(clearance?.assumptions ?? []),
       ...simulation.assumptions,
     ],
   };

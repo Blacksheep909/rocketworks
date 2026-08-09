@@ -705,6 +705,7 @@ export function simulateStageFlightPreview(
     : convergenceBase;
   const separatedBodies: SeparatedBodyTrajectory[] = [];
   const separatedBodyWarnings: string[] = [];
+  const retainedBodyTrace = primaryRun.rail?.trace ?? primaryRun.simulation?.trace ?? [];
   const stageNames = new Map(input.stages.map((stage) => [stage.id, stage.name]));
   const stageInstanceNames = new Map<string, string>(
     input.stages.flatMap((stage) =>
@@ -763,6 +764,7 @@ export function simulateStageFlightPreview(
             environmentAt: input.environmentAt,
             retainedBodyDeltaVBodyMps: event.separationDeltaVBodyMps,
             detachedBodyDeltaVBodyMps,
+            ...(retainedBodyTrace.length > 0 ? { retainedBodyTrace } : {}),
             ...(detachedAero ?? {}),
           }),
         );

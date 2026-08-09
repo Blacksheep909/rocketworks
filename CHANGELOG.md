@@ -43,6 +43,10 @@ flight-readiness claims.
   parsing, linear trace interpolation, residual sign conventions, matched
   coverage, RMSE/P95 discrepancy metrics, and timestamp warnings are exposed
   without turning agreement into validation or flight-safety evidence.
+- Added a retained-versus-detached center-of-mass separation diagnostic to
+  staged previews. The path comparison reports minimum distance, release
+  relative speed, and time-coverage status without presenting geometry-free
+  results as collision or range-safety clearance.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.
