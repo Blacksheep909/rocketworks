@@ -8,6 +8,17 @@ export const DEFAULT_LOCAL_HISTORY_LIMIT = 40;
 export type ProjectMaterial = "kraft" | "fiberglass" | "carbon";
 export type NoseProfile = "ogive" | "conical" | "elliptical";
 
+/**
+ * A persisted pairwise dependence assumption for uncertainty analyses. The
+ * coefficient is interpreted in the latent Gaussian-copula space by the
+ * physics adapters; it is not a measured physical correlation.
+ */
+export type ProjectUncertaintyCorrelation = Readonly<{
+  firstParameterKey: string;
+  secondParameterKey: string;
+  coefficient: number;
+}>;
+
 export type EditableProjectInputs = Readonly<{
   lengthMm: number;
   diameterMm: number;
@@ -44,6 +55,8 @@ export type EditableProjectInputs = Readonly<{
   recoveryReefingEnabled: boolean;
   recoveryReefingDurationS: number;
   recoveryReefingStartAreaFraction: number;
+  /** Optional pairwise dependence assumptions shared by preview analyses. */
+  uncertaintyCorrelations?: ReadonlyArray<ProjectUncertaintyCorrelation>;
 }>;
 
 export type LocalProjectSnapshot = Readonly<{
@@ -69,7 +82,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "recoveryEnabled" | "launchRailEnabled" | "recoveryReefingEnabled">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "recoveryEnabled" | "launchRailEnabled" | "recoveryReefingEnabled" | "uncertaintyCorrelations">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -128,10 +141,37 @@ function objectValue(value: unknown, label: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function nonEmptyString(value: unknown, label: string): string {
+function validateUncertaintyCorrelations(value: unknown): ProjectUncertaintyCorrelation[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error("uncertaintyCorrelations must be an array.");
+  if (value.length > 24) throw new Error("uncertaintyCorrelations cannot contain more than 24 pairs.");
+  const seen = new Set<string>();
+  return value.map((candidate, index) => {
+    const correlation = objectValue(candidate, `uncertaintyCorrelations[${index}]`);
+    const firstParameterKey = nonEmptyString(correlation.firstParameterKey, `uncertaintyCorrelations[${index}].firstParameterKey`, 80);
+    const secondParameterKey = nonEmptyString(correlation.secondParameterKey, `uncertaintyCorrelations[${index}].secondParameterKey`, 80);
+    if (firstParameterKey === secondParameterKey) {
+      throw new Error("An uncertainty parameter cannot be correlated with itself.");
+    }
+    const coefficient = correlation.coefficient;
+    if (typeof coefficient !== "number" || !Number.isFinite(coefficient)) {
+      throw new Error(`uncertaintyCorrelations[${index}].coefficient must be finite.`);
+    }
+    if (coefficient <= -0.999 || coefficient >= 0.999) {
+      throw new Error("uncertainty correlation coefficients must be strictly between -0.999 and 0.999.");
+    }
+    const key = [firstParameterKey, secondParameterKey].sort().join("\u0000");
+    if (seen.has(key)) throw new Error(`Duplicate uncertainty correlation pair: ${key.replace("\u0000", " / ")}.`);
+    seen.add(key);
+    return { firstParameterKey, secondParameterKey, coefficient };
+  });
+}
+
+function nonEmptyString(value: unknown, label: string, maximumLength = 160): string {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new Error(`${label} must be a non-empty string.`);
   }
+  if (value.length > maximumLength) throw new Error(`${label} is too long.`);
   return value;
 }
 
@@ -224,6 +264,7 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     recoveryReefingEnabled,
     recoveryReefingDurationS: validated.recoveryReefingDurationS,
     recoveryReefingStartAreaFraction: validated.recoveryReefingStartAreaFraction,
+    uncertaintyCorrelations: validateUncertaintyCorrelations(input.uncertaintyCorrelations),
   };
 }
 
@@ -308,13 +349,16 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   recoveryReefingEnabled: "recovery reefing schedule",
   recoveryReefingDurationS: "recovery reefing duration",
   recoveryReefingStartAreaFraction: "initial reefed canopy area",
+  uncertaintyCorrelations: "uncertainty correlation model",
 };
 
 export function describeProjectInputChanges(previous: EditableProjectInputs, current: EditableProjectInputs): string {
   const before = validateEditableProjectInputs(previous);
   const after = validateEditableProjectInputs(current);
   const changed = (Object.keys(inputLabels) as Array<keyof EditableProjectInputs>)
-    .filter((key) => before[key] !== after[key])
+    .filter((key) => key === "uncertaintyCorrelations"
+      ? JSON.stringify(before[key] ?? []) !== JSON.stringify(after[key] ?? [])
+      : before[key] !== after[key])
     .map((key) => inputLabels[key]);
   if (changed.length === 0) return "No input changes";
   if (changed.length <= 2) return `Changed ${changed.join(" and ")}`;

@@ -53,6 +53,8 @@ research, standards, and original code.
   percentile telemetry;
 - optional Gaussian-copula correlation pairs for uncertainty propagation,
   validated as positive-definite while preserving each declared marginal;
+- a persisted Dependence model editor that carries correlation assumptions
+  through local history, share links, project JSON, and scoped analyses;
 - interactive vertical and staged trace inspectors with Mach, dynamic-pressure,
   axial/recovery drag, canopy area, angle-of-attack, sideslip, event, and
   topology readouts;

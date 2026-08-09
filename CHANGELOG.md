@@ -12,6 +12,9 @@ flight-readiness claims.
 - Bumped the vertical and coupled stage-flight uncertainty adapters to expose
   declared correlation pairs and their dependence-model caveats in results and
   engineering reports; browser defaults remain independent.
+- Added a browser Dependence model editor that persists validated correlation
+  pairs through local checkpoints, share links, and portable project JSON, with
+  adapter-specific filtering and explicit scope hints.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.

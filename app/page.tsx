@@ -95,6 +95,7 @@ import {
   type LocalProjectHistory,
   type LocalProjectSnapshot,
   type NoseProfile,
+  type ProjectUncertaintyCorrelation,
 } from "../lib/project/project-state.ts";
 import {
   EXPERIENCE_MODE_STORAGE_KEY,
@@ -216,6 +217,39 @@ const SWEEP_PARAMETER_DEFINITIONS: readonly SweepParameterDefinition[] = [
 ];
 
 const DEFAULT_SWEEP_STEPS = 9;
+
+type UncertaintyCorrelationDefinition = Readonly<{
+  key: string;
+  label: string;
+  scope: string;
+}>;
+
+const UNCERTAINTY_CORRELATION_DEFINITIONS: readonly UncertaintyCorrelationDefinition[] = [
+  { key: "dryMassScale", label: "Dry mass", scope: "vertical + coupled" },
+  { key: "propellantMassScale", label: "Propellant mass", scope: "coupled" },
+  { key: "dragCoefficientScale", label: "Drag coefficient", scope: "vertical + coupled" },
+  { key: "thrustScale", label: "Delivered thrust", scope: "vertical + coupled" },
+  { key: "windScale", label: "Wind profile", scope: "vertical + coupled + landing" },
+  { key: "recoveryDragAreaScale", label: "Vertical recovery area", scope: "vertical" },
+  { key: "recoveryAreaScale", label: "Coupled recovery area", scope: "coupled + landing" },
+  { key: "recoveryDeploymentSuccess", label: "Recovery deployment", scope: "coupled + landing" },
+  { key: "recoveryDelayS", label: "Vertical recovery delay", scope: "vertical" },
+  { key: "launchAltitudeOffsetM", label: "Launch altitude offset", scope: "vertical" },
+  { key: "windDirectionOffsetRad", label: "Wind direction offset", scope: "landing" },
+  { key: "turbulenceScale", label: "Turbulence intensity", scope: "landing" },
+  { key: "descentMassScale", label: "Descent mass", scope: "landing" },
+  { key: "deploymentDelayOffsetS", label: "Deployment delay offset", scope: "landing" },
+];
+
+function filterUncertaintyCorrelations(
+  correlations: readonly ProjectUncertaintyCorrelation[],
+  parameterKeys: readonly string[],
+): ProjectUncertaintyCorrelation[] {
+  const allowed = new Set(parameterKeys);
+  return correlations.filter(
+    (correlation) => allowed.has(correlation.firstParameterKey) && allowed.has(correlation.secondParameterKey),
+  );
+}
 
 function sweepParameterDefinition(
   key: VerticalFlightSweepParameterKey,
@@ -1277,33 +1311,55 @@ function createFlightResult(inputs: Parameters<typeof createFlightConfig>[0]) {
 
 function createUncertaintyResult(
   inputs: Parameters<typeof createFlightConfig>[0],
+  uncertaintyCorrelations: readonly ProjectUncertaintyCorrelation[] = [],
 ): UncertaintyAnalysisResult {
+  const factors = [
+    {
+      key: "dryMassScale" as const,
+      label: "Dry mass",
+      distribution: { kind: "triangular" as const, minimum: 0.97, mode: 1, maximum: 1.03 },
+    },
+    {
+      key: "propellantMassScale" as const,
+      label: "Propellant mass",
+      distribution: { kind: "triangular" as const, minimum: 0.95, mode: 1, maximum: 1.05 },
+    },
+    {
+      key: "dragCoefficientScale" as const,
+      label: "Drag coefficient",
+      distribution: { kind: "triangular" as const, minimum: 0.9, mode: 1, maximum: 1.1 },
+    },
+    {
+      key: "thrustScale" as const,
+      label: "Delivered thrust",
+      distribution: { kind: "normal" as const, mean: 1, standardDeviation: 0.04, minimum: 0.85, maximum: 1.15 },
+    },
+    {
+      key: "windScale" as const,
+      label: "Wind profile",
+      distribution: { kind: "uniform" as const, minimum: 0.8, maximum: 1.2 },
+    },
+    ...(inputs.recoveryEnabled
+      ? [
+          {
+            key: "recoveryDragAreaScale" as const,
+            label: "Recovery area",
+            distribution: { kind: "triangular" as const, minimum: 0.8, mode: 1, maximum: 1.2 },
+          },
+          {
+            key: "recoveryDelayS" as const,
+            label: "Recovery delay",
+            distribution: { kind: "normal" as const, mean: 0, standardDeviation: 0.18, minimum: -0.3, maximum: 0.5 },
+          },
+        ]
+      : []),
+  ];
   return analyzeVerticalFlightUncertainty({
     baseConfig: createFlightConfig(inputs),
     seed: "arc54-preview-v1",
     sampleCount: 48,
-    factors: [
-      {
-        key: "dryMassScale",
-        label: "Dry mass",
-        distribution: { kind: "triangular", minimum: 0.97, mode: 1, maximum: 1.03 },
-      },
-      {
-        key: "dragCoefficientScale",
-        label: "Drag coefficient",
-        distribution: { kind: "triangular", minimum: 0.9, mode: 1, maximum: 1.1 },
-      },
-      {
-        key: "thrustScale",
-        label: "Delivered thrust",
-        distribution: { kind: "normal", mean: 1, standardDeviation: 0.04, minimum: 0.85, maximum: 1.15 },
-      },
-      {
-        key: "windScale",
-        label: "Wind profile",
-        distribution: { kind: "uniform", minimum: 0.8, maximum: 1.2 },
-      },
-    ],
+    factors,
+    correlations: filterUncertaintyCorrelations(uncertaintyCorrelations, factors.map((factor) => factor.key)),
     thresholds: [
       { id: "low-apogee", metric: "apogeeM", comparison: "less-than", value: 250 },
     ],
@@ -1384,6 +1440,7 @@ function createOptimizationResult(
 
 type LandingPredictionInputs = Parameters<typeof createFlightConfig>[0] & Readonly<{
   recoveryDeploymentSuccessProbability: number;
+  uncertaintyCorrelations?: readonly ProjectUncertaintyCorrelation[];
 }>;
 
 const LANDING_ASCENT_DRIFT_SUMMARY: LandingAscentDriftSummary = {
@@ -1412,71 +1469,59 @@ function createLandingPrediction(
     datum: "WGS84" as const,
     timeZone: "Pacific/Auckland",
   };
+  const parameters = [
+    {
+      key: "windScale",
+      label: "Mean wind magnitude",
+      distribution: { kind: "uniform" as const, minimum: 0.72, maximum: 1.28 },
+    },
+    {
+      key: "windDirectionOffsetRad",
+      label: "Wind direction offset",
+      distribution: {
+        kind: "normal" as const,
+        mean: 0,
+        standardDeviation: (8 * Math.PI) / 180,
+        minimum: (-22 * Math.PI) / 180,
+        maximum: (22 * Math.PI) / 180,
+      },
+    },
+    {
+      key: "turbulenceScale",
+      label: "Turbulence intensity",
+      distribution: { kind: "triangular" as const, minimum: 0.65, mode: 1, maximum: 1.4 },
+    },
+    {
+      key: "descentMassScale",
+      label: "Descent mass",
+      distribution: { kind: "triangular" as const, minimum: 0.97, mode: 1, maximum: 1.03 },
+    },
+    ...(inputs.recoveryEnabled
+      ? [
+          {
+            key: "recoveryAreaScale",
+            label: "Canopy drag area",
+            distribution: { kind: "triangular" as const, minimum: 0.8, mode: 1, maximum: 1.2 },
+          },
+          {
+            key: "deploymentDelayOffsetS",
+            label: "Deployment delay",
+            distribution: { kind: "normal" as const, mean: 0, standardDeviation: 0.18, minimum: -0.3, maximum: 0.5 },
+          },
+          {
+            key: "recoveryDeploymentSuccess",
+            label: "Recovery deployment success",
+            distribution: { kind: "bernoulli" as const, successProbability: inputs.recoveryDeploymentSuccessProbability },
+          },
+        ]
+      : []),
+  ];
   return analyzeRecoveryLandingDispersion({
     site,
     seed: "arc54-landing-v1",
     sampleCount: 24,
-    parameters: [
-      {
-        key: "windScale",
-        label: "Mean wind magnitude",
-        distribution: { kind: "uniform", minimum: 0.72, maximum: 1.28 },
-      },
-      {
-        key: "windDirectionOffsetRad",
-        label: "Wind direction offset",
-        distribution: {
-          kind: "normal",
-          mean: 0,
-          standardDeviation: (8 * Math.PI) / 180,
-          minimum: (-22 * Math.PI) / 180,
-          maximum: (22 * Math.PI) / 180,
-        },
-      },
-      {
-        key: "turbulenceScale",
-        label: "Turbulence intensity",
-        distribution: { kind: "triangular", minimum: 0.65, mode: 1, maximum: 1.4 },
-      },
-      {
-        key: "descentMassScale",
-        label: "Descent mass",
-        distribution: { kind: "triangular", minimum: 0.97, mode: 1, maximum: 1.03 },
-      },
-      ...(inputs.recoveryEnabled
-        ? [
-            {
-              key: "recoveryAreaScale",
-              label: "Canopy drag area",
-              distribution: {
-                kind: "triangular" as const,
-                minimum: 0.8,
-                mode: 1,
-                maximum: 1.2,
-              },
-            },
-            {
-              key: "deploymentDelayOffsetS",
-              label: "Deployment delay",
-              distribution: {
-                kind: "normal" as const,
-                mean: 0,
-                standardDeviation: 0.18,
-                minimum: -0.3,
-                maximum: 0.5,
-              },
-            },
-            {
-              key: "recoveryDeploymentSuccess",
-              label: "Recovery deployment success",
-              distribution: {
-                kind: "bernoulli" as const,
-                successProbability: inputs.recoveryDeploymentSuccessProbability,
-              },
-            },
-          ]
-        : []),
-    ],
+    parameters,
+    correlations: filterUncertaintyCorrelations(inputs.uncertaintyCorrelations ?? [], parameters.map((parameter) => parameter.key)),
     deploymentScenario: inputs.recoveryEnabled
       ? {
           parameterKey: "recoveryDeploymentSuccess",
@@ -2165,6 +2210,7 @@ export default function Home() {
   const [recoveryReefingEnabled, setRecoveryReefingEnabled] = useState(false);
   const [recoveryReefingDurationS, setRecoveryReefingDurationS] = useState(3);
   const [recoveryReefingStartAreaFraction, setRecoveryReefingStartAreaFraction] = useState(0.35);
+  const [uncertaintyCorrelations, setUncertaintyCorrelations] = useState<ProjectUncertaintyCorrelation[]>([]);
   const [running, setRunning] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [optimization, setOptimization] = useState<OptimizationPreview | null>(null);
@@ -2256,8 +2302,9 @@ export default function Home() {
       recoveryReefingEnabled,
       recoveryReefingDurationS,
       recoveryReefingStartAreaFraction,
+      uncertaintyCorrelations,
     }),
-    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, windAzimuthDeg, windSpeed],
+    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, uncertaintyCorrelations, windAzimuthDeg, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -2508,7 +2555,7 @@ export default function Home() {
       recoveryReefingStartAreaFraction,
       motorRecord: previewMotor,
       aerodynamicTable: selectedAerodynamicTable,
-    }),
+    }, uncertaintyCorrelations),
   );
   const [landingPrediction, setLandingPrediction] =
     useState<LandingDispersionResult | null>(() =>
@@ -2532,6 +2579,7 @@ export default function Home() {
           recoveryReefingDurationS,
           recoveryReefingStartAreaFraction,
           recoveryDeploymentSuccessProbability,
+          uncertaintyCorrelations,
           motorRecord: previewMotor,
         },
         result,
@@ -2714,6 +2762,7 @@ export default function Home() {
         setRecoveryReefingEnabled(inputs.recoveryReefingEnabled);
         setRecoveryReefingDurationS(inputs.recoveryReefingDurationS);
         setRecoveryReefingStartAreaFraction(inputs.recoveryReefingStartAreaFraction);
+        setUncertaintyCorrelations([...(inputs.uncertaintyCorrelations ?? [])]);
         lastSavedInputsRef.current = inputs;
         lastSavedFingerprintRef.current = projectInputFingerprint(inputs);
         revisionRef.current = restoredSnapshot.revision;
@@ -2777,6 +2826,7 @@ export default function Home() {
         setRecoveryReefingEnabled(inputs.recoveryReefingEnabled);
         setRecoveryReefingDurationS(inputs.recoveryReefingDurationS);
         setRecoveryReefingStartAreaFraction(inputs.recoveryReefingStartAreaFraction);
+        setUncertaintyCorrelations([...(inputs.uncertaintyCorrelations ?? [])]);
         topologyRef.current = shared.topology;
         setVehicleTopology(shared.topology);
         window.localStorage.setItem(
@@ -3039,6 +3089,7 @@ export default function Home() {
     setRecoveryReefingEnabled(inputs.recoveryReefingEnabled);
     setRecoveryReefingDurationS(inputs.recoveryReefingDurationS);
     setRecoveryReefingStartAreaFraction(inputs.recoveryReefingStartAreaFraction);
+    setUncertaintyCorrelations([...(inputs.uncertaintyCorrelations ?? [])]);
   };
   const persistCheckpoint = (
     inputs: EditableProjectInputs,
@@ -3578,8 +3629,8 @@ export default function Home() {
       try {
         const nextResult = createFlightResult(inputs);
         setResult(nextResult);
-        setUncertainty(createUncertaintyResult(inputs));
-        setLandingPrediction(createLandingPrediction(inputs, nextResult));
+        setUncertainty(createUncertaintyResult(inputs, uncertaintyCorrelations));
+        setLandingPrediction(createLandingPrediction({ ...inputs, uncertaintyCorrelations }, nextResult));
         setLastRunFingerprint(runFingerprint);
         setOptimization(null);
         setSweepResult(null);
@@ -3674,51 +3725,53 @@ export default function Home() {
           aerodynamicTable: selectedAerodynamicTable,
           aerodynamicTableModels,
         });
+        const factors = [
+          {
+            key: "dryMassScale" as const,
+            label: "Dry mass",
+            distribution: { kind: "triangular" as const, minimum: 0.97, mode: 1, maximum: 1.03 },
+          },
+          {
+            key: "propellantMassScale" as const,
+            label: "Propellant mass",
+            distribution: { kind: "triangular" as const, minimum: 0.95, mode: 1, maximum: 1.05 },
+          },
+          {
+            key: "thrustScale" as const,
+            label: "Delivered thrust",
+            distribution: { kind: "normal" as const, mean: 1, standardDeviation: 0.04, minimum: 0.88, maximum: 1.12 },
+          },
+          {
+            key: "dragCoefficientScale" as const,
+            label: "Drag coefficient",
+            distribution: { kind: "triangular" as const, minimum: 0.9, mode: 1, maximum: 1.1 },
+          },
+          ...(recoveryEnabled
+            ? [
+                {
+                  key: "recoveryAreaScale" as const,
+                  label: "Recovery area",
+                  distribution: { kind: "triangular" as const, minimum: 0.8, mode: 1, maximum: 1.2 },
+                },
+                {
+                  key: "recoveryDeploymentSuccess" as const,
+                  label: "Recovery deployment",
+                  distribution: { kind: "bernoulli" as const, successProbability: recoveryDeploymentSuccessProbability },
+                },
+              ]
+            : []),
+          {
+            key: "windScale" as const,
+            label: "Wind profile",
+            distribution: { kind: "uniform" as const, minimum: 0.8, maximum: 1.2 },
+          },
+        ];
         const nextResult = analyzeStageFlightUncertainty({
           baseInput,
           seed: "arc54-coupled-uncertainty-v1",
           sampleCount: 16,
-          factors: [
-            {
-              key: "dryMassScale",
-              label: "Dry mass",
-              distribution: { kind: "triangular", minimum: 0.97, mode: 1, maximum: 1.03 },
-            },
-            {
-              key: "propellantMassScale",
-              label: "Propellant mass",
-              distribution: { kind: "triangular", minimum: 0.95, mode: 1, maximum: 1.05 },
-            },
-            {
-              key: "thrustScale",
-              label: "Delivered thrust",
-              distribution: { kind: "normal", mean: 1, standardDeviation: 0.04, minimum: 0.88, maximum: 1.12 },
-            },
-            {
-              key: "dragCoefficientScale",
-              label: "Drag coefficient",
-              distribution: { kind: "triangular", minimum: 0.9, mode: 1, maximum: 1.1 },
-            },
-            ...(recoveryEnabled
-              ? [
-                  {
-                    key: "recoveryAreaScale" as const,
-                    label: "Recovery area",
-                    distribution: { kind: "triangular" as const, minimum: 0.8, mode: 1, maximum: 1.2 },
-                  },
-                  {
-                    key: "recoveryDeploymentSuccess" as const,
-                    label: "Recovery deployment",
-                    distribution: { kind: "bernoulli" as const, successProbability: recoveryDeploymentSuccessProbability },
-                  },
-                ]
-              : []),
-            {
-              key: "windScale",
-              label: "Wind profile",
-              distribution: { kind: "uniform", minimum: 0.8, maximum: 1.2 },
-            },
-          ],
+          factors,
+          correlations: filterUncertaintyCorrelations(uncertaintyCorrelations, factors.map((factor) => factor.key)),
         });
         setStageUncertainty(nextResult);
         setStageUncertaintyFingerprint(runFingerprint);
@@ -4392,6 +4445,13 @@ export default function Home() {
                   <p>{uncertainty.correlations.length === 0 ? "Assumed independent input distributions" : `${uncertainty.correlations.length} Gaussian-copula correlation pair${uncertainty.correlations.length === 1 ? "" : "s"} declared`} · seed {uncertainty.seed} · convergence is a heuristic finite-sample check, not validation, certification, or a flight-safety assessment.</p>
                 </div>
             </div>
+            <UncertaintyCorrelationEditor
+              correlations={uncertaintyCorrelations}
+              onChange={(next) => {
+                setUncertaintyCorrelations(next);
+                markChanged();
+              }}
+            />
             <ParameterSweepCard
               parameter={sweepParameter}
               definition={activeSweepDefinition}
@@ -5506,6 +5566,66 @@ function StageFlightUncertaintyCard({
         <div className="stage-flight-empty">Run the current coupled preview first, then sample the uncertainty envelope without changing the saved design.</div>
       )}
     </section>
+  );
+}
+
+function UncertaintyCorrelationEditor({
+  correlations,
+  onChange,
+}: {
+  correlations: readonly ProjectUncertaintyCorrelation[];
+  onChange: (next: ProjectUncertaintyCorrelation[]) => void;
+}) {
+  const [firstParameterKey, setFirstParameterKey] = useState(UNCERTAINTY_CORRELATION_DEFINITIONS[0]!.key);
+  const [secondParameterKey, setSecondParameterKey] = useState(UNCERTAINTY_CORRELATION_DEFINITIONS[3]!.key);
+  const [coefficient, setCoefficient] = useState(0.35);
+  const firstDefinition = UNCERTAINTY_CORRELATION_DEFINITIONS.find((definition) => definition.key === firstParameterKey);
+  const secondDefinition = UNCERTAINTY_CORRELATION_DEFINITIONS.find((definition) => definition.key === secondParameterKey);
+  const duplicate = correlations.some((correlation) =>
+    [correlation.firstParameterKey, correlation.secondParameterKey].sort().join("\u0000") ===
+      [firstParameterKey, secondParameterKey].sort().join("\u0000"),
+  );
+  const canAdd = firstParameterKey !== secondParameterKey && !duplicate && Number.isFinite(coefficient) && coefficient > -0.999 && coefficient < 0.999 && correlations.length < 24;
+  const addCorrelation = () => {
+    if (!canAdd) return;
+    onChange([...correlations, { firstParameterKey, secondParameterKey, coefficient }]);
+  };
+  const labelFor = (key: string) => UNCERTAINTY_CORRELATION_DEFINITIONS.find((definition) => definition.key === key)?.label ?? key;
+  return (
+    <details className="uncertainty-correlation-card">
+      <summary>
+        <span>
+          <strong>Dependence model</strong>
+          <small>{correlations.length === 0 ? "Independent inputs · optional correlation pairs" : `${correlations.length} Gaussian-copula pair${correlations.length === 1 ? "" : "s"} declared`}</small>
+        </span>
+        <span className="uncertainty-correlation-summary-action">Configure</span>
+      </summary>
+      <div className="uncertainty-correlation-body">
+        <p>Declare a pairwise relationship when two input assumptions should move together. Kestrel validates the matrix and preserves each marginal distribution; this is not measured flight-data correlation.</p>
+        {correlations.length > 0 ? (
+          <div className="uncertainty-correlation-list" aria-label="Declared uncertainty correlations">
+            {correlations.map((correlation) => (
+              <div className="uncertainty-correlation-row" key={`${correlation.firstParameterKey}-${correlation.secondParameterKey}`}>
+                <span><strong>{labelFor(correlation.firstParameterKey)}</strong><small>{labelFor(correlation.secondParameterKey)}</small></span>
+                <strong>{correlation.coefficient > 0 ? "+" : ""}{correlation.coefficient.toFixed(2)}</strong>
+                <button className="quiet-button" type="button" onClick={() => onChange(correlations.filter((candidate) => candidate !== correlation))}>Remove</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="uncertainty-correlation-empty">No dependence declared. Every supported factor is sampled independently.</div>
+        )}
+        <div className="uncertainty-correlation-form">
+          <label htmlFor="correlation-first">First input<select id="correlation-first" value={firstParameterKey} onChange={(event) => setFirstParameterKey(event.target.value)}>{UNCERTAINTY_CORRELATION_DEFINITIONS.map((definition) => <option value={definition.key} key={definition.key}>{definition.label} · {definition.scope}</option>)}</select></label>
+          <label htmlFor="correlation-second">Second input<select id="correlation-second" value={secondParameterKey} onChange={(event) => setSecondParameterKey(event.target.value)}>{UNCERTAINTY_CORRELATION_DEFINITIONS.map((definition) => <option value={definition.key} key={definition.key}>{definition.label} · {definition.scope}</option>)}</select></label>
+          <NumberField id="correlation-coefficient" label="Latent coefficient" value={coefficient} unit="ρ" min={-0.998} max={0.998} step={0.05} onChange={setCoefficient} />
+          <button className="secondary-button" type="button" onClick={addCorrelation} disabled={!canAdd}>Add pair</button>
+        </div>
+        <small className="uncertainty-correlation-hint" aria-live="polite">
+          {firstParameterKey === secondParameterKey ? "Choose two different inputs." : duplicate ? "That pair is already declared." : firstDefinition && secondDefinition ? `${firstDefinition.label} ↔ ${secondDefinition.label} will be applied where both factors exist.` : "Choose a supported input pair."}
+        </small>
+      </div>
+    </details>
   );
 }
 

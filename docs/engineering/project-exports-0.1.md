@@ -42,7 +42,8 @@ exportModelVersion: kestrel-export-0.8.0
 validationStatus: engineering-preview-unvalidated
 ```
 
-It preserves the current geometry, material choice, mass properties, static
+It preserves the current geometry, material choice, optional uncertainty
+dependence pairs, mass properties, static
 stability, assembly summary, vertical-flight result and trace, uncertainty
 analysis, optional optimization Pareto summary, optional landing footprint,
   preliminary structural-screen result, and source/licence provenance, including the ascent-to-recovery handoff

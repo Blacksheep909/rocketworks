@@ -77,6 +77,25 @@ test("legacy snapshots receive explicit surface-weather defaults", () => {
   assert.equal(legacy.inputs.recoveryReefingEnabled, false);
   assert.equal(legacy.inputs.recoveryReefingDurationS, 3);
   assert.equal(legacy.inputs.recoveryReefingStartAreaFraction, 0.35);
+  assert.deepEqual(legacy.inputs.uncertaintyCorrelations, []);
+});
+
+test("project snapshots persist bounded uncertainty dependence assumptions", () => {
+  const source = snapshot(1, {
+    uncertaintyCorrelations: [
+      { firstParameterKey: "dryMassScale", secondParameterKey: "thrustScale", coefficient: 0.35 },
+    ],
+  });
+  assert.deepEqual(parseLocalProjectSnapshot(serializeLocalProjectSnapshot(source)), source);
+  assert.equal(describeProjectInputChanges(inputs, source.inputs), "Changed uncertainty correlation model");
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(2), inputs: { ...inputs, uncertaintyCorrelations: [{ firstParameterKey: "dryMassScale", secondParameterKey: "dryMassScale", coefficient: 0.2 }] } }),
+    /cannot be correlated with itself/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(2), inputs: { ...inputs, uncertaintyCorrelations: [{ firstParameterKey: "dryMassScale", secondParameterKey: "thrustScale", coefficient: 0.999 }] } }),
+    /strictly between/,
+  );
 });
 
 test("invalid, unsupported, and out-of-range snapshots fail explicitly", () => {

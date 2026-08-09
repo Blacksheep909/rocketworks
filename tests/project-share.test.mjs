@@ -65,6 +65,7 @@ test("project share links round-trip validated design configuration deterministi
       recoveryReefingEnabled: false,
       recoveryReefingDurationS: 3,
       recoveryReefingStartAreaFraction: 0.35,
+      uncertaintyCorrelations: [],
     },
   });
 });

@@ -180,6 +180,9 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(source, /formatConvergenceStatus/);
   assert.match(source, /Split-sample stability/);
   assert.match(source, /UncertaintySensitivityList/);
+  assert.match(source, /UncertaintyCorrelationEditor/);
+  assert.match(source, /uncertaintyCorrelations/);
+  assert.match(source, /Gaussian-copula pair/);
   assert.match(source, /Apogee sensitivity/);
   assert.match(source, /recoveryAreaScale/);
   assert.match(source, /recoveryDeploymentSuccess/);
@@ -188,6 +191,7 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(stylesheet, /\.uncertainty-grid/);
   assert.match(stylesheet, /\.uncertainty-convergence/);
   assert.match(stylesheet, /\.uncertainty-sensitivity/);
+  assert.match(stylesheet, /\.uncertainty-correlation-card/);
   assert.match(stylesheet, /\.uncertainty-status-converged/);
   assert.match(stylesheet, /rgba\(47,159,255/);
 });
