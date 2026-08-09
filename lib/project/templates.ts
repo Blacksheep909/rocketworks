@@ -1,4 +1,8 @@
-import type { EditableProjectInputs } from "./project-state.ts";
+import {
+  DEFAULT_UNCERTAINTY_SAMPLE_COUNT,
+  DEFAULT_UNCERTAINTY_SEED,
+  type EditableProjectInputs,
+} from "./project-state.ts";
 
 export const EXPERIENCE_MODE_STORAGE_KEY = "kestrel.project.arc54.experience-mode.v1";
 
@@ -56,6 +60,8 @@ export const PROJECT_TEMPLATES: ReadonlyArray<ProjectTemplate> = [
       recoveryReefingEnabled: false,
       recoveryReefingDurationS: 3,
       recoveryReefingStartAreaFraction: 0.35,
+      uncertaintySampleCount: DEFAULT_UNCERTAINTY_SAMPLE_COUNT,
+      uncertaintySeed: DEFAULT_UNCERTAINTY_SEED,
       uncertaintyCorrelations: [],
     },
     focus: ["See how CG and CP change with geometry", "Run a first vertical estimate", "Read the uncertainty envelope"],
@@ -100,6 +106,8 @@ export const PROJECT_TEMPLATES: ReadonlyArray<ProjectTemplate> = [
       recoveryReefingEnabled: false,
       recoveryReefingDurationS: 3,
       recoveryReefingStartAreaFraction: 0.35,
+      uncertaintySampleCount: DEFAULT_UNCERTAINTY_SAMPLE_COUNT,
+      uncertaintySeed: DEFAULT_UNCERTAINTY_SEED,
       uncertaintyCorrelations: [],
     },
     focus: ["Inspect maximum dynamic pressure", "Compare recovery impact speed", "Use bounded optimization with guardrails"],
@@ -144,6 +152,8 @@ export const PROJECT_TEMPLATES: ReadonlyArray<ProjectTemplate> = [
       recoveryReefingEnabled: false,
       recoveryReefingDurationS: 3,
       recoveryReefingStartAreaFraction: 0.35,
+      uncertaintySampleCount: DEFAULT_UNCERTAINTY_SAMPLE_COUNT,
+      uncertaintySeed: DEFAULT_UNCERTAINTY_SEED,
       uncertaintyCorrelations: [],
     },
     focus: ["Read mean wind and turbulence", "Inspect the landing footprint", "Compare sensitivity drivers"],
@@ -188,6 +198,8 @@ export const PROJECT_TEMPLATES: ReadonlyArray<ProjectTemplate> = [
       recoveryReefingEnabled: false,
       recoveryReefingDurationS: 3,
       recoveryReefingStartAreaFraction: 0.35,
+      uncertaintySampleCount: DEFAULT_UNCERTAINTY_SAMPLE_COUNT,
+      uncertaintySeed: DEFAULT_UNCERTAINTY_SEED,
       uncertaintyCorrelations: [],
     },
     focus: ["See the ballistic descent warning", "Compare recovery and no-recovery states", "Understand model assumptions"],

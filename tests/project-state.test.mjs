@@ -77,6 +77,8 @@ test("legacy snapshots receive explicit surface-weather defaults", () => {
   assert.equal(legacy.inputs.recoveryReefingEnabled, false);
   assert.equal(legacy.inputs.recoveryReefingDurationS, 3);
   assert.equal(legacy.inputs.recoveryReefingStartAreaFraction, 0.35);
+  assert.equal(legacy.inputs.uncertaintySampleCount, 48);
+  assert.equal(legacy.inputs.uncertaintySeed, "arc54-preview-v1");
   assert.deepEqual(legacy.inputs.uncertaintyCorrelations, []);
 });
 
@@ -149,6 +151,18 @@ test("invalid, unsupported, and out-of-range snapshots fail explicitly", () => {
     /surfaceTemperatureC/,
   );
   assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, uncertaintySampleCount: 15 } }),
+    /uncertaintySampleCount/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, uncertaintySampleCount: 513 } }),
+    /uncertaintySampleCount/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, uncertaintySeed: "" } }),
+    /uncertaintySeed/,
+  );
+  assert.throws(
     () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, noseProfile: "parabolic" } }),
     /noseProfile/,
   );
@@ -171,6 +185,7 @@ test("history describes changes, suppresses autosave duplicates, and preserves m
   history = appendProjectHistory(history, snapshot(3, { diameterMm: 60, windSpeedMps: 6 }), "Edited");
   assert.equal(history.entries.length, 3);
   assert.equal(describeProjectInputChanges(inputs, history.entries[2].snapshot.inputs), "Changed outer diameter and wind speed");
+  assert.equal(describeProjectInputChanges(inputs, { ...inputs, uncertaintySampleCount: 64 }), "Changed uncertainty scenario count");
   assert.equal(JSON.parse(serializeLocalProjectHistory(history)).schema, LOCAL_PROJECT_HISTORY_SCHEMA_ID);
   assert.deepEqual(parseLocalProjectHistory(serializeLocalProjectHistory(history)), history);
 });

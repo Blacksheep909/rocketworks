@@ -4,6 +4,8 @@ export const LOCAL_PROJECT_HISTORY_SCHEMA_ID = "dev.kestrel-lab.local-project-hi
 export const LOCAL_PROJECT_STORAGE_KEY = "kestrel.project.arc54.current.v1";
 export const LOCAL_PROJECT_HISTORY_STORAGE_KEY = "kestrel.project.arc54.history.v1";
 export const DEFAULT_LOCAL_HISTORY_LIMIT = 40;
+export const DEFAULT_UNCERTAINTY_SAMPLE_COUNT = 48;
+export const DEFAULT_UNCERTAINTY_SEED = "arc54-preview-v1";
 
 export type ProjectMaterial = "kraft" | "fiberglass" | "carbon";
 export type NoseProfile = "ogive" | "conical" | "elliptical";
@@ -55,6 +57,10 @@ export type EditableProjectInputs = Readonly<{
   recoveryReefingEnabled: boolean;
   recoveryReefingDurationS: number;
   recoveryReefingStartAreaFraction: number;
+  /** Number of scenarios used by the browser's vertical uncertainty preview. */
+  uncertaintySampleCount: number;
+  /** Reproducibility seed used by the browser's vertical uncertainty preview. */
+  uncertaintySeed: string;
   /** Optional pairwise dependence assumptions shared by preview analyses. */
   uncertaintyCorrelations?: ReadonlyArray<ProjectUncertaintyCorrelation>;
 }>;
@@ -82,7 +88,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "recoveryEnabled" | "launchRailEnabled" | "recoveryReefingEnabled" | "uncertaintyCorrelations">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "recoveryEnabled" | "launchRailEnabled" | "recoveryReefingEnabled" | "uncertaintySeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -111,6 +117,7 @@ const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material
   recoveryDeploymentSuccessProbability: [0, 1],
   recoveryReefingDurationS: [0.1, 30],
   recoveryReefingStartAreaFraction: [0.05, 1],
+  uncertaintySampleCount: [16, 512],
 };
 
 const numericDefaults: Readonly<Partial<Record<keyof typeof numericRanges, number>>> = {
@@ -132,6 +139,7 @@ const numericDefaults: Readonly<Partial<Record<keyof typeof numericRanges, numbe
   recoveryDeploymentSuccessProbability: 0.9,
   recoveryReefingDurationS: 3,
   recoveryReefingStartAreaFraction: 0.35,
+  uncertaintySampleCount: DEFAULT_UNCERTAINTY_SAMPLE_COUNT,
 };
 
 function objectValue(value: unknown, label: string): Record<string, unknown> {
@@ -230,6 +238,9 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   if (typeof launchRailEnabled !== "boolean") {
     throw new Error("launchRailEnabled must be boolean.");
   }
+  const uncertaintySeed = input.uncertaintySeed === undefined
+    ? DEFAULT_UNCERTAINTY_SEED
+    : nonEmptyString(input.uncertaintySeed, "uncertaintySeed", 80);
   return {
     lengthMm: validated.lengthMm,
     diameterMm: validated.diameterMm,
@@ -264,6 +275,8 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     recoveryReefingEnabled,
     recoveryReefingDurationS: validated.recoveryReefingDurationS,
     recoveryReefingStartAreaFraction: validated.recoveryReefingStartAreaFraction,
+    uncertaintySampleCount: validated.uncertaintySampleCount,
+    uncertaintySeed,
     uncertaintyCorrelations: validateUncertaintyCorrelations(input.uncertaintyCorrelations),
   };
 }
@@ -349,6 +362,8 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   recoveryReefingEnabled: "recovery reefing schedule",
   recoveryReefingDurationS: "recovery reefing duration",
   recoveryReefingStartAreaFraction: "initial reefed canopy area",
+  uncertaintySampleCount: "uncertainty scenario count",
+  uncertaintySeed: "uncertainty replay seed",
   uncertaintyCorrelations: "uncertainty correlation model",
 };
 

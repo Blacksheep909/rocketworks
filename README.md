@@ -60,9 +60,9 @@ research, standards, and original code.
   topology readouts;
 - preliminary structural-readiness screen for axial stress, Euler buckling,
   fin-root bending/shear, and static-margin review with explicit assumptions;
-- uncertainty analysis, parameter sweeps, sensitivity, nominal optimization,
-  and an opt-in finite-sample robust optimization screen with explicit
-  quantile and scenario-failure metrics;
+- configurable seeded uncertainty analysis, parameter sweeps, sensitivity,
+  nominal optimization, and an opt-in finite-sample robust optimization screen
+  with explicit quantile and scenario-failure metrics;
 - accessible event timelines, trace charts, comparisons, engineering reports,
   CSV, DXF, OpenSCAD, and portable Kestrel project JSON;
 - validated project import, device-local autosave/history, templates,

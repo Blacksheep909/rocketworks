@@ -4,7 +4,7 @@ Status: `engineering-preview-unvalidated`.
 
 The project-share codec in `lib/project/project-share.ts` provides a compact,
 server-free collaboration path for the browser workbench. It encodes validated
-editable inputs (including optional uncertainty-dependence pairs), the validated stage topology, and the selected motor and
+editable inputs (including persisted vertical-uncertainty count/seed and optional uncertainty-dependence pairs), the validated stage topology, and the selected motor and
 aerodynamic source identifiers into a URL-safe hash. It never embeds local
 motor records, aerodynamic tables, simulation traces, credentials, database
 rows, or third-party source material.

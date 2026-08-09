@@ -175,12 +175,15 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(source, /Dispersion envelope/);
   assert.match(source, /aerodynamicCoefficientBasis/);
   assert.match(source, /CD TABLE/);
-  assert.match(source, /arc54-preview-v1/);
+  assert.match(source, /DEFAULT_UNCERTAINTY_SEED/);
+  assert.match(source, /uncertaintySampleCount/);
+  assert.match(source, /uncertaintySeed/);
   assert.match(source, /convergence/);
   assert.match(source, /formatConvergenceStatus/);
   assert.match(source, /Split-sample stability/);
   assert.match(source, /UncertaintySensitivityList/);
   assert.match(source, /UncertaintyCorrelationEditor/);
+  assert.match(source, /UncertaintySettingsEditor/);
   assert.match(source, /uncertaintyCorrelations/);
   assert.match(source, /Gaussian-copula pair/);
   assert.match(source, /Apogee sensitivity/);
@@ -192,6 +195,7 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(stylesheet, /\.uncertainty-convergence/);
   assert.match(stylesheet, /\.uncertainty-sensitivity/);
   assert.match(stylesheet, /\.uncertainty-correlation-card/);
+  assert.match(stylesheet, /\.uncertainty-settings-card/);
   assert.match(stylesheet, /\.uncertainty-status-converged/);
   assert.match(stylesheet, /rgba\(47,159,255/);
 });

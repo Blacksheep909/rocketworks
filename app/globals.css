@@ -615,6 +615,23 @@ kbd {
     var(--panel-raised);
   box-shadow: 0 10px 30px rgba(0,0,0,.12);
 }
+.uncertainty-settings-card {
+  margin-top: 12px; padding: 11px 12px;
+  border: 1px solid rgba(117,153,180,.2); border-radius: 4px;
+  background: rgba(8,13,18,.5);
+}
+.uncertainty-settings-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.uncertainty-settings-heading > div { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.uncertainty-settings-heading strong { color: #cfe5f2; font-size: 9px; }
+.uncertainty-settings-heading span { color: #78909f; font: 7px var(--font-geist-mono), monospace; }
+.uncertainty-settings-state { flex: 0 0 auto; padding: 3px 5px; border: 1px solid rgba(117,153,180,.25); border-radius: 2px; font: 650 7px var(--font-geist-mono), monospace !important; letter-spacing: .04em; text-transform: uppercase; }
+.uncertainty-settings-state.current { border-color: rgba(112,199,167,.35); color: #84d6b2 !important; }
+.uncertainty-settings-state.stale { border-color: rgba(244,163,64,.35); color: #e7b16f !important; }
+.uncertainty-settings-form { display: grid; grid-template-columns: minmax(120px,.55fr) minmax(190px,1.45fr); gap: 8px; margin-top: 10px; }
+.uncertainty-settings-form label { display: flex; min-width: 0; flex-direction: column; gap: 5px; color: #8499a6; font-size: 8px; }
+.uncertainty-settings-form input { width: 100%; min-height: 32px; padding: 0 8px; border: 1px solid rgba(117,153,180,.28); border-radius: 3px; outline: none; background: #0d141a; color: #d7e7ef; font: 8px var(--font-geist-mono), monospace; }
+.uncertainty-settings-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(47,159,255,.12); }
+.uncertainty-settings-note { display: block; margin-top: 7px; color: #6e8795; font: 7px/1.4 var(--font-geist-mono), monospace; }
 .uncertainty-grid {
   display: grid; grid-template-columns: repeat(3,minmax(0,1fr));
   gap: 1px; margin-top: 15px; overflow: hidden;
@@ -1448,6 +1465,7 @@ kbd {
   .stage-flight-events small { grid-column: 2; text-align: left; }
   .metric-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .uncertainty-grid { grid-template-columns: 1fr; }
+  .uncertainty-settings-form { grid-template-columns: 1fr; }
   .sweep-controls { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .sweep-controls label:first-child, .sweep-controls .primary-button { grid-column: 1 / -1; }
   .sweep-controls .primary-button { width: 100%; }

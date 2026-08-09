@@ -53,7 +53,12 @@ tails, or validation evidence.
 
 `vertical-flight-uncertainty.ts` maps sampled factors into the existing 1D flight configuration. Version 0.1 can vary dry mass, propellant mass, body drag coefficient, delivered thrust, wind, recovery drag area, recovery delay, and launch altitude. It records apogee, maximum speed, Mach, maximum dynamic pressure, event times, impact speed, thrust-to-weight ratio, impulse, and liftoff state.
 
-The browser preview uses 48 seeded LHS samples and declares its input assumptions next to the result. Those small-sample bands are intended for interactive design feedback, not tail-probability claims.
+The browser preview defaults to 48 seeded LHS samples, but its Analysis controls
+persist a bounded 16–512 scenario count and a caller-visible replay seed in the
+project snapshot, share link, and portable project JSON. The result marks itself
+stale when either setting changes and requires an explicit rerun. These bands are
+intended for interactive design feedback, not tail-probability claims; larger
+ensembles improve resolution at the cost of browser runtime.
 
 The browser's dispersion card also ranks the first four apogee sensitivity
 drivers by absolute Spearman magnitude. Bars retain the sign of the

@@ -80,6 +80,8 @@ import {
   PREVIEW_WIND_PROFILE_MODEL_VERSION,
 } from "../lib/physics/preview-wind-profile.ts";
 import {
+  DEFAULT_UNCERTAINTY_SAMPLE_COUNT,
+  DEFAULT_UNCERTAINTY_SEED,
   LOCAL_PROJECT_HISTORY_STORAGE_KEY,
   LOCAL_PROJECT_STORAGE_KEY,
   appendProjectHistory,
@@ -1313,6 +1315,8 @@ function createFlightResult(inputs: Parameters<typeof createFlightConfig>[0]) {
 function createUncertaintyResult(
   inputs: Parameters<typeof createFlightConfig>[0],
   uncertaintyCorrelations: readonly ProjectUncertaintyCorrelation[] = [],
+  sampleCount = DEFAULT_UNCERTAINTY_SAMPLE_COUNT,
+  seed = DEFAULT_UNCERTAINTY_SEED,
 ): UncertaintyAnalysisResult {
   const factors = [
     {
@@ -1357,8 +1361,8 @@ function createUncertaintyResult(
   ];
   return analyzeVerticalFlightUncertainty({
     baseConfig: createFlightConfig(inputs),
-    seed: "arc54-preview-v1",
-    sampleCount: 48,
+    seed,
+    sampleCount,
     factors,
     correlations: filterUncertaintyCorrelations(uncertaintyCorrelations, factors.map((factor) => factor.key)),
     thresholds: [
@@ -2256,6 +2260,8 @@ export default function Home() {
   const [recoveryReefingEnabled, setRecoveryReefingEnabled] = useState(false);
   const [recoveryReefingDurationS, setRecoveryReefingDurationS] = useState(3);
   const [recoveryReefingStartAreaFraction, setRecoveryReefingStartAreaFraction] = useState(0.35);
+  const [uncertaintySampleCount, setUncertaintySampleCount] = useState(DEFAULT_UNCERTAINTY_SAMPLE_COUNT);
+  const [uncertaintySeed, setUncertaintySeed] = useState(DEFAULT_UNCERTAINTY_SEED);
   const [uncertaintyCorrelations, setUncertaintyCorrelations] = useState<ProjectUncertaintyCorrelation[]>([]);
   const [running, setRunning] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
@@ -2349,9 +2355,11 @@ export default function Home() {
       recoveryReefingEnabled,
       recoveryReefingDurationS,
       recoveryReefingStartAreaFraction,
+      uncertaintySampleCount,
+      uncertaintySeed,
       uncertaintyCorrelations,
     }),
-    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, uncertaintyCorrelations, windAzimuthDeg, windSpeed],
+    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, windAzimuthDeg, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -2602,7 +2610,7 @@ export default function Home() {
       recoveryReefingStartAreaFraction,
       motorRecord: previewMotor,
       aerodynamicTable: selectedAerodynamicTable,
-    }, uncertaintyCorrelations),
+    }, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed),
   );
   const [landingPrediction, setLandingPrediction] =
     useState<LandingDispersionResult | null>(() =>
@@ -2809,6 +2817,8 @@ export default function Home() {
         setRecoveryReefingEnabled(inputs.recoveryReefingEnabled);
         setRecoveryReefingDurationS(inputs.recoveryReefingDurationS);
         setRecoveryReefingStartAreaFraction(inputs.recoveryReefingStartAreaFraction);
+        setUncertaintySampleCount(inputs.uncertaintySampleCount);
+        setUncertaintySeed(inputs.uncertaintySeed);
         setUncertaintyCorrelations([...(inputs.uncertaintyCorrelations ?? [])]);
         lastSavedInputsRef.current = inputs;
         lastSavedFingerprintRef.current = projectInputFingerprint(inputs);
@@ -2873,6 +2883,8 @@ export default function Home() {
         setRecoveryReefingEnabled(inputs.recoveryReefingEnabled);
         setRecoveryReefingDurationS(inputs.recoveryReefingDurationS);
         setRecoveryReefingStartAreaFraction(inputs.recoveryReefingStartAreaFraction);
+        setUncertaintySampleCount(inputs.uncertaintySampleCount);
+        setUncertaintySeed(inputs.uncertaintySeed);
         setUncertaintyCorrelations([...(inputs.uncertaintyCorrelations ?? [])]);
         topologyRef.current = shared.topology;
         setVehicleTopology(shared.topology);
@@ -3136,6 +3148,8 @@ export default function Home() {
     setRecoveryReefingEnabled(inputs.recoveryReefingEnabled);
     setRecoveryReefingDurationS(inputs.recoveryReefingDurationS);
     setRecoveryReefingStartAreaFraction(inputs.recoveryReefingStartAreaFraction);
+    setUncertaintySampleCount(inputs.uncertaintySampleCount);
+    setUncertaintySeed(inputs.uncertaintySeed);
     setUncertaintyCorrelations([...(inputs.uncertaintyCorrelations ?? [])]);
   };
   const persistCheckpoint = (
@@ -3676,7 +3690,7 @@ export default function Home() {
       try {
         const nextResult = createFlightResult(inputs);
         setResult(nextResult);
-        setUncertainty(createUncertaintyResult(inputs, uncertaintyCorrelations));
+        setUncertainty(createUncertaintyResult(inputs, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed));
         setLandingPrediction(createLandingPrediction({ ...inputs, uncertaintyCorrelations }, nextResult));
         setLastRunFingerprint(runFingerprint);
         setOptimization(null);
@@ -4455,6 +4469,19 @@ export default function Home() {
                   <strong className={`uncertainty-status uncertainty-status-${uncertainty.convergence.status}`}>{formatConvergenceStatus(uncertainty.convergence.status)}</strong>
                 </div>
               </div>
+              <UncertaintySettingsEditor
+                sampleCount={uncertaintySampleCount}
+                seed={uncertaintySeed}
+                isCurrent={resultIsCurrent}
+                onSampleCountChange={(value) => {
+                  setUncertaintySampleCount(value);
+                  markChanged();
+                }}
+                onSeedChange={(value) => {
+                  setUncertaintySeed(value);
+                  markChanged();
+                }}
+              />
               <div className="uncertainty-grid">
                 <UncertaintyMetric
                   label="Apogee P05 / P50 / P95"
@@ -5516,6 +5543,59 @@ function UncertaintyMetric({
       <strong>{format(low)} / {format(median)} / {format(high)} <small>{unit}</small></strong>
       <div className="uncertainty-band" aria-hidden="true"><i style={{ left: `${medianPosition}%` }} /></div>
     </div>
+  );
+}
+
+function UncertaintySettingsEditor({
+  sampleCount,
+  seed,
+  isCurrent,
+  onSampleCountChange,
+  onSeedChange,
+}: {
+  sampleCount: number;
+  seed: string;
+  isCurrent: boolean;
+  onSampleCountChange: (value: number) => void;
+  onSeedChange: (value: string) => void;
+}) {
+  return (
+    <section className="uncertainty-settings-card" aria-labelledby="uncertainty-settings-title">
+      <div className="uncertainty-settings-heading">
+        <div>
+          <strong id="uncertainty-settings-title">Analysis controls</strong>
+          <span>Persisted vertical-flight ensemble settings</span>
+        </div>
+        <span className={isCurrent ? "uncertainty-settings-state current" : "uncertainty-settings-state stale"}>
+          {isCurrent ? "Result matches inputs" : "Rerun required"}
+        </span>
+      </div>
+      <div className="uncertainty-settings-form">
+        <label htmlFor="uncertainty-sample-count">
+          <span>Scenarios</span>
+          <input
+            id="uncertainty-sample-count"
+            type="number"
+            min={16}
+            max={512}
+            step={8}
+            value={sampleCount}
+            onChange={(event) => onSampleCountChange(Number(event.target.value))}
+          />
+        </label>
+        <label htmlFor="uncertainty-seed">
+          <span>Replay seed</span>
+          <input
+            id="uncertainty-seed"
+            type="text"
+            maxLength={80}
+            value={seed}
+            onChange={(event) => onSeedChange(event.target.value)}
+          />
+        </label>
+      </div>
+      <small className="uncertainty-settings-note">16–512 seeded Latin-hypercube scenarios. Larger ensembles improve tail resolution but take longer; the seed is part of the saved project and share link.</small>
+    </section>
   );
 }
 

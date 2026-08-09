@@ -19,6 +19,10 @@ flight-readiness claims.
   each candidate can be replayed across seeded uncertainty scenarios, ranked by
   explicit P05/P95 metrics, and constrained by observed scenario failure rate.
   The browser labels this as a risk screen rather than a reliability claim.
+- Added persisted vertical uncertainty controls: users can choose 16–512
+  Latin-hypercube scenarios and a reproducibility seed, with stale-result
+  detection and round-trip support through local history, share links, and
+  portable project JSON.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.
