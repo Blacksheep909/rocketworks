@@ -38,6 +38,10 @@ export type EditableProjectInputs = Readonly<{
   recoveryDiameterM: number;
   recoveryMassKg: number;
   recoveryDeploymentSuccessProbability: number;
+  /** Enables the compact browser recovery schedule: start reefed, then linearly open. */
+  recoveryReefingEnabled: boolean;
+  recoveryReefingDurationS: number;
+  recoveryReefingStartAreaFraction: number;
 }>;
 
 export type LocalProjectSnapshot = Readonly<{
@@ -63,7 +67,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "recoveryEnabled" | "launchRailEnabled">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "recoveryEnabled" | "launchRailEnabled" | "recoveryReefingEnabled">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -89,6 +93,8 @@ const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material
   recoveryDiameterM: [0.1, 3],
   recoveryMassKg: [0.005, 2],
   recoveryDeploymentSuccessProbability: [0, 1],
+  recoveryReefingDurationS: [0.1, 30],
+  recoveryReefingStartAreaFraction: [0.05, 1],
 };
 
 const numericDefaults: Readonly<Partial<Record<keyof typeof numericRanges, number>>> = {
@@ -107,6 +113,8 @@ const numericDefaults: Readonly<Partial<Record<keyof typeof numericRanges, numbe
   surfaceTemperatureC: 15,
   recoveryMassKg: 0.06,
   recoveryDeploymentSuccessProbability: 0.9,
+  recoveryReefingDurationS: 3,
+  recoveryReefingStartAreaFraction: 0.35,
 };
 
 function objectValue(value: unknown, label: string): Record<string, unknown> {
@@ -170,6 +178,10 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   if (typeof input.recoveryEnabled !== "boolean") {
     throw new Error("recoveryEnabled must be boolean.");
   }
+  const recoveryReefingEnabled = input.recoveryReefingEnabled === undefined ? false : input.recoveryReefingEnabled;
+  if (typeof recoveryReefingEnabled !== "boolean") {
+    throw new Error("recoveryReefingEnabled must be boolean.");
+  }
   const launchRailEnabled = input.launchRailEnabled === undefined ? true : input.launchRailEnabled;
   if (typeof launchRailEnabled !== "boolean") {
     throw new Error("launchRailEnabled must be boolean.");
@@ -204,6 +216,9 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     recoveryDiameterM: validated.recoveryDiameterM,
     recoveryMassKg: validated.recoveryMassKg,
     recoveryDeploymentSuccessProbability: validated.recoveryDeploymentSuccessProbability,
+    recoveryReefingEnabled,
+    recoveryReefingDurationS: validated.recoveryReefingDurationS,
+    recoveryReefingStartAreaFraction: validated.recoveryReefingStartAreaFraction,
   };
 }
 
@@ -284,6 +299,9 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   recoveryDiameterM: "canopy diameter",
   recoveryMassKg: "recovery packed mass",
   recoveryDeploymentSuccessProbability: "recovery deployment reliability assumption",
+  recoveryReefingEnabled: "recovery reefing schedule",
+  recoveryReefingDurationS: "recovery reefing duration",
+  recoveryReefingStartAreaFraction: "initial reefed canopy area",
 };
 
 export function describeProjectInputChanges(previous: EditableProjectInputs, current: EditableProjectInputs): string {

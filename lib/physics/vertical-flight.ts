@@ -17,8 +17,13 @@ import {
   type ThrustPoint,
   type WindLayer,
 } from "./curves.ts";
+import {
+  evaluateRecoveryReefing,
+  validateRecoveryReefingStages,
+  type RecoveryReefingStage,
+} from "./recovery-reefing.ts";
 
-export const VERTICAL_MODEL_VERSION = "kestrel-vertical-0.2.2-alpha";
+export const VERTICAL_MODEL_VERSION = "kestrel-vertical-0.3.0-alpha";
 export const VERTICAL_MODEL_STATUS = "engineering-preview-unvalidated";
 
 export type FlightEventType =
@@ -64,6 +69,8 @@ export type VerticalFlightConfig = {
     dragAreaM2: number;
     dragCoefficient: number;
     deploymentDelayAfterApogeeS: number;
+    /** Optional effective-area schedule beginning when the recovery command is applied. */
+    reefingStages?: readonly RecoveryReefingStage[];
   };
   environment?: {
     launchAltitudeM?: number;
@@ -94,6 +101,7 @@ export type FlightTracePoint = {
   dynamicPressurePa: number;
   horizontalWindMps: number;
   recoveryDeployed: boolean;
+  recoveryReefingFraction: number;
 };
 
 export type VerticalFlightResult = {
@@ -179,6 +187,7 @@ function validateConfig(config: VerticalFlightConfig) {
       throw new Error("Recovery deployment delay cannot be negative.");
     }
   }
+  validateRecoveryReefingStages(config.recovery?.reefingStages, "vertical recovery reefing stages");
 }
 
 export function simulateVerticalFlight(
@@ -311,9 +320,16 @@ export function simulateVerticalFlight(
     }
     const bodyCdA =
       bodyDragCoefficient * config.vehicle.referenceAreaM2;
+    const reefing =
+      chuteDeployed && scheduledRecoveryTimeS !== null
+        ? evaluateRecoveryReefing(
+            config.recovery?.reefingStages,
+            sampleTimeS - scheduledRecoveryTimeS,
+          )
+        : { areaFraction: 1, stageIndex: null };
     const recoveryCdA =
       chuteDeployed && config.recovery?.enabled
-        ? config.recovery.dragCoefficient * config.recovery.dragAreaM2
+        ? config.recovery.dragCoefficient * config.recovery.dragAreaM2 * reefing.areaFraction
         : 0;
     const dragN =
       -Math.sign(relativeVerticalMps) *
@@ -346,6 +362,7 @@ export function simulateVerticalFlight(
         dynamicPressurePa,
         horizontalWindMps: wind.horizontalSpeedMps,
         recoveryDeployed: chuteDeployed,
+        recoveryReefingFraction: reefing.areaFraction,
       } satisfies FlightTracePoint,
     };
   };
@@ -562,6 +579,15 @@ export function simulateVerticalFlight(
         "Pressure and temperature are anchored to the launch-site observation and then offset through the standard atmosphere profile; the observation is not a forecast or live weather feed.",
     });
   }
+  if (config.recovery?.enabled && (config.recovery.reefingStages?.length ?? 0) > 0) {
+    warnings.push({
+      code: "RECOVERY_REEFING_APPROXIMATION",
+      severity: "info",
+      title: "Recovery reefing schedule is active",
+      explanation:
+        "The configured piecewise-linear effective-area schedule starts at recovery command time; canopy inflation dynamics, reefing lines, and hardware loads are not modeled.",
+    });
+  }
   warnings.push({
     code: "MODEL_UNVALIDATED",
     severity: "info",
@@ -597,6 +623,11 @@ export function simulateVerticalFlight(
         : "User-supplied drag coefficient is constant with Mach and Reynolds number",
       "Thrust curve is linearly interpolated",
       "Propellant depletion is proportional to delivered impulse",
+      ...(config.recovery?.enabled && (config.recovery.reefingStages?.length ?? 0) > 0
+        ? [
+            "Recovery reefing multiplies canopy drag area with the supplied piecewise-linear schedule; the schedule begins at recovery command time in this one-dimensional solver.",
+          ]
+        : []),
       ...(humidityActive
         ? [effectiveSurfaceObservation
             ? "Relative humidity is applied after the surface pressure and temperature anchor as a constant-altitude-profile ideal-mixture correction."

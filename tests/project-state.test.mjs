@@ -57,6 +57,9 @@ test("local project snapshots round-trip through a strict versioned schema", () 
   assert.equal(source.inputs.finCount, 3);
   assert.equal(source.inputs.recoveryMassKg, 0.06);
   assert.equal(source.inputs.recoveryDeploymentSuccessProbability, 0.9);
+  assert.equal(source.inputs.recoveryReefingEnabled, false);
+  assert.equal(source.inputs.recoveryReefingDurationS, 3);
+  assert.equal(source.inputs.recoveryReefingStartAreaFraction, 0.35);
   assert.equal(source.inputs.relativeHumidityPercent, 60);
   assert.equal(source.inputs.surfacePressureHpa, 1004);
   assert.equal(source.inputs.surfaceTemperatureC, 15);
@@ -69,6 +72,9 @@ test("legacy snapshots receive explicit surface-weather defaults", () => {
   assert.equal(legacy.inputs.relativeHumidityPercent, 60);
   assert.equal(legacy.inputs.surfacePressureHpa, 1004);
   assert.equal(legacy.inputs.surfaceTemperatureC, 15);
+  assert.equal(legacy.inputs.recoveryReefingEnabled, false);
+  assert.equal(legacy.inputs.recoveryReefingDurationS, 3);
+  assert.equal(legacy.inputs.recoveryReefingStartAreaFraction, 0.35);
 });
 
 test("invalid, unsupported, and out-of-range snapshots fail explicitly", () => {
@@ -96,6 +102,14 @@ test("invalid, unsupported, and out-of-range snapshots fail explicitly", () => {
   assert.throws(
     () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, recoveryDeploymentSuccessProbability: 1.1 } }),
     /recoveryDeploymentSuccessProbability/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, recoveryReefingEnabled: "yes" } }),
+    /recoveryReefingEnabled/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, recoveryReefingStartAreaFraction: 0.01 } }),
+    /recoveryReefingStartAreaFraction/,
   );
   assert.throws(
     () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, relativeHumidityPercent: 100.1 } }),

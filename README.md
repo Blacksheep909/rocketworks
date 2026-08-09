@@ -36,6 +36,8 @@ research, standards, and original code.
   provenance-qualified data;
 - atmosphere, launch-site, wind, turbulence, launch-rail, recovery, and
   landing-dispersion previews;
+- user-configurable recovery reefing schedules shared by the vertical preview,
+  landing descent, 6DOF recovery loads, trace telemetry, and portable inputs;
 - optional relative-humidity coupling with explicit water-vapor, virtual-
   temperature, density, sound-speed, and Reynolds-number diagnostics;
 - persisted pad-pressure and pad-temperature observations shared by the fast

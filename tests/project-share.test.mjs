@@ -61,6 +61,9 @@ test("project share links round-trip validated design configuration deterministi
       launchRailAzimuthDeg: 0,
       recoveryMassKg: 0.06,
       recoveryDeploymentSuccessProbability: 0.9,
+      recoveryReefingEnabled: false,
+      recoveryReefingDurationS: 3,
+      recoveryReefingStartAreaFraction: 0.35,
     },
   });
 });

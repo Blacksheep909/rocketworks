@@ -11,7 +11,7 @@ The browser workflow uses nine rows by default, permits up to twenty-five rows f
 ## Model contract
 
 - Adapter: `kestrel-vertical-sweep-0.1.0`.
-- Underlying trajectory model: `kestrel-vertical-0.2.0-alpha`.
+- Underlying trajectory model: `kestrel-vertical-0.3.0-alpha`.
 - Sampling: linearly spaced inclusive endpoints; no random seed is required.
 - Evaluation: each row calls the same deterministic vertical solver used by the nominal estimate after applying one explicit variant factor.
 - Supported factors: dry-mass scale, drag-coefficient scale, delivered-thrust scale, wind-profile scale, and recovery delay in seconds.
@@ -27,4 +27,3 @@ The sweep is intended for sensitivity inspection and design review. A monotonic 
 - Parameter correlations, model-form uncertainty, structural failure, motor manufacturing variation, and atmospheric forecast error are not inferred by the sweep.
 - Recovery and landing outputs remain preliminary and depend on the selected recovery model.
 - A sweep cannot validate a motor, certify a design, establish stability margins, or approve a launch.
-

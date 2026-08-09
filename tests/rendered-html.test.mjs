@@ -320,6 +320,10 @@ test("ships a provenance-qualified recovery landing footprint", async () => {
   assert.match(page, /recoveryDeploymentSuccessProbability/);
   assert.match(page, /relativeHumidityPercent/);
   assert.match(page, /Deployment success assumption/);
+  assert.match(page, /Canopy opening schedule/);
+  assert.match(page, /recoveryReefingEnabled/);
+  assert.match(page, /recoveryReefingDurationS/);
+  assert.match(page, /recoveryReefingStartAreaFraction/);
   assert.match(page, /recovery-provenance/);
   assert.match(page, /estimateAscentWindDrift/);
   assert.match(page, /landingPrediction\.ascentDrift/);
@@ -337,6 +341,7 @@ test("ships a provenance-qualified recovery landing footprint", async () => {
   assert.match(stylesheet, /\.landing-footprint-chart/);
   assert.match(stylesheet, /\.landing-disclaimer/);
   assert.match(stylesheet, /\.landing-reliability/);
+  assert.match(stylesheet, /\.landing-reefing/);
   assert.match(stylesheet, /\.landing-convergence/);
   assert.match(stylesheet, /\.landing-ascent-drift/);
 });
@@ -388,6 +393,9 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(page, /launchRailInclinationDeg/);
   assert.match(page, /launchRailAzimuthDeg/);
   assert.match(page, /recoveryDeploymentSuccessProbability/);
+  assert.match(page, /recoveryReefingEnabled/);
+  assert.match(page, /recoveryReefingDurationS/);
+  assert.match(page, /recoveryReefingStartAreaFraction/);
   assert.match(page, /window\.setTimeout\(\(\) => \{/);
   assert.match(page, /\}, 600\)/);
   assert.match(page, /Local project history/);
@@ -400,6 +408,9 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(projectState, /launchRailInclinationDeg/);
   assert.match(projectState, /launchRailAzimuthDeg/);
   assert.match(projectState, /recoveryDeploymentSuccessProbability/);
+  assert.match(projectState, /recoveryReefingEnabled/);
+  assert.match(projectState, /recoveryReefingDurationS/);
+  assert.match(projectState, /recoveryReefingStartAreaFraction/);
   assert.match(projectState, /relativeHumidityPercent/);
   assert.match(projectState, /surfacePressureHpa/);
   assert.match(projectState, /surfaceTemperatureC/);

@@ -43,6 +43,7 @@ import {
   optimizeVerticalFlightDesign,
   sweepVerticalFlight,
   simulateRecoveryDescent,
+  validateRecoveryReefingStages,
   estimateAscentWindDrift,
   standardAtmosphere,
   simulateVerticalFlight,
@@ -71,6 +72,7 @@ import {
   type RocketStageInstance,
   type StructuralMaterialModel,
   type StructuralScreenResult,
+  type RecoveryReefingStage,
 } from "../lib/physics/index.ts";
 import {
   LOCAL_PROJECT_HISTORY_STORAGE_KEY,
@@ -1103,6 +1105,25 @@ function createStageFlightPreviewInputs({
   };
 }
 
+type BrowserRecoveryReefingInputs = Readonly<{
+  recoveryReefingEnabled: boolean;
+  recoveryReefingDurationS: number;
+  recoveryReefingStartAreaFraction: number;
+}>;
+
+function createBrowserRecoveryReefingStages(
+  input: BrowserRecoveryReefingInputs,
+): readonly RecoveryReefingStage[] | undefined {
+  if (!input.recoveryReefingEnabled) return undefined;
+  return validateRecoveryReefingStages(
+    [
+      { timeFromInflationS: 0, areaFraction: input.recoveryReefingStartAreaFraction },
+      { timeFromInflationS: input.recoveryReefingDurationS, areaFraction: 1 },
+    ],
+    "browser recovery reefing schedule",
+  );
+}
+
 function createFlightConfig({
   mass,
   diameter,
@@ -1117,6 +1138,9 @@ function createFlightConfig({
   recoveryEnabled,
   recoveryDelay,
   recoveryDiameter,
+  recoveryReefingEnabled,
+  recoveryReefingDurationS,
+  recoveryReefingStartAreaFraction,
   motorRecord,
   aerodynamicTable,
 }: {
@@ -1133,6 +1157,9 @@ function createFlightConfig({
   recoveryEnabled: boolean;
   recoveryDelay: number;
   recoveryDiameter: number;
+  recoveryReefingEnabled: boolean;
+  recoveryReefingDurationS: number;
+  recoveryReefingStartAreaFraction: number;
   motorRecord?: MotorDataRecord;
   aerodynamicTable?: AerodynamicCoefficientTableModel | null;
 }): VerticalFlightConfig {
@@ -1163,6 +1190,11 @@ function createFlightConfig({
       dragAreaM2: Math.PI * Math.pow(recoveryDiameter / 2, 2),
       dragCoefficient: 0.75,
       deploymentDelayAfterApogeeS: recoveryDelay,
+      reefingStages: createBrowserRecoveryReefingStages({
+        recoveryReefingEnabled,
+        recoveryReefingDurationS,
+        recoveryReefingStartAreaFraction,
+      }),
     },
     environment: {
       launchAltitudeM: launchAltitude,
@@ -1471,6 +1503,7 @@ function createLandingPrediction(
                 inputs.recoveryDelay + values.deploymentDelayOffsetS,
               ),
               inflationTimeS: 1.2,
+              reefingStages: createBrowserRecoveryReefingStages(inputs),
             }
           : undefined,
         integration: {
@@ -2089,6 +2122,9 @@ export default function Home() {
   const [recoveryDiameter, setRecoveryDiameter] = useState(0.45);
   const [recoveryMass, setRecoveryMass] = useState(0.06);
   const [recoveryDeploymentSuccessProbability, setRecoveryDeploymentSuccessProbability] = useState(0.9);
+  const [recoveryReefingEnabled, setRecoveryReefingEnabled] = useState(false);
+  const [recoveryReefingDurationS, setRecoveryReefingDurationS] = useState(3);
+  const [recoveryReefingStartAreaFraction, setRecoveryReefingStartAreaFraction] = useState(0.35);
   const [running, setRunning] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [optimization, setOptimization] = useState<OptimizationPreview | null>(null);
@@ -2176,8 +2212,11 @@ export default function Home() {
       recoveryDiameterM: recoveryDiameter,
       recoveryMassKg: recoveryMass,
       recoveryDeploymentSuccessProbability,
+      recoveryReefingEnabled,
+      recoveryReefingDurationS,
+      recoveryReefingStartAreaFraction,
     }),
-    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, windSpeed],
+    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -2385,6 +2424,9 @@ export default function Home() {
       recoveryEnabled,
       recoveryDelay,
       recoveryDiameter,
+      recoveryReefingEnabled,
+      recoveryReefingDurationS,
+      recoveryReefingStartAreaFraction,
       motorRecord: previewMotor,
       aerodynamicTable: selectedAerodynamicTable,
     }),
@@ -2418,6 +2460,9 @@ export default function Home() {
       recoveryEnabled,
       recoveryDelay,
       recoveryDiameter,
+      recoveryReefingEnabled,
+      recoveryReefingDurationS,
+      recoveryReefingStartAreaFraction,
       motorRecord: previewMotor,
       aerodynamicTable: selectedAerodynamicTable,
     }),
@@ -2439,6 +2484,9 @@ export default function Home() {
           recoveryEnabled,
           recoveryDelay,
           recoveryDiameter,
+          recoveryReefingEnabled,
+          recoveryReefingDurationS,
+          recoveryReefingStartAreaFraction,
           recoveryDeploymentSuccessProbability,
           motorRecord: previewMotor,
         },
@@ -2618,6 +2666,9 @@ export default function Home() {
         setRecoveryDiameter(inputs.recoveryDiameterM);
         setRecoveryMass(inputs.recoveryMassKg);
         setRecoveryDeploymentSuccessProbability(inputs.recoveryDeploymentSuccessProbability);
+        setRecoveryReefingEnabled(inputs.recoveryReefingEnabled);
+        setRecoveryReefingDurationS(inputs.recoveryReefingDurationS);
+        setRecoveryReefingStartAreaFraction(inputs.recoveryReefingStartAreaFraction);
         lastSavedInputsRef.current = inputs;
         lastSavedFingerprintRef.current = projectInputFingerprint(inputs);
         revisionRef.current = restoredSnapshot.revision;
@@ -2677,6 +2728,9 @@ export default function Home() {
         setRecoveryDiameter(inputs.recoveryDiameterM);
         setRecoveryMass(inputs.recoveryMassKg);
         setRecoveryDeploymentSuccessProbability(inputs.recoveryDeploymentSuccessProbability);
+        setRecoveryReefingEnabled(inputs.recoveryReefingEnabled);
+        setRecoveryReefingDurationS(inputs.recoveryReefingDurationS);
+        setRecoveryReefingStartAreaFraction(inputs.recoveryReefingStartAreaFraction);
         topologyRef.current = shared.topology;
         setVehicleTopology(shared.topology);
         window.localStorage.setItem(
@@ -2935,6 +2989,9 @@ export default function Home() {
     setRecoveryDiameter(inputs.recoveryDiameterM);
     setRecoveryMass(inputs.recoveryMassKg);
     setRecoveryDeploymentSuccessProbability(inputs.recoveryDeploymentSuccessProbability);
+    setRecoveryReefingEnabled(inputs.recoveryReefingEnabled);
+    setRecoveryReefingDurationS(inputs.recoveryReefingDurationS);
+    setRecoveryReefingStartAreaFraction(inputs.recoveryReefingStartAreaFraction);
   };
   const persistCheckpoint = (
     inputs: EditableProjectInputs,
@@ -3415,6 +3472,12 @@ export default function Home() {
             validationStatus: previewEnvironment.validationStatus,
             provenance: `${previewEnvironment.definition.provenance.sourceName} · ${previewEnvironment.definition.provenance.licenseIdentifier} · ${previewEnvironment.definition.provenance.validationStatus}`,
           },
+          recovery: {
+            enabled: recoveryEnabled,
+            reefingEnabled: recoveryReefingEnabled,
+            reefingDurationS: recoveryReefingDurationS,
+            reefingStartAreaFraction: recoveryReefingStartAreaFraction,
+          },
           flight: result,
           stageFlight: stageFlightIsCurrent ? stageFlightResult : null,
           stageUncertainty: stageUncertaintyIsCurrent ? stageUncertainty : null,
@@ -3452,6 +3515,9 @@ export default function Home() {
       recoveryEnabled,
       recoveryDelay,
       recoveryDiameter,
+      recoveryReefingEnabled,
+      recoveryReefingDurationS,
+      recoveryReefingStartAreaFraction,
       recoveryDeploymentSuccessProbability,
       motorRecord: previewMotor,
       aerodynamicTable: selectedAerodynamicTable,
@@ -3637,6 +3703,9 @@ export default function Home() {
           recoveryEnabled,
           recoveryDelay,
           recoveryDiameter,
+          recoveryReefingEnabled,
+          recoveryReefingDurationS,
+          recoveryReefingStartAreaFraction,
           motorRecord: previewMotor,
           aerodynamicTable: selectedAerodynamicTable,
         };
@@ -3678,6 +3747,9 @@ export default function Home() {
           recoveryEnabled,
           recoveryDelay,
           recoveryDiameter,
+          recoveryReefingEnabled,
+          recoveryReefingDurationS,
+          recoveryReefingStartAreaFraction,
           motorRecord: previewMotor,
           aerodynamicTable: selectedAerodynamicTable,
         };
@@ -4374,6 +4446,11 @@ export default function Home() {
                         <small>Observed {landingPrediction.deploymentScenario.observedSuccessRate === null ? "—" : `${(landingPrediction.deploymentScenario.observedSuccessRate * 100).toFixed(0)}%`} success · assumed {(landingPrediction.deploymentScenario.assumedSuccessProbability * 100).toFixed(0)}% · 95% range {landingPrediction.deploymentScenario.wilson95 ? `${(landingPrediction.deploymentScenario.wilson95.lower * 100).toFixed(0)}–${(landingPrediction.deploymentScenario.wilson95.upper * 100).toFixed(0)}%` : "—"}</small>
                       </div>
                     )}
+                    <div className="landing-reefing">
+                      <span>Canopy opening schedule</span>
+                      <strong>{recoveryReefingEnabled ? `${(recoveryReefingStartAreaFraction * 100).toFixed(0)}% → 100%` : "Full open after inflation"}</strong>
+                      <small>{recoveryReefingEnabled ? `${recoveryReefingDurationS.toFixed(1)} s piecewise-linear area ramp` : "No reefing schedule"}</small>
+                    </div>
                     <div>
                       <span>95% covariance ellipse</span>
                       <strong>{landingPrediction.footprint.confidenceEllipses[2].semiMajorM.toFixed(0)} × {landingPrediction.footprint.confidenceEllipses[2].semiMinorM.toFixed(0)} m</strong>
@@ -4514,11 +4591,12 @@ export default function Home() {
                   <div><span>Canopy diameter</span><strong>{(recoveryDiameter * 1000).toFixed(0)} mm</strong></div>
                   <div><span>Deployment delay</span><strong>{recoveryDelay.toFixed(1)} s</strong></div>
                   <div><span>Success assumption</span><strong>{(recoveryDeploymentSuccessProbability * 100).toFixed(0)}%</strong></div>
+                  <div><span>Reefing</span><strong>{recoveryReefingEnabled ? `${(recoveryReefingStartAreaFraction * 100).toFixed(0)}% → 100%` : "Full open"}</strong></div>
                   <div><span>Model state</span><strong>{recoveryEnabled ? "Enabled" : "Ballistic"}</strong></div>
                 </div>
                 <div className="component-note">
                   <span>RECOVERY SCOPE</span>
-                  <p>Canopy diameter, timing, and deployment assumption are configured in the Flight workspace. Packed mass is included in CG, inertia, and every subsequent estimate.</p>
+                  <p>Canopy diameter, timing, opening schedule, and deployment assumption are configured in the Flight workspace. Packed mass is included in CG, inertia, and every subsequent estimate.</p>
                 </div>
               </>
             )}
@@ -4620,6 +4698,18 @@ export default function Home() {
             {recoveryEnabled && <NumberField id="recovery-delay" label="Deployment delay" value={recoveryDelay} unit="s" min={0} max={30} step={0.1} onChange={(value) => { setRecoveryDelay(value); markChanged(); }} />}
             {recoveryEnabled && <NumberField id="recovery-diameter" label="Canopy diameter" value={recoveryDiameter} unit="m" min={0.1} max={3} step={0.01} onChange={(value) => { setRecoveryDiameter(value); markChanged(); }} />}
             {recoveryEnabled && <NumberField id="recovery-deployment-success" label="Deployment success assumption" value={recoveryDeploymentSuccessProbability * 100} unit="%" min={0} max={100} step={1} onChange={(value) => { setRecoveryDeploymentSuccessProbability(value / 100); markChanged(); }} />}
+            {recoveryEnabled && <div className="field-group">
+              <label htmlFor="recovery-reefing">Canopy opening schedule</label>
+              <select id="recovery-reefing" value={recoveryReefingEnabled ? "reefed" : "full-open"} onChange={(event) => { setRecoveryReefingEnabled(event.target.value === "reefed"); markChanged(); }}>
+                <option value="full-open">Full open after inflation</option>
+                <option value="reefed">Start reefed, then open</option>
+              </select>
+            </div>}
+            {recoveryEnabled && recoveryReefingEnabled && <>
+              <NumberField id="recovery-reefing-start-area" label="Initial reefed canopy area" value={recoveryReefingStartAreaFraction * 100} unit="%" min={5} max={100} step={1} onChange={(value) => { setRecoveryReefingStartAreaFraction(value / 100); markChanged(); }} />
+              <NumberField id="recovery-reefing-duration" label="Reefing duration" value={recoveryReefingDurationS} unit="s" min={0.1} max={30} step={0.1} onChange={(value) => { setRecoveryReefingDurationS(value); markChanged(); }} />
+              <p className="recovery-provenance">The preview multiplies canopy drag area from the initial fraction to 100% with a piecewise-linear schedule after inflation. Reefing lines, fabric dynamics, loads, and hardware are not modeled.</p>
+            </>}
             {recoveryEnabled && <p className="recovery-provenance">Landing dispersion samples this as a Bernoulli outcome. A failed deployment uses ballistic descent with body drag; the percentage is a modeling assumption, not hardware reliability evidence.</p>}
             <button className="library-button" onClick={() => setAerodynamicLibraryOpen(true)}>
               <span><strong>Aerodynamic data</strong><small>{selectedAerodynamicTable?.name ?? "Constant drag coefficient"}</small></span>

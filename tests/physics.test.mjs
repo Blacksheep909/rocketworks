@@ -367,3 +367,39 @@ test("recovery drag reduces impact speed", () => {
   assert.ok(recovered.impactSpeedMps !== null);
   assert.ok(recovered.impactSpeedMps < ballistic.impactSpeedMps * 0.5);
 });
+
+test("vertical recovery applies the shared reefing area schedule", () => {
+  const result = simulateVerticalFlight({
+    vehicle: {
+      dryMassKg: 0.5,
+      propellantMassKg: 0.08,
+      referenceAreaM2: Math.PI * Math.pow(0.054 / 2, 2),
+      dragCoefficient: 0.52,
+    },
+    motor: { thrustCurve: makeConstantThrustCurve(22, 1.65) },
+    recovery: {
+      enabled: true,
+      dragAreaM2: 0.16,
+      dragCoefficient: 0.75,
+      deploymentDelayAfterApogeeS: 0,
+      reefingStages: [
+        { timeFromInflationS: 0, areaFraction: 0.25 },
+        { timeFromInflationS: 2, areaFraction: 1 },
+      ],
+    },
+    integration: { timeStepS: 0.02, maxTimeS: 180 },
+  });
+  const deploymentTimeS = result.events.find((event) => event.type === "recovery_deploy").timeS;
+  const early = result.trace.find(
+    (point) => point.recoveryDeployed && point.timeS >= deploymentTimeS + 0.2,
+  );
+  const late = result.trace.find(
+    (point) => point.recoveryDeployed && point.timeS >= deploymentTimeS + 2.2,
+  );
+  assert.ok(early);
+  assert.ok(late);
+  assert.ok(early.recoveryReefingFraction > 0.25 && early.recoveryReefingFraction < 1);
+  assert.equal(late.recoveryReefingFraction, 1);
+  assert.ok(result.warnings.some((warning) => warning.code === "RECOVERY_REEFING_APPROXIMATION"));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("Recovery reefing multiplies")));
+});

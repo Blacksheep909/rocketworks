@@ -23,6 +23,10 @@ flight-readiness claims.
   6DOF recovery loads and landing-descent models, including explicit reefing
   phase/fraction telemetry and caution applicability messaging. Empty schedules
   preserve the prior smooth-inflation behavior.
+- Exposed the reefing schedule as validated portable project inputs and Flight
+  workspace controls, and propagated the declared area ramp through the fast
+  vertical preview, landing dispersion, trace CSV, and model assumptions. The
+  browser defaults remain full-open for backward-compatible projects.
 - Added stage-aware metadata, grouped stage visibility controls, and projected
   stage selection to the original display-only 3D viewport; visibility changes
   never alter engineering inputs or results.

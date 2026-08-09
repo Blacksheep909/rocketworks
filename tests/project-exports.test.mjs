@@ -185,11 +185,11 @@ test("flight CSV has stable SI columns, CRLF rows, and boolean deployment state"
   const csv = createFlightTraceCsv(trace);
   const rows = csv.trim().split("\r\n");
   assert.equal(rows.length, 3);
-  assert.equal(rows[0], "time_s,altitude_agl_m,velocity_mps,acceleration_mps2,mass_kg,thrust_n,density_kg_m3,mach,dynamic_pressure_pa,horizontal_wind_mps,recovery_deployed");
-  assert.equal(rows[1].split(",").length, 11);
-  assert.ok(rows[1].endsWith(",false"));
-  assert.ok(rows[2].endsWith(",true"));
-  assert.match(rows[2], /^1\.5,30,20,-5,0\.5,0,1\.221,0\.058,244,2\.2,true$/);
+  assert.equal(rows[0], "time_s,altitude_agl_m,velocity_mps,acceleration_mps2,mass_kg,thrust_n,density_kg_m3,mach,dynamic_pressure_pa,horizontal_wind_mps,recovery_deployed,recovery_reefing_fraction");
+  assert.equal(rows[1].split(",").length, 12);
+  assert.ok(rows[1].endsWith(",false,1"));
+  assert.ok(rows[2].endsWith(",true,1"));
+  assert.match(rows[2], /^1\.5,30,20,-5,0\.5,0,1\.221,0\.058,244,2\.2,true,1$/);
 });
 
 test("staged flight CSV preserves attached-stage topology and SI values", () => {
@@ -347,6 +347,12 @@ test("engineering report leads with status and preserves calculations and limita
       validationStatus: "synthetic-unvalidated",
       provenance: "Synthetic fixture",
     },
+    recovery: {
+      enabled: true,
+      reefingEnabled: true,
+      reefingDurationS: 2,
+      reefingStartAreaFraction: 0.25,
+    },
     flight: {
       modelVersion: "flight-fixture",
       validationStatus: "engineering-preview-unvalidated",
@@ -433,6 +439,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /^# ARC 54 — Preliminary Engineering Report/);
   assert.match(report, /Pad pressure observation: 1004\.0 hPa/);
   assert.match(report, /Relative humidity observation: 60%/);
+  assert.match(report, /## Recovery configuration/);
+  assert.match(report, /Opening schedule: 25% to 100% over 2\.0 s/);
   assert.ok(report.indexOf("Not flight-safe or manufacturing-approved") < report.indexOf("## Vehicle summary"));
   assert.match(report, /\| Static margin \| 2\.93 calibres \|/);
   assert.match(report, /## Recovery landing footprint/);

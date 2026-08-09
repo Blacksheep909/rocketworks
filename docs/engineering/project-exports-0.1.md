@@ -93,6 +93,7 @@ mach
 dynamic_pressure_pa
 horizontal_wind_mps
 recovery_deployed
+recovery_reefing_fraction
 ```
 
 Rows use CRLF delimiters for broad spreadsheet compatibility. Numbers use
@@ -175,7 +176,8 @@ Automated tests cover:
 
 - deterministic JSON for a fixed timestamp
 - schema identity, version, clean-room notice, and nested data
-- CSV headers, SI units, CRLF rows, column count, and recovery booleans
+- CSV headers, SI units, CRLF rows, column count, recovery booleans, and the
+  effective reefing-area fraction
 - DXF version, units, layers, dimensions, CG/CP, and EOF termination
 - OpenSCAD modules, millimetre dimensions, fin rotation, and safety comment
 - report warning order, metrics, landing section, limitations, and independence

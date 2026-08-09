@@ -107,6 +107,12 @@ export type EngineeringReportInput = Readonly<{
     validationStatus: string;
     provenance: string;
   }>;
+  recovery?: Readonly<{
+    enabled: boolean;
+    reefingEnabled: boolean;
+    reefingDurationS: number;
+    reefingStartAreaFraction: number;
+  }>;
   flight: VerticalFlightResult;
   stageFlight?: StageFlightPreviewResult | null;
   stageUncertainty?: StageFlightUncertaintyResult | null;
@@ -342,6 +348,7 @@ export function createFlightTraceCsv(trace: readonly FlightTracePoint[]): string
     "dynamic_pressure_pa",
     "horizontal_wind_mps",
     "recovery_deployed",
+    "recovery_reefing_fraction",
   ];
   const rows = trace.map((point, index) => {
     const values = [
@@ -359,7 +366,9 @@ export function createFlightTraceCsv(trace: readonly FlightTracePoint[]): string
     values.forEach((value, valueIndex) =>
       assertFinite(value, `flight trace row ${index + 1} column ${headers[valueIndex]}`),
     );
-    return [...values, point.recoveryDeployed].map(csvCell).join(",");
+    const reefingFraction = point.recoveryReefingFraction ?? 1;
+    assertFinite(reefingFraction, `flight trace row ${index + 1} column recovery_reefing_fraction`);
+    return [...values, point.recoveryDeployed, reefingFraction].map(csvCell).join(",");
   });
   return `${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
 }
@@ -714,6 +723,13 @@ export function createEngineeringReportMarkdown(
 ): string {
   if (!input.projectName.trim()) throw new Error("report project name cannot be empty");
   assertIsoDate(input.generatedAtIso, "report timestamp");
+  if (input.recovery) {
+    assertFinite(input.recovery.reefingDurationS, "report reefing duration");
+    assertFinite(input.recovery.reefingStartAreaFraction, "report reefing start area fraction");
+    if (input.recovery.reefingDurationS <= 0 || input.recovery.reefingStartAreaFraction < 0 || input.recovery.reefingStartAreaFraction > 1) {
+      throw new Error("report recovery reefing inputs are out of range");
+    }
+  }
   const landing = input.landing?.footprint;
   const lines = [
     `# ${markdownText(input.projectName)} — Preliminary Engineering Report`,
@@ -767,6 +783,16 @@ export function createEngineeringReportMarkdown(
     `- Status: \`${markdownText(input.environment.validationStatus)}\``,
     `- Provenance: ${markdownText(input.environment.provenance)}`,
     "",
+    ...(input.recovery
+      ? [
+          "## Recovery configuration",
+          "",
+          `- State: ${input.recovery.enabled ? "enabled" : "ballistic descent"}`,
+          `- Opening schedule: ${input.recovery.reefingEnabled ? `${formatNumber(input.recovery.reefingStartAreaFraction * 100, 0)}% to 100% over ${formatNumber(input.recovery.reefingDurationS, 1)} s` : "full open after inflation; no reefing schedule"}`,
+          "- Reefing schedule basis: bounded piecewise-linear effective canopy-area multiplier; inflation hardware, opening loads, lines, and fabric dynamics are not modeled.",
+          "",
+        ]
+      : []),
     "## Vertical-flight estimate",
     "",
     `Model: \`${markdownText(input.flight.modelVersion)}\`  `,

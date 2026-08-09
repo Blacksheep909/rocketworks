@@ -1,4 +1,4 @@
-# Kestrel vertical-flight model 0.2
+# Kestrel vertical-flight model 0.3
 
 Status: **engineering preview; not validated for flight-safety decisions**
 
@@ -8,7 +8,7 @@ other rocket simulator.
 
 ## Purpose
 
-Version 0.2 establishes a testable one-dimensional physics boundary for the
+Version 0.3 establishes a testable one-dimensional physics boundary for the
 browser product. It remains the fast nominal/uncertainty/optimization adapter;
 the separate rigid-body six-degree-of-freedom kernel and stage-aware preview
 now cover the higher-dimensional experimental path. Neither path is validated
@@ -51,6 +51,10 @@ Primary references:
 - Launch-pad constraint, liftoff, burnout, apogee, optional recovery deployment,
   ground impact, and no-liftoff events.
 - Body and recovery drag areas.
+- Optional recovery reefing schedules multiply the canopy drag area from a
+  declared initial fraction to full open with a bounded piecewise-linear model.
+  The schedule begins at the accepted recovery command time in this 1D solver;
+  inflation hardware and opening loads remain outside scope.
 - Optional Mach--Reynolds drag-table coupling using the same coefficient-table
   interpolation path as the coupled load adapter. When a table is selected,
   the solver computes Reynolds number from atmospheric density, relative speed,
@@ -69,7 +73,9 @@ only changes the display selection; it never changes the numerical result.
 
 Automated tests cover atmosphere reference points, interpolation, impulse
 integration, numerical agreement with a constant-acceleration analytical case,
-event ordering, no-liftoff behavior, and recovery drag behavior.
+event ordering, no-liftoff behavior, recovery drag behavior, and the shared
+reefing-area schedule. The trace and CSV export expose the effective reefing
+fraction for every sampled state.
 
 This is numerical verification, not full physical validation. Missing validation
 includes wind-tunnel drag data, instrumented flights, published benchmark

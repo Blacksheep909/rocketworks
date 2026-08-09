@@ -13,7 +13,7 @@ Two browser `localStorage` records are used:
 - `kestrel.project.arc54.current.v1` stores the latest validated snapshot.
 - `kestrel.project.arc54.history.v1` stores up to 40 chronological checkpoints.
 
-The snapshot schema is `dev.kestrel-lab.local-project`, version 1. It contains the project identity, monotonically increasing revision, UTC save time, and editable design, component geometry, motor, environment, and recovery inputs. New component geometry fields use additive defaults so older version-1 records restore as the original 180 mm ogive, three-fin configuration. Derived mass properties, simulations, uncertainty samples, landing dispersions, and rendered geometry are deliberately omitted; they are recomputed from restored inputs.
+The snapshot schema is `dev.kestrel-lab.local-project`, version 1. It contains the project identity, monotonically increasing revision, UTC save time, and editable design, component geometry, motor, environment, and recovery inputs. New component geometry and recovery-reefing fields use additive defaults so older version-1 records restore as the original 180 mm ogive, three-fin, full-open recovery configuration. Derived mass properties, simulations, uncertainty samples, landing dispersions, and rendered geometry are deliberately omitted; they are recomputed from restored inputs.
 
 The history schema is `dev.kestrel-lab.local-project-history`, version 1. Every entry has a unique identifier, human-readable change label, and complete validated snapshot. Autosave suppresses consecutive duplicate input states. Manual and restore checkpoints may intentionally duplicate a state so the user action remains visible.
 
