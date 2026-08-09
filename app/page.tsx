@@ -24,6 +24,7 @@ import {
   createAerodynamicCoefficientTable,
   computeStaticStability,
   analyzeVerticalFlightUncertainty,
+  analyzeStageFlightUncertainty,
   createLaunchEnvironmentModel,
   launchRailDirectionFromAngles,
   launchRailOrientationFromAngles,
@@ -58,6 +59,7 @@ import {
   type VehicleComponent,
   type MotorDataRecord,
   type StageFlightPreviewResult,
+  type StageFlightUncertaintyResult,
   type VerticalFlightSweepParameterKey,
   type VerticalFlightSweepResult,
   type RocketStage,
@@ -2397,6 +2399,10 @@ export default function Home() {
   );
   const [stageFlightRunning, setStageFlightRunning] = useState(false);
   const [stageFlightError, setStageFlightError] = useState("");
+  const [stageUncertainty, setStageUncertainty] = useState<StageFlightUncertaintyResult | null>(null);
+  const [stageUncertaintyFingerprint, setStageUncertaintyFingerprint] = useState<string | null>(null);
+  const [stageUncertaintyRunning, setStageUncertaintyRunning] = useState(false);
+  const [stageUncertaintyError, setStageUncertaintyError] = useState("");
   const [uncertainty, setUncertainty] = useState<UncertaintyAnalysisResult>(() =>
     createUncertaintyResult({
       mass,
@@ -2531,6 +2537,9 @@ export default function Home() {
   const stageFlightIsCurrent =
     stageFlightResult !== null &&
     isSimulationFingerprintCurrent(stageFlightFingerprint, simulationFingerprint);
+  const stageUncertaintyIsCurrent =
+    stageUncertainty !== null &&
+    isSimulationFingerprintCurrent(stageUncertaintyFingerprint, simulationFingerprint);
 
   useEffect(() => {
     const hydrationTimer = window.setTimeout(() => {
@@ -3408,6 +3417,7 @@ export default function Home() {
           },
           flight: result,
           stageFlight: stageFlightIsCurrent ? stageFlightResult : null,
+          stageUncertainty: stageUncertaintyIsCurrent ? stageUncertainty : null,
           uncertainty,
           landing: landingPrediction,
           structural: structuralScreen,
@@ -3475,6 +3485,9 @@ export default function Home() {
     }
     setStageFlightRunning(true);
     setStageFlightError("");
+    setStageUncertainty(null);
+    setStageUncertaintyFingerprint(null);
+    setStageUncertaintyError("");
     setView("flight");
     const runFingerprint = simulationFingerprint;
     window.setTimeout(() => {
@@ -3505,6 +3518,76 @@ export default function Home() {
         notify(message);
       } finally {
         setStageFlightRunning(false);
+      }
+    }, 30);
+  };
+  const runStageUncertainty = () => {
+    if (!stageFlightResult || !stageFlightIsCurrent) {
+      notify("Run the current coupled preview before propagating its uncertainty");
+      return;
+    }
+    setStageUncertaintyRunning(true);
+    setStageUncertaintyError("");
+    setView("flight");
+    const runFingerprint = simulationFingerprint;
+    window.setTimeout(() => {
+      try {
+        const baseInput = createStageFlightPreviewInputs({
+          topology: vehicleTopology,
+          assembly,
+          stageComponents: stageFlightComponents,
+          motor: previewMotor,
+          userMotorRecords,
+          dragCoefficient,
+          environmentAt: previewEnvironment.at,
+          launchRailEnabled,
+          launchRailLengthM,
+          launchRailInclinationDeg,
+          launchRailAzimuthDeg,
+          aerodynamicTable: selectedAerodynamicTable,
+          aerodynamicTableModels,
+        });
+        const nextResult = analyzeStageFlightUncertainty({
+          baseInput,
+          seed: "arc54-coupled-uncertainty-v1",
+          sampleCount: 16,
+          factors: [
+            {
+              key: "dryMassScale",
+              label: "Dry mass",
+              distribution: { kind: "triangular", minimum: 0.97, mode: 1, maximum: 1.03 },
+            },
+            {
+              key: "propellantMassScale",
+              label: "Propellant mass",
+              distribution: { kind: "triangular", minimum: 0.95, mode: 1, maximum: 1.05 },
+            },
+            {
+              key: "thrustScale",
+              label: "Delivered thrust",
+              distribution: { kind: "normal", mean: 1, standardDeviation: 0.04, minimum: 0.88, maximum: 1.12 },
+            },
+            {
+              key: "dragCoefficientScale",
+              label: "Drag coefficient",
+              distribution: { kind: "triangular", minimum: 0.9, mode: 1, maximum: 1.1 },
+            },
+            {
+              key: "windScale",
+              label: "Wind profile",
+              distribution: { kind: "uniform", minimum: 0.8, maximum: 1.2 },
+            },
+          ],
+        });
+        setStageUncertainty(nextResult);
+        setStageUncertaintyFingerprint(runFingerprint);
+        notify("Coupled dispersion analysis complete");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to run coupled dispersion";
+        setStageUncertaintyError(message);
+        notify(message);
+      } finally {
+        setStageUncertaintyRunning(false);
       }
     }, 30);
   };
@@ -4078,6 +4161,14 @@ export default function Home() {
                       <span>WARNINGS</span>
                       <ul>{stageFlightResult.warnings.slice(0, 3).map((warning) => <li key={warning}>{warning}</li>)}</ul>
                     </div>
+                    <StageFlightUncertaintyCard
+                      result={stageUncertainty}
+                      running={stageUncertaintyRunning}
+                      error={stageUncertaintyError}
+                      current={stageFlightIsCurrent}
+                      resultCurrent={stageUncertaintyIsCurrent}
+                      onRun={runStageUncertainty}
+                    />
                   </>
                 ) : (
                   <div className="stage-flight-empty">Run the staged preview to propagate ignition, burnout, and separation events through the retained vehicle.</div>
@@ -5121,18 +5212,26 @@ function UncertaintyMetric({
   );
 }
 
-function UncertaintySensitivityList({ result }: { result: UncertaintyAnalysisResult }) {
-  const drivers = (result.sensitivityByMetric.apogeeM ?? [])
+function UncertaintySensitivityList({
+  result,
+  metricKey = "apogeeM",
+  metricLabel = "Apogee",
+}: {
+  result: UncertaintyAnalysisResult;
+  metricKey?: string;
+  metricLabel?: string;
+}) {
+  const drivers = (result.sensitivityByMetric[metricKey] ?? [])
     .filter((item) => item.spearmanRho !== null)
     .slice(0, 4);
   if (drivers.length === 0) return null;
   const maximumMagnitude = Math.max(...drivers.map((item) => Math.abs(item.spearmanRho ?? 0)), 1e-9);
   return (
-    <section className="uncertainty-sensitivity" aria-label="Apogee sensitivity drivers">
+    <section className="uncertainty-sensitivity" aria-label={`${metricLabel} sensitivity drivers`}>
       <div className="uncertainty-sensitivity-heading">
         <div>
           <span>Driver ranking</span>
-          <strong>Apogee sensitivity</strong>
+            <strong>{metricLabel === "Apogee" ? "Apogee sensitivity" : `${metricLabel} sensitivity`}</strong>
         </div>
         <small>Spearman ρ · monotonic association</small>
       </div>
@@ -5150,6 +5249,83 @@ function UncertaintySensitivityList({ result }: { result: UncertaintyAnalysisRes
           );
         })}
       </div>
+    </section>
+  );
+}
+
+function StageFlightUncertaintyCard({
+  result,
+  running,
+  error,
+  current,
+  resultCurrent,
+  onRun,
+}: {
+  result: StageFlightUncertaintyResult | null;
+  running: boolean;
+  error: string;
+  current: boolean;
+  resultCurrent: boolean;
+  onRun: () => void;
+}) {
+  const primaryThreshold = result?.convergence.thresholds[0] ?? null;
+  return (
+    <section className="stage-flight-uncertainty" aria-labelledby="stage-flight-uncertainty-title">
+      <div className="stage-flight-uncertainty-heading">
+        <div>
+          <span className="eyebrow">Coupled dispersion</span>
+          <h4 id="stage-flight-uncertainty-title">6DOF uncertainty envelope</h4>
+          <p>Propagates bounded mass, thrust, drag, and wind assumptions through staging, launch-rail constraints, topology aerodynamics, and the coupled rigid-body run.</p>
+        </div>
+        <button className="secondary-button" type="button" onClick={onRun} disabled={running || !current}>
+          {running ? "Sampling…" : result ? "Rerun dispersion" : "Run dispersion"}
+        </button>
+      </div>
+      {error && <div className="stage-flight-error" role="alert">{error}</div>}
+      {!resultCurrent && result && (
+        <div className="stale-result-banner stage-stale-result-banner" role="status">
+          <span>RERUN REQUIRED</span>
+          <div>
+            <strong>This dispersion envelope is from an earlier configuration</strong>
+            <p>Run the current coupled preview again before interpreting this uncertainty result.</p>
+          </div>
+        </div>
+      )}
+      {result ? (
+        <>
+          <div className="uncertainty-card-heading-meta stage-flight-uncertainty-meta">
+            <span>{result.method} · n={result.successfulSampleCount}/{result.requestedSampleCount} · {result.adapterVersion}</span>
+            <strong className={`uncertainty-status uncertainty-status-${result.convergence.status}`}>{formatConvergenceStatus(result.convergence.status)}</strong>
+          </div>
+          <div className="uncertainty-grid">
+            <UncertaintyMetric label="Peak altitude P05 / P50 / P95" summary={result.metrics.maxAltitudeAglM} unit="m" />
+            <UncertaintyMetric label="Peak speed P05 / P50 / P95" summary={result.metrics.maxSpeedMps} unit="m/s" decimals={1} />
+            <UncertaintyMetric label="Maximum q P05 / P50 / P95" summary={result.metrics.maxDynamicPressurePa} unit="Pa" />
+            <UncertaintyMetric label="Final speed P05 / P50 / P95" summary={result.metrics.finalSpeedMps} unit="m/s" decimals={1} />
+          </div>
+          <UncertaintySensitivityList result={result} metricKey="maxAltitudeAglM" metricLabel="Peak altitude" />
+          <div className="uncertainty-convergence" aria-label="Coupled uncertainty convergence diagnostic">
+            <div>
+              <span>Split-sample stability</span>
+              <strong className={`uncertainty-status uncertainty-status-${result.convergence.status}`}>{formatConvergenceStatus(result.convergence.status)}</strong>
+              <small>Max quantile shift {result.convergence.maximumRelativeQuantileShift === null ? "—" : `${(result.convergence.maximumRelativeQuantileShift * 100).toFixed(0)}%`} · {result.convergence.lowerHalfSampleCount}/{result.convergence.upperHalfSampleCount} samples per half</small>
+            </div>
+            {primaryThreshold && (
+              <div>
+                <span>Threshold-rate stability</span>
+                <strong className={`uncertainty-status uncertainty-status-${primaryThreshold.status}`}>{formatConvergenceStatus(primaryThreshold.status)}</strong>
+                <small>Half-rate shift {primaryThreshold.halfProbabilityShift === null ? "—" : `${(primaryThreshold.halfProbabilityShift * 100).toFixed(0)}%`}</small>
+              </div>
+            )}
+          </div>
+          <div className="uncertainty-disclaimer">
+            <span>MODEL UNCERTAINTY</span>
+            <p>Independent seeded input distributions · failed samples remain visible · convergence is a finite-sample heuristic, not validation, certification, or a flight-safety assessment.</p>
+          </div>
+        </>
+      ) : (
+        <div className="stage-flight-empty">Run the current coupled preview first, then sample the uncertainty envelope without changing the saved design.</div>
+      )}
     </section>
   );
 }

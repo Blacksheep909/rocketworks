@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  analyzeStageFlightUncertainty,
   createScheduledStageIgnitionEvent,
   createScheduledStageSeparationEvent,
+  createStageFlightVariant,
   simulateStageFlightPreview,
 } from "../lib/physics/index.ts";
 
@@ -176,6 +178,82 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.deepEqual(result.separatedBodies[0].retainedBodyDeltaVBodyMps, { x: 0.1, y: 0, z: 0 });
   assert.ok(result.separatedBodies[0].warnings.some((warning) => warning.includes("ballistic")));
   assert.deepEqual(result.clusterDiagnostics, []);
+});
+
+test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", () => {
+  const baseInput = {
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages,
+    regimes,
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 2.5,
+    timeStepS: 0.1,
+    launchAltitudeM: 0,
+  };
+  const factors = [
+    {
+      key: "thrustScale",
+      label: "Delivered thrust",
+      distribution: { kind: "uniform", minimum: 0.95, maximum: 1.05 },
+    },
+    {
+      key: "dragCoefficientScale",
+      label: "Drag coefficient",
+      distribution: { kind: "triangular", minimum: 0.9, mode: 1, maximum: 1.1 },
+    },
+  ];
+  const first = analyzeStageFlightUncertainty({
+    baseInput,
+    factors,
+    seed: "stage-flight-fixture",
+    sampleCount: 6,
+  });
+  const second = analyzeStageFlightUncertainty({
+    baseInput,
+    factors,
+    seed: "stage-flight-fixture",
+    sampleCount: 6,
+  });
+
+  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-0.1.0");
+  assert.equal(first.requestedSampleCount, 6);
+  assert.equal(first.successfulSampleCount, 6);
+  assert.deepEqual(first.samples, second.samples);
+  assert.ok(first.metrics.maxAltitudeAglM.p50 !== null);
+  assert.ok(first.metrics.maxDynamicPressurePa.p95 !== null);
+  assert.equal(baseInput.stages[0].motors[0].thrustCurve[1].thrustN, 30);
+
+  const variant = createStageFlightVariant(baseInput, {
+    dryMassScale: 1.1,
+    propellantMassScale: 0.9,
+    thrustScale: 1.05,
+    dragCoefficientScale: 1.2,
+    windScale: 1.1,
+  });
+  assert.equal(variant.stages[0].structuralMassProperties.massKg, 0.55);
+  assert.ok(Math.abs(variant.stages[0].motors[0].initialPropellantMassProperties.massKg - 0.18) < 1e-12);
+  assert.equal(variant.stages[0].motors[0].thrustCurve[1].thrustN, 31.5);
+  assert.equal(variant.dragCoefficientScale, 1.2);
+
+  const providerVariant = createStageFlightVariant(
+    {
+      ...baseInput,
+      environmentAt: () => ({
+        meanWindWorldMps: { x: 1, y: 2, z: 3 },
+        turbulenceWindWorldMps: { x: 0.1, y: 0.2, z: 0.3 },
+        discreteGustWindWorldMps: { x: 0.4, y: 0.5, z: 0.6 },
+        windWorldMps: { x: 1.5, y: 2.7, z: 3.9 },
+      }),
+    },
+    { windScale: 2 },
+  );
+  assert.deepEqual(providerVariant.environmentAt({}), {
+    meanWindWorldMps: { x: 2, y: 4, z: 6 },
+    turbulenceWindWorldMps: { x: 0.2, y: 0.4, z: 0.6 },
+    discreteGustWindWorldMps: { x: 0.8, y: 1, z: 1.2 },
+    windWorldMps: { x: 3, y: 5.4, z: 7.8 },
+  });
 });
 
 test("stage-flight adapter spawns one separated-body branch per repeated physical copy", () => {

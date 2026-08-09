@@ -223,6 +223,20 @@ test("topology switch recomputes active geometry, CP, reference area, and margin
   );
 });
 
+test("drag-only uncertainty scale applies to constant topology sources", () => {
+  const nominal = aeroModel();
+  const scaled = aeroModel({ dragCoefficientScale: 1.25 });
+  close(nominal.evaluate(fullStackState()).dragCoefficient, 0.65, 1e-12, "nominal drag coefficient");
+  close(scaled.evaluate(fullStackState()).dragCoefficient, 0.8125, 1e-12, "scaled drag coefficient");
+  close(
+    scaled.evaluate(fullStackState()).normalForceSlopePerRad,
+    nominal.evaluate(fullStackState()).normalForceSlopePerRad,
+    1e-12,
+    "normal-force slope remains nominal",
+  );
+  assert.match(scaled.assumptions.join(" "), /drag-only scale/);
+});
+
 test("separation neighborhood is explicitly outside topology-model applicability", () => {
   const aerodynamics = aeroModel();
   const atSeparation = aerodynamics.evaluate(

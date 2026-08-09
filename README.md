@@ -43,6 +43,9 @@ research, standards, and original code.
 - preliminary vertical flight, coupled 6DOF, staging, ignition delays,
   failure events, and bounded separated-body trajectories with optional
   isotropic point-drag basis;
+- seeded coupled 6DOF uncertainty envelopes that propagate bounded mass,
+  propellant, thrust, drag, and wind assumptions through stage events and
+  launch-rail handoff;
 - interactive vertical and staged trace inspectors with Mach, dynamic-pressure,
   drag, angle-of-attack, sideslip, event, and topology readouts;
 - preliminary structural-readiness screen for axial stress, Euler buckling,

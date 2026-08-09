@@ -7,6 +7,7 @@ import type {
   StageFlightPreviewResult,
   StageFlightTracePoint,
 } from "../physics/stage-flight-preview.ts";
+import type { StageFlightUncertaintyResult } from "../physics/stage-flight-uncertainty.ts";
 import type {
   ParameterSweepResult,
   UncertaintyAnalysisResult,
@@ -108,6 +109,7 @@ export type EngineeringReportInput = Readonly<{
   }>;
   flight: VerticalFlightResult;
   stageFlight?: StageFlightPreviewResult | null;
+  stageUncertainty?: StageFlightUncertaintyResult | null;
   uncertainty?: UncertaintyAnalysisResult | null;
   landing?: LandingDispersionResult | null;
   structural?: StructuralScreenResult | null;
@@ -691,6 +693,22 @@ function formatNumber(value: number, decimals: number): string {
   return value.toFixed(decimals);
 }
 
+function formatMetricRange(
+  summary: UncertaintyAnalysisResult["metrics"][string] | undefined,
+  decimals: number,
+  unit: string,
+): string {
+  if (
+    summary === undefined ||
+    summary.p05 === null ||
+    summary.p50 === null ||
+    summary.p95 === null
+  ) {
+    return "not available";
+  }
+  return `${formatNumber(summary.p05, decimals)} / ${formatNumber(summary.p50, decimals)} / ${formatNumber(summary.p95, decimals)} ${unit}`;
+}
+
 export function createEngineeringReportMarkdown(
   input: EngineeringReportInput,
 ): string {
@@ -866,6 +884,25 @@ export function createEngineeringReportMarkdown(
               )
             : []),
           ...input.uncertainty.convergence.warnings.map((warning) => `- ${markdownText(warning)}`),
+          "",
+        ]
+      : []),
+    ...(input.stageUncertainty
+      ? [
+          "## Coupled 6DOF uncertainty",
+          "",
+          `- Adapter: \`${markdownText(input.stageUncertainty.adapterVersion)}\``,
+          `- Method: ${markdownText(input.stageUncertainty.method)}`,
+          `- Successful samples: ${input.stageUncertainty.successfulSampleCount} / ${input.stageUncertainty.requestedSampleCount}`,
+          `- Convergence status: ${markdownText(input.stageUncertainty.convergence.status)}`,
+          `- Peak altitude P05 / P50 / P95: ${formatMetricRange(input.stageUncertainty.metrics.maxAltitudeAglM, 1, "m")}`,
+          `- Peak speed P05 / P50 / P95: ${formatMetricRange(input.stageUncertainty.metrics.maxSpeedMps, 2, "m/s")}`,
+          `- Maximum dynamic pressure P05 / P50 / P95: ${formatMetricRange(input.stageUncertainty.metrics.maxDynamicPressurePa, 0, "Pa")}`,
+          `- Final speed P05 / P50 / P95: ${formatMetricRange(input.stageUncertainty.metrics.finalSpeedMps, 2, "m/s")}`,
+          `- Maximum split-sample quantile shift: ${input.stageUncertainty.convergence.maximumRelativeQuantileShift === null ? "not available" : `${formatNumber(input.stageUncertainty.convergence.maximumRelativeQuantileShift * 100, 1)}%`}`,
+          ...input.stageUncertainty.convergence.warnings.map((warning) => `- ${markdownText(warning)}`),
+          "",
+          "> Coupled dispersion propagates independent bounded input assumptions through the staging and 6DOF adapter. It is not validation, certification, or a flight-safety assessment.",
           "",
         ]
       : []),

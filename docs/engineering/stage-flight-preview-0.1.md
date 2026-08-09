@@ -1,4 +1,4 @@
-# Stage-aware flight preview 0.5
+# Stage-aware flight preview 0.6
 
 Status: implemented composition adapter; mathematical regression tests only.
 This preview is not flight-safety validated and must not be used for launch
@@ -23,7 +23,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.6.0`.
+`kestrel-stage-flight-preview-0.6.0`. 
 
 ## Event and state policy
 
@@ -109,6 +109,18 @@ model validity, uncertainty adequacy, hardware agreement, or flight safety.
 The engineering report and project JSON retain the diagnostic assumptions and
 warnings alongside the primary trace.
 
+## Coupled uncertainty adapter
+
+`stage-flight-uncertainty.ts` propagates seeded Latin-hypercube input
+distributions through this complete adapter. The browser Flight workspace uses
+16 bounded samples for dry mass, propellant mass, delivered thrust, drag, and
+wind, then reports percentile bands, sensitivity, failed samples, and
+split-sample convergence. The variant builder does not mutate the source
+topology or environment. Drag uncertainty is an explicit drag-only scale after
+the selected constant or Mach--Reynolds source; normal force, damping, and
+centre-of-pressure terms remain nominal. See
+`stage-flight-uncertainty-0.1.md` for the full contract and limitations.
+
 ## Separated-body analytical branch
 
 When an explicit separation event detaches a stage or one of its physical
@@ -168,6 +180,6 @@ flight-safety prediction.
 This is intentionally a narrow composition layer. Keeping the existing models
 independently versioned makes it possible to improve propulsion, aerodynamics,
 environment, or event mechanics without hiding a new monolithic simulator
-behind the browser UI. Future work can add a coupled multi-body separation
-solver and Monte Carlo event uncertainty while preserving this provenance
+behind the browser UI. Future work can add correlated/model-form uncertainty
+and a coupled multi-body separation solver while preserving this provenance
 boundary.

@@ -149,6 +149,8 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
   regimes: readonly StageAerodynamicRegime[];
   alwaysActiveGeometryStageIds?: readonly string[];
   separationTransitionWindowS?: number;
+  /** Multiplicative drag-only uncertainty applied after the selected source is evaluated. */
+  dragCoefficientScale?: number;
 }>): StageAwareAerodynamicsModel {
   if (input.components.length === 0) {
     throw new Error("stage-aware aerodynamics requires vehicle components");
@@ -191,6 +193,10 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
     separationTransitionWindowS < 0
   ) {
     throw new Error("separation transition window must be a non-negative finite number");
+  }
+  const dragCoefficientScale = input.dragCoefficientScale ?? 1;
+  if (!Number.isFinite(dragCoefficientScale) || dragCoefficientScale <= 0) {
+    throw new Error("drag coefficient scale must be positive and finite");
   }
 
   const regimes = input.regimes.map((regime) => {
@@ -349,8 +355,9 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       regime.coefficientTable && tableQuery
         ? regime.coefficientTable.evaluate(tableQuery)
         : null;
-    const dragCoefficient =
+    const nominalDragCoefficient =
       coefficientEvaluation?.dragCoefficient ?? regime.dragCoefficient!;
+    const dragCoefficient = nominalDragCoefficient * dragCoefficientScale;
     const normalForceSlopePerRad =
       coefficientEvaluation?.normalForceSlopePerRad ??
       staticStability.normalForceSlopePerRad;
@@ -465,6 +472,9 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       "Mass, center of mass, and attached-stage state come from the shared staging model",
       "Topology coefficients switch instantaneously at the separation event",
       "Radial component instances are projected into the current axial static-aerodynamic representation",
+      ...(dragCoefficientScale === 1
+        ? []
+        : [`A multiplicative drag-only scale of ${dragCoefficientScale} is applied after the selected coefficient source; normal-force and damping terms remain nominal.`]),
     ],
     warnings: [
       "This topology adapter has analytical component checks only and is not flight-safety validated.",

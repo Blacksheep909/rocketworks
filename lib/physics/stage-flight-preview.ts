@@ -45,6 +45,8 @@ export type StageFlightPreviewInput = Readonly<{
   launchAltitudeM?: number;
   windProfile?: readonly WindLayer[];
   environmentAt?: LaunchEnvironmentProvider;
+  /** Multiplicative drag-only uncertainty applied to the selected aero source. */
+  dragCoefficientScale?: number;
   alwaysActiveGeometryStageIds?: readonly string[];
   separationTransitionWindowS?: number;
   initialState?: Partial<Pick<
@@ -483,6 +485,7 @@ export function simulateStageFlightPreview(
     regimes: input.regimes,
     alwaysActiveGeometryStageIds: input.alwaysActiveGeometryStageIds,
     separationTransitionWindowS: input.separationTransitionWindowS,
+    dragCoefficientScale: input.dragCoefficientScale,
   });
   const loads = createPreliminaryRocketLoadModel({
     body: staging.body,

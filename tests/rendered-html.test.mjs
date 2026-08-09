@@ -511,6 +511,10 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /stage-flight-rail/);
   assert.match(page, /stageFlightResult\.validationStatus/);
   assert.match(page, /stage-flight-warnings/);
+  assert.match(page, /analyzeStageFlightUncertainty/);
+  assert.match(page, /6DOF uncertainty envelope/);
+  assert.match(page, /Run dispersion/);
+  assert.match(page, /stageUncertaintyIsCurrent/);
   assert.match(page, /StageFlightProfileChart/);
   assert.match(page, /Vertical vs coupled preview/);
   assert.match(page, /formatSignedMetric/);
@@ -565,6 +569,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stylesheet, /\.stage-flight-profile/);
   assert.match(stylesheet, /\.stage-flight-chart/);
   assert.match(stylesheet, /\.stage-flight-convergence/);
+  assert.match(stylesheet, /\.stage-flight-uncertainty/);
   assert.match(stylesheet, /\.stage-flight-profile-tabs button:focus-visible/);
 });
 

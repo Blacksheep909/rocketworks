@@ -543,6 +543,16 @@ kbd {
 .stage-flight-warnings > span { flex: 0 0 auto; color: #f0b46b; font: 650 7px var(--font-geist-mono),monospace; letter-spacing: .08em; }
 .stage-flight-warnings ul { display: flex; flex-direction: column; gap: 3px; margin: 0; padding: 0 0 0 13px; }
 .stage-flight-warnings li { margin: 0; }
+.stage-flight-uncertainty {
+  margin-top: 12px; padding: 12px; border: 1px solid rgba(47,159,255,.22); border-radius: 3px;
+  background: linear-gradient(135deg, rgba(47,159,255,.07), rgba(10,16,22,.72) 62%);
+}
+.stage-flight-uncertainty-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.stage-flight-uncertainty-heading h4 { margin-top: 4px; color: #eaf2f6; font-size: 11px; letter-spacing: .02em; }
+.stage-flight-uncertainty-heading p { max-width: 720px; margin-top: 4px; color: #869aa5; font-size: 8px; line-height: 1.45; }
+.stage-flight-uncertainty-heading .secondary-button { flex: 0 0 auto; white-space: nowrap; }
+.stage-flight-uncertainty-meta { margin-top: 10px; justify-content: space-between; }
+.stage-flight-uncertainty .uncertainty-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
 .stage-flight-profile {
   margin-top: 12px; padding: 12px; border: 1px solid rgba(117,153,180,.18);
   border-radius: 3px; background: rgba(5,9,13,.56);
@@ -1961,6 +1971,9 @@ body {
 .stage-separated-body-note { margin-top: 8px; color: #9a8875; font-size: 7px; line-height: 1.45; }
 
 @media (max-width: 760px) {
+  .stage-flight-uncertainty-heading { flex-direction: column; }
+  .stage-flight-uncertainty-heading .secondary-button { width: 100%; }
+  .stage-flight-uncertainty .uncertainty-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .stage-flight-comparison-heading { flex-direction: column; }
   .stage-flight-comparison-grid { grid-template-columns: 1fr; }
   .stage-flight-convergence-heading { flex-direction: column; }

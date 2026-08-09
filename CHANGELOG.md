@@ -83,3 +83,12 @@ flight-readiness claims.
   checks.
 - Established the clean-room boundary: no OpenRocket source, engine, UI,
   assets, databases, or backend components are bundled or reused.
+## Unreleased
+
+- Added a seeded coupled stage-flight uncertainty adapter and Flight workspace
+  envelope for mass, propellant, thrust, drag, and wind dispersion. Samples
+  retain full errors, event counts, separated-body branches, sensitivity, and
+  split-sample convergence diagnostics.
+- Added an explicit drag-only scale hook for constant and Mach--Reynolds
+  topology sources; normal-force and damping terms remain nominal and the
+  assumption is surfaced in the model contract.
