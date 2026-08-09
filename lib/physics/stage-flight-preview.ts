@@ -31,12 +31,17 @@ import {
   type RecoverySystemModel,
 } from "./recovery-system.ts";
 import {
+  analyzeMultiBodySeparation,
+  type MultiBodySeparationResult,
+  type SeparationClearanceTracePoint,
+} from "./separation-clearance.ts";
+import {
   simulateSeparatedBodyFlight,
   type SeparatedBodyTrajectory,
 } from "./separated-body-flight.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.8.0";
+  "kestrel-stage-flight-preview-0.9.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -145,6 +150,7 @@ export type StageFlightPreviewResult = Readonly<{
   timeToApogeeS: number;
   clusterDiagnostics: readonly StageFlightClusterDiagnostic[];
   separatedBodies: readonly SeparatedBodyTrajectory[];
+  multiBodySeparation: MultiBodySeparationResult | null;
   convergence: StageFlightConvergenceDiagnostic;
   warnings: readonly string[];
   assumptions: readonly string[];
@@ -776,6 +782,33 @@ export function simulateStageFlightPreview(
       }
     }
   }
+  const multiBodySeparation: MultiBodySeparationResult | null =
+    retainedBodyTrace.length > 0 && separatedBodies.length > 0
+      ? analyzeMultiBodySeparation({
+          bodies: [
+            {
+              id: "retained-vehicle",
+              label: "Retained vehicle",
+              releaseTimeS: 0,
+              trace: retainedBodyTrace.map((state): SeparationClearanceTracePoint => ({
+                timeS: state.timeS,
+                positionWorldM: state.positionWorldM,
+                velocityWorldMps: state.velocityWorldMps,
+              })),
+            },
+            ...separatedBodies.map((body, index) => ({
+              id: `${body.stageId}/${body.instanceId ?? `logical-${index + 1}`}`,
+              label: body.instanceId ? `${body.stageName} · ${body.instanceId}` : body.stageName,
+              releaseTimeS: body.releaseTimeS,
+              trace: body.trace.map((point): SeparationClearanceTracePoint => ({
+                timeS: point.timeS,
+                positionWorldM: point.positionWorldM,
+                velocityWorldMps: point.velocityWorldMps,
+              })),
+            })),
+          ],
+        })
+      : null;
   const warnings = [
     ...(input.additionalWarnings ?? []),
     ...staging.warnings,
@@ -785,6 +818,7 @@ export function simulateStageFlightPreview(
     ...(primaryRun.rail?.warnings ?? primaryRun.simulation?.warnings ?? []),
     ...convergence.warnings,
     ...separatedBodyWarnings,
+    ...(multiBodySeparation?.warnings ?? []),
   ];
   const assumptions = [
     ...(input.additionalAssumptions ?? []),
@@ -798,6 +832,7 @@ export function simulateStageFlightPreview(
     `Explicit separation events spawn a separate ballistic-capable trajectory for each newly detached stage; separated bodies are represented independently; ${separatedBodies.filter((body) => body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined).length} branch(es) use bounded isotropic point drag and ${separatedBodies.filter((body) => body.referenceAreaM2 === undefined || body.dragCoefficient === undefined).length} branch(es) use the gravity-only fallback.`,
     "When one separation event releases multiple physical copies, the equal-and-opposite impulse uses their combined detached mass and assigns one shared detached velocity increment to each copy; individual separation-mechanism impulses are not modeled.",
     "Separated-body previews apply a mass-ratio equal-and-opposite linear-momentum delta-v when the separation event carries a configured retained-body delta-v; a single event releasing multiple copies uses their combined detached mass and assigns one shared detached velocity increment. Separation mechanism dynamics, angular impulse, lift, attitude-dependent aerodynamic torque, plume interaction, aerodynamic interference, collision, and clearance remain outside the model; retained-vehicle recovery devices, when configured, are not propagated into detached-stage branches.",
+    ...(multiBodySeparation?.assumptions ?? []),
     ...(recovery
       ? [
           `Retained-vehicle recovery devices are coupled as body loads through ${recovery.modelVersion}; deployment commands, inflation, and reefing remain deterministic effective-area approximations.`,
@@ -821,6 +856,7 @@ export function simulateStageFlightPreview(
     timeToApogeeS: primaryRun.timeToApogeeS,
     clusterDiagnostics,
     separatedBodies,
+    multiBodySeparation,
     convergence,
     warnings: [...new Set(warnings)],
     assumptions: [...new Set(assumptions)],

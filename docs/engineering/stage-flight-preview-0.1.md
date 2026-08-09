@@ -1,4 +1,4 @@
-# Stage-aware flight preview 0.8
+# Stage-aware flight preview 0.9
 
 Status: implemented composition adapter; mathematical regression tests only.
 This preview is not flight-safety validated and must not be used for launch
@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.8.0`.
+`kestrel-stage-flight-preview-0.9.0`.
 
 When `recoveryDevices` is supplied, the adapter composes the independent
 recovery-load model into the retained vehicle's force and moment callback. A
@@ -173,11 +173,18 @@ approximation. The result status is
 report retain the warning so an impact time cannot be mistaken for a range or
 flight-safety prediction.
 
+When detached branches are available, the adapter also returns an aggregate
+pairwise center-of-mass diagnostic. It compares every retained/detached and
+detached/detached trace pair from the later release time and reports the
+closest assessed pair. This is path-divergence telemetry only; it does not
+model body envelopes, collision, aerodynamic clearance, or range safety.
+
 ## Limitations
 
 - The retained-body staging model remains a single tracked vehicle; each
   separated-body branch is an independent 6DOF preview with optional isotropic
-  point drag, not a coupled multi-body solver.
+  point drag. The aggregate pairwise diagnostic compares those paths but is
+  not a coupled multi-body force, contact, or aerodynamic solver.
 - A configured separation delta-v is applied to the retained body in body-frame
   +X and is carried into the event/trajectory diagnostics in body and world
   frames. The discarded-body branch receives the mass-ratio equal-and-opposite

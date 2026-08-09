@@ -4,6 +4,8 @@ export const SEPARATION_CLEARANCE_MODEL_VERSION =
   "kestrel-separation-clearance-0.1.0";
 export const SEPARATION_CLEARANCE_STATUS =
   "analytical-component-checks-only" as const;
+export const MULTI_BODY_SEPARATION_MODEL_VERSION =
+  "kestrel-multi-body-separation-0.1.0";
 
 export type SeparationClearanceTracePoint = Readonly<{
   timeS: number;
@@ -31,6 +33,49 @@ export type SeparationClearanceInput = Readonly<{
   retainedTrace: readonly SeparationClearanceTracePoint[];
   detachedTrace: readonly SeparationClearanceTracePoint[];
   releaseTimeS: number;
+}>;
+
+export type MultiBodySeparationBody = Readonly<{
+  id: string;
+  label?: string;
+  releaseTimeS: number;
+  trace: readonly SeparationClearanceTracePoint[];
+}>;
+
+export type MultiBodySeparationPair = Readonly<
+  SeparationClearanceResult & {
+    firstBodyId: string;
+    firstBodyLabel: string;
+    secondBodyId: string;
+    secondBodyLabel: string;
+  }
+>;
+
+export type MultiBodySeparationResult = Readonly<{
+  modelVersion: typeof MULTI_BODY_SEPARATION_MODEL_VERSION;
+  validationStatus: typeof SEPARATION_CLEARANCE_STATUS;
+  releaseTimeS: number;
+  bodies: readonly Readonly<{
+    id: string;
+    label: string;
+    releaseTimeS: number;
+    sampleCount: number;
+  }>[];
+  pairs: readonly MultiBodySeparationPair[];
+  minimumDistanceM: number | null;
+  closestPair: Readonly<{
+    firstBodyId: string;
+    secondBodyId: string;
+    timeS: number;
+    distanceM: number;
+  }> | null;
+  status: "assessed" | "partial" | "not-assessed";
+  warnings: readonly string[];
+  assumptions: readonly string[];
+}>;
+
+export type MultiBodySeparationInput = Readonly<{
+  bodies: readonly MultiBodySeparationBody[];
 }>;
 
 const TIME_TOLERANCE_S = 1e-9;
@@ -199,6 +244,119 @@ export function analyzeSeparationClearance(
       "Retained positions are linearly interpolated at detached-body sample times.",
       "The detached body is represented by its center of mass; no body envelope or attitude-dependent geometry is applied.",
       "A partial result reports only the overlapping time interval and must not be extrapolated.",
+    ],
+  };
+}
+
+/**
+ * Compare every pair of retained and detached center-of-mass paths. Each pair
+ * starts at the later of the two body release times, so a body is never
+ * compared against a pre-release trajectory segment. This is deliberately a
+ * pairwise path-divergence diagnostic, not a coupled contact or collision
+ * solver.
+ */
+export function analyzeMultiBodySeparation(
+  input: MultiBodySeparationInput,
+): MultiBodySeparationResult {
+  if (input.bodies.length < 2) {
+    throw new Error("multi-body separation requires at least two bodies");
+  }
+  const normalizedBodies = input.bodies.map((body, index) => {
+    const id = body.id.trim();
+    if (!id) throw new Error(`multi-body separation body ${index + 1} id cannot be empty`);
+    if (!Number.isFinite(body.releaseTimeS)) {
+      throw new Error(`multi-body separation body ${id} release time must be finite`);
+    }
+    validateTrace(body.trace, `multi-body separation body ${id} trajectory`);
+    return {
+      id,
+      label: body.label?.trim() || id,
+      releaseTimeS: body.releaseTimeS,
+      trace: body.trace,
+    };
+  });
+  const ids = new Set<string>();
+  for (const body of normalizedBodies) {
+    if (ids.has(body.id)) throw new Error(`multi-body separation body ids must be unique: ${body.id}`);
+    ids.add(body.id);
+  }
+  const pairs: MultiBodySeparationPair[] = [];
+  for (let firstIndex = 0; firstIndex < normalizedBodies.length - 1; firstIndex += 1) {
+    const first = normalizedBodies[firstIndex]!;
+    for (let secondIndex = firstIndex + 1; secondIndex < normalizedBodies.length; secondIndex += 1) {
+      const second = normalizedBodies[secondIndex]!;
+      const releaseTimeS = Math.max(first.releaseTimeS, second.releaseTimeS);
+      const clearance = analyzeSeparationClearance({
+        retainedTrace: first.trace,
+        detachedTrace: second.trace,
+        releaseTimeS,
+      });
+      pairs.push({
+        ...clearance,
+        firstBodyId: first.id,
+        firstBodyLabel: first.label,
+        secondBodyId: second.id,
+        secondBodyLabel: second.label,
+      });
+    }
+  }
+  const assessedPairs = pairs.filter((pair) => pair.status === "assessed");
+  const partialPairs = pairs.filter((pair) => pair.status === "partial");
+  const matchedPairs = pairs.filter((pair) => pair.minimumDistanceM !== null);
+  const status: MultiBodySeparationResult["status"] =
+    matchedPairs.length === 0
+      ? "not-assessed"
+      : partialPairs.length > 0 || assessedPairs.length < pairs.length
+        ? "partial"
+        : "assessed";
+  const closestPair = matchedPairs.reduce<MultiBodySeparationResult["closestPair"]>(
+    (closest, pair) => {
+      if (pair.minimumDistanceM === null || pair.minimumDistanceTimeS === null) return closest;
+      if (!closest || pair.minimumDistanceM < closest.distanceM) {
+        return {
+          firstBodyId: pair.firstBodyId,
+          secondBodyId: pair.secondBodyId,
+          timeS: pair.minimumDistanceTimeS,
+          distanceM: pair.minimumDistanceM,
+        };
+      }
+      return closest;
+    },
+    null,
+  );
+  const minimumDistanceM = closestPair?.distanceM ?? null;
+  const releaseTimeS = Math.min(...normalizedBodies.map((body) => body.releaseTimeS));
+  return {
+    modelVersion: MULTI_BODY_SEPARATION_MODEL_VERSION,
+    validationStatus: SEPARATION_CLEARANCE_STATUS,
+    releaseTimeS,
+    bodies: normalizedBodies.map(({ id, label, releaseTimeS: bodyReleaseTimeS, trace }) => ({
+      id,
+      label,
+      releaseTimeS: bodyReleaseTimeS,
+      sampleCount: trace.length,
+    })),
+    pairs,
+    minimumDistanceM,
+    closestPair,
+    status,
+    warnings: [
+      "Pairwise center-of-mass separation is a diagnostic only; body envelopes, contact, collision shapes, plume interaction, aerodynamic interference, and range-safety margins are not modeled.",
+      ...(status === "partial"
+        ? [`${partialPairs.length + (pairs.length - assessedPairs.length - partialPairs.length)} of ${pairs.length} pair checks have incomplete or unavailable time overlap.`]
+        : []),
+      ...(status === "not-assessed"
+        ? ["No pair had overlapping post-release samples, so a minimum multi-body separation was not assessed."]
+        : []),
+      ...(closestPair
+        ? [`Closest assessed pair: ${closestPair.firstBodyId} / ${closestPair.secondBodyId} at ${closestPair.distanceM.toFixed(3)} m.`]
+        : []),
+    ],
+    assumptions: [
+      "All body positions are compared in the shared world frame.",
+      "Each pair is evaluated from the later of its two release times; no pre-release trajectory is treated as a separated body.",
+      "Retained positions are linearly interpolated at the other body's sample times and samples outside the shared trace interval are not extrapolated.",
+      "The result reports center-of-mass path divergence only; it is not a body-envelope, collision, aerodynamic-clearance, or flight-safety assessment.",
     ],
   };
 }

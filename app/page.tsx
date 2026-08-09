@@ -4797,6 +4797,31 @@ export default function Home() {
                           </div>
                           <span className="stage-separated-bodies-badge">{stageFlightResult.separatedBodies.length} bod{stageFlightResult.separatedBodies.length === 1 ? "y" : "ies"}</span>
                         </div>
+                        {stageFlightResult.multiBodySeparation && (
+                          <div className="stage-multi-body-separation">
+                            <div className="stage-multi-body-separation-heading">
+                              <div>
+                                <span className="eyebrow">Pairwise path diagnostic</span>
+                                <h5>Multi-body COM separation</h5>
+                                <p>Checks every retained/detached and detached/detached center-of-mass path pair from the later release time. It is useful for spotting converging paths, but it is not a body-envelope, collision, aerodynamic-clearance, or range-safety solver.</p>
+                              </div>
+                              <span className={`stage-multi-body-separation-status stage-multi-body-separation-status-${stageFlightResult.multiBodySeparation.status}`}>
+                                {stageFlightResult.multiBodySeparation.status}
+                              </span>
+                            </div>
+                            <div className="stage-multi-body-separation-grid">
+                              <div><span>Pair checks</span><strong>{stageFlightResult.multiBodySeparation.pairs.length}</strong><small>{stageFlightResult.multiBodySeparation.bodies.length} propagated bodies</small></div>
+                              <div><span>Closest pair</span><strong>{stageFlightResult.multiBodySeparation.closestPair ? `${stageFlightResult.multiBodySeparation.closestPair.firstBodyId} / ${stageFlightResult.multiBodySeparation.closestPair.secondBodyId}` : "Not assessed"}</strong><small>{stageFlightResult.multiBodySeparation.closestPair ? `at ${stageFlightResult.multiBodySeparation.closestPair.timeS.toFixed(2)} s` : "no overlapping post-release samples"}</small></div>
+                              <div><span>Minimum COM separation</span><strong>{stageFlightResult.multiBodySeparation.minimumDistanceM === null ? "Not assessed" : `${stageFlightResult.multiBodySeparation.minimumDistanceM.toFixed(2)} m`}</strong><small>center-to-center path distance</small></div>
+                              <div><span>Analysis start</span><strong>{stageFlightResult.multiBodySeparation.releaseTimeS.toFixed(2)} s</strong><small>earliest body release</small></div>
+                            </div>
+                            {stageFlightResult.multiBodySeparation.warnings.length > 0 && (
+                              <ul className="stage-multi-body-separation-warnings">
+                                {stageFlightResult.multiBodySeparation.warnings.slice(0, 2).map((warning) => <li key={warning}>{warning}</li>)}
+                              </ul>
+                            )}
+                          </div>
+                        )}
                         <div className="stage-separated-body-grid">
                           {stageFlightResult.separatedBodies.map((body) => (
                             <article className="stage-separated-body" key={`${body.stageId}-${body.instanceId ?? "logical"}-${body.releaseTimeS}`}>

@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added an aggregate multi-body center-of-mass separation diagnostic for staged
+  previews. It checks every retained/detached and detached/detached trace pair
+  from the later release time, reports the closest assessed pair, and remains
+  explicitly outside body-envelope, collision, aerodynamic-clearance, and
+  range-safety analysis.
 - Added a clean-room, single-record RASP/ENG motor interchange path. Users can
   import a public-format motor header and thrust curve with their own
   provenance, export local records as `.eng`, and keep third-party motor files

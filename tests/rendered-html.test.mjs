@@ -87,6 +87,7 @@ test("ships versioned flight results and explainable model UI", async () => {
   assert.match(source, /SIMULATION_FRESHNESS_MODEL_VERSION/);
   assert.match(source, /Separated trajectories/);
   assert.match(source, /separatedBodies/);
+  assert.match(source, /Multi-body COM separation/);
   assert.match(source, /Detached dV/);
   assert.match(source, /mass-ratio-linear-momentum/);
   assert.match(source, /equal-and-opposite linear-momentum/);
@@ -259,8 +260,11 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
   assert.match(source, /bounded isotropic point drag/);
   assert.match(source, /retainedBodyTrace/);
   assert.match(source, /retainedBodyTrace/);
+  assert.match(source, /analyzeMultiBodySeparation/);
+  assert.match(source, /multiBodySeparation/);
   assert.match(stylesheet, /\.stage-separated-bodies/);
   assert.match(stylesheet, /\.stage-separated-body-grid/);
+  assert.match(stylesheet, /\.stage-multi-body-separation/);
 });
 
 test("routes browser mass properties through the hierarchical assembly graph", async () => {

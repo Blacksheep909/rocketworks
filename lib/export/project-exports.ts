@@ -988,6 +988,26 @@ export function createEngineeringReportMarkdown(
                 "> Separated-body paths are bounded analytical component checks. Where a stage-specific reference area and constant coefficient are available, isotropic point drag is applied; otherwise the branch remains gravity-only. When the event carries a retained-body delta-v, the detached branch uses the mass-ratio equal-and-opposite linear-momentum impulse; otherwise it starts from the pre-event release velocity. Separation mechanism, lift, attitude-dependent aerodynamics, plume interaction, aerodynamic clearance, collision, and detached-body recovery are not modeled; retained-vehicle recovery is reported in the coupled trace when configured.",
               ]
             : []),
+          ...(input.stageFlight.multiBodySeparation
+            ? [
+                "",
+                "### Multi-body center-of-mass separation",
+                "",
+                "| Diagnostic | Value |",
+                "|---|---:|",
+                `| Status | ${markdownText(input.stageFlight.multiBodySeparation.status)} |`,
+                `| Bodies | ${input.stageFlight.multiBodySeparation.bodies.length} |`,
+                `| Pair checks | ${input.stageFlight.multiBodySeparation.pairs.length} |`,
+                `| Minimum COM separation | ${input.stageFlight.multiBodySeparation.minimumDistanceM === null ? "not assessed" : `${formatNumber(input.stageFlight.multiBodySeparation.minimumDistanceM, 3)} m`} |`,
+                `| Closest pair | ${input.stageFlight.multiBodySeparation.closestPair ? `${markdownText(input.stageFlight.multiBodySeparation.closestPair.firstBodyId)} / ${markdownText(input.stageFlight.multiBodySeparation.closestPair.secondBodyId)} at ${formatNumber(input.stageFlight.multiBodySeparation.closestPair.timeS, 2)} s` : "not assessed"} |`,
+                `| Model | \`${markdownText(input.stageFlight.multiBodySeparation.modelVersion)}\` |`,
+                "",
+                ...input.stageFlight.multiBodySeparation.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+                ...input.stageFlight.multiBodySeparation.warnings.map((warning) => `- **Pairwise separation warning:** ${markdownText(warning)}`),
+                "",
+                "> Pairwise center-of-mass paths are a diagnostic only. Body envelopes, contact, collision, plume interaction, aerodynamic interference, and range-safety margins are not modeled; do not use this section as a clearance or flight-safety determination.",
+              ]
+            : []),
           "",
         ]
       : []),
