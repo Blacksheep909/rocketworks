@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Fixed staged-preview failures after a core separation when the retained
+  payload/recovery allowance consisted of collinear point masses with zero
+  axial inertia. The browser now adds a versioned compact-package inertia
+  placeholder, with an explicit warning that retained geometry is still not
+  modeled.
 - Added an aggregate multi-body center-of-mass separation diagnostic for staged
   previews. It checks every retained/detached and detached/detached trace pair
   from the later release time, reports the closest assessed pair, and remains

@@ -28,6 +28,7 @@ import {
   analyzeStageFlightUncertainty,
   createApogeeRecoveryDeploymentEvent,
   createLaunchEnvironmentModel,
+  addCompactPackageInertia,
   launchRailDirectionFromAngles,
   launchRailOrientationFromAngles,
   verticalLaunchOrientationBodyToEnu,
@@ -40,6 +41,7 @@ import {
   importMotorRaspEng,
   importMotorThrustCsv,
   combineMassProperties,
+  determinant,
   transformMassProperties,
   createVehicleAssemblyModel,
   simulateStageFlightPreview,
@@ -828,6 +830,8 @@ function createStageFlightPreviewInputs({
   topology,
   assembly,
   stageComponents,
+  lengthM,
+  diameterM,
   motor,
   userMotorRecords,
   dragCoefficient,
@@ -848,6 +852,8 @@ function createStageFlightPreviewInputs({
   topology: LocalVehicleTopology;
   assembly: VehicleAssemblyEvaluation;
   stageComponents: readonly VehicleComponent[];
+  lengthM: number;
+  diameterM: number;
   motor: MotorDataRecord;
   userMotorRecords: readonly MotorDataRecord[];
   dragCoefficient: number;
@@ -890,12 +896,29 @@ function createStageFlightPreviewInputs({
     const stage = stageById.get(instance.stageId);
     return stage?.role === "payload" || isRetainedComponent(instance);
   });
-  const retainedMassProperties = combineMassProperties(
+  const rawRetainedMassProperties = combineMassProperties(
     retainedInstances.map((instance) => instance.massProperties),
   );
-  if (!(retainedMassProperties.massKg > 0)) {
+  if (!(rawRetainedMassProperties.massKg > 0)) {
     throw new Error("Stage preview needs a positive retained payload or recovery mass.");
   }
+  const rawRetainedInertia = rawRetainedMassProperties.inertiaAtCenterKgM2;
+  const retainedInertiaLeadingMinor2 =
+    rawRetainedInertia[0][0] * rawRetainedInertia[1][1] -
+    rawRetainedInertia[0][1] * rawRetainedInertia[1][0];
+  const retainedInertiaIsPositiveDefinite =
+    rawRetainedInertia[0][0] > 0 &&
+    retainedInertiaLeadingMinor2 > 0 &&
+    determinant(rawRetainedInertia) > 0;
+  const retainedMassProperties = retainedInertiaIsPositiveDefinite
+    ? rawRetainedMassProperties
+    : addCompactPackageInertia(rawRetainedMassProperties, {
+        radiusM: Math.max(0.004, Math.min(diameterM * 0.35, 0.03)),
+        lengthM: Math.max(0.04, Math.min(lengthM * 0.18, 0.25)),
+      });
+  const retainedInertiaWarning = retainedInertiaIsPositiveDefinite
+    ? null
+    : "The retained payload/recovery allowance is represented by collinear point masses, so this 6DOF preview adds a bounded compact-package shape inertia placeholder; detailed retained geometry is not modeled.";
 
   const propulsivePlans = activeStages.filter((stage) => stage.role !== "payload");
   const stages: RocketStage[] = propulsivePlans.map((stage) => {
@@ -1173,6 +1196,7 @@ function createStageFlightPreviewInputs({
     stateEvents,
     recoveryDevices,
     additionalWarnings: [
+      ...(retainedInertiaWarning ? [retainedInertiaWarning] : []),
       ...motorAssignmentWarnings,
       ...stageFailureWarnings,
       ...aerodynamicAssignmentWarnings,
@@ -4152,6 +4176,8 @@ export default function Home() {
             topology: vehicleTopology,
             assembly,
             stageComponents: stageFlightComponents,
+            lengthM: length / 1000,
+            diameterM: diameter / 1000,
             motor: previewMotor,
             userMotorRecords,
             dragCoefficient,
@@ -4197,6 +4223,8 @@ export default function Home() {
           topology: vehicleTopology,
           assembly,
           stageComponents: stageFlightComponents,
+          lengthM: length / 1000,
+          diameterM: diameter / 1000,
           motor: previewMotor,
           userMotorRecords,
           dragCoefficient,

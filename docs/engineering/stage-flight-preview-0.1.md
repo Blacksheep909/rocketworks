@@ -179,6 +179,12 @@ detached/detached trace pair from the later release time and reports the
 closest assessed pair. This is path-divergence telemetry only; it does not
 model body envelopes, collision, aerodynamic clearance, or range safety.
 
+If the retained payload/recovery allowance is made only from collinear point
+masses, the browser adapter adds a versioned compact-package shape inertia
+(`kestrel-compact-package-inertia-0.1.0`) before constructing the rigid-body
+state. This keeps the state positive-definite while leaving the result
+explicitly approximate; it is not a substitute for retained CAD geometry.
+
 ## Limitations
 
 - The retained-body staging model remains a single tracked vehicle; each

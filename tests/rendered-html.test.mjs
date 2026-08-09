@@ -85,6 +85,8 @@ test("ships versioned flight results and explainable model UI", async () => {
   assert.match(source, /resultIsCurrent/);
   assert.match(source, /RERUN REQUIRED/);
   assert.match(source, /SIMULATION_FRESHNESS_MODEL_VERSION/);
+  assert.match(source, /addCompactPackageInertia/);
+  assert.match(source, /compact-package shape inertia placeholder/);
   assert.match(source, /Separated trajectories/);
   assert.match(source, /separatedBodies/);
   assert.match(source, /Multi-body COM separation/);

@@ -66,6 +66,7 @@ Automated tests currently cover:
 - 90-degree rigid rotation of center and principal moments
 - symmetric fin-set mass and transverse-center cancellation
 - active-stage filtering
+- compact-package shape inertia for retained point-mass allowances
 
 The numerical integration tolerance in these closed-form cases is `1e-12`.
 
@@ -77,6 +78,10 @@ The numerical integration tolerance in these closed-form cases is `1e-12`.
 - Curved profiles are approximated by their supplied radius stations.
 - The fin model assumes a planar, uniform trapezoidal extrusion.
 - Point masses without a local tensor understate their own rotational inertia.
+- The browser's retained payload/recovery fallback may add the versioned
+  `kestrel-compact-package-inertia-0.1.0` solid-cylinder shape term when a
+  point-mass-only retained state would be singular. This is an explicit
+  positive-definite placeholder, not measured or CAD-derived geometry.
 - Flexibility, slosh, propellant motion, ablation, and separation transients are
   not modeled.
 - CAD-derived and experimentally measured properties are not yet supported.
@@ -104,4 +109,3 @@ Do not use these values as the sole basis for flight-safety decisions.
   Vehicle*. Supports the limitation that physical testing is needed for complex
   finished vehicles:
   https://ntrs.nasa.gov/api/citations/20180001455/downloads/20180001455.pdf
-

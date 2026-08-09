@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   axisymmetricMassProperties,
+  addCompactPackageInertia,
   combineMassProperties,
   computeVehicleMassProperties,
   finSetMassProperties,
@@ -90,6 +91,23 @@ test("parallel-axis composition matches two equal point masses", () => {
   close(combined.inertiaAtCenterKgM2[2][2], 4, 1e-12, "Izz");
 });
 
+test("compact package inertia gives point-mass retained payloads a finite rigid-body shape", () => {
+  const result = addCompactPackageInertia(
+    {
+      massKg: 0.2,
+      centerOfMassM: { x: 0.3, y: 0, z: 0 },
+      inertiaAtCenterKgM2: [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+    },
+    { radiusM: 0.02, lengthM: 0.12 },
+  );
+
+  close(result.inertiaAtCenterKgM2[0][0], 0.5 * 0.2 * 0.02 ** 2, 1e-15, "axial package inertia");
+  close(result.inertiaAtCenterKgM2[1][1], (0.2 / 12) * (3 * 0.02 ** 2 + 0.12 ** 2), 1e-15, "transverse package inertia");
+  assert.ok(result.inertiaAtCenterKgM2[0][0] > 0);
+  assert.ok(result.inertiaAtCenterKgM2[1][1] > 0);
+  assert.equal(result.centerOfMassM.x, 0.3);
+});
+
 test("rigid rotation preserves principal moments and rotates the center", () => {
   const result = transformMassProperties(
     {
@@ -162,4 +180,3 @@ test("stage filtering excludes inactive-stage components", () => {
   assert.equal(result.componentCount, 1);
   assert.deepEqual(result.activeStageIds, ["sustainer"]);
 });
-
