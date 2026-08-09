@@ -960,6 +960,7 @@ function createFlightConfig({
   recoveryDelay,
   recoveryDiameter,
   motorRecord,
+  aerodynamicTable,
 }: {
   mass: number;
   diameter: number;
@@ -972,6 +973,7 @@ function createFlightConfig({
   recoveryDelay: number;
   recoveryDiameter: number;
   motorRecord?: MotorDataRecord;
+  aerodynamicTable?: AerodynamicCoefficientTableModel | null;
 }): VerticalFlightConfig {
   const motor = motorRecord ?? createPreviewMotorRecord({ mass, thrust, burnTime });
   const propellantMassKg = motor.metrics.propellantMassKg;
@@ -986,6 +988,14 @@ function createFlightConfig({
       referenceAreaM2: Math.PI * Math.pow(diameter / 2000, 2),
       dragCoefficient,
     },
+    ...(aerodynamicTable
+      ? {
+          aerodynamics: {
+            coefficientTable: aerodynamicTable,
+            referenceLengthM: diameter / 1000,
+          },
+        }
+      : {}),
     motor: { thrustCurve: [...motor.thrustCurve] },
     recovery: {
       enabled: recoveryEnabled,
@@ -2138,6 +2148,7 @@ export default function Home() {
       recoveryDelay,
       recoveryDiameter,
       motorRecord: previewMotor,
+      aerodynamicTable: selectedAerodynamicTable,
     }),
   );
   const [lastRunFingerprint, setLastRunFingerprint] = useState<string | null>(
@@ -2163,6 +2174,7 @@ export default function Home() {
       recoveryDelay,
       recoveryDiameter,
       motorRecord: previewMotor,
+      aerodynamicTable: selectedAerodynamicTable,
     }),
   );
   const [landingPrediction, setLandingPrediction] =
@@ -3040,6 +3052,7 @@ export default function Home() {
       recoveryDiameter,
       recoveryDeploymentSuccessProbability,
       motorRecord: previewMotor,
+      aerodynamicTable: selectedAerodynamicTable,
     };
     const runFingerprint = simulationFingerprint;
     setRunning(true);
@@ -3145,6 +3158,7 @@ export default function Home() {
           recoveryDelay,
           recoveryDiameter,
           motorRecord: previewMotor,
+          aerodynamicTable: selectedAerodynamicTable,
         };
         setSweepResult(
           createSweepResult(
@@ -3182,6 +3196,7 @@ export default function Home() {
           recoveryDelay,
           recoveryDiameter,
           motorRecord: previewMotor,
+          aerodynamicTable: selectedAerodynamicTable,
         };
         setOptimization({
           result: createOptimizationResult(inputs),
@@ -4052,7 +4067,7 @@ export default function Home() {
                   <div><span>Reynolds range</span><strong>{selectedAerodynamicTable ? `${selectedAerodynamicTable.reynoldsRange[0].toExponential(1)}–${selectedAerodynamicTable.reynoldsRange[1].toExponential(1)}` : "fixed"}</strong></div>
                   <div><span>Validation</span><strong>{selectedAerodynamicTable?.validationStatus ?? "analytical preview"}</strong></div>
                 </div>
-                <p className="motor-provenance">Coefficient tables affect the topology-aware 6DOF preview only. The fast vertical estimate continues to use the explicit Cd input; table data are never promoted to flight certification.</p>
+                <p className="motor-provenance">Coefficient tables now drive both the fast vertical estimate and topology-aware 6DOF preview when selected. Out-of-range queries remain visible as warnings, and table data are never promoted to flight certification.</p>
                 <div className="property-section-label">
                   <span>Flight environment</span>
                   <small>{previewEnvironment.modelVersion}</small>
@@ -4297,7 +4312,7 @@ export default function Home() {
               <div>
                 <span className="eyebrow">Data center</span>
                 <h2 id="aerodynamic-library-title">Aerodynamic data</h2>
-                <p id="aerodynamic-library-description">Import a rectangular Mach–Reynolds coefficient surface with explicit axes, uncertainty, and provenance. Tables are used by the topology-aware 6DOF preview; the fast vertical estimate keeps its explicit constant Cd.</p>
+                <p id="aerodynamic-library-description">Import a rectangular Mach–Reynolds coefficient surface with explicit axes, uncertainty, and provenance. The selected table is used by both the nominal vertical estimate and the topology-aware 6DOF preview.</p>
               </div>
               <button
                 ref={aerodynamicLibraryCloseRef}

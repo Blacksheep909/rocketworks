@@ -1,4 +1,9 @@
-import { gravityAtAltitude, standardAtmosphere } from "./atmosphere.ts";
+import {
+  gravityAtAltitude,
+  reynoldsNumber,
+  standardAtmosphere,
+} from "./atmosphere.ts";
+import type { AerodynamicCoefficientTableModel } from "./aerodynamic-coefficients.ts";
 import {
   interpolateWind,
   propellantFractionConsumed,
@@ -43,6 +48,10 @@ export type VerticalFlightConfig = {
     propellantMassKg: number;
     referenceAreaM2: number;
     dragCoefficient: number;
+  };
+  aerodynamics?: {
+    coefficientTable: AerodynamicCoefficientTableModel;
+    referenceLengthM: number;
   };
   motor: {
     thrustCurve: ThrustPoint[];
@@ -93,6 +102,8 @@ export type VerticalFlightResult = {
   impactSpeedMps: number | null;
   thrustToWeightAtIgnition: number;
   totalImpulseNs: number;
+  aerodynamicCoefficientBasis?: "constant" | "mach-reynolds-table";
+  aerodynamicModelVersion?: string;
   events: FlightEvent[];
   warnings: ModelWarning[];
   trace: FlightTracePoint[];
@@ -117,6 +128,9 @@ function validateConfig(config: VerticalFlightConfig) {
   }
   assertPositive(config.vehicle.referenceAreaM2, "Reference area");
   assertPositive(config.vehicle.dragCoefficient, "Drag coefficient");
+  if (config.aerodynamics) {
+    assertPositive(config.aerodynamics.referenceLengthM, "Aerodynamic reference length");
+  }
   validateThrustCurve(config.motor.thrustCurve);
   validateWindProfile(config.environment?.windProfile ?? []);
   if (config.recovery?.enabled) {
@@ -175,6 +189,8 @@ export function simulateVerticalFlight(
   let maxMach = 0;
   let maxDynamicPressurePa = 0;
   let impactSpeedMps: number | null = null;
+  const aerodynamicApplicabilityWarnings = new Map<string, ModelWarning>();
+  let aerodynamicFallbackWarning: string | null = null;
 
   const sample = (
     sampleTimeS: number,
@@ -193,8 +209,42 @@ export function simulateVerticalFlight(
     const relativeVerticalMps = sampleState.velocityMps - wind.upMps;
     const dynamicPressurePa =
       0.5 * atmosphere.densityKgM3 * relativeVerticalMps * relativeVerticalMps;
+    const mach = Math.abs(relativeVerticalMps) / atmosphere.speedOfSoundMps;
+    let bodyDragCoefficient = config.vehicle.dragCoefficient;
+    if (config.aerodynamics) {
+      try {
+        const queryReynoldsNumber = reynoldsNumber({
+          densityKgM3: atmosphere.densityKgM3,
+          speedMps: Math.abs(relativeVerticalMps),
+          referenceLengthM: config.aerodynamics.referenceLengthM,
+          dynamicViscosityPaS: atmosphere.dynamicViscosityPaS,
+        });
+        const evaluation = config.aerodynamics.coefficientTable.evaluate({
+          mach,
+          reynoldsNumber: queryReynoldsNumber,
+        });
+        bodyDragCoefficient = evaluation.dragCoefficient;
+        for (const issue of evaluation.applicability) {
+          if (!aerodynamicApplicabilityWarnings.has(issue.code)) {
+            aerodynamicApplicabilityWarnings.set(issue.code, {
+              code: issue.code,
+              severity: issue.severity === "info" ? "info" : "warning",
+              title: "Aerodynamic coefficient table applicability",
+              explanation: issue.explanation,
+            });
+          }
+        }
+      } catch (error) {
+        bodyDragCoefficient = config.vehicle.dragCoefficient;
+        if (aerodynamicFallbackWarning === null) {
+          aerodynamicFallbackWarning = error instanceof Error
+            ? error.message
+            : "The aerodynamic coefficient table could not be evaluated.";
+        }
+      }
+    }
     const bodyCdA =
-      config.vehicle.dragCoefficient * config.vehicle.referenceAreaM2;
+      bodyDragCoefficient * config.vehicle.referenceAreaM2;
     const recoveryCdA =
       chuteDeployed && config.recovery?.enabled
         ? config.recovery.dragCoefficient * config.recovery.dragAreaM2
@@ -226,7 +276,7 @@ export function simulateVerticalFlight(
         massKg,
         thrustN,
         densityKgM3: atmosphere.densityKgM3,
-        mach: Math.abs(relativeVerticalMps) / atmosphere.speedOfSoundMps,
+        mach,
         dynamicPressurePa,
         horizontalWindMps: wind.horizontalSpeedMps,
         recoveryDeployed: chuteDeployed,
@@ -401,7 +451,16 @@ export function simulateVerticalFlight(
         "Slow initial acceleration can increase sensitivity to wind and launcher geometry.",
     });
   }
-  if (maxMach > 0.75) {
+  if (aerodynamicFallbackWarning !== null) {
+    warnings.push({
+      code: "AERODYNAMIC_TABLE_FALLBACK",
+      severity: "warning",
+      title: "Aerodynamic table fallback",
+      explanation: `${aerodynamicFallbackWarning} The explicit constant Cd input was used for the affected samples.`,
+    });
+  }
+  warnings.push(...aerodynamicApplicabilityWarnings.values());
+  if (maxMach > 0.75 && !config.aerodynamics) {
     warnings.push({
       code: "CONSTANT_CD_TRANSONIC",
       severity: "warning",
@@ -439,13 +498,19 @@ export function simulateVerticalFlight(
     impactSpeedMps,
     thrustToWeightAtIgnition,
     totalImpulseNs: totalImpulse(thrustCurve),
+    aerodynamicCoefficientBasis: config.aerodynamics
+      ? "mach-reynolds-table"
+      : "constant",
+    aerodynamicModelVersion: config.aerodynamics?.coefficientTable.modelVersion,
     events,
     warnings,
     trace,
     assumptions: [
       "One-dimensional vertical translation",
       "U.S. Standard Atmosphere 1976 through 20 km",
-      "User-supplied drag coefficient is constant with Mach and Reynolds number",
+      config.aerodynamics
+        ? "Drag coefficient is interpolated from the supplied Mach-Reynolds table"
+        : "User-supplied drag coefficient is constant with Mach and Reynolds number",
       "Thrust curve is linearly interpolated",
       "Propellant depletion is proportional to delivered impulse",
       "Rigid vehicle with no attitude, stability, or structural dynamics",

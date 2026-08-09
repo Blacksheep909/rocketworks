@@ -43,6 +43,11 @@ Primary references:
 - Launch-pad constraint, liftoff, burnout, apogee, optional recovery deployment,
   ground impact, and no-liftoff events.
 - Body and recovery drag areas.
+- Optional Mach--Reynolds drag-table coupling using the same coefficient-table
+  interpolation path as the coupled load adapter. When a table is selected,
+  the solver computes Reynolds number from atmospheric density, relative speed,
+  viscosity, and the vehicle reference length; out-of-range or rejected
+  queries remain explicit warnings and fall back to the declared constant Cd.
 - Altitude-dependent gravity.
 - Explainable limitations and warnings.
 
@@ -71,7 +76,7 @@ bounded parameter sweeps, and constrained optimization. These are deliberately
 separate adapters so the fast vertical result remains easy to inspect and
 regression-test.
 
-Remaining work includes Mach- and Reynolds-dependent drag build-up, complete
+Remaining work includes richer Mach- and Reynolds-dependent drag build-up, complete
 discarded-body staging trajectories, an independent benchmark corpus, and an
 experimental validation ledger. None of those gaps are hidden by the vertical
 model or its UI status badges.

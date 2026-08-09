@@ -27,17 +27,16 @@ bounded and inspectable.
 ## Simulation coupling
 
 The selected table is applied to every generated topology regime in the
-coupled, topology-aware 6DOF preview. The runtime queries the table with the
-current Mach and atmosphere-derived Reynolds number, carrying coefficient
-uncertainty, applicability issues, and provenance into the load diagnostics.
-Boundary clamping is never silent: each exceeded axis becomes an unsupported
-applicability warning.
+coupled, topology-aware 6DOF preview and can also drive the fast vertical
+estimate. Both paths query the table with current Mach and
+atmosphere-derived Reynolds number, carrying applicability issues and
+provenance into the result. Boundary clamping is never silent: each exceeded
+axis becomes an unsupported applicability warning. A rejected query falls
+back to the explicitly configured constant Cd for that sample and records a
+warning rather than silently discarding the table.
 
-The fast vertical estimate deliberately continues to use its explicit constant
-drag coefficient. This preserves a transparent, deterministic comparison path
-while the table-backed 6DOF path exercises the Mach/Reynolds model. The Flight
-inspector labels this distinction and the project export includes the selected
-table definition or constant-Cd fallback.
+The Flight inspector labels the active coefficient basis, and the project
+export includes the selected table definition or constant-Cd fallback.
 
 ## Storage and safety boundary
 

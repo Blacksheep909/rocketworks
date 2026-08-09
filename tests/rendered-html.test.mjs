@@ -417,13 +417,16 @@ test("ships a provenance-aware local aerodynamic table workflow", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const library = await readFile(new URL("../lib/project/aero-library-state.ts", import.meta.url), "utf8");
   const stageAware = await readFile(new URL("../lib/physics/stage-aware-aerodynamics.ts", import.meta.url), "utf8");
+  const verticalFlight = await readFile(new URL("../lib/physics/vertical-flight.ts", import.meta.url), "utf8");
   const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(page, /Aerodynamic data/);
   assert.match(page, /Mach–Reynolds coefficient surface/);
   assert.match(page, /Validate and save table/);
   assert.match(page, /selectedAerodynamicTable/);
+  assert.match(page, /aerodynamicTable: selectedAerodynamicTable/);
+  assert.match(verticalFlight, /mach-reynolds-table/);
   assert.match(page, /globalTable: aerodynamicTable \?\? null/);
-  assert.match(page, /fast vertical estimate continues to use the explicit Cd input/);
+  assert.match(page, /Coefficient tables now drive both the fast vertical estimate/);
   assert.match(library, /LOCAL_AERODYNAMIC_LIBRARY_LIMIT = 8/);
   assert.match(library, /parseLocalAerodynamicLibrary/);
   assert.match(library, /createAerodynamicCoefficientTable/);

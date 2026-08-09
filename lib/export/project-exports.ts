@@ -731,6 +731,14 @@ export function createEngineeringReportMarkdown(
     "",
     `Model: \`${markdownText(input.flight.modelVersion)}\`  `,
     `Status: \`${markdownText(input.flight.validationStatus)}\``,
+    ...(input.flight.aerodynamicCoefficientBasis
+      ? [
+          `Aerodynamic coefficient basis: \`${markdownText(input.flight.aerodynamicCoefficientBasis)}\``,
+          ...(input.flight.aerodynamicModelVersion
+            ? [`Aerodynamic coefficient model: \`${markdownText(input.flight.aerodynamicModelVersion)}\``]
+            : []),
+        ]
+      : []),
     "",
     "| Metric | Estimate |",
     "|---|---:|",

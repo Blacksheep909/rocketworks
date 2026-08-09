@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   impulseThrough,
+  createAerodynamicCoefficientTable,
   computeStructuralScreen,
   interpolateWind,
   makeConstantThrustCurve,
@@ -116,6 +117,51 @@ test("structural screen keeps dynamic-pressure checks visibly unavailable", () =
   assert.equal(result.checks.finShear.status, "unavailable");
   assert.equal(result.overallStatus, "review");
   assert.ok(result.warnings.some((warning) => /dynamic pressure/i.test(warning)));
+});
+
+test("vertical flight can consume a Mach-Reynolds drag table with explicit applicability", () => {
+  const table = createAerodynamicCoefficientTable({
+    id: "table-fixture",
+    name: "Vertical table fixture",
+    machPoints: [0, 1, 2],
+    reynoldsPoints: [1, 1e9],
+    dragCoefficient: {
+      values: [
+        [0.12, 0.14, 0.18],
+        [0.12, 0.14, 0.18],
+      ],
+    },
+    normalForceSlopePerRad: { values: [[4, 4, 4], [4, 4, 4]] },
+    centerOfPressureXM: { values: [[0.4, 0.4, 0.4], [0.4, 0.4, 0.4]] },
+    outOfRangePolicy: "clamp-with-warning",
+    provenance: {
+      sourceName: "Kestrel fixture",
+      sourceKind: "user-supplied",
+      dataVersion: "test-1",
+      licenseIdentifier: "CC0-1.0",
+      attribution: "Original test fixture",
+      validationStatus: "user-supplied-unvalidated",
+    },
+  });
+  const baseConfig = {
+    vehicle: {
+      dryMassKg: 0.5,
+      propellantMassKg: 0.05,
+      referenceAreaM2: 0.002,
+      dragCoefficient: 0.8,
+    },
+    motor: { thrustCurve: makeConstantThrustCurve(20, 1) },
+    integration: { timeStepS: 0.02, maxTimeS: 40 },
+  };
+  const tableResult = simulateVerticalFlight({
+    ...baseConfig,
+    aerodynamics: { coefficientTable: table, referenceLengthM: 0.05 },
+  });
+  const constantResult = simulateVerticalFlight(baseConfig);
+  assert.equal(tableResult.aerodynamicCoefficientBasis, "mach-reynolds-table");
+  assert.equal(tableResult.aerodynamicModelVersion, table.modelVersion);
+  assert.ok(tableResult.apogeeM > constantResult.apogeeM);
+  assert.ok(tableResult.warnings.some((warning) => warning.code === "REYNOLDS_BELOW_TABLE"));
 });
 
 test("standard atmosphere reproduces the 11 km geopotential boundary", () => {
