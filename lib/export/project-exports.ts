@@ -24,6 +24,7 @@ export type JsonValue =
 export type RocketCadGeometry = Readonly<{
   projectName: string;
   noseLengthM: number;
+  noseProfile?: "ogive" | "conical" | "elliptical";
   bodyLengthM: number;
   diameterM: number;
   finCount: number;
@@ -283,6 +284,9 @@ function validateCadGeometry(geometry: RocketCadGeometry): void {
   if (geometry.finSweepM + geometry.finTipChordM > geometry.finRootChordM) {
     throw new Error("CAD fin tip must remain within the root-chord axial envelope");
   }
+  if (geometry.noseProfile !== undefined && !["ogive", "conical", "elliptical"].includes(geometry.noseProfile)) {
+    throw new Error("CAD nose profile must be ogive, conical, or elliptical");
+  }
   for (const [label, value] of [
     ["center of mass", geometry.centerOfMassXM],
     ["center of pressure", geometry.centerOfPressureXM],
@@ -307,6 +311,20 @@ function tangentOgiveRadiusMm(
     radiusMm -
     generatingRadiusMm
   );
+}
+
+function profileRadiusMm(
+  axialMm: number,
+  lengthMm: number,
+  radiusMm: number,
+  profile: RocketCadGeometry["noseProfile"] = "ogive",
+): number {
+  if (profile === "conical") return (radiusMm * axialMm) / lengthMm;
+  if (profile === "elliptical") {
+    const fraction = axialMm / lengthMm;
+    return radiusMm * Math.sqrt(Math.max(0, 1 - (1 - fraction) ** 2));
+  }
+  return tangentOgiveRadiusMm(axialMm, lengthMm, radiusMm);
 }
 
 function dxfPair(code: number, value: string | number): string[] {
@@ -371,7 +389,7 @@ export function createRocketProfileDxf(geometry: RocketCadGeometry): string {
     const axialMm = (noseLengthMm * index) / 24;
     return {
       x: axialMm,
-      y: tangentOgiveRadiusMm(axialMm, noseLengthMm, radiusMm),
+      y: profileRadiusMm(axialMm, noseLengthMm, radiusMm, geometry.noseProfile),
     };
   });
   const outline = [
@@ -446,7 +464,7 @@ export function createRocketOpenScad(geometry: RocketCadGeometry): string {
   const noseSurface = Array.from({ length: 33 }, (_, index) => {
     const axialMm = (noseLengthMm * index) / 32;
     return [
-      tangentOgiveRadiusMm(axialMm, noseLengthMm, radiusMm),
+      profileRadiusMm(axialMm, noseLengthMm, radiusMm, geometry.noseProfile),
       axialMm,
     ] as const;
   });

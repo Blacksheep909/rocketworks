@@ -6,10 +6,19 @@ export const LOCAL_PROJECT_HISTORY_STORAGE_KEY = "kestrel.project.arc54.history.
 export const DEFAULT_LOCAL_HISTORY_LIMIT = 40;
 
 export type ProjectMaterial = "kraft" | "fiberglass" | "carbon";
+export type NoseProfile = "ogive" | "conical" | "elliptical";
 
 export type EditableProjectInputs = Readonly<{
   lengthMm: number;
   diameterMm: number;
+  noseLengthMm: number;
+  noseProfile: NoseProfile;
+  finCount: number;
+  finRootChordMm: number;
+  finTipChordMm: number;
+  finSweepMm: number;
+  finSpanMm: number;
+  finThicknessMm: number;
   payloadMassKg: number;
   material: ProjectMaterial;
   thrustN: number;
@@ -22,6 +31,7 @@ export type EditableProjectInputs = Readonly<{
   recoveryEnabled: boolean;
   recoveryDelayS: number;
   recoveryDiameterM: number;
+  recoveryMassKg: number;
   recoveryDeploymentSuccessProbability: number;
 }>;
 
@@ -48,9 +58,16 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "recoveryEnabled" | "launchRailEnabled">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "recoveryEnabled" | "launchRailEnabled">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
+  noseLengthMm: [40, 600],
+  finCount: [2, 12],
+  finRootChordMm: [20, 500],
+  finTipChordMm: [5, 300],
+  finSweepMm: [0, 300],
+  finSpanMm: [5, 300],
+  finThicknessMm: [0.2, 20],
   payloadMassKg: [0.001, 20],
   thrustN: [1, 5000],
   burnTimeS: [0.1, 30],
@@ -60,7 +77,21 @@ const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material
   launchRailLengthM: [0.25, 12],
   recoveryDelayS: [0, 30],
   recoveryDiameterM: [0.1, 3],
+  recoveryMassKg: [0.005, 2],
   recoveryDeploymentSuccessProbability: [0, 1],
+};
+
+const numericDefaults: Readonly<Partial<Record<keyof typeof numericRanges, number>>> = {
+  noseLengthMm: 180,
+  finCount: 3,
+  finRootChordMm: 130,
+  finTipChordMm: 55,
+  finSweepMm: 45,
+  finSpanMm: 75,
+  finThicknessMm: 3,
+  launchRailLengthM: 1.2,
+  recoveryMassKg: 0.06,
+  recoveryDeploymentSuccessProbability: 0.9,
 };
 
 function objectValue(value: unknown, label: string): Record<string, unknown> {
@@ -96,17 +127,27 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   const input = objectValue(value, "Project inputs");
   const validated = {} as Record<string, number>;
   for (const [key, [minimum, maximum]] of Object.entries(numericRanges)) {
-    const candidate = input[key] ?? (
-      key === "launchRailLengthM"
-        ? 1.2
-        : key === "recoveryDeploymentSuccessProbability"
-          ? 0.9
-          : undefined
-    );
+    const candidate = input[key] ?? numericDefaults[key as keyof typeof numericDefaults];
     if (typeof candidate !== "number" || !Number.isFinite(candidate) || candidate < minimum || candidate > maximum) {
       throw new Error(`${key} must be a finite number from ${minimum} to ${maximum}.`);
     }
+    if (key === "finCount" && !Number.isInteger(candidate)) {
+      throw new Error("finCount must be an integer from 2 through 12.");
+    }
     validated[key] = candidate;
+  }
+  const noseProfile = input.noseProfile ?? "ogive";
+  if (noseProfile !== "ogive" && noseProfile !== "conical" && noseProfile !== "elliptical") {
+    throw new Error("noseProfile must be ogive, conical, or elliptical.");
+  }
+  if (validated.finTipChordMm > validated.finRootChordMm) {
+    throw new Error("finTipChordMm cannot exceed finRootChordMm.");
+  }
+  if (validated.finRootChordMm > validated.lengthMm) {
+    throw new Error("finRootChordMm cannot exceed lengthMm.");
+  }
+  if (validated.finSweepMm + validated.finTipChordMm > validated.finRootChordMm) {
+    throw new Error("finSweepMm plus finTipChordMm must remain within finRootChordMm.");
   }
   if (input.material !== "kraft" && input.material !== "fiberglass" && input.material !== "carbon") {
     throw new Error("material must be kraft, fiberglass, or carbon.");
@@ -121,6 +162,14 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   return {
     lengthMm: validated.lengthMm,
     diameterMm: validated.diameterMm,
+    noseLengthMm: validated.noseLengthMm,
+    noseProfile,
+    finCount: validated.finCount,
+    finRootChordMm: validated.finRootChordMm,
+    finTipChordMm: validated.finTipChordMm,
+    finSweepMm: validated.finSweepMm,
+    finSpanMm: validated.finSpanMm,
+    finThicknessMm: validated.finThicknessMm,
     payloadMassKg: validated.payloadMassKg,
     material: input.material,
     thrustN: validated.thrustN,
@@ -133,6 +182,7 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     recoveryEnabled: input.recoveryEnabled,
     recoveryDelayS: validated.recoveryDelayS,
     recoveryDiameterM: validated.recoveryDiameterM,
+    recoveryMassKg: validated.recoveryMassKg,
     recoveryDeploymentSuccessProbability: validated.recoveryDeploymentSuccessProbability,
   };
 }
@@ -187,6 +237,14 @@ export function projectInputFingerprint(inputs: EditableProjectInputs): string {
 const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   lengthMm: "airframe length",
   diameterMm: "outer diameter",
+  noseLengthMm: "nose length",
+  noseProfile: "nose profile",
+  finCount: "fin count",
+  finRootChordMm: "fin root chord",
+  finTipChordMm: "fin tip chord",
+  finSweepMm: "fin sweep",
+  finSpanMm: "fin span",
+  finThicknessMm: "fin thickness",
   payloadMassKg: "payload mass",
   material: "airframe material",
   thrustN: "motor thrust",
@@ -199,6 +257,7 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   recoveryEnabled: "recovery system",
   recoveryDelayS: "recovery delay",
   recoveryDiameterM: "canopy diameter",
+  recoveryMassKg: "recovery packed mass",
   recoveryDeploymentSuccessProbability: "recovery deployment reliability assumption",
 };
 

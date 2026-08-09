@@ -14,6 +14,7 @@ import {
   createRocketPreviewMesh,
   projectRocketPreview,
   type ProjectedRocketTriangle,
+  type RocketPreviewNoseProfile,
   type RocketPreviewSurface,
 } from "../lib/visualization/rocket-preview-3d.ts";
 
@@ -37,14 +38,28 @@ function triangleColor(triangle: ProjectedRocketTriangle) {
 
 export function Rocket3DViewport({
   noseLengthM,
+  noseProfile,
   bodyLengthM,
   bodyDiameterM,
+  finCount,
+  finRootChordM,
+  finTipChordM,
+  finSweepM,
+  finSpanM,
+  finThicknessM,
   centerOfMassXM,
   centerOfPressureXM,
 }: Readonly<{
   noseLengthM: number;
+  noseProfile: RocketPreviewNoseProfile;
   bodyLengthM: number;
   bodyDiameterM: number;
+  finCount: number;
+  finRootChordM: number;
+  finTipChordM: number;
+  finSweepM: number;
+  finSpanM: number;
+  finThicknessM: number;
   centerOfMassXM: number;
   centerOfPressureXM: number;
 }>) {
@@ -61,16 +76,17 @@ export function Rocket3DViewport({
     () =>
       createRocketPreviewMesh({
         noseLengthM,
+        noseProfile,
         bodyLengthM,
         bodyRadiusM: bodyDiameterM / 2,
-        finCount: 3,
-        finRootChordM: Math.min(0.13, bodyLengthM * 0.45),
-        finTipChordM: Math.min(0.055, bodyLengthM * 0.18),
-        finSweepM: Math.min(0.045, bodyLengthM * 0.14),
-        finSpanM: 0.075,
-        finThicknessM: 0.003,
+        finCount,
+        finRootChordM,
+        finTipChordM,
+        finSweepM,
+        finSpanM,
+        finThicknessM,
       }),
-    [bodyDiameterM, bodyLengthM, noseLengthM],
+    [bodyDiameterM, bodyLengthM, finCount, finRootChordM, finSpanM, finSweepM, finThicknessM, finTipChordM, noseLengthM, noseProfile],
   );
 
   const draw = useCallback(() => {
@@ -242,7 +258,7 @@ export function Rocket3DViewport({
         ref={canvasRef}
         tabIndex={0}
         role="img"
-        aria-label={`Interactive three-dimensional ARC 54 preview, ${Math.round(mesh.longitudinalLengthM * 1000)} millimetres long. Drag or use arrow keys to orbit, and use the mouse wheel or plus and minus keys to zoom.`}
+        aria-label={`Interactive three-dimensional ARC 54 preview with a ${noseProfile} nose and ${finCount} fins, ${Math.round(mesh.longitudinalLengthM * 1000)} millimetres long. Drag or use arrow keys to orbit, and use the mouse wheel or plus and minus keys to zoom.`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

@@ -342,6 +342,8 @@ kbd {
   border-radius: 100% 0 0 100%;
   background: linear-gradient(180deg,#4a545b 0%,#171c20 48%,#0c1013 52%,#323b42 100%);
 }
+.rocket-nose-conical { border-radius: 100% 0 0 100% / 50% 0 0 50%; clip-path: polygon(100% 0,100% 100%,0 50%); }
+.rocket-nose-elliptical { border-radius: 100% 0 0 100% / 50% 0 0 50%; clip-path: ellipse(100% 50% at 100% 50%); }
 .rocket-body {
   position: relative; height: 58px; min-width: 300px;
   border: 1px solid #4b5963;
@@ -1724,6 +1726,17 @@ body {
 .stage-flight-comparison-grid strong { display: block; margin-top: 5px; color: #ffd0a4; font: 700 12px var(--font-geist-mono), monospace; }
 .stage-flight-comparison-grid small { display: block; margin-top: 4px; color: #738995; font: 7px var(--font-geist-mono), monospace; }
 .stage-flight-comparison-note { margin-top: 10px; color: #9aabb4; font-size: 8px; line-height: 1.5; }
+
+.component-note {
+  margin: 10px 0;
+  padding: 10px;
+  border-left: 2px solid var(--ops-blue);
+  background: rgba(47, 159, 255, .06);
+}
+.component-note span { color: #8bcaff; font: 700 7px var(--font-geist-mono), monospace; letter-spacing: .1em; }
+.component-note p { margin-top: 5px; color: #8fa5b3; font-size: 8px; line-height: 1.5; }
+.component-readout-card { margin-top: 6px; }
+.component-readout-card strong { font-size: 9px; }
 
 .stale-result-banner {
   display: grid;

@@ -1,4 +1,4 @@
-# Three-dimensional design preview 0.1
+# Three-dimensional design preview 0.2
 
 Status: `display-only-unvalidated`
 
@@ -16,10 +16,10 @@ components.
 The three-dimensional preview gives immediate spatial feedback while editing a
 vehicle. It currently visualizes:
 
-- a tangent-ogive display nose
+- an editable ogive, conical, or elliptical display nose
 - cylindrical airframe
 - telemetry-blue body band
-- three extruded trapezoidal fins
+- the current fin count and editable trapezoidal planform
 - rear closure and motor nozzle
 - live center-of-gravity and center-of-pressure markers
 
@@ -44,7 +44,7 @@ The body uses triangulated cylindrical sections. Each fin is constructed as a
 thin closed trapezoidal prism oriented evenly around the body axis. The nozzle
 is a tapered cylindrical display surface.
 
-Version 0.1 renders those triangles through an original perspective projection,
+Version 0.2 renders those triangles through an original perspective projection,
 depth-sort painter, and directional intensity calculation. It uses the Canvas
 2D API rather than a third-party 3D or CAD library.
 
@@ -64,6 +64,7 @@ depth-sort painter, and directional intensity calculation. It uses the Canvas
 Automated tests cover:
 
 - exact tangent-ogive tip and base endpoints
+- distinct conical and elliptical nose profiles
 - monotonic profile radius
 - required display surfaces and finite vertices
 - geometric extents
@@ -80,9 +81,11 @@ flight safety.
 
 ## Known limitations
 
-- The preview currently maps the browser's single-stage ARC 54 dimensions, not
+- The preview currently maps the browser's single-stage ARC 54 dimensions and
+  current component geometry, not
   every node in the general assembly graph.
-- Fin count and planform are fixed to the current three-fin browser design.
+- Stage visibility, component picking, and expanded assembly-instance rendering
+  are not yet implemented.
 - No internal components, transparency, section cuts, exploded views, stage
   separation animation, material texture, or component selection.
 - Painter-style triangle sorting can produce minor overlap artifacts for future

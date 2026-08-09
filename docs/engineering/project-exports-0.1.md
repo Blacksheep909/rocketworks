@@ -118,6 +118,7 @@ not-manufacturing-approved warning, then records:
 
 - export version and timestamp
 - vehicle dimensions, mass, CG, CP, stability, and inertia
+- selected nose profile and fin planform geometry in the CAD-reference inputs
 - mass and aerodynamic model versions
 - motor performance and provenance
 - launch site, wind, environment version, status, and provenance

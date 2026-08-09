@@ -71,6 +71,7 @@ import {
   type EditableProjectInputs,
   type LocalProjectHistory,
   type LocalProjectSnapshot,
+  type NoseProfile,
 } from "../lib/project/project-state.ts";
 import {
   EXPERIENCE_MODE_STORAGE_KEY,
@@ -353,19 +354,52 @@ function createPreviewEnvironment(
 function makeDesignComponents({
   lengthM,
   diameterM,
+  noseLengthM = 0.18,
+  noseProfile = "ogive",
+  finCount = 3,
+  finRootChordM = 0.13,
+  finTipChordM = 0.055,
+  finSweepM = 0.045,
+  finSpanM = 0.075,
+  finThicknessM = 0.003,
   material,
   payloadMassKg,
   motorMassKg = 0.16,
+  recoveryMassKg = 0.06,
 }: {
   lengthM: number;
   diameterM: number;
+  noseLengthM?: number;
+  noseProfile?: NoseProfile;
+  finCount?: number;
+  finRootChordM?: number;
+  finTipChordM?: number;
+  finSweepM?: number;
+  finSpanM?: number;
+  finThicknessM?: number;
   material: MaterialKey;
   payloadMassKg: number;
   motorMassKg?: number;
+  recoveryMassKg?: number;
 }): VehicleComponent[] {
-  const noseLengthM = 0.18;
   const radiusM = diameterM / 2;
   const airframe = materialModels[material];
+  const noseStations = noseProfile === "conical"
+    ? [
+        { xM: 0, outerRadiusM: 0 },
+        { xM: noseLengthM, outerRadiusM: radiusM },
+      ]
+    : noseProfile === "elliptical"
+      ? [
+          { xM: 0, outerRadiusM: 0 },
+          { xM: noseLengthM * 0.5, outerRadiusM: radiusM * Math.SQRT1_2 },
+          { xM: noseLengthM, outerRadiusM: radiusM },
+        ]
+      : [
+          { xM: 0, outerRadiusM: 0 },
+          { xM: noseLengthM * 0.35, outerRadiusM: radiusM * 0.62 },
+          { xM: noseLengthM, outerRadiusM: radiusM },
+        ];
   return [
     {
       id: "nose",
@@ -374,11 +408,7 @@ function makeDesignComponents({
       kind: "axisymmetric",
       densityKgM3: 1150,
       wallThicknessM: 0.002,
-      stations: [
-        { xM: 0, outerRadiusM: 0 },
-        { xM: noseLengthM * 0.35, outerRadiusM: radiusM * 0.62 },
-        { xM: noseLengthM, outerRadiusM: radiusM },
-      ],
+      stations: noseStations,
     },
     {
       id: "body",
@@ -398,14 +428,14 @@ function makeDesignComponents({
       name: "Fin set",
       stageId: "sustainer",
       kind: "finSet",
-      count: 3,
-      axialPositionM: noseLengthM + Math.max(0, lengthM - 0.13),
+      count: finCount,
+      axialPositionM: noseLengthM + Math.max(0, lengthM - finRootChordM),
       bodyRadiusM: radiusM,
-      rootChordM: 0.13,
-      tipChordM: 0.055,
-      sweepM: 0.045,
-      spanM: 0.075,
-      thicknessM: 0.003,
+      rootChordM: finRootChordM,
+      tipChordM: finTipChordM,
+      sweepM: finSweepM,
+      spanM: finSpanM,
+      thicknessM: finThicknessM,
       densityKgM3: 600,
     },
     {
@@ -425,7 +455,7 @@ function makeDesignComponents({
       name: "Recovery allowance",
       stageId: "sustainer",
       kind: "pointMass",
-      massKg: 0.06,
+      massKg: recoveryMassKg,
       positionM: {
         x: noseLengthM + Math.min(0.09, lengthM * 0.2),
         y: 0,
@@ -451,8 +481,8 @@ function stageScaleForRole(role: VehicleStageRole): number {
   return role === "core" ? 1 : role === "booster" ? 0.72 : role === "payload" ? 0.48 : 0.62;
 }
 
-function stageEnvelopeLengthM(role: VehicleStageRole, lengthM: number): number {
-  return 0.18 + lengthM * stageScaleForRole(role);
+function stageEnvelopeLengthM(role: VehicleStageRole, lengthM: number, noseLengthM: number): number {
+  return noseLengthM * stageScaleForRole(role) + lengthM * stageScaleForRole(role);
 }
 
 type StagePlacement = Readonly<{
@@ -464,6 +494,7 @@ type StagePlacement = Readonly<{
 function createStagePlacements(
   stages: readonly VehicleStagePlan[],
   lengthM: number,
+  noseLengthM = 0.18,
 ): readonly StagePlacement[] {
   const placementById = new Map<string, StagePlacement>();
   return stages.map((stage) => {
@@ -471,9 +502,9 @@ function createStagePlacements(
       ? placementById.get(stage.parentStageId)?.translationXM ?? 0
       : 0;
     const translationXM = stage.role === "core"
-      ? 0
-      : stage.attachment === "serial"
-        ? parentTranslationXM - stageEnvelopeLengthM(stage.role, lengthM)
+        ? 0
+        : stage.attachment === "serial"
+        ? parentTranslationXM - stageEnvelopeLengthM(stage.role, lengthM, noseLengthM)
         : parentTranslationXM;
     const placement = {
       stage,
@@ -537,12 +568,21 @@ function makePlacedStageComponents(
   inputs: Readonly<{
     lengthM: number;
     diameterM: number;
+    noseLengthM: number;
+    noseProfile: NoseProfile;
+    finCount: number;
+    finRootChordM: number;
+    finTipChordM: number;
+    finSweepM: number;
+    finSpanM: number;
+    finThicknessM: number;
     material: MaterialKey;
     payloadMassKg: number;
+    recoveryMassKg: number;
     motorMassKgByStageId?: Readonly<Record<string, number>>;
   }>,
 ): VehicleComponent[] {
-  return createStagePlacements(stages, inputs.lengthM).flatMap((placement) => {
+  return createStagePlacements(stages, inputs.lengthM, inputs.noseLengthM).flatMap((placement) => {
     const stageComponents = makeAssemblyStageComponents(placement.stage, baseComponents, inputs);
     return Array.from({ length: placement.instanceCount }, (_, instanceIndex) =>
       stageComponents.map((component) => placeStageComponent(component, placement, instanceIndex)),
@@ -556,8 +596,17 @@ function makeAssemblyStageComponents(
   inputs: Readonly<{
     lengthM: number;
     diameterM: number;
+    noseLengthM: number;
+    noseProfile: NoseProfile;
+    finCount: number;
+    finRootChordM: number;
+    finTipChordM: number;
+    finSweepM: number;
+    finSpanM: number;
+    finThicknessM: number;
     material: MaterialKey;
     payloadMassKg: number;
+    recoveryMassKg: number;
     motorMassKgByStageId?: Readonly<Record<string, number>>;
   }>,
 ): VehicleComponent[] {
@@ -566,8 +615,17 @@ function makeAssemblyStageComponents(
   const generated = makeDesignComponents({
     lengthM: inputs.lengthM * stageScale,
     diameterM: inputs.diameterM * (stage.role === "booster" ? 0.8 : 0.72),
+    noseLengthM: inputs.noseLengthM * stageScale,
+    noseProfile: inputs.noseProfile,
+    finCount: inputs.finCount,
+    finRootChordM: inputs.finRootChordM * stageScale,
+    finTipChordM: inputs.finTipChordM * stageScale,
+    finSweepM: inputs.finSweepM * stageScale,
+    finSpanM: inputs.finSpanM * stageScale,
+    finThicknessM: inputs.finThicknessM,
     material: inputs.material,
     payloadMassKg: stage.role === "payload" ? inputs.payloadMassKg * 0.7 : inputs.payloadMassKg * 0.18,
+    recoveryMassKg: inputs.recoveryMassKg * stageScale,
     motorMassKg: inputs.motorMassKgByStageId?.[stage.id] ?? 0.16,
   });
   const allowedKinds = stage.role === "booster"
@@ -1478,6 +1536,14 @@ export default function Home() {
   const [designView, setDesignView] = useState<DesignViewKey>("2d");
   const [length, setLength] = useState(710);
   const [diameter, setDiameter] = useState(54);
+  const [noseLength, setNoseLength] = useState(180);
+  const [noseProfile, setNoseProfile] = useState<NoseProfile>("ogive");
+  const [finCount, setFinCount] = useState(3);
+  const [finRootChord, setFinRootChord] = useState(130);
+  const [finTipChord, setFinTipChord] = useState(55);
+  const [finSweep, setFinSweep] = useState(45);
+  const [finSpan, setFinSpan] = useState(75);
+  const [finThickness, setFinThickness] = useState(3);
   const [payloadMass, setPayloadMass] = useState(0.16);
   const [material, setMaterial] = useState<MaterialKey>("kraft");
   const [thrust, setThrust] = useState(22);
@@ -1490,6 +1556,7 @@ export default function Home() {
   const [recoveryEnabled, setRecoveryEnabled] = useState(true);
   const [recoveryDelay, setRecoveryDelay] = useState(0);
   const [recoveryDiameter, setRecoveryDiameter] = useState(0.45);
+  const [recoveryMass, setRecoveryMass] = useState(0.06);
   const [recoveryDeploymentSuccessProbability, setRecoveryDeploymentSuccessProbability] = useState(0.9);
   const [running, setRunning] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
@@ -1541,6 +1608,14 @@ export default function Home() {
     () => ({
       lengthMm: length,
       diameterMm: diameter,
+      noseLengthMm: noseLength,
+      noseProfile,
+      finCount,
+      finRootChordMm: finRootChord,
+      finTipChordMm: finTipChord,
+      finSweepMm: finSweep,
+      finSpanMm: finSpan,
+      finThicknessMm: finThickness,
       payloadMassKg: payloadMass,
       material,
       thrustN: thrust,
@@ -1553,9 +1628,10 @@ export default function Home() {
       recoveryEnabled,
       recoveryDelayS: recoveryDelay,
       recoveryDiameterM: recoveryDiameter,
+      recoveryMassKg: recoveryMass,
       recoveryDeploymentSuccessProbability,
     }),
-    [burnTime, diameter, dragCoefficient, launchAltitude, launchRailEnabled, launchRailLengthM, length, material, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, thrust, windSpeed],
+    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchRailEnabled, launchRailLengthM, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, thrust, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -1567,24 +1643,42 @@ export default function Home() {
       makeDesignComponents({
         lengthM: length / 1000,
         diameterM: diameter / 1000,
+        noseLengthM: noseLength / 1000,
+        noseProfile,
+        finCount,
+        finRootChordM: finRootChord / 1000,
+        finTipChordM: finTipChord / 1000,
+        finSweepM: finSweep / 1000,
+        finSpanM: finSpan / 1000,
+        finThicknessM: finThickness / 1000,
         material,
         payloadMassKg: payloadMass,
+        recoveryMassKg: recoveryMass,
         motorMassKg: stageMotorMassKgById[vehicleTopology.stages[0]?.id ?? "sustainer"] ?? 0.16,
       }),
-    [diameter, length, material, payloadMass, stageMotorMassKgById, vehicleTopology.stages],
+    [diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, material, noseLength, noseProfile, payloadMass, recoveryMass, stageMotorMassKgById, vehicleTopology.stages],
   );
   const stageFlightComponents = useMemo(
     () => makePlacedStageComponents(vehicleTopology.stages, vehicleComponents, {
       lengthM: length / 1000,
       diameterM: diameter / 1000,
+      noseLengthM: noseLength / 1000,
+      noseProfile,
+      finCount,
+      finRootChordM: finRootChord / 1000,
+      finTipChordM: finTipChord / 1000,
+      finSweepM: finSweep / 1000,
+      finSpanM: finSpan / 1000,
+      finThicknessM: finThickness / 1000,
       material,
       payloadMassKg: payloadMass,
+      recoveryMassKg: recoveryMass,
       motorMassKgByStageId: stageMotorMassKgById,
     }),
-    [diameter, length, material, payloadMass, stageMotorMassKgById, vehicleComponents, vehicleTopology],
+    [diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, material, noseLength, noseProfile, payloadMass, recoveryMass, stageMotorMassKgById, vehicleComponents, vehicleTopology],
   );
   const assemblyDefinition = useMemo(() => {
-    const placements = createStagePlacements(vehicleTopology.stages, length / 1000);
+    const placements = createStagePlacements(vehicleTopology.stages, length / 1000, noseLength / 1000);
     return {
       id: "arc54-assembly",
       name: "ARC 54 assembly",
@@ -1592,8 +1686,17 @@ export default function Home() {
       const stageComponents = makeAssemblyStageComponents(stage, vehicleComponents, {
         lengthM: length / 1000,
         diameterM: diameter / 1000,
+        noseLengthM: noseLength / 1000,
+        noseProfile,
+        finCount,
+        finRootChordM: finRootChord / 1000,
+        finTipChordM: finTipChord / 1000,
+        finSweepM: finSweep / 1000,
+        finSpanM: finSpan / 1000,
+        finThicknessM: finThickness / 1000,
         material,
         payloadMassKg: payloadMass,
+        recoveryMassKg: recoveryMass,
         motorMassKgByStageId: stageMotorMassKgById,
       });
       return {
@@ -1620,7 +1723,7 @@ export default function Home() {
       };
       }),
     };
-  }, [diameter, length, material, payloadMass, stageMotorMassKgById, vehicleComponents, vehicleTopology]);
+  }, [diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, material, noseLength, noseProfile, payloadMass, recoveryMass, stageMotorMassKgById, vehicleComponents, vehicleTopology]);
   const assembly = useMemo(
     () => createVehicleAssemblyModel(assemblyDefinition).evaluate(),
     [assemblyDefinition],
@@ -1727,7 +1830,14 @@ export default function Home() {
     );
 
   const selectedComponent = components.find((component) => component.id === selected)!;
-  const designLength = length + 180;
+  const componentDetails: Readonly<Record<ComponentKey, string>> = {
+    nose: `${noseProfile} · ${noseLength} mm`,
+    body: `${diameter} × ${length} mm`,
+    fins: `${finCount} fins · ${finSpan} mm span`,
+    mount: `${Math.round(previewMotor.diameterM * 1000)} mm · ${previewMotor.designation}`,
+    recovery: `${Math.round(recoveryDiameter * 1000)} mm chute · ${recoveryMass.toFixed(2)} kg packed`,
+  };
+  const designLength = length + noseLength;
   const centerOfMassMm = massProperties.centerOfMassM.x * 1000;
   const centerMarkerPercent = Math.min(
     96,
@@ -1829,6 +1939,14 @@ export default function Home() {
         const inputs = restoredSnapshot.inputs;
         setLength(inputs.lengthMm);
         setDiameter(inputs.diameterMm);
+        setNoseLength(inputs.noseLengthMm);
+        setNoseProfile(inputs.noseProfile);
+        setFinCount(inputs.finCount);
+        setFinRootChord(inputs.finRootChordMm);
+        setFinTipChord(inputs.finTipChordMm);
+        setFinSweep(inputs.finSweepMm);
+        setFinSpan(inputs.finSpanMm);
+        setFinThickness(inputs.finThicknessMm);
         setPayloadMass(inputs.payloadMassKg);
         setMaterial(inputs.material);
         setThrust(inputs.thrustN);
@@ -1841,6 +1959,7 @@ export default function Home() {
         setRecoveryEnabled(inputs.recoveryEnabled);
         setRecoveryDelay(inputs.recoveryDelayS);
         setRecoveryDiameter(inputs.recoveryDiameterM);
+        setRecoveryMass(inputs.recoveryMassKg);
         setRecoveryDeploymentSuccessProbability(inputs.recoveryDeploymentSuccessProbability);
         lastSavedInputsRef.current = inputs;
         lastSavedFingerprintRef.current = projectInputFingerprint(inputs);
@@ -1991,9 +2110,45 @@ export default function Home() {
     setSweepResult(null);
     setSweepError("");
   };
+  const changeAirframeLength = (value: number) => {
+    const nextLength = Math.min(1600, Math.max(200, value));
+    const nextRoot = Math.min(finRootChord, nextLength);
+    const nextTip = Math.min(finTipChord, nextRoot);
+    setLength(nextLength);
+    setFinRootChord(nextRoot);
+    setFinTipChord(nextTip);
+    setFinSweep(Math.min(finSweep, Math.max(0, nextRoot - nextTip)));
+    markChanged();
+  };
+  const changeFinRootChord = (value: number) => {
+    const nextRoot = Math.min(length, Math.max(20, value));
+    const nextTip = Math.min(finTipChord, nextRoot);
+    setFinRootChord(nextRoot);
+    setFinTipChord(nextTip);
+    setFinSweep(Math.min(finSweep, Math.max(0, nextRoot - nextTip)));
+    markChanged();
+  };
+  const changeFinTipChord = (value: number) => {
+    const nextTip = Math.min(finRootChord, Math.max(5, value));
+    setFinTipChord(nextTip);
+    setFinSweep(Math.min(finSweep, Math.max(0, finRootChord - nextTip)));
+    markChanged();
+  };
+  const changeFinSweep = (value: number) => {
+    setFinSweep(Math.min(Math.max(0, value), Math.max(0, finRootChord - finTipChord)));
+    markChanged();
+  };
   const applyEditableInputs = (inputs: EditableProjectInputs) => {
     setLength(inputs.lengthMm);
     setDiameter(inputs.diameterMm);
+    setNoseLength(inputs.noseLengthMm);
+    setNoseProfile(inputs.noseProfile);
+    setFinCount(inputs.finCount);
+    setFinRootChord(inputs.finRootChordMm);
+    setFinTipChord(inputs.finTipChordMm);
+    setFinSweep(inputs.finSweepMm);
+    setFinSpan(inputs.finSpanMm);
+    setFinThickness(inputs.finThicknessMm);
     setPayloadMass(inputs.payloadMassKg);
     setMaterial(inputs.material);
     setThrust(inputs.thrustN);
@@ -2006,6 +2161,7 @@ export default function Home() {
     setRecoveryEnabled(inputs.recoveryEnabled);
     setRecoveryDelay(inputs.recoveryDelayS);
     setRecoveryDiameter(inputs.recoveryDiameterM);
+    setRecoveryMass(inputs.recoveryMassKg);
     setRecoveryDeploymentSuccessProbability(inputs.recoveryDeploymentSuccessProbability);
   };
   const persistCheckpoint = (
@@ -2191,15 +2347,16 @@ export default function Home() {
       const generatedAtIso = new Date().toISOString();
       const cadGeometry: RocketCadGeometry = {
         projectName: "ARC 54",
-        noseLengthM: 0.18,
+        noseLengthM: noseLength / 1000,
+        noseProfile,
         bodyLengthM: length / 1000,
         diameterM: diameter / 1000,
-        finCount: 3,
-        finRootChordM: Math.min(0.13, (length / 1000) * 0.45),
-        finTipChordM: Math.min(0.055, (length / 1000) * 0.18),
-        finSweepM: Math.min(0.045, (length / 1000) * 0.14),
-        finSpanM: 0.075,
-        finThicknessM: 0.003,
+        finCount,
+        finRootChordM: finRootChord / 1000,
+        finTipChordM: finTipChord / 1000,
+        finSweepM: finSweep / 1000,
+        finSpanM: finSpan / 1000,
+        finThicknessM: finThickness / 1000,
         centerOfMassXM: massProperties.centerOfMassM.x,
         centerOfPressureXM: staticStability.centerOfPressureXM,
       };
@@ -2304,7 +2461,7 @@ export default function Home() {
           projectName: "ARC 54",
           generatedAtIso,
           vehicle: {
-            lengthM: (length + 180) / 1000,
+             lengthM: (length + noseLength) / 1000,
             diameterM: diameter / 1000,
             massKg: mass,
             centerOfMassXM: massProperties.centerOfMassM.x,
@@ -2637,7 +2794,7 @@ export default function Home() {
               onClick={() => { setSelected(component.id); setView("design"); }}
             >
               <span className="component-marker">{component.marker}</span>
-              <span><strong>{component.name}</strong><small>{component.detail}</small></span>
+              <span><strong>{component.name}</strong><small>{componentDetails[component.id]}</small></span>
               <span className="chevron">›</span>
             </button>
           ))}
@@ -2710,7 +2867,7 @@ export default function Home() {
               <div className="canvas-grid" />
               <div className="dimension dimension-top"><span /><strong>{designLength} mm</strong><span /></div>
               <div className="rocket-assembly" aria-label="Side profile of the ARC 54 rocket">
-                <div className="rocket-nose" />
+                <div className={`rocket-nose rocket-nose-${noseProfile}`} style={{ width: `${Math.max(72, Math.min(160, noseLength * 0.66))}px` }} />
                 <div className="rocket-body" style={{ width: `${Math.min(520, 280 + length / 4)}px` }}>
                   <div className="body-label">ARC 54</div><div className="body-band" /><div className="body-seam" />
                 </div>
@@ -2731,9 +2888,16 @@ export default function Home() {
             <div className="design-canvas design-canvas-3d">
               <div className="canvas-grid" />
               <Rocket3DViewport
-                noseLengthM={0.18}
+                noseLengthM={noseLength / 1000}
+                noseProfile={noseProfile}
                 bodyLengthM={length / 1000}
                 bodyDiameterM={diameter / 1000}
+                finCount={finCount}
+                finRootChordM={finRootChord / 1000}
+                finTipChordM={finTipChord / 1000}
+                finSweepM={finSweep / 1000}
+                finSpanM={finSpan / 1000}
+                finThicknessM={finThickness / 1000}
                 centerOfMassXM={massProperties.centerOfMassM.x}
                 centerOfPressureXM={staticStability.centerOfPressureXM}
               />
@@ -3107,15 +3271,83 @@ export default function Home() {
         </div>
         {view === "design" ? (
           <>
-            <NumberField id="length" label="Airframe length" value={length} unit="mm" min={200} max={1600} onChange={(value) => { setLength(value); markChanged(); }} />
-            <NumberField id="diameter" label="Outer diameter" value={diameter} unit="mm" min={20} max={200} onChange={(value) => { setDiameter(value); markChanged(); }} />
-            <NumberField id="payload-mass" label="Payload + avionics allowance" value={payloadMass} unit="kg" min={0.001} max={20} step={0.01} onChange={(value) => { setPayloadMass(value); markChanged(); }} />
-            <div className="field-group">
-              <label htmlFor="material">Airframe material model</label>
-              <select id="material" value={material} onChange={(event) => { setMaterial(event.target.value as MaterialKey); markChanged(); }}>
-                {Object.entries(materialModels).map(([key, model]) => <option value={key} key={key}>{model.label}</option>)}
-              </select>
-            </div>
+            {selected === "nose" && (
+              <>
+                <NumberField id="nose-length" label="Nose length" value={noseLength} unit="mm" min={40} max={600} onChange={(value) => { setNoseLength(value); markChanged(); }} />
+                <div className="field-group">
+                  <label htmlFor="nose-profile">Nose profile</label>
+                  <select id="nose-profile" value={noseProfile} onChange={(event) => { setNoseProfile(event.target.value as NoseProfile); markChanged(); }}>
+                    <option value="ogive">Tangent ogive</option>
+                    <option value="conical">Conical</option>
+                    <option value="elliptical">Elliptical</option>
+                  </select>
+                </div>
+                <div className="component-note">
+                  <span>GEOMETRY COUPLING</span>
+                  <p>Profile stations feed the independent mass integral and low-speed static-aerodynamics estimate. Transonic and separated-flow behavior remain outside this preview.</p>
+                </div>
+              </>
+            )}
+            {selected === "body" && (
+              <>
+                <NumberField id="length" label="Airframe length" value={length} unit="mm" min={200} max={1600} onChange={changeAirframeLength} />
+                <NumberField id="diameter" label="Outer diameter" value={diameter} unit="mm" min={20} max={200} onChange={(value) => { setDiameter(value); markChanged(); }} />
+                <div className="field-group">
+                  <label htmlFor="material">Airframe material model</label>
+                  <select id="material" value={material} onChange={(event) => { setMaterial(event.target.value as MaterialKey); markChanged(); }}>
+                    {Object.entries(materialModels).map(([key, model]) => <option value={key} key={key}>{model.label}</option>)}
+                  </select>
+                </div>
+                <NumberField id="payload-mass" label="Payload + avionics allowance" value={payloadMass} unit="kg" min={0.001} max={20} step={0.01} onChange={(value) => { setPayloadMass(value); markChanged(); }} />
+              </>
+            )}
+            {selected === "fins" && (
+              <>
+                <NumberField id="fin-count" label="Fin count" value={finCount} unit="fins" min={2} max={12} step={1} onChange={(value) => { setFinCount(Math.round(value)); markChanged(); }} />
+                <NumberField id="fin-root-chord" label="Root chord" value={finRootChord} unit="mm" min={20} max={Math.min(500, length)} onChange={changeFinRootChord} />
+                <NumberField id="fin-tip-chord" label="Tip chord" value={finTipChord} unit="mm" min={5} max={Math.min(300, finRootChord)} onChange={changeFinTipChord} />
+                <NumberField id="fin-sweep" label="Sweep" value={finSweep} unit="mm" min={0} max={Math.min(300, Math.max(0, finRootChord - finTipChord))} onChange={changeFinSweep} />
+                <NumberField id="fin-span" label="Span" value={finSpan} unit="mm" min={5} max={300} onChange={(value) => { setFinSpan(value); markChanged(); }} />
+                <NumberField id="fin-thickness" label="Thickness" value={finThickness} unit="mm" min={0.2} max={20} step={0.1} onChange={(value) => { setFinThickness(value); markChanged(); }} />
+                <div className="component-note">
+                  <span>FIN VALIDATION</span>
+                  <p>Fin count, planform, and thickness are included in the mass and static-normal-force model. Structural attachment, flutter, and local stress are not modeled.</p>
+                </div>
+              </>
+            )}
+            {selected === "mount" && (
+              <>
+                <div className="mass-properties-card component-readout-card">
+                  <div><span>Selected motor</span><strong>{previewMotor.designation}</strong></div>
+                  <div><span>Case diameter</span><strong>{(previewMotor.diameterM * 1000).toFixed(0)} mm</strong></div>
+                  <div><span>Launch mass</span><strong>{previewMotor.launchMassKg.toFixed(3)} kg</strong></div>
+                  <div><span>Motor provenance</span><strong>{previewMotor.provenance.validationStatus}</strong></div>
+                </div>
+                <button className="library-button" onClick={() => setMotorLibraryOpen(true)}>
+                  <span><strong>Change motor data</strong><small>Open the provenance-qualified local library</small></span>
+                  <em>Manage</em>
+                </button>
+                <div className="component-note">
+                  <span>MOUNT SCOPE</span>
+                  <p>Motor mass properties and thrust curve are coupled to the selected stage. Retention hardware, case fit, and structural loads require a separate design review.</p>
+                </div>
+              </>
+            )}
+            {selected === "recovery" && (
+              <>
+                <NumberField id="recovery-mass" label="Packed recovery mass" value={recoveryMass} unit="kg" min={0.005} max={2} step={0.005} onChange={(value) => { setRecoveryMass(value); markChanged(); }} />
+                <div className="mass-properties-card component-readout-card">
+                  <div><span>Canopy diameter</span><strong>{(recoveryDiameter * 1000).toFixed(0)} mm</strong></div>
+                  <div><span>Deployment delay</span><strong>{recoveryDelay.toFixed(1)} s</strong></div>
+                  <div><span>Success assumption</span><strong>{(recoveryDeploymentSuccessProbability * 100).toFixed(0)}%</strong></div>
+                  <div><span>Model state</span><strong>{recoveryEnabled ? "Enabled" : "Ballistic"}</strong></div>
+                </div>
+                <div className="component-note">
+                  <span>RECOVERY SCOPE</span>
+                  <p>Canopy diameter, timing, and deployment assumption are configured in the Flight workspace. Packed mass is included in CG, inertia, and every subsequent estimate.</p>
+                </div>
+              </>
+            )}
             <div className="mass-properties-card">
               <div><span>Computed mass</span><strong>{mass.toFixed(3)} kg</strong></div>
               <div><span>CG from nose</span><strong>{centerOfMassMm.toFixed(0)} mm</strong></div>

@@ -146,6 +146,15 @@ test("OpenSCAD export contains parameterized tangent-ogive, body, fins, and nozz
   assert.match(scad, /Verify tolerances, wall thickness, fits, and structure/);
 });
 
+test("CAD reference exports preserve the selected nose profile", () => {
+  const conical = createRocketProfileDxf({ ...geometry, noseProfile: "conical" });
+  const elliptical = createRocketOpenScad({ ...geometry, noseProfile: "elliptical" });
+  assert.match(conical, /Kestrel Lab/);
+  assert.match(elliptical, /module nose\(\)/);
+  assert.notEqual(conical, createRocketProfileDxf(geometry));
+  assert.notEqual(elliptical, createRocketOpenScad(geometry));
+});
+
 test("engineering report leads with status and preserves calculations and limitations", () => {
   const footprint = analyzeLandingFootprint({
     site: {

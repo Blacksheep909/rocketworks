@@ -55,6 +55,21 @@ test("preview mesh contains finite display surfaces and expected extents", () =>
   }
 });
 
+test("editable nose profiles produce distinct finite display geometry", () => {
+  const ogive = mesh({ noseProfile: "ogive" });
+  const conical = mesh({ noseProfile: "conical" });
+  const elliptical = mesh({ noseProfile: "elliptical" });
+  assert.equal(conical.longitudinalLengthM, ogive.longitudinalLengthM);
+  assert.equal(elliptical.longitudinalLengthM, ogive.longitudinalLengthM);
+  assert.notDeepEqual(conical.triangles.slice(0, 28), ogive.triangles.slice(0, 28));
+  assert.notDeepEqual(elliptical.triangles.slice(0, 28), ogive.triangles.slice(0, 28));
+  for (const result of [conical, elliptical]) {
+    assert.ok(result.triangles.flatMap((triangle) => [triangle.a, triangle.b, triangle.c])
+      .flatMap((point) => [point.x, point.y, point.z])
+      .every(Number.isFinite));
+  }
+});
+
 test("three-fin mesh is radially balanced around the vehicle axis", () => {
   const finVertices = mesh().triangles
     .filter((triangle) => triangle.surface === "fin")

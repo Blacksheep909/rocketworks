@@ -1,9 +1,10 @@
 export const ROCKET_PREVIEW_3D_MODEL_VERSION =
-  "kestrel-rocket-preview-3d-0.1.0";
+  "kestrel-rocket-preview-3d-0.2.0";
 export const ROCKET_PREVIEW_3D_MODEL_STATUS = "display-only-unvalidated";
 
 export type PreviewVector3 = Readonly<{ x: number; y: number; z: number }>;
 export type RocketPreviewSurface = "skin" | "accent" | "fin" | "rear" | "nozzle";
+export type RocketPreviewNoseProfile = "ogive" | "conical" | "elliptical";
 
 export type RocketPreviewTriangle = Readonly<{
   a: PreviewVector3;
@@ -97,6 +98,7 @@ export function tangentOgiveRadiusM(
 
 export function createRocketPreviewMesh(input: Readonly<{
   noseLengthM: number;
+  noseProfile?: RocketPreviewNoseProfile;
   bodyLengthM: number;
   bodyRadiusM: number;
   finCount: number;
@@ -134,13 +136,24 @@ export function createRocketPreviewMesh(input: Readonly<{
 
   const triangles: RocketPreviewTriangle[] = [];
   const noseAxialSegments = Math.max(8, Math.ceil(radialSegments / 2));
+  const noseProfile = input.noseProfile ?? "ogive";
+  const noseRadiusAt = (axialPositionM: number): number => {
+    if (noseProfile === "conical") {
+      return (input.bodyRadiusM * axialPositionM) / input.noseLengthM;
+    }
+    if (noseProfile === "elliptical") {
+      const fraction = axialPositionM / input.noseLengthM;
+      return input.bodyRadiusM * Math.sqrt(Math.max(0, 1 - (1 - fraction) ** 2));
+    }
+    return tangentOgiveRadiusM(
+      axialPositionM,
+      input.noseLengthM,
+      input.bodyRadiusM,
+    );
+  };
   const tip: PreviewVector3 = { x: 0, y: 0, z: 0 };
   const firstRingX = input.noseLengthM / noseAxialSegments;
-  const firstRingRadius = tangentOgiveRadiusM(
-    firstRingX,
-    input.noseLengthM,
-    input.bodyRadiusM,
-  );
+  const firstRingRadius = noseRadiusAt(firstRingX);
   for (let radialIndex = 0; radialIndex < radialSegments; radialIndex += 1) {
     const angle = (2 * Math.PI * radialIndex) / radialSegments;
     const nextAngle = (2 * Math.PI * (radialIndex + 1)) / radialSegments;
@@ -155,16 +168,8 @@ export function createRocketPreviewMesh(input: Readonly<{
     const firstX = (input.noseLengthM * axialIndex) / noseAxialSegments;
     const secondX =
       (input.noseLengthM * (axialIndex + 1)) / noseAxialSegments;
-    const firstRadius = tangentOgiveRadiusM(
-      firstX,
-      input.noseLengthM,
-      input.bodyRadiusM,
-    );
-    const secondRadius = tangentOgiveRadiusM(
-      secondX,
-      input.noseLengthM,
-      input.bodyRadiusM,
-    );
+    const firstRadius = noseRadiusAt(firstX);
+    const secondRadius = noseRadiusAt(secondX);
     for (let radialIndex = 0; radialIndex < radialSegments; radialIndex += 1) {
       const angle = (2 * Math.PI * radialIndex) / radialSegments;
       const nextAngle = (2 * Math.PI * (radialIndex + 1)) / radialSegments;

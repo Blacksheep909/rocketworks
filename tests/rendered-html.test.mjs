@@ -80,6 +80,33 @@ test("ships live center-of-pressure and static-margin feedback", async () => {
   assert.match(source, /Static aerodynamics are low-speed and small-angle only/);
 });
 
+test("ships a component-aware geometry inspector", async () => {
+  const source = await readFile(
+    new URL("../app/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const state = await readFile(
+    new URL("../lib/project/project-state.ts", import.meta.url),
+    "utf8",
+  );
+  const stylesheet = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /selected === "nose"/);
+  assert.match(source, /nose-profile/);
+  assert.match(source, /selected === "fins"/);
+  assert.match(source, /fin-root-chord/);
+  assert.match(source, /selected === "mount"/);
+  assert.match(source, /selected === "recovery"/);
+  assert.match(source, /recovery-mass/);
+  assert.match(source, /componentDetails/);
+  assert.match(source, /noseProfile=\{noseProfile\}/);
+  assert.match(state, /noseLengthMm/);
+  assert.match(state, /finSweepMm plus finTipChordMm/);
+  assert.match(stylesheet, /\.component-note/);
+});
+
 test("ships an explicit stage hierarchy and configuration timeline", async () => {
   const source = await readFile(
     new URL("../app/page.tsx", import.meta.url),
