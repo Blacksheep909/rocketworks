@@ -33,7 +33,7 @@ import {
 
 export const KESTREL_PROJECT_SCHEMA_ID = "org.kestrel-lab.project";
 export const KESTREL_PROJECT_SCHEMA_VERSION = 1;
-export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.8.0";
+export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.9.0";
 export const KESTREL_EXPORT_VALIDATION_STATUS =
   "engineering-preview-unvalidated";
 
@@ -461,6 +461,84 @@ export function createParameterSweepCsv(
       .join(",");
   });
   return `${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
+}
+
+/**
+ * Serializes every sampled input and output from an uncertainty analysis.
+ *
+ * Metadata is emitted as deterministic `# key,value` records so a spreadsheet
+ * can skip it while a reviewer can still recover the exact model, method,
+ * seed, ensemble size, and dependence declaration used for the samples.
+ */
+export function createUncertaintyCsv(
+  analysis: Readonly<UncertaintyAnalysisResult>,
+): string {
+  if (analysis.samples.length === 0) {
+    throw new Error("uncertainty analysis cannot be empty");
+  }
+  if (!Number.isInteger(analysis.requestedSampleCount) || analysis.requestedSampleCount <= 0) {
+    throw new Error("uncertainty requested sample count must be a positive integer");
+  }
+  if (!Number.isInteger(analysis.successfulSampleCount) || analysis.successfulSampleCount < 0) {
+    throw new Error("uncertainty successful sample count must be a non-negative integer");
+  }
+  if (!Number.isInteger(analysis.failedSampleCount) || analysis.failedSampleCount < 0) {
+    throw new Error("uncertainty failed sample count must be a non-negative integer");
+  }
+  const declaredInputKeys = analysis.parameters.map((parameter) => parameter.key);
+  const extraInputKeys = Array.from(
+    new Set(
+      analysis.samples.flatMap((sample) => Object.keys(sample.inputs)),
+    ),
+  )
+    .filter((key) => !declaredInputKeys.includes(key))
+    .sort();
+  const inputKeys = [...declaredInputKeys, ...extraInputKeys];
+  const outputKeys = Array.from(
+    new Set(
+      analysis.samples.flatMap((sample) =>
+        sample.outputs ? Object.keys(sample.outputs) : [],
+      ),
+    ),
+  ).sort();
+  const headers = ["sample_index", ...inputKeys, ...outputKeys, "error"];
+  const metadata = [
+    ["# Kestrel uncertainty sample export", "1"],
+    ["# model_version", analysis.modelVersion],
+    ["# validation_status", analysis.validationStatus],
+    ["# method", analysis.method],
+    ["# seed", analysis.seed],
+    ["# requested_sample_count", analysis.requestedSampleCount],
+    ["# successful_sample_count", analysis.successfulSampleCount],
+    ["# failed_sample_count", analysis.failedSampleCount],
+    ["# parameter_count", analysis.parameters.length],
+    ["# correlation_pair_count", analysis.correlations.length],
+  ].map(([key, value]) => `${key},${csvCell(value)}`);
+  const rows = analysis.samples.map((sample, index) => {
+    if (!Number.isInteger(sample.index) || sample.index < 0) {
+      throw new Error(`uncertainty row ${index + 1} sample index must be a non-negative integer`);
+    }
+    const inputs = inputKeys.map((key) => {
+      const value = sample.inputs[key];
+      if (value === undefined) return "";
+      if (!Number.isFinite(value)) {
+        throw new Error(`uncertainty row ${index + 1} input ${key} must be finite`);
+      }
+      return value;
+    });
+    const outputs = outputKeys.map((key) => {
+      const value = sample.outputs?.[key] ?? null;
+      if (value === null) return "";
+      if (!Number.isFinite(value)) {
+        throw new Error(`uncertainty row ${index + 1} output ${key} must be finite or null`);
+      }
+      return value;
+    });
+    return [sample.index, ...inputs, ...outputs, sample.error ?? ""]
+      .map((value) => csvCell(value))
+      .join(",");
+  });
+  return `${metadata.join("\r\n")}\r\n${headers.map(csvCell).join(",")}\r\n${rows.join("\r\n")}\r\n`;
 }
 
 function validateCadGeometry(geometry: RocketCadGeometry): void {

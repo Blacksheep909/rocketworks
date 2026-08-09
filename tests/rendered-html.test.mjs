@@ -393,6 +393,8 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(page, /event\.key === "Escape"/);
   assert.match(page, /createKestrelProjectJson/);
   assert.match(page, /createFlightTraceCsv/);
+  assert.match(page, /createUncertaintyCsv/);
+  assert.match(page, /Uncertainty samples/);
   assert.match(page, /createEngineeringReportMarkdown/);
   assert.match(page, /stageFlight: stageFlightIsCurrent \? stageFlightResult : null/);
   assert.match(page, /createRocketProfileDxf/);

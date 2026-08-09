@@ -8,6 +8,7 @@ import {
   createFlightTraceCsv,
   createParameterSweepCsv,
   createStageFlightTraceCsv,
+  createUncertaintyCsv,
   createKestrelProjectJson,
   parseKestrelProjectJson,
   createRocketOpenScad,
@@ -216,6 +217,34 @@ test("parameter sweep CSV preserves rows, null outputs, and evaluator errors", (
   assert.equal(rows[0], "parameter_key,parameter_value,apogeeM,impactSpeedMps,error");
   assert.equal(rows[1], "thrustScale,0.8,120,,");
   assert.equal(rows[2], "thrustScale,1.2,,,no liftoff");
+});
+
+test("uncertainty CSV preserves provenance, stable columns, null outputs, and errors", () => {
+  const analysis = {
+    modelVersion: "kestrel-uncertainty-fixture",
+    validationStatus: "engineering-preview-unvalidated",
+    seed: "csv-replay-v1",
+    method: "latin-hypercube",
+    requestedSampleCount: 2,
+    successfulSampleCount: 1,
+    failedSampleCount: 1,
+    parameters: [
+      { key: "scale", label: "Scale", distribution: { kind: "uniform", minimum: 0.9, maximum: 1.1 } },
+    ],
+    correlations: [],
+    samples: [
+      { index: 0, inputs: { scale: 0.9, wind: 4 }, outputs: { z: 3, a: null }, error: null },
+      { index: 1, inputs: { scale: 1.1 }, outputs: { a: 2.5, z: null }, error: "boom, now" },
+    ],
+  };
+  const csv = createUncertaintyCsv(analysis);
+  assert.equal(csv, createUncertaintyCsv(analysis));
+  const rows = csv.trim().split("\r\n");
+  assert.equal(rows[0], "# Kestrel uncertainty sample export,1");
+  assert.equal(rows[4], "# seed,csv-replay-v1");
+  assert.equal(rows[10], "sample_index,scale,wind,a,z,error");
+  assert.equal(rows[11], "0,0.9,4,,3,");
+  assert.equal(rows[12], '1,1.1,,2.5,,"boom, now"');
 });
 
 test("R12 DXF exports millimetre airframe, fins, centerline, CG, and CP layers", () => {
@@ -484,6 +513,21 @@ test("invalid project, trace, CAD, and report inputs fail explicitly", () => {
     /identifier/,
   );
   assert.throws(() => createFlightTraceCsv([]), /cannot be empty/);
+  assert.throws(
+    () => createUncertaintyCsv({
+      modelVersion: "fixture",
+      validationStatus: "preview",
+      seed: "seed",
+      method: "latin-hypercube",
+      requestedSampleCount: 1,
+      successfulSampleCount: 1,
+      failedSampleCount: 0,
+      parameters: [],
+      correlations: [],
+      samples: [{ index: 0, inputs: { scale: Number.NaN }, outputs: null, error: "bad" }],
+    }),
+    /must be finite/,
+  );
   assert.throws(
     () => createFlightTraceCsv([{ ...trace[0], massKg: Number.NaN }]),
     /must be finite/,

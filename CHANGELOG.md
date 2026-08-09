@@ -27,6 +27,10 @@ flight-readiness claims.
   Kestrel Lab app artwork, and a deliberately network-only service worker as
   the first browser-to-desktop portability layer; offline caching and native
   wrappers remain explicitly out of scope for this increment.
+- Added a deterministic uncertainty-sample CSV export with model/method/seed
+  provenance, stable input/output columns, null-output cells, and retained
+  evaluator errors. Stale vertical results are blocked from export until the
+  current persisted ensemble settings are rerun.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.

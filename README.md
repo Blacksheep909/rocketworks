@@ -64,7 +64,8 @@ research, standards, and original code.
   nominal optimization, and an opt-in finite-sample robust optimization screen
   with explicit quantile and scenario-failure metrics;
 - accessible event timelines, trace charts, comparisons, engineering reports,
-  CSV, DXF, OpenSCAD, and portable Kestrel project JSON;
+  flight/stage/sweep/uncertainty CSV, DXF, OpenSCAD, and portable Kestrel
+  project JSON;
 - validated project import, device-local autosave/history, templates,
   beginner/expert modes, keyboard command search, and compact browser design
   share links.

@@ -11,6 +11,7 @@ import {
   createFlightTraceCsv,
   createParameterSweepCsv,
   createStageFlightTraceCsv,
+  createUncertaintyCsv,
   createKestrelProjectJson,
   parseKestrelProjectJson,
   createRocketOpenScad,
@@ -145,7 +146,7 @@ type ComponentKey = "nose" | "body" | "fins" | "mount" | "recovery";
 type ViewKey = "design" | "flight";
 type DesignViewKey = "2d" | "3d";
 type MaterialKey = "kraft" | "fiberglass" | "carbon";
-type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "sweep-csv" | "report" | "dxf" | "openscad";
+type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "sweep-csv" | "uncertainty-csv" | "report" | "dxf" | "openscad";
 type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
@@ -3453,7 +3454,7 @@ export default function Home() {
   };
   const exportArtifact = (format: ExportFormat) => {
     try {
-      if ((format === "flight-csv" || format === "report") && !resultIsCurrent) {
+      if ((format === "flight-csv" || format === "uncertainty-csv" || format === "report") && !resultIsCurrent) {
         throw new Error("Run the vertical estimate again before exporting simulation results for this design.");
       }
       if (format === "stage-flight-csv" && !stageFlightIsCurrent) {
@@ -3589,6 +3590,10 @@ export default function Home() {
         filename = "arc-54-parameter-sweep.csv";
         mediaType = "text/csv;charset=utf-8";
         content = createParameterSweepCsv(sweepResult.result);
+      } else if (format === "uncertainty-csv") {
+        filename = "arc-54-uncertainty-samples.csv";
+        mediaType = "text/csv;charset=utf-8";
+        content = createUncertaintyCsv(uncertainty);
       } else if (format === "report") {
         filename = "arc-54-engineering-report.md";
         mediaType = "text/markdown;charset=utf-8";
@@ -5479,6 +5484,11 @@ export default function Home() {
               <button onClick={() => exportArtifact("flight-csv")}>
                 <span className="export-extension">CSV</span>
                 <span><strong>Flight trace</strong><small>SI-unit time history for plotting, analysis, and reproducible comparisons.</small></span>
+                <em>↓</em>
+              </button>
+              <button onClick={() => exportArtifact("uncertainty-csv")}>
+                <span className="export-extension">CSV</span>
+                <span><strong>Uncertainty samples</strong><small>Every seeded scenario input, output, and retained error with method and ensemble metadata.</small></span>
                 <em>↓</em>
               </button>
               {stageFlightResult && <button onClick={() => exportArtifact("stage-flight-csv")}>

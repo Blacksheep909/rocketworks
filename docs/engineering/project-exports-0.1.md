@@ -17,15 +17,16 @@ The browser's Export action now opens a keyboard-accessible artifact center.
 Escape or the close button dismisses it. Downloads are created in memory and
 initiated only after the user selects a format.
 
-Version 0.8 offers seven inspectable formats plus a validated project-import path:
+Version 0.9 offers eight inspectable formats plus a validated project-import path:
 
 1. Versioned Kestrel project JSON
 2. Flight-trace CSV
-3. Staged 6DOF trace CSV
-4. Parameter-sweep CSV
-5. Preliminary engineering report in Markdown
-6. R11/R12-compatible ASCII DXF side profile
-7. Parametric OpenSCAD reference geometry
+3. Vertical uncertainty-sample CSV
+4. Staged 6DOF trace CSV
+5. Parameter-sweep CSV
+6. Preliminary engineering report in Markdown
+7. R11/R12-compatible ASCII DXF side profile
+8. Parametric OpenSCAD reference geometry
 
 Every engineering or CAD surface presents manufacturing and validation limits
 before download. The DXF, SCAD, project, and report files also embed status or
@@ -38,7 +39,7 @@ The root document declares:
 ```text
 schema: org.kestrel-lab.project
 schemaVersion: 1
-exportModelVersion: kestrel-export-0.8.0
+exportModelVersion: kestrel-export-0.9.0
 validationStatus: engineering-preview-unvalidated
 ```
 
@@ -108,6 +109,23 @@ mass, thrust, and attached-stage identifiers. These aerodynamic and recovery
 columns are evaluated from the coupled load diagnostics at each retained
 sample, not reconstructed from the display chart. Recovery values are zero
 when no retained-vehicle recovery device is configured or before its command.
+
+## Uncertainty-sample CSV
+
+The uncertainty export writes one row per seeded scenario, including the
+`sample_index`, every declared input parameter, every observed output metric,
+and a retained `error` field. Input columns follow the declared parameter
+order; output columns are sorted by key so the same result serializes
+identically across runs. Missing inputs and null outputs remain empty cells,
+while evaluator errors are CSV-escaped rather than discarded.
+
+The file begins with deterministic `# key,value` metadata records for the
+uncertainty model version, validation status, sampling method, replay seed,
+requested/successful/failed counts, declared parameter count, and correlation
+pair count. This makes the sample table auditable without requiring the full
+project JSON. It is still an engineering-preview data extract: finite-sample
+quantiles and scenario failures do not establish reliability, certification,
+or flight safety.
 
 ## DXF side profile
 
@@ -181,6 +199,9 @@ Automated tests cover:
 - schema identity, version, clean-room notice, and nested data
 - CSV headers, SI units, CRLF rows, column count, recovery booleans, and the
   effective reefing-area fraction
+- uncertainty-sample provenance comments, deterministic input/output column
+  ordering, null-output cells, retained evaluator errors, and non-finite-value
+  rejection
 - DXF version, units, layers, dimensions, CG/CP, and EOF termination
 - OpenSCAD modules, millimetre dimensions, fin rotation, and safety comment
 - report warning order, metrics, landing section, limitations, and independence
