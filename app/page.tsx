@@ -580,6 +580,33 @@ function stageEnvelopeLengthM(role: VehicleStageRole, lengthM: number, noseLengt
   return noseLengthM * stageScaleForRole(role) + lengthM * stageScaleForRole(role);
 }
 
+function stageMotorInstanceCount(stage: Pick<VehicleStagePlan, "attachment" | "repeatCount">): number {
+  return stage.attachment === "parallel" ? stage.repeatCount : 1;
+}
+
+function parseFailedMotorInstanceInput(
+  value: string,
+  stage: Pick<VehicleStagePlan, "attachment" | "repeatCount">,
+): readonly number[] {
+  const normalized = value.trim();
+  if (!normalized) return [];
+  const instanceCount = stageMotorInstanceCount(stage);
+  const indices = normalized.split(",").map((token) => {
+    if (!/^\d+$/.test(token.trim())) {
+      throw new Error("Failed motors must be a comma-separated list such as 1, 3.");
+    }
+    const oneBasedIndex = Number(token.trim());
+    if (!Number.isInteger(oneBasedIndex) || oneBasedIndex < 1 || oneBasedIndex > instanceCount) {
+      throw new Error(`Failed motor numbers must be between 1 and ${instanceCount} for this stage.`);
+    }
+    return oneBasedIndex - 1;
+  });
+  if (new Set(indices).size !== indices.length) {
+    throw new Error("Failed motor numbers must be unique.");
+  }
+  return [...indices].sort((left, right) => left - right);
+}
+
 type StagePlacement = Readonly<{
   stage: VehicleStagePlan;
   translationXM: number;
@@ -798,6 +825,11 @@ function createStageFlightPreviewInputs({
   const stages: RocketStage[] = propulsivePlans.map((stage) => {
     const stageMotor = motorForStage(stage);
     const instances = assembly.componentInstances.filter((instance) => instance.stageId === stage.id);
+    if (stage.failedMotorInstanceIndices.length > 0) {
+      stageFailureWarnings.push(
+        `${stage.name} motor instance failure is configured for motor ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}; failed motors retain propellant and do not contribute thrust.`,
+      );
+    }
     const structuralMassProperties = combineMassProperties(
       instances
         .filter((instance) => !isMotorInstance(instance) && !isRetainedComponent(instance))
@@ -829,6 +861,7 @@ function createStageFlightPreviewInputs({
           ),
           thrustApplicationPointBodyM: originBodyM,
           thrustAxisBody: stageThrustAxisBody(stage, instance.stageInstanceIndex),
+          ignitionFailure: stage.failedMotorInstanceIndices.includes(instance.stageInstanceIndex),
         };
       });
     if (motors.length === 0) {
@@ -1973,6 +2006,7 @@ export default function Home() {
   const [vehicleTopology, setVehicleTopology] = useState<LocalVehicleTopology>(() => createDefaultVehicleTopology());
   const topologyRef = useRef(vehicleTopology);
   const [topologyError, setTopologyError] = useState("");
+  const [topologyFailureDrafts, setTopologyFailureDrafts] = useState<Record<string, string>>({});
   const [experienceMode, setExperienceMode] = useState<ExperienceMode>("beginner");
   const [guideOpen, setGuideOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -2825,12 +2859,24 @@ export default function Home() {
       setTopologyError(error instanceof Error ? error.message : "Unable to add stage");
     }
   };
-  const updateTopologyStage = (id: string, patch: Partial<VehicleStagePlan>) => {
+  const updateTopologyStage = (id: string, patch: Partial<VehicleStagePlan>): boolean => {
     try {
       const nextStages = vehicleTopology.stages.map((stage) => stage.id === id ? { ...stage, ...patch } : stage);
       persistVehicleTopology({ ...vehicleTopology, stages: nextStages });
+      return true;
     } catch (error) {
       setTopologyError(error instanceof Error ? error.message : "Unable to update stage");
+      return false;
+    }
+  };
+  const updateTopologyMotorFailures = (stage: VehicleStagePlan, value: string): boolean => {
+    try {
+      return updateTopologyStage(stage.id, {
+        failedMotorInstanceIndices: parseFailedMotorInstanceInput(value, stage),
+      });
+    } catch (error) {
+      setTopologyError(error instanceof Error ? error.message : "Unable to update motor failure configuration");
+      return false;
     }
   };
   const removeTopologyStage = (id: string) => {
@@ -4490,9 +4536,10 @@ export default function Home() {
                     <div className="topology-stage-events">
                       <label>Ignition delay (s)<input type="number" min="0" max="120" step="0.01" value={stage.ignitionDelayS} onChange={(event) => updateTopologyStage(stage.id, { ignitionDelayS: Number(event.target.value) })} /></label>
                       <label>Separation delay (s)<input type="number" min="0" max="120" step="0.01" value={stage.separationDelayS} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { separationDelayS: Number(event.target.value) })} /></label>
+                      <label>Failed motors (1-based)<input type="text" inputMode="numeric" placeholder={stageMotorInstanceCount(stage) > 1 ? "e.g. 1, 3" : "none"} value={topologyFailureDrafts[stage.id] ?? stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")} disabled={stage.role === "payload"} onChange={(event) => { setTopologyFailureDrafts((current) => ({ ...current, [stage.id]: event.target.value })); setTopologyError(""); }} onBlur={() => { const value = topologyFailureDrafts[stage.id]; if (value === undefined) return; if (updateTopologyMotorFailures(stage, value)) { setTopologyFailureDrafts((current) => { const next = { ...current }; delete next[stage.id]; return next; }); } }} /></label>
                       <label className="topology-failure-toggle"><input type="checkbox" checked={stage.ignitionFailure} onChange={(event) => updateTopologyStage(stage.id, { ignitionFailure: event.target.checked })} /> Force ignition failure in preview</label>
                     </div>
-                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>
+                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{stage.failedMotorInstanceIndices.length > 0 ? ` · failed motor${stage.failedMotorInstanceIndices.length > 1 ? "s" : ""} ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}` : ""}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>
                   </div>
                 </article>
               ))}

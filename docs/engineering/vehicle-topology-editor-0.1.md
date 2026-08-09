@@ -18,11 +18,13 @@ Kestrel Lab now exposes a local topology editor for:
   a global selection fallback;
 - per-stage ignition delay, separation delay, and an explicit deterministic
   ignition-failure switch for the preview run.
+- per-motor failure selection for repeated radial instances, entered as a
+  one-based comma-separated list and stored as validated zero-based indices.
 - bounded per-stage motor cant up to 15 degrees, with an azimuth that rotates
   with repeated radial instances so outward/inward thrust alignment remains
   inspectable.
 
-The editor produces a validated `LocalVehicleTopology` document with schema `dev.kestrel-lab.local-vehicle-topology`, version 1. It is stored under `kestrel.project.arc54.vehicle-topology.v1` and is bounded to eight stages. IDs, optional motor and aerodynamic-table assignments, stage order, parent references, attachment type, roles, repeat count, radius, and bounded cant angles are checked before persistence. Motor, aerodynamic-table, and cant assignments are migration-by-default: older v1 records without either optional field continue to use the global selection and axial thrust.
+The editor produces a validated `LocalVehicleTopology` document with schema `dev.kestrel-lab.local-vehicle-topology`, version 1. It is stored under `kestrel.project.arc54.vehicle-topology.v1` and is bounded to eight stages. IDs, optional motor and aerodynamic-table assignments, stage order, parent references, attachment type, roles, repeat count, radius, bounded cant angles, and per-motor failure indices are checked before persistence. Motor, aerodynamic-table, cant, and failure assignments are migration-by-default: older v1 records without either optional field continue to use the global selection, axial thrust, and an all-motors-available default.
 
 ## Assembly mapping
 
@@ -31,8 +33,13 @@ The browser maps the topology into the existing original `createVehicleAssemblyM
 The Flight view now exposes a staged 6-DOF preview that consumes the saved event
 settings through the independent stage-flight adapter. A serial stage's ignition
 delay is measured from the preceding stage burnout event; separation delay is
-measured from that stage's own burnout. A forced ignition failure is applied as
-an explicit time-zero event and remains visible in the stage phase diagnostics.
+measured from that stage's own burnout. A forced stage ignition failure is
+applied as an explicit time-zero event and remains visible in the stage phase
+diagnostics. A failed motor instance is represented inside the independent
+propulsion model: it stays attached with its dry and full propellant mass,
+contributes no thrust or depletion, and does not extend the stage burnout
+clock. The preview emits a warning so a cluster imbalance is never hidden in
+the aggregate thrust number.
 The preview still retains one vehicle body and does not silently model discarded
 stage trajectories or separation clearance.
 

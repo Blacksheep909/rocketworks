@@ -461,6 +461,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /aerodynamicTableId/);
   assert.match(page, /userMotorRecords.map/);
   assert.match(page, /Force ignition failure/);
+  assert.match(page, /Failed motors \(1-based\)/);
+  assert.match(page, /failedMotorInstanceIndices/);
   assert.match(page, /Topology-aware preview/);
   assert.match(page, /Coupled dynamics preview/);
   assert.match(page, /6DOF ascent run/);
@@ -505,6 +507,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(topology, /Parallel stage/);
   assert.match(topology, /parent must appear earlier/);
   assert.match(topology, /aerodynamicTableId/);
+  assert.match(topology, /failedMotorInstanceIndices/);
   assert.match(stagePreview, /simulateStageFlightPreview/);
   assert.match(stagePreview, /simulateRailGuidedLaunch/);
   assert.match(stagePreview, /sideslipRad/);

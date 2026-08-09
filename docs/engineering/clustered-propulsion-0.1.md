@@ -72,6 +72,8 @@ The regression suite verifies:
 
 - symmetric axial motors double force and cancel moment
 - delayed ignition creates the expected asymmetric force and live-CG yaw moment
+- a configured failed motor keeps its propellant mass attached while removing
+  its thrust, depletion, and burnout contribution
 - canted axes are normalized and symmetric transverse force cancels
 - moment calculation uses the instantaneous combined center of mass
 - an off-axis motor rotates the coupled variable-mass 6-DOF body
@@ -86,8 +88,9 @@ flight behavior.
 
 - Thrust axes and application points are fixed. Gimbals, flexure, mount
   compliance, and nozzle motion are absent.
-- Motor failure, ignition uncertainty, thrust variation, temperature effects,
-  and correlated cluster uncertainty are absent.
+- Per-motor failure can be configured deterministically, but ignition
+  probability, partial ignition, thrust variation, temperature effects, and
+  correlated cluster uncertainty are absent.
 - Scalar thrust histories must already include exhaust momentum and nozzle
   pressure thrust.
 - No plume interaction, base-pressure interaction, jet damping, or thrust
@@ -111,7 +114,7 @@ flight behavior.
 
 ## Next work
 
-The next propulsion step should add explicit ignition state and failure modes,
-per-motor thrust uncertainty, gimbal schedules, and optional measured mass-flow
-histories. A mission orchestrator should then expose cluster imbalance warnings
-and uncertainty envelopes in the browser UI.
+The next propulsion step should add per-motor thrust uncertainty, gimbal
+schedules, and optional measured mass-flow histories. A mission orchestrator
+should then expose cluster imbalance warnings and uncertainty envelopes in the
+browser UI.

@@ -209,6 +209,26 @@ test("ignition failure leaves propellant intact and suppresses thrust", () => {
   assert.equal(failed.discreteState[stageIgnitionFailureKey("booster")], true);
 });
 
+test("per-motor ignition failure preserves cluster propellant and trims burnout timing", () => {
+  const clusteredStage = stage("cluster", 1);
+  clusteredStage.motors = [
+    { ...clusteredStage.motors[0], id: "active" },
+    { ...clusteredStage.motors[0], id: "failed", ignitionFailure: true },
+  ];
+  const staging = createMultiStageVehicleModel({
+    retainedMassProperties: properties(1, 0),
+    stages: [clusteredStage],
+  });
+  const result = staging.evaluate(ignitedAtZero(0.5, "cluster"));
+
+  assert.equal(result.stages[0].motors[0].phase, "burning");
+  assert.equal(result.stages[0].motors[1].phase, "ignition-failed");
+  close(result.stages[0].motors[1].propellantMassKg, 0.5, 1e-15, "failed motor propellant");
+  close(result.stages[0].propellantMassKg, 0.9375, 1e-15, "cluster propellant");
+  close(result.stages[0].thrustN, 5, 1e-15, "active motor thrust");
+  close(staging.burnoutOffsetS("cluster"), 2, 1e-15, "active cluster burnout offset");
+});
+
 test("failed ignition cannot synthesize a later burnout transition", () => {
   const staging = model();
   const failed = failStageIgnition(

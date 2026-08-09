@@ -19,6 +19,8 @@ research, standards, and original code.
   calculations with model versions and assumptions;
 - serial, parallel, radial, clustered, and multi-stage vehicle topology;
 - bounded canted-motor configuration with radial instance alignment;
+- deterministic per-motor cluster-failure preview with retained failed-motor
+  propellant and explicit imbalance warnings;
 - bounded launch-rail inclination and ENU azimuth controls with aligned 6DOF
   handoff;
 - motor and aerodynamic coefficient libraries for user-supplied,

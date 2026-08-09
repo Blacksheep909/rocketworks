@@ -1170,10 +1170,10 @@ kbd {
 .topology-stage-fields input, .topology-stage-fields select { width: 100%; min-height: 29px; padding: 0 6px; border: 1px solid var(--line); border-radius: 3px; background: #0b1116; color: var(--ink); font-size: 9px; }
 .topology-stage-fields input:focus, .topology-stage-fields select:focus { border-color: rgba(47,159,255,.52); outline: 0; box-shadow: 0 0 0 2px rgba(47,159,255,.12); }
 .topology-stage-fields input:disabled, .topology-stage-fields select:disabled { opacity: .55; }
-.topology-stage-events { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)) minmax(180px,1.45fr); gap: 7px; margin-top: 9px; padding-top: 9px; border-top: 1px solid rgba(117,153,180,.12); }
+.topology-stage-events { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)) minmax(180px,1.45fr); gap: 7px; margin-top: 9px; padding-top: 9px; border-top: 1px solid rgba(117,153,180,.12); }
 .topology-stage-events label { display: flex; min-width: 0; flex-direction: column; gap: 4px; color: #8fa4b2; font-size: 7px; }
-.topology-stage-events input[type="number"] { width: 100%; min-height: 29px; padding: 0 6px; border: 1px solid var(--line); border-radius: 3px; background: #0b1116; color: var(--ink); font-size: 9px; }
-.topology-stage-events input[type="number"]:focus { border-color: rgba(47,159,255,.52); outline: 0; box-shadow: 0 0 0 2px rgba(47,159,255,.12); }
+.topology-stage-events input[type="number"], .topology-stage-events input[type="text"] { width: 100%; min-height: 29px; padding: 0 6px; border: 1px solid var(--line); border-radius: 3px; background: #0b1116; color: var(--ink); font-size: 9px; }
+.topology-stage-events input[type="number"]:focus, .topology-stage-events input[type="text"]:focus { border-color: rgba(47,159,255,.52); outline: 0; box-shadow: 0 0 0 2px rgba(47,159,255,.12); }
 .topology-stage-events input:disabled { opacity: .48; }
 .topology-failure-toggle { align-items: center; justify-content: center; flex-direction: row !important; gap: 7px !important; padding: 0 8px; border: 1px solid rgba(244,163,64,.2); border-radius: 3px; background: rgba(244,163,64,.045); color: #dcb47b !important; }
 .topology-failure-toggle input { accent-color: var(--signal-amber); }

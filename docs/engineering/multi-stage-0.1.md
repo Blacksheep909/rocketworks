@@ -13,7 +13,8 @@ The model tracks one retained flight vehicle as attached stages ignite, consume
 propellant, burn out, fail to ignite, and separate. Each stage contains fixed
 structural mass properties and one or more independently delayed motors. A
 motor carries its own dry and propellant mass properties, thrust curve, thrust
-axis, and application point. The browser topology layer can derive that axis
+axis, application point, and optional deterministic ignition-failure flag. The
+browser topology layer can derive that axis
 from a bounded stage-level cant angle and azimuth; repeated radial instances
 rotate the azimuth with their placement.
 
@@ -75,7 +76,10 @@ and live combined center of mass `R`:
 `Mi = (pi - R) cross Fi`
 
 Clustered, canted, and delayed motors are summed. A failed, uncommanded,
-burned-out, or separated motor produces zero force and moment.
+burned-out, or separated motor produces zero force and moment. A configured
+motor ignition failure retains its dry mass and full propellant mass while
+attached; it also does not extend the stage burnout offset, which is based on
+motors that can actually burn.
 
 ## Separation semantics
 
@@ -110,6 +114,8 @@ The regression suite verifies:
 - independent deterministic separation and ignition delays
 - delayed clustered motors and off-axis thrust moments
 - ignition-failure suppression with intact propellant
+- asymmetric cluster evaluation with one failed motor, retained propellant,
+  and active-motor burnout timing
 - prevention of false burnout transitions after ignition failure
 - exact scheduled ignition, failure, and separation changes
 - inertia-tensor rate against centered finite differences
@@ -125,9 +131,9 @@ flight performance.
 
 - Propellant depletion is proportional to delivered impulse, not measured mass
   flow or geometry-based grain regression.
-- Ignition delay and stage-event delays are deterministic. No distributions,
-  misfire probabilities, partial ignition, pressure buildup, or thrust
-  uncertainty are included.
+- Ignition delay and stage-event delays are deterministic. Per-motor failure is
+  a configured preview switch, not a misfire probability; partial ignition,
+  pressure buildup, and thrust uncertainty are not included.
 - Separation is instantaneous and removes the source stage from the retained
   tracked body. The optional separated-body preview is ballistic only and is
   not suitable for clearance, range-safety, or flight-safety decisions.
@@ -162,8 +168,9 @@ flight performance.
 The stage-flight preview adapter now composes this model with stage-aware
 aerodynamics, launch environment, preliminary loads, and the 6-DOF integrator.
 The browser topology editor supplies deterministic ignition and separation delay
-inputs plus an explicit ignition-failure preview switch. The resulting Flight
-card reports event topology and retains the status
+inputs, a stage-level ignition-failure preview switch, and optional one-based
+failed motor numbers for repeated clusters. The resulting Flight card reports
+event topology and retains the status
 `mathematical-regression-tests-only`.
 
 The browser assembly now applies a topology-derived axial transform to serial

@@ -25,7 +25,7 @@ import type {
   StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
 
-export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.2.0";
+export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.2.1";
 
 export type MultiStageMotor = Readonly<{
   id: string;
@@ -36,6 +36,8 @@ export type MultiStageMotor = Readonly<{
   initialPropellantMassProperties: MassProperties;
   thrustApplicationPointBodyM: Vector3;
   thrustAxisBody?: Vector3;
+  /** A configured ignition failure leaves this motor attached with its propellant intact. */
+  ignitionFailure?: boolean;
 }>;
 
 export type RocketStage = Readonly<{
@@ -404,8 +406,13 @@ export function createMultiStageVehicleModel(input: Readonly<{
       if (!(axisMagnitude > 0) || !Number.isFinite(axisMagnitude)) {
         throw new Error(`motor ${motor.id} thrust axis must be a finite non-zero vector`);
       }
+      const ignitionFailure = motor.ignitionFailure ?? false;
+      if (typeof ignitionFailure !== "boolean") {
+        throw new Error(`motor ${motor.id} ignition failure must be boolean`);
+      }
       return {
         ...motor,
+        ignitionFailure,
         thrustCurve,
         normalizedThrustAxisBody: scaleVector(axis, 1 / axisMagnitude),
         totalImpulseNs,
@@ -418,9 +425,12 @@ export function createMultiStageVehicleModel(input: Readonly<{
       ...stage,
       motors,
       burnoutOffsetS: Math.max(
-        ...motors.map(
-          (motor) => (motor.ignitionDelayS ?? 0) + motor.thrustCurve.at(-1)!.timeS,
-        ),
+        0,
+        ...motors
+          .filter((motor) => !motor.ignitionFailure)
+          .map(
+            (motor) => (motor.ignitionDelayS ?? 0) + motor.thrustCurve.at(-1)!.timeS,
+          ),
       ),
     };
   });
@@ -486,7 +496,7 @@ export function createMultiStageVehicleModel(input: Readonly<{
       for (const motor of item.stage.motors) {
         massParts.push(motor.dryMassProperties);
         const localTimeS =
-          item.ignitionCommandTimeS === null || item.ignitionFailed
+          item.ignitionCommandTimeS === null || item.ignitionFailed || motor.ignitionFailure
             ? null
             : state.timeS - item.ignitionCommandTimeS - (motor.ignitionDelayS ?? 0);
         const deliveredImpulseNs =
@@ -508,7 +518,7 @@ export function createMultiStageVehicleModel(input: Readonly<{
       const motorEvaluations = item.stage.motors.map(
         (motor): MultiStageMotorEvaluation => {
           const localTimeS =
-            item.ignitionCommandTimeS === null || item.ignitionFailed
+            item.ignitionCommandTimeS === null || item.ignitionFailed || motor.ignitionFailure
               ? null
               : state.timeS - item.ignitionCommandTimeS - (motor.ignitionDelayS ?? 0);
           const deliveredImpulseNs =
@@ -521,12 +531,13 @@ export function createMultiStageVehicleModel(input: Readonly<{
           );
           const curveEndS = motor.thrustCurve.at(-1)!.timeS;
           const thrustN =
-            item.separated || item.ignitionFailed || localTimeS === null || remainingPropellantFraction <= 1e-14
+            item.separated || item.ignitionFailed || motor.ignitionFailure || localTimeS === null || remainingPropellantFraction <= 1e-14
               ? 0
               : thrustAt(motor.thrustCurve as ThrustPoint[], localTimeS);
           const propellantMassRateKgS =
             !item.separated &&
             !item.ignitionFailed &&
+            !motor.ignitionFailure &&
             localTimeS !== null &&
             localTimeS >= motor.thrustCurve[0].timeS &&
             localTimeS < curveEndS &&
@@ -565,6 +576,8 @@ export function createMultiStageVehicleModel(input: Readonly<{
             ? "separated"
             : item.ignitionFailed
               ? "ignition-failed"
+              : motor.ignitionFailure
+                ? "ignition-failed"
               : localTimeS === null || localTimeS < motor.thrustCurve[0].timeS
                 ? "waiting"
                 : localTimeS >= curveEndS || remainingPropellantFraction <= 1e-14

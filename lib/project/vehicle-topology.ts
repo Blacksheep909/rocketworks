@@ -22,6 +22,8 @@ export type VehicleStagePlan = Readonly<{
   ignitionDelayS: number;
   separationDelayS: number;
   ignitionFailure: boolean;
+  /** Zero-based radial motor instance indices that are configured not to ignite. */
+  failedMotorInstanceIndices: readonly number[];
 }>;
 
 export type VehicleThrustAxis = Readonly<{
@@ -113,6 +115,21 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
   }
   const ignitionFailure = stage.ignitionFailure ?? false;
   if (typeof ignitionFailure !== "boolean") throw new Error(`Stage ${id} ignitionFailure must be boolean.`);
+  const failedMotorInstanceIndices = stage.failedMotorInstanceIndices ?? [];
+  if (!Array.isArray(failedMotorInstanceIndices)) {
+    throw new Error(`Stage ${id} failedMotorInstanceIndices must be an array.`);
+  }
+  const motorInstanceCount = stage.attachment === "parallel" ? stage.repeatCount as number : 1;
+  const failedMotorSet = new Set<number>();
+  for (const value of failedMotorInstanceIndices) {
+    if (!Number.isInteger(value) || (value as number) < 0 || (value as number) >= motorInstanceCount) {
+      throw new Error(`Stage ${id} failedMotorInstanceIndices must contain unique motor indices from 0 through ${motorInstanceCount - 1}.`);
+    }
+    if (failedMotorSet.has(value as number)) {
+      throw new Error(`Stage ${id} failedMotorInstanceIndices must not contain duplicates.`);
+    }
+    failedMotorSet.add(value as number);
+  }
   return {
     id,
     name,
@@ -129,6 +146,7 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     ignitionDelayS,
     separationDelayS,
     ignitionFailure,
+    failedMotorInstanceIndices: [...failedMotorSet].sort((left, right) => left - right),
   };
 }
 
@@ -171,6 +189,7 @@ export function createDefaultVehicleTopology(): LocalVehicleTopology {
       ignitionDelayS: 0,
       separationDelayS: 0.1,
       ignitionFailure: false,
+      failedMotorInstanceIndices: [],
     }],
   };
 }
@@ -202,6 +221,7 @@ export function createStagePlan(input: Readonly<{
   ignitionDelayS?: number;
   separationDelayS?: number;
   ignitionFailure?: boolean;
+  failedMotorInstanceIndices?: readonly number[];
 }>): VehicleStagePlan {
   return validStage({
     ...input,
@@ -213,5 +233,6 @@ export function createStagePlan(input: Readonly<{
     ignitionDelayS: input.ignitionDelayS ?? 0,
     separationDelayS: input.separationDelayS ?? 0.1,
     ignitionFailure: input.ignitionFailure ?? false,
+    failedMotorInstanceIndices: input.failedMotorInstanceIndices ?? [],
   }, 0);
 }

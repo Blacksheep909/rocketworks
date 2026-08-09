@@ -20,6 +20,9 @@ flight-readiness claims.
   free flight.
 - Added angle-of-attack and signed-sideslip diagnostics to the coupled trace
   inspector and staged CSV export, with explicit degree units.
+- Added bounded per-motor cluster-failure topology controls; failed motors keep
+  their attached dry/propellant mass, contribute no thrust or depletion, and
+  remain visible as explicit warnings and ignition-failed phases.
 
 ## 0.1.0-preview — 2026-08-09
 

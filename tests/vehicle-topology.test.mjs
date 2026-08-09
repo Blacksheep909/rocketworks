@@ -19,6 +19,7 @@ test("default topology is a strict versioned single-core plan", () => {
   assert.equal(topology.stages[0].ignitionDelayS, 0);
   assert.equal(topology.stages[0].separationDelayS, 0.1);
   assert.equal(topology.stages[0].ignitionFailure, false);
+  assert.deepEqual(topology.stages[0].failedMotorInstanceIndices, []);
   assert.equal(topology.stages[0].thrustCantAngleDeg, 0);
   assert.equal(topology.stages[0].thrustCantAzimuthDeg, 0);
   assert.equal(topology.stages[0].motorId, undefined);
@@ -31,7 +32,7 @@ test("serial upper stages and repeated parallel boosters validate in order", () 
     stages: [
       createStagePlan({ id: "sustainer", name: "Sustainer", role: "core", attachment: "serial" }),
       createStagePlan({ id: "upper-01", name: "Upper stage 1", role: "upper", attachment: "serial", parentStageId: "sustainer", motorId: "user.motor-01", aerodynamicTableId: "user.aero-01" }),
-      createStagePlan({ id: "booster-01", name: "Booster set 1", role: "booster", attachment: "parallel", parentStageId: "sustainer", repeatCount: 3, repeatRadiusM: 0.12, thrustCantAngleDeg: 4.5, thrustCantAzimuthDeg: 90 }),
+      createStagePlan({ id: "booster-01", name: "Booster set 1", role: "booster", attachment: "parallel", parentStageId: "sustainer", repeatCount: 3, repeatRadiusM: 0.12, thrustCantAngleDeg: 4.5, thrustCantAzimuthDeg: 90, failedMotorInstanceIndices: [2, 0] }),
     ],
   };
   const validated = validateVehicleTopology(topology);
@@ -41,6 +42,7 @@ test("serial upper stages and repeated parallel boosters validate in order", () 
   assert.equal(validated.stages[1].aerodynamicTableId, "user.aero-01");
   assert.equal(validated.stages[2].thrustCantAngleDeg, 4.5);
   assert.equal(validated.stages[2].thrustCantAzimuthDeg, 90);
+  assert.deepEqual(validated.stages[2].failedMotorInstanceIndices, [0, 2]);
 });
 
 test("topology rejects unsafe structure edits explicitly", () => {
@@ -53,6 +55,8 @@ test("topology rejects unsafe structure edits explicitly", () => {
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], thrustCantAngleDeg: 16 }] }), /thrustCantAngleDeg/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], thrustCantAzimuthDeg: 181 }] }), /thrustCantAzimuthDeg/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], ignitionFailure: "yes" }] }), /ignitionFailure/);
+  assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], failedMotorInstanceIndices: [1] }] }), /failedMotorInstanceIndices/);
+  assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], failedMotorInstanceIndices: [0, 0] }] }), /duplicates/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], motorId: "bad motor" }] }), /motorId/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], aerodynamicTableId: "bad table" }] }), /aerodynamicTableId/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [...base.stages, { ...base.stages[0], id: "booster", role: "booster", attachment: "parallel", parentStageId: "missing" }] }), /parent must appear earlier/);
