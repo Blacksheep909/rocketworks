@@ -2,18 +2,28 @@
 
 Status: implemented UI treatment; original Kestrel Lab design system.
 
+The current pass responds to the requested SpaceX/Rocket Lab-inspired direction
+as a broad visual reference only. It does not reproduce either company’s
+interface, assets, typography, branding, or source code.
+
 ## Direction
 
 Kestrel Lab now uses a restrained launch-console language inspired by contemporary aerospace operations without copying any company’s interface, assets, typography, or source code:
 
 - near-black graphite surfaces and sharp, low-radius controls;
+- a pale technical drawing plate for vehicle geometry, with a dark vehicle
+  silhouette and a single signal-orange service band;
 - paper-white technical labels and compact monospace instrumentation;
 - telemetry blue for active state, links, selection, and live model context;
 - amber/terracotta only for caution, provenance, unvalidated data, and the small number of launch-console signal accents;
 - thin grid lines, mission identifiers, stage context, and model-status badges;
 - generous workspace canvas with dense side inspectors, preserving a design-review rhythm;
 - a compact mission telemetry rack for configuration, active-stage count, and a plain-language design check;
-- a neutral-black technical drawing plate with a restrained amber service band, keeping the canvas distinct from the surrounding console without introducing a swamp-green cast.
+- a black/white engineering plate with a restrained orange service band, keeping
+  the canvas distinct from the surrounding console without introducing a
+  swamp-green cast;
+- high-contrast launch actions and quiet telemetry surfaces, so the operator
+  can scan readiness, configuration, and model status without decorative noise.
 
 ## Interaction hierarchy
 

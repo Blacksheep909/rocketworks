@@ -2201,14 +2201,14 @@ export default function Home() {
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">K</span>
-          <div><strong>Kestrel Lab</strong><span>Aerospace workbench</span></div>
+          <div><strong>Kestrel Lab</strong><span>Aerospace workbench · Flight systems</span></div>
         </div>
         <div className="project-title">
           <button className="quiet-button" aria-label="Go back to projects">‹</button>
-          <div><strong>ARC 54</strong><span><i className="live-dot" />{saveError ? "Local save unavailable" : saved ? "Saved locally" : "Saving changes…"}</span></div>
+          <div><strong>ARC 54 / Vehicle 01</strong><span><i className="live-dot" />{saveError ? "Local save unavailable" : saved ? "Saved locally" : "Saving changes…"}</span></div>
         </div>
         <div className="top-actions">
-          <div className="mission-chip" aria-label="Mission status"><span>MISSION</span><strong>KST-01</strong><em>PRELIMINARY</em></div>
+          <div className="mission-chip" aria-label="Mission status"><span>MISSION</span><strong>KST-01</strong><em>PRELIMINARY · REV 01</em></div>
           <button className="quiet-button command-button" onClick={openCommandPalette} aria-haspopup="dialog" aria-expanded={commandOpen}>
             <span>Search actions</span><kbd>⌘ K</kbd>
           </button>
@@ -2272,7 +2272,7 @@ export default function Home() {
           </div>
           <div className="workspace-status" aria-label="Current vehicle context">
             <i className="status-pulse" aria-hidden="true" />
-            <span>DESIGN LOOP</span><strong>ARC 54 / SUSTAINER</strong>
+            <span>DESIGN LOOP / MISSION CONTROL</span><strong>ARC 54 / SUSTAINER</strong>
           </div>
           <div className="mission-rack" aria-label="Mission telemetry">
             <div><span>CONFIG</span><strong>{configurationId}</strong></div>

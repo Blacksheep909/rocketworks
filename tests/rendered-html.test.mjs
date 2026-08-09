@@ -47,6 +47,9 @@ test("ships the graphite and telemetry-blue aerospace visual system", async () =
   assert.match(stylesheet, /--paper: #090d11/);
   assert.match(stylesheet, /--accent: #2f9fff/);
   assert.match(stylesheet, /--canvas: #e7ebee/);
+  assert.match(stylesheet, /--launch-orange: #ff7043/);
+  assert.match(stylesheet, /VEHICLE GEOMETRY  \/  REV 01/);
+  assert.match(stylesheet, /Launch-control visual pass/);
   assert.doesNotMatch(stylesheet, /#187a56|#0d573c|#e3f1eb/i);
 });
 
