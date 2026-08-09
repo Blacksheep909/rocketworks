@@ -202,8 +202,11 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(source, /uncertaintyCorrelations/);
   assert.match(source, /FlightDataComparisonCard/);
   assert.match(source, /parseFlightDataCsv/);
+  assert.match(source, /compareFlightDataToStageTrace/);
   assert.match(source, /createFlightDataComparisonCsv/);
   assert.match(source, /Compare an instrumented flight/);
+  assert.match(source, /flight-data-trace-source/);
+  assert.match(source, /coupled 6DOF/);
   assert.match(source, /Residuals are simulated minus measured/);
   assert.match(source, /Measured time offset/);
   assert.match(source, /Simulation time = measured time \+ offset/);
@@ -229,6 +232,7 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(stylesheet, /\.flight-data-card/);
   assert.match(stylesheet, /\.flight-data-table/);
   assert.match(stylesheet, /\.flight-data-controls/);
+  assert.match(stylesheet, /\.flight-data-controls select/);
   assert.match(stylesheet, /\.benchmark-card/);
   assert.match(stylesheet, /\.benchmark-table/);
   assert.match(stylesheet, /rgba\(47,159,255/);

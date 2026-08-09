@@ -50,6 +50,7 @@ import {
   standardAtmosphere,
   simulateVerticalFlight,
   compareFlightDataToTrace,
+  compareFlightDataToStageTrace,
   createFlightDataComparisonCsv,
   parseFlightDataCsv,
   runPhysicsBenchmarkSuite,
@@ -65,6 +66,7 @@ import {
   type VerticalFlightResult,
   type FlightDataComparisonResult,
   type FlightDataSeries,
+  type FlightDataTraceSource,
   type PhysicsBenchmarkSuiteResult,
   type VehicleComponent,
   type MotorDataRecord,
@@ -2072,6 +2074,9 @@ function FlightDataComparisonCard({
   comparison,
   error,
   resultIsCurrent,
+  traceSource,
+  coupledTraceAvailable,
+  onTraceSourceChange,
   timeOffsetS,
   onTimeOffsetChange,
   onExport,
@@ -2082,6 +2087,9 @@ function FlightDataComparisonCard({
   comparison: FlightDataComparisonResult | null;
   error: string;
   resultIsCurrent: boolean;
+  traceSource: FlightDataTraceSource;
+  coupledTraceAvailable: boolean;
+  onTraceSourceChange: (source: FlightDataTraceSource) => void;
   timeOffsetS: number;
   onTimeOffsetChange: (value: number) => void;
   onExport: () => void;
@@ -2094,7 +2102,7 @@ function FlightDataComparisonCard({
         <div>
           <span className="eyebrow">Measured-data check</span>
           <h4 id="flight-data-title">Compare an instrumented flight</h4>
-          <p>Load a simple SI CSV log to inspect model residuals against measured altitude, velocity, or acceleration. The file stays in this browser session.</p>
+          <p>Load a simple SI CSV log to inspect model residuals against measured altitude, velocity, or acceleration. Choose the vertical or coupled 6DOF trace; the file stays in this browser session.</p>
         </div>
         <div className="flight-data-actions">
           <label className="flight-data-import-button">
@@ -2118,17 +2126,24 @@ function FlightDataComparisonCard({
           <span>{resultIsCurrent ? "The imported log has no overlapping supported metrics." : "Rerun the current flight estimate before comparing measured data."}</span>
         </div>
       )}
+      {series && (
+        <div className="flight-data-controls">
+          <label htmlFor="flight-data-trace-source">Compare against</label>
+          <select id="flight-data-trace-source" value={traceSource} onChange={(event) => onTraceSourceChange(event.target.value as FlightDataTraceSource)}>
+            <option value="vertical-1d">Vertical 1D estimate</option>
+            <option value="coupled-6dof" disabled={!coupledTraceAvailable}>Coupled 6DOF trace{coupledTraceAvailable ? "" : " · run required"}</option>
+          </select>
+          <label htmlFor="flight-data-time-offset">Measured time offset</label>
+          <input id="flight-data-time-offset" type="number" value={timeOffsetS} min={-600} max={600} step={0.01} onChange={(event) => onTimeOffsetChange(Number(event.target.value))} />
+          <span>s</span>
+          <small>Simulation time = measured time + offset</small>
+        </div>
+      )}
       {comparison && (
         <>
-          <div className="flight-data-controls">
-            <label htmlFor="flight-data-time-offset">Measured time offset</label>
-            <input id="flight-data-time-offset" type="number" value={timeOffsetS} min={-600} max={600} step={0.01} onChange={(event) => onTimeOffsetChange(Number(event.target.value))} />
-            <span>s</span>
-            <small>Simulation time = measured time + offset</small>
-          </div>
           <div className="flight-data-meta">
             <span><strong>{comparison.sourceName}</strong> · {comparison.matchedSampleCount}/{comparison.measuredSampleCount} samples matched</span>
-            <span>time offset {comparison.timeOffsetS.toFixed(2)} s · {comparison.validationStatus}</span>
+            <span>{comparison.traceSource === "coupled-6dof" ? "coupled 6DOF" : "vertical 1D"} · time offset {comparison.timeOffsetS.toFixed(2)} s · {comparison.validationStatus}</span>
           </div>
           <div className="flight-data-table" role="table" aria-label="Measured flight data comparison">
             <div className="flight-data-row flight-data-row-header" role="row">
@@ -2888,6 +2903,7 @@ export default function Home() {
   const [flightDataSeries, setFlightDataSeries] = useState<FlightDataSeries | null>(null);
   const [flightDataError, setFlightDataError] = useState("");
   const [flightDataTimeOffsetS, setFlightDataTimeOffsetS] = useState(0);
+  const [flightDataTraceSource, setFlightDataTraceSource] = useState<FlightDataTraceSource>("vertical-1d");
   const [stageFlightResult, setStageFlightResult] =
     useState<StageFlightPreviewResult | null>(null);
   const [stageFlightFingerprint, setStageFlightFingerprint] = useState<string | null>(
@@ -2955,15 +2971,26 @@ export default function Home() {
     lastRunFingerprint,
     simulationFingerprint,
   );
+  const stageFlightIsCurrent =
+    stageFlightResult !== null &&
+    isSimulationFingerprintCurrent(stageFlightFingerprint, simulationFingerprint);
   const flightDataComparisonState = useMemo<{ comparison: FlightDataComparisonResult | null; error: string }>(() => {
     if (!flightDataSeries) return { comparison: null, error: "" };
-    if (!resultIsCurrent) return { comparison: null, error: "" };
+    if (flightDataTraceSource === "coupled-6dof") {
+      if (!stageFlightResult) return { comparison: null, error: "Run the coupled 6DOF preview before comparing measured data against that trace." };
+      if (!stageFlightIsCurrent) return { comparison: null, error: "Rerun the current coupled 6DOF preview before comparing measured data." };
+    } else if (!resultIsCurrent) {
+      return { comparison: null, error: "" };
+    }
     try {
-      return { comparison: compareFlightDataToTrace(result.trace, flightDataSeries, { timeOffsetS: flightDataTimeOffsetS }), error: "" };
+      const comparison = flightDataTraceSource === "coupled-6dof"
+        ? compareFlightDataToStageTrace(stageFlightResult!.trace, flightDataSeries, { timeOffsetS: flightDataTimeOffsetS })
+        : compareFlightDataToTrace(result.trace, flightDataSeries, { timeOffsetS: flightDataTimeOffsetS });
+      return { comparison, error: "" };
     } catch (error) {
       return { comparison: null, error: error instanceof Error ? error.message : "Unable to compare measured data." };
     }
-  }, [flightDataSeries, flightDataTimeOffsetS, result, resultIsCurrent]);
+  }, [flightDataSeries, flightDataTimeOffsetS, flightDataTraceSource, result, resultIsCurrent, stageFlightIsCurrent, stageFlightResult]);
   const structuralBody = vehicleComponents.find(
     (component): component is Extract<VehicleComponent, { kind: "axisymmetric" }> =>
       component.kind === "axisymmetric" && component.id === "body",
@@ -3051,9 +3078,6 @@ export default function Home() {
   const primaryThresholdConvergence = uncertainty.convergence.thresholds[0] ?? null;
   const primaryRecoveryThreshold = uncertainty.thresholds.find((threshold) => threshold.id === "recovery-deployed") ?? null;
   const primaryRecoveryThresholdConvergence = uncertainty.convergence.thresholds.find((threshold) => threshold.thresholdId === "recovery-deployed") ?? null;
-  const stageFlightIsCurrent =
-    stageFlightResult !== null &&
-    isSimulationFingerprintCurrent(stageFlightFingerprint, simulationFingerprint);
   const stageUncertaintyIsCurrent =
     stageUncertainty !== null &&
     isSimulationFingerprintCurrent(stageUncertaintyFingerprint, simulationFingerprint);
@@ -3450,8 +3474,11 @@ export default function Home() {
       notify("Import measured data and rerun the current estimate before exporting residuals");
       return;
     }
+    const traceSource = flightDataComparisonState.comparison.traceSource === "coupled-6dof"
+      ? "coupled-6dof"
+      : "vertical-1d";
     downloadTextArtifact(
-      "arc-54-flight-data-residuals.csv",
+      `arc-54-${traceSource}-flight-data-residuals.csv`,
       "text/csv;charset=utf-8",
       createFlightDataComparisonCsv(flightDataComparisonState.comparison),
     );
@@ -4865,6 +4892,9 @@ export default function Home() {
               comparison={flightDataComparisonState.comparison}
               error={flightDataError || flightDataComparisonState.error}
               resultIsCurrent={resultIsCurrent}
+              traceSource={flightDataTraceSource}
+              coupledTraceAvailable={stageFlightResult !== null && stageFlightIsCurrent}
+              onTraceSourceChange={setFlightDataTraceSource}
               timeOffsetS={flightDataTimeOffsetS}
               onTimeOffsetChange={(value) => { setFlightDataTimeOffsetS(Number.isFinite(value) ? value : 0); }}
               onExport={exportFlightDataComparison}

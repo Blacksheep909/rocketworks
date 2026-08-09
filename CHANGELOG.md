@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extended measured-flight CSV comparison to select the current vertical 1D or
+  coupled 6DOF trace, normalize duplicate stage-event timestamps, derive a
+  clearly qualified diagnostic acceleration channel, and include trace-source
+  provenance in residual exports.
 - Bumped the shared uncertainty model to 0.4.0 and added opt-in,
   positive-definite Gaussian-copula correlations that preserve declared
   marginal distributions for Monte Carlo and Latin-hypercube ensembles.

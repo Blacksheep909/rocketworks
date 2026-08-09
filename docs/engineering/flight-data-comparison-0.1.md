@@ -1,14 +1,14 @@
-# Flight-data comparison 0.1
+# Flight-data comparison 0.2
 
 Status: `engineering-preview-unvalidated`.
 
 ## Purpose
 
-The browser Flight workspace can compare a current Kestrel vertical trace with
-an instrumented flight log supplied by the user. This is deliberately a
-diagnostic and reproducibility surface: it helps expose model discrepancy,
-timestamp coverage, and sensor-to-model drift without presenting an agreement
-score as validation or flight-safety evidence.
+The browser Flight workspace can compare a current Kestrel vertical or coupled
+stage/6DOF trace with an instrumented flight log supplied by the user. This is
+deliberately a diagnostic and reproducibility surface: it helps expose model
+discrepancy, timestamp coverage, and sensor-to-model drift without presenting
+an agreement score as validation or flight-safety evidence.
 
 ## Input contract
 
@@ -22,11 +22,11 @@ malformed logs fail visibly instead of being silently reinterpreted.
 
 ## Comparison method
 
-For every measured timestamp `t_m`, Kestrel linearly interpolates the simulated
-trace at `t_m + Δt`. The Flight card exposes `Δt` as a bounded seconds control;
-the default is zero. No automatic event alignment, sensor latency estimation,
-smoothing, bias correction, or gravity calibration is applied. For each shared
-metric, the residual is defined as:
+For every measured timestamp `t_m`, Kestrel linearly interpolates the selected
+simulated trace at `t_m + Δt`. The Flight card exposes `Δt` as a bounded seconds
+control; the default is zero. No automatic event alignment, sensor latency
+estimation, smoothing, bias correction, or gravity calibration is applied. For
+each shared metric, the residual is defined as:
 
 `r_i = simulated_i - measured_i`
 
@@ -39,18 +39,23 @@ called out in warnings.
 ## Scope limits
 
 The comparison does not establish model validity, uncertainty calibration,
-sensor accuracy, coordinate-frame equivalence, or flight safety. The current
-adapter only compares the one-dimensional vertical trace; six-degree-of-
-freedom telemetry alignment, barometric altitude bias, GNSS filtering, event
-time synchronization, and covariance-weighted residuals remain future work.
-Imported logs stay in in-memory browser state and are not written to local
-project snapshots or share links. A residual CSV export contains only the
-matched rows plus model/version/source metadata, so the comparison can be
-reviewed or attached to an engineering note without changing the project
-state.
+sensor accuracy, coordinate-frame equivalence, or flight safety. The vertical
+adapter compares the one-dimensional vertical trace. The coupled adapter maps
+stage-flight altitude and speed into the same contract, collapses duplicate
+event timestamps to the final state at each timestamp, and reconstructs its
+acceleration channel with centered finite differences (forward/backward at the
+endpoints). That acceleration is diagnostic, not a new sensor or 6DOF
+truth-model. Coordinate-frame transformations, barometric altitude bias, GNSS
+filtering, event-time synchronization, and covariance-weighted residuals remain
+future work. Imported logs stay in in-memory browser state and are not written
+to local project snapshots or share links. A residual CSV export contains only
+the matched rows plus model/version/source metadata, including the selected
+trace source, so the comparison can be reviewed or attached to an engineering
+note without changing the project state.
 
 ## Verification
 
 Regression tests cover comment/header parsing, supported metric aliases,
 strictly increasing timestamps, linear interpolation, residual sign, time
-offsets, coverage warnings, and malformed or metric-free logs.
+offsets, coverage warnings, coupled event-timestamp normalization, diagnostic
+finite-difference acceleration, and malformed or metric-free logs.

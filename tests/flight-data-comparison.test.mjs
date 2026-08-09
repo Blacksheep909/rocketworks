@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   compareFlightDataToTrace,
+  compareFlightDataToStageTrace,
   createFlightDataComparisonCsv,
   parseFlightDataCsv,
 } from "../lib/physics/index.ts";
@@ -39,10 +40,37 @@ test("flight-data comparison linearly interpolates residuals with explicit sign"
   assert.equal(result.rows.length, 2);
   const csv = createFlightDataComparisonCsv(result);
   assert.match(csv, /# model_version,kestrel-flight-data-comparison-0\.1\.0/);
+  assert.match(csv, /# trace_source,vertical-1d/);
   assert.match(csv, /time_s,simulation_time_s,altitude_measured_m/);
   assert.match(csv, /0\.5,0\.5,2,2\.5,0\.5/);
   assert.match(csv, /\r\n$/);
   assert.ok(result.assumptions.some((assumption) => assumption.includes("simulated minus measured")));
+});
+
+test("coupled comparison collapses event timestamps and derives diagnostic acceleration", () => {
+  const result = compareFlightDataToStageTrace(
+    [
+      { timeS: 0, altitudeAglM: 0, speedMps: 0 },
+      { timeS: 1, altitudeAglM: 10, speedMps: 10 },
+      { timeS: 1, altitudeAglM: 11, speedMps: 12 },
+      { timeS: 2, altitudeAglM: 22, speedMps: 20 },
+    ],
+    {
+      sourceName: "coupled fixture",
+      samples: [
+        { timeS: 0, altitudeM: 0, velocityMps: 0, accelerationMps2: 12 },
+        { timeS: 1, altitudeM: 11, velocityMps: 12, accelerationMps2: 10 },
+        { timeS: 2, altitudeM: 22, velocityMps: 20, accelerationMps2: 8 },
+      ],
+    },
+  );
+  assert.equal(result.traceSource, "coupled-6dof");
+  assert.equal(result.matchedSampleCount, 3);
+  assert.equal(result.rows.length, 3);
+  assert.equal(result.metrics.accelerationMps2?.rootMeanSquareError, 0);
+  assert.equal(result.metrics.altitudeM?.rootMeanSquareError, 0);
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("centered finite differences")));
+  assert.match(createFlightDataComparisonCsv(result), /# trace_source,coupled-6dof/);
 });
 
 test("flight-data comparison retains coverage warnings and supports time offsets", () => {

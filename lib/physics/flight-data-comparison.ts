@@ -2,6 +2,7 @@ import type { FlightTracePoint } from "./vertical-flight.ts";
 
 export const FLIGHT_DATA_COMPARISON_MODEL_VERSION = "kestrel-flight-data-comparison-0.1.0";
 export const FLIGHT_DATA_COMPARISON_STATUS = "engineering-preview-unvalidated";
+export type FlightDataTraceSource = "vertical-1d" | "coupled-6dof";
 
 export type FlightDataMetricKey = "altitudeM" | "velocityMps" | "accelerationMps2";
 
@@ -46,6 +47,7 @@ export type FlightDataComparisonResult = Readonly<{
   modelVersion: string;
   validationStatus: string;
   sourceName: string;
+  traceSource: FlightDataTraceSource;
   measuredSampleCount: number;
   matchedSampleCount: number;
   unmatchedSampleCount: number;
@@ -59,6 +61,12 @@ export type FlightDataComparisonResult = Readonly<{
 }>;
 
 type TracePoint = Pick<FlightTracePoint, "timeS" | "altitudeAglM" | "velocityMps" | "accelerationMps2">;
+
+export type StageFlightDataTracePoint = Readonly<{
+  timeS: number;
+  altitudeAglM: number;
+  speedMps: number;
+}>;
 
 const METRIC_DEFINITIONS: readonly Readonly<{
   key: FlightDataMetricKey;
@@ -210,7 +218,7 @@ function quantile(sorted: readonly number[], probability: number) {
 export function compareFlightDataToTrace(
   trace: readonly TracePoint[],
   series: FlightDataSeries,
-  options: Readonly<{ timeOffsetS?: number }> = {},
+  options: Readonly<{ timeOffsetS?: number; traceSource?: FlightDataTraceSource }> = {},
 ): FlightDataComparisonResult {
   if (trace.length < 2) throw new Error("Simulation trace requires at least two samples.");
   validateSamples(series.samples, "Flight data");
@@ -270,6 +278,7 @@ export function compareFlightDataToTrace(
     modelVersion: FLIGHT_DATA_COMPARISON_MODEL_VERSION,
     validationStatus: FLIGHT_DATA_COMPARISON_STATUS,
     sourceName: series.sourceName,
+    traceSource: options.traceSource ?? "vertical-1d",
     measuredSampleCount: series.samples.length,
     matchedSampleCount,
     unmatchedSampleCount: series.samples.length - matchedSampleCount,
@@ -288,6 +297,58 @@ export function compareFlightDataToTrace(
   };
 }
 
+function collapseStageTrace(
+  trace: readonly StageFlightDataTracePoint[],
+): StageFlightDataTracePoint[] {
+  const collapsed: StageFlightDataTracePoint[] = [];
+  for (const point of trace) {
+    const previous = collapsed.at(-1);
+    if (previous && point.timeS === previous.timeS) collapsed[collapsed.length - 1] = point;
+    else collapsed.push(point);
+  }
+  return collapsed;
+}
+
+/**
+ * Adapt the coupled stage/6DOF trace to the shared measured-flight contract.
+ * Stage traces expose speed rather than signed vertical velocity, so the
+ * acceleration channel is reconstructed with a finite difference and remains
+ * explicitly diagnostic rather than a new sensor model.
+ */
+export function compareFlightDataToStageTrace(
+  trace: readonly StageFlightDataTracePoint[],
+  series: FlightDataSeries,
+  options: Readonly<{ timeOffsetS?: number }> = {},
+): FlightDataComparisonResult {
+  const normalizedTrace = collapseStageTrace(trace);
+  if (normalizedTrace.length < 2) throw new Error("Coupled flight trace requires at least two samples.");
+  const adaptedTrace: TracePoint[] = normalizedTrace.map((point, index, points) => {
+    const previous = points[index - 1];
+    const next = points[index + 1];
+    const left = previous ?? point;
+    const right = next ?? point;
+    const spanS = right.timeS - left.timeS;
+    if (!(spanS > 0)) throw new Error("Coupled flight trace times must increase after event normalization.");
+    return {
+      timeS: point.timeS,
+      altitudeAglM: point.altitudeAglM,
+      velocityMps: point.speedMps,
+      accelerationMps2: (right.speedMps - left.speedMps) / spanS,
+    };
+  });
+  const result = compareFlightDataToTrace(adaptedTrace, series, {
+    ...options,
+    traceSource: "coupled-6dof",
+  });
+  return {
+    ...result,
+    assumptions: [
+      ...result.assumptions,
+      "Coupled-trace acceleration is reconstructed from centered finite differences of reported speed; rail/event duplicate times are collapsed to the final state at each timestamp.",
+    ],
+  };
+}
+
 function csvField(value: number | string | null | undefined): string {
   if (value === null || value === undefined) return "";
   const text = String(value);
@@ -299,6 +360,7 @@ export function createFlightDataComparisonCsv(result: FlightDataComparisonResult
     `# model_version,${csvField(result.modelVersion)}`,
     `# validation_status,${csvField(result.validationStatus)}`,
     `# source_name,${csvField(result.sourceName)}`,
+    `# trace_source,${csvField(result.traceSource)}`,
     `# time_offset_s,${csvField(result.timeOffsetS)}`,
     `# measured_samples,${csvField(result.measuredSampleCount)}`,
     `# matched_samples,${csvField(result.matchedSampleCount)}`,
