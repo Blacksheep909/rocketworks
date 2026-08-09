@@ -199,6 +199,9 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
     "utf8",
   );
   assert.match(source, /simulateSeparatedBodyFlight/);
+  assert.match(source, /createRecoverySystemModel/);
+  assert.match(source, /recoveryDevices/);
+  assert.match(source, /recoveryDragN/);
   assert.match(source, /Explicit separation events spawn a separate ballistic/);
   assert.match(source, /referenceAreaM2/);
   assert.match(source, /bounded isotropic point drag/);

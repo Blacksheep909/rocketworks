@@ -15,22 +15,28 @@ import {
   rotateBodyToWorld,
   simulateRigidBody6D,
   type AppliedRigidBodyEvent,
+  type RigidBodyLoads,
   type RigidBodyState,
   type ScheduledRigidBodyEvent,
   type SixDofSimulationResult,
   type StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
-import { magnitude, scaleVector, type Vector3 } from "./linear-algebra.ts";
+import { addVectors, magnitude, scaleVector, type Vector3 } from "./linear-algebra.ts";
 import type { VehicleComponent } from "./vehicle-components.ts";
 import type { WindLayer } from "./curves.ts";
 import type { MassProperties } from "./mass-properties.ts";
+import {
+  createRecoverySystemModel,
+  type RecoveryDevice,
+  type RecoverySystemModel,
+} from "./recovery-system.ts";
 import {
   simulateSeparatedBodyFlight,
   type SeparatedBodyTrajectory,
 } from "./separated-body-flight.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.7.0";
+  "kestrel-stage-flight-preview-0.8.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -55,6 +61,8 @@ export type StageFlightPreviewInput = Readonly<{
   >>;
   events?: readonly ScheduledRigidBodyEvent[];
   stateEvents?: readonly StateTriggeredRigidBodyEvent[];
+  /** Optional retained-vehicle recovery devices. Detached-stage branches do not carry them. */
+  recoveryDevices?: readonly RecoveryDevice[];
   launchRail?: LaunchRailConfig;
   launchRailMaximumSteps?: number;
   additionalWarnings?: readonly string[];
@@ -70,6 +78,8 @@ export type StageFlightTracePoint = Readonly<{
   sideslipRad: number;
   dynamicPressurePa: number;
   dragN: number;
+  recoveryDragN: number;
+  recoveryEffectiveAreaM2: number;
   massKg: number;
   thrustN: number;
   attachedStageIds: readonly string[];
@@ -125,6 +135,7 @@ export type StageFlightPreviewResult = Readonly<{
   stagingModelVersion: string;
   aerodynamicsModelVersion: string;
   loadsModelVersion: string;
+  recoveryModelVersion: string | null;
   simulation: SixDofSimulationResult | null;
   rail: RailGuidedLaunchResult | null;
   trace: readonly StageFlightTracePoint[];
@@ -142,6 +153,26 @@ export type StageFlightPreviewResult = Readonly<{
 const ZERO_VECTOR: Vector3 = { x: 0, y: 0, z: 0 };
 const STAGE_FLIGHT_CONVERGENCE_RELATIVE_TOLERANCE = 0.02;
 const STAGE_FLIGHT_CONVERGENCE_TIME_TOLERANCE_S = 0.05;
+
+function combineRigidBodyLoads(
+  primary: RigidBodyLoads,
+  secondary: RigidBodyLoads,
+): RigidBodyLoads {
+  const forceWorldN = primary.forceWorldN || secondary.forceWorldN
+    ? addVectors(primary.forceWorldN ?? ZERO_VECTOR, secondary.forceWorldN ?? ZERO_VECTOR)
+    : undefined;
+  const forceBodyN = primary.forceBodyN || secondary.forceBodyN
+    ? addVectors(primary.forceBodyN ?? ZERO_VECTOR, secondary.forceBodyN ?? ZERO_VECTOR)
+    : undefined;
+  const momentBodyNm = primary.momentBodyNm || secondary.momentBodyNm
+    ? addVectors(primary.momentBodyNm ?? ZERO_VECTOR, secondary.momentBodyNm ?? ZERO_VECTOR)
+    : undefined;
+  return {
+    ...(forceWorldN ? { forceWorldN } : {}),
+    ...(forceBodyN ? { forceBodyN } : {}),
+    ...(momentBodyNm ? { momentBodyNm } : {}),
+  };
+}
 
 function finiteVector(value: Vector3, label: string): void {
   if (![value.x, value.y, value.z].every(Number.isFinite)) {
@@ -495,6 +526,17 @@ export function simulateStageFlightPreview(
     launchAltitudeM: input.environmentAt ? undefined : input.launchAltitudeM,
     windProfile: input.environmentAt ? undefined : input.windProfile,
   });
+  const recovery: RecoverySystemModel | null = input.recoveryDevices && input.recoveryDevices.length > 0
+    ? createRecoverySystemModel({
+        devices: input.recoveryDevices,
+        environmentAt: input.environmentAt,
+        launchAltitudeM: input.environmentAt ? undefined : input.launchAltitudeM,
+        windProfile: input.environmentAt ? undefined : input.windProfile,
+        centerOfMassBodyM: (state) => staging.evaluate(state).massProperties.centerOfMassM,
+      })
+    : null;
+  const combinedLoads = (state: RigidBodyState): RigidBodyLoads =>
+    combineRigidBodyLoads(loads.loads(state), recovery?.loads(state) ?? {});
 
   const baseState = defaultInitialState(input);
   const initialState = initializeMultiStageState(
@@ -556,7 +598,7 @@ export function simulateStageFlightPreview(
           initialState,
           durationS: input.durationS,
           timeStepS,
-          loads: loads.loads,
+          loads: combinedLoads,
           rail: input.launchRail,
           scheduledTimesS,
           events: input.events,
@@ -571,7 +613,7 @@ export function simulateStageFlightPreview(
           initialState,
           durationS: input.durationS,
           timeStepS,
-          loads: loads.loads,
+          loads: combinedLoads,
           events: input.events,
           stateEvents: input.stateEvents,
           scheduledTimesS,
@@ -580,6 +622,7 @@ export function simulateStageFlightPreview(
     const trace = simulationTrace.map((state): StageFlightTracePoint => {
       const evaluation = staging.evaluate(state);
       const loadEvaluation = loads.evaluate(state);
+      const recoveryEvaluation = recovery?.evaluate(state);
       return {
         timeS: state.timeS,
         altitudeAglM: state.positionWorldM.z,
@@ -589,6 +632,8 @@ export function simulateStageFlightPreview(
         sideslipRad: loadEvaluation.diagnostics.sideslipRad,
         dynamicPressurePa: loadEvaluation.diagnostics.dynamicPressurePa,
         dragN: loadEvaluation.diagnostics.dragN,
+        recoveryDragN: recoveryEvaluation?.devices.reduce((sum, device) => sum + device.dragN, 0) ?? 0,
+        recoveryEffectiveAreaM2: recoveryEvaluation?.devices.reduce((sum, device) => sum + device.effectiveAreaM2, 0) ?? 0,
         massKg: evaluation.massProperties.massKg,
         thrustN: evaluation.totalThrustN,
         attachedStageIds: [...evaluation.attachedStageIds],
@@ -734,6 +779,7 @@ export function simulateStageFlightPreview(
     ...staging.warnings,
     ...aerodynamics.warnings,
     ...loads.warnings,
+    ...(recovery?.warnings ?? []),
     ...(primaryRun.rail?.warnings ?? primaryRun.simulation?.warnings ?? []),
     ...convergence.warnings,
     ...separatedBodyWarnings,
@@ -743,12 +789,18 @@ export function simulateStageFlightPreview(
     ...staging.assumptions,
     ...aerodynamics.assumptions,
     ...loads.assumptions,
+    ...(recovery?.assumptions ?? []),
     ...(primaryRun.rail?.assumptions ?? primaryRun.simulation?.assumptions ?? []),
     ...(primaryRun.rail?.freeFlight?.assumptions ?? []),
     ...convergence.assumptions,
     `Explicit separation events spawn a separate ballistic-capable trajectory for each newly detached stage; separated bodies are represented independently; ${separatedBodies.filter((body) => body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined).length} branch(es) use bounded isotropic point drag and ${separatedBodies.filter((body) => body.referenceAreaM2 === undefined || body.dragCoefficient === undefined).length} branch(es) use the gravity-only fallback.`,
     "When one separation event releases multiple physical copies, the equal-and-opposite impulse uses their combined detached mass and assigns one shared detached velocity increment to each copy; individual separation-mechanism impulses are not modeled.",
-    "Separated-body previews apply a mass-ratio equal-and-opposite linear-momentum delta-v when the separation event carries a configured retained-body delta-v; a single event releasing multiple copies uses their combined detached mass and assigns one shared detached velocity increment. Separation mechanism dynamics, angular impulse, lift, attitude-dependent aerodynamic torque, plume interaction, aerodynamic interference, recovery, collision, and clearance remain outside the model.",
+    "Separated-body previews apply a mass-ratio equal-and-opposite linear-momentum delta-v when the separation event carries a configured retained-body delta-v; a single event releasing multiple copies uses their combined detached mass and assigns one shared detached velocity increment. Separation mechanism dynamics, angular impulse, lift, attitude-dependent aerodynamic torque, plume interaction, aerodynamic interference, collision, and clearance remain outside the model; retained-vehicle recovery devices, when configured, are not propagated into detached-stage branches.",
+    ...(recovery
+      ? [
+          `Retained-vehicle recovery devices are coupled as body loads through ${recovery.modelVersion}; deployment commands, inflation, and reefing remain deterministic effective-area approximations.`,
+        ]
+      : []),
     "The returned trajectory is a deterministic engineering preview and is not a flight-safety assessment.",
   ];
   return {
@@ -757,6 +809,7 @@ export function simulateStageFlightPreview(
     stagingModelVersion: staging.modelVersion,
     aerodynamicsModelVersion: aerodynamics.modelVersion,
     loadsModelVersion: loads.modelVersion,
+    recoveryModelVersion: recovery?.modelVersion ?? null,
     simulation: primaryRun.simulation,
     rail: primaryRun.rail,
     trace: primaryRun.trace,

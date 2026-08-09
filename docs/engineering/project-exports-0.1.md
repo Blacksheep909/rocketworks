@@ -102,9 +102,11 @@ checked for finiteness.
 
 The staged 6DOF trace CSV uses the same explicit style and adds
 `mach`, `angle_of_attack_deg`, `sideslip_deg`, `dynamic_pressure_pa`, and
-`drag_n` before the live mass, thrust, and attached-stage identifiers. These
-aerodynamic columns are evaluated from the coupled load diagnostics at each
-retained sample, not reconstructed from the display chart.
+`drag_n`, `recovery_drag_n`, and `recovery_effective_area_m2` before the live
+mass, thrust, and attached-stage identifiers. These aerodynamic and recovery
+columns are evaluated from the coupled load diagnostics at each retained
+sample, not reconstructed from the display chart. Recovery values are zero
+when no retained-vehicle recovery device is configured or before its command.
 
 ## DXF side profile
 

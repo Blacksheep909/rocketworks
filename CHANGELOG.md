@@ -8,6 +8,10 @@ flight-readiness claims.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.
+- Bumped the coupled stage-flight preview to 0.8.0 and integrated the
+  independent recovery-load model into retained-vehicle 6DOF/rail loads, with
+  apogee command events, canopy-area/drag trace telemetry, and explicit
+  detached-stage recovery scope limits.
 - Added independently keyed repeated physical stage instances to the original
   multi-stage model: per-copy ignition/failure/separation state, burnout event
   targeting, nested diagnostics, and live per-copy mass-property lookup while

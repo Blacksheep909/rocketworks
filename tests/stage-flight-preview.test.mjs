@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   analyzeStageFlightUncertainty,
+  createApogeeRecoveryDeploymentEvent,
   createScheduledStageIgnitionEvent,
   createScheduledStageSeparationEvent,
   createStageFlightVariant,
@@ -146,7 +147,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.7.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.8.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.events.length, 2);
   assert.deepEqual(result.events[0].attachedStageIdsBefore, ["booster", "upper"]);
@@ -181,6 +182,37 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.ok(result.separatedBodies[0].warnings.some((warning) => warning.includes("equal-and-opposite")));
   assert.ok(result.separatedBodies[0].warnings.some((warning) => warning.includes("ballistic")));
   assert.deepEqual(result.clusterDiagnostics, []);
+});
+
+test("stage-flight adapter couples retained recovery loads and apogee command telemetry", () => {
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages,
+    regimes,
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 4,
+    timeStepS: 0.05,
+    launchAltitudeM: 0,
+    recoveryDevices: [
+      {
+        id: "main",
+        name: "Main canopy",
+        dragCoefficient: 0.75,
+        referenceAreaM2: 0.2,
+        inflationTimeS: 0,
+      },
+    ],
+    stateEvents: [createApogeeRecoveryDeploymentEvent({ deviceId: "main" })],
+  });
+
+  assert.equal(result.recoveryModelVersion, "kestrel-recovery-loads-0.2.0");
+  assert.ok(result.events.some((event) => event.id === "recovery-main-apogee-command"));
+  assert.ok(result.trace.every((point) => Number.isFinite(point.recoveryDragN) && Number.isFinite(point.recoveryEffectiveAreaM2)));
+  assert.ok(result.trace.some((point) => point.recoveryEffectiveAreaM2 > 0));
+  assert.ok(result.trace.some((point) => point.recoveryDragN > 0));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("Retained-vehicle recovery devices are coupled")));
+  assert.ok(result.warnings.some((warning) => warning.includes("Opening shock")));
 });
 
 test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", () => {

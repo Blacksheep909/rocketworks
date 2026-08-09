@@ -25,6 +25,7 @@ import {
   computeStaticStability,
   analyzeVerticalFlightUncertainty,
   analyzeStageFlightUncertainty,
+  createApogeeRecoveryDeploymentEvent,
   createLaunchEnvironmentModel,
   launchRailDirectionFromAngles,
   launchRailOrientationFromAngles,
@@ -798,6 +799,12 @@ function createStageFlightPreviewInputs({
   launchRailLengthM,
   launchRailInclinationDeg,
   launchRailAzimuthDeg,
+  recoveryEnabled,
+  recoveryDelay,
+  recoveryDiameter,
+  recoveryReefingEnabled,
+  recoveryReefingDurationS,
+  recoveryReefingStartAreaFraction,
   aerodynamicTable,
   aerodynamicTableModels,
 }: {
@@ -812,6 +819,12 @@ function createStageFlightPreviewInputs({
   launchRailLengthM: number;
   launchRailInclinationDeg: number;
   launchRailAzimuthDeg: number;
+  recoveryEnabled: boolean;
+  recoveryDelay: number;
+  recoveryDiameter: number;
+  recoveryReefingEnabled: boolean;
+  recoveryReefingDurationS: number;
+  recoveryReefingStartAreaFraction: number;
   aerodynamicTable?: AerodynamicCoefficientTableModel | null;
   aerodynamicTableModels?: Readonly<Record<string, AerodynamicCoefficientTableModel>>;
 }): Parameters<typeof simulateStageFlightPreview>[0] {
@@ -1075,6 +1088,31 @@ function createStageFlightPreviewInputs({
       scheduleBurnoutSeparations(stage, plan);
     }
   }
+  const recoveryDevices = recoveryEnabled
+    ? [
+        {
+          id: "main",
+          name: "Main recovery canopy",
+          dragCoefficient: 0.75,
+          referenceAreaM2: Math.PI * (recoveryDiameter / 2) ** 2,
+          deploymentDelayS: recoveryDelay,
+          inflationTimeS: 1.2,
+          reefingStages: createBrowserRecoveryReefingStages({
+            recoveryReefingEnabled,
+            recoveryReefingDurationS,
+            recoveryReefingStartAreaFraction,
+          }),
+        },
+      ]
+    : [];
+  if (recoveryDevices.length > 0) {
+    stateEvents.push(
+      createApogeeRecoveryDeploymentEvent({
+        deviceId: "main",
+        label: "Main recovery command at apogee",
+      }),
+    );
+  }
   return {
     retainedMassProperties,
     components,
@@ -1096,6 +1134,7 @@ function createStageFlightPreviewInputs({
     initialState,
     events,
     stateEvents,
+    recoveryDevices,
     additionalWarnings: [
       ...motorAssignmentWarnings,
       ...stageFailureWarnings,
@@ -1790,6 +1829,8 @@ type StageFlightMetricKey =
   | "sideslip"
   | "dynamicPressure"
   | "drag"
+  | "recoveryDrag"
+  | "recoveryArea"
   | "mass"
   | "thrust";
 
@@ -1808,6 +1849,8 @@ const STAGE_FLIGHT_METRICS: readonly StageFlightMetricDefinition[] = [
   { key: "sideslip", label: "Sideslip", unit: "deg", color: "#86d8ff" },
   { key: "dynamicPressure", label: "Dynamic pressure", unit: "Pa", color: "#45d6b0" },
   { key: "drag", label: "Axial drag", unit: "N", color: "#e9c46a" },
+  { key: "recoveryDrag", label: "Recovery drag", unit: "N", color: "#c084fc" },
+  { key: "recoveryArea", label: "Canopy area", unit: "m²", color: "#60a5fa" },
   { key: "mass", label: "Mass", unit: "kg", color: "#a5c7d8" },
   { key: "thrust", label: "Thrust", unit: "N", color: "#f4a340" },
 ];
@@ -1823,6 +1866,8 @@ function stageFlightMetricValue(
   if (key === "sideslip") return (point.sideslipRad * 180) / Math.PI;
   if (key === "dynamicPressure") return point.dynamicPressurePa;
   if (key === "drag") return point.dragN;
+  if (key === "recoveryDrag") return point.recoveryDragN;
+  if (key === "recoveryArea") return point.recoveryEffectiveAreaM2;
   if (key === "mass") return point.massKg;
   return point.thrustN;
 }
@@ -1832,6 +1877,7 @@ function formatStageFlightMetric(value: number, key: StageFlightMetricKey): stri
   if (key === "mach") return value.toFixed(3);
   if (key === "angleOfAttack" || key === "sideslip") return value.toFixed(2);
   if (key === "dynamicPressure") return value.toFixed(0);
+  if (key === "recoveryArea") return value.toFixed(3);
   if (key === "thrust") return value.toFixed(1);
   if (key === "drag") return value.toFixed(1);
   return value.toFixed(1);
@@ -3571,6 +3617,12 @@ export default function Home() {
             launchRailLengthM,
             launchRailInclinationDeg,
             launchRailAzimuthDeg,
+            recoveryEnabled,
+            recoveryDelay,
+            recoveryDiameter,
+            recoveryReefingEnabled,
+            recoveryReefingDurationS,
+            recoveryReefingStartAreaFraction,
             aerodynamicTable: selectedAerodynamicTable,
             aerodynamicTableModels,
           }),
@@ -3610,6 +3662,12 @@ export default function Home() {
           launchRailLengthM,
           launchRailInclinationDeg,
           launchRailAzimuthDeg,
+          recoveryEnabled,
+          recoveryDelay,
+          recoveryDiameter,
+          recoveryReefingEnabled,
+          recoveryReefingDurationS,
+          recoveryReefingStartAreaFraction,
           aerodynamicTable: selectedAerodynamicTable,
           aerodynamicTableModels,
         });
@@ -4098,6 +4156,9 @@ export default function Home() {
                       <div><span>Peak speed</span><strong>{stageFlightResult.maxSpeedMps.toFixed(1)} m/s</strong></div>
                       <div><span>Apogee estimate</span><strong>{stageFlightResult.timeToApogeeS.toFixed(1)} s</strong></div>
                       <div><span>Events applied</span><strong>{stageFlightResult.events.length}</strong></div>
+                      {stageFlightResult.recoveryModelVersion && (
+                        <div><span>Peak recovery drag</span><strong>{Math.max(0, ...stageFlightResult.trace.map((point) => point.recoveryDragN)).toFixed(1)} N</strong><small>retained vehicle load</small></div>
+                      )}
                     </div>
                     {stageFlightResult.rail && (
                       <div className="stage-flight-rail" aria-label="Launch rail handoff">
@@ -4214,7 +4275,7 @@ export default function Home() {
                     )}
                     <div className="stage-flight-events" aria-label="Staged flight events">
                       {stageFlightResult.events.length === 0 ? (
-                        <span className="stage-flight-empty">No staging transitions were reached in this run.</span>
+                        <span className="stage-flight-empty">No rail, staging, failure, or recovery transitions were reached in this run.</span>
                       ) : stageFlightResult.events.map((event) => (
                         <div key={`${event.id}-${event.timeS}`}>
                           <span>{event.timeS.toFixed(2)} s</span>
@@ -4228,7 +4289,7 @@ export default function Home() {
                     <div className="stage-flight-status">
                       <span>MODEL STATUS</span>
                       <strong>{stageFlightResult.validationStatus}</strong>
-                      <small>{stageFlightResult.stagingModelVersion} · {stageFlightResult.aerodynamicsModelVersion}{stageFlightResult.rail ? ` · ${stageFlightResult.rail.modelVersion}` : ""}</small>
+                      <small>{stageFlightResult.stagingModelVersion} · {stageFlightResult.aerodynamicsModelVersion}{stageFlightResult.recoveryModelVersion ? ` · ${stageFlightResult.recoveryModelVersion}` : ""}{stageFlightResult.rail ? ` · ${stageFlightResult.rail.modelVersion}` : ""}</small>
                     </div>
                     <div className="stage-flight-warnings" role="note">
                       <span>WARNINGS</span>

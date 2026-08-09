@@ -1,4 +1,4 @@
-# Stage-aware flight preview 0.7
+# Stage-aware flight preview 0.8
 
 Status: implemented composition adapter; mathematical regression tests only.
 This preview is not flight-safety validated and must not be used for launch
@@ -16,14 +16,23 @@ models for:
 3. atmosphere, wind, turbulence, and launch-site environment queries;
 4. preliminary body loads; and
 5. an optional straight launch-rail constraint and exact release handoff; and
-6. the event-aware six-degree-of-freedom rigid-body integrator.
+6. optional retained-vehicle recovery-device loads and deployment events; and
+7. the event-aware six-degree-of-freedom rigid-body integrator.
 
 The adapter returns the underlying model versions, the full 6-DOF trace, stage
 sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.7.0`.
+`kestrel-stage-flight-preview-0.8.0`.
+
+When `recoveryDevices` is supplied, the adapter composes the independent
+recovery-load model into the retained vehicle's force and moment callback. A
+state-triggered apogee command can write the recovery device's discrete state,
+after which deployment delay, inflation, and reefing affect the coupled trace.
+The trace exposes recovery drag and effective area, and the result reports the
+recovery model version. Recovery devices are deliberately not copied into
+detached-stage branches.
 
 ## Event and state policy
 
@@ -50,7 +59,8 @@ The browser's `Stage flight profile` is a presentation layer over the returned
 trace; it does not add forces, resample the integrator, or change the model
 version. The operator can switch the plotted series between altitude, speed,
 Mach, angle of attack, signed sideslip, dynamic pressure, axial drag, mass, and
-thrust. The aerodynamic series come from the same per-state load diagnostics
+recovery drag, effective canopy area, and thrust. The aerodynamic and recovery
+series come from the same per-state load diagnostics
 used by the integrator, so table
 applicability and topology changes remain visible in the surrounding warnings.
 Rail liftoff, rail exit, staging, and failure events are drawn as time markers,
@@ -155,8 +165,10 @@ modeled.
 
 This remains an intentionally bounded ballistic component check. It does not
 invent lift, attitude-dependent aerodynamic torque, plume interaction,
-stage-to-stage aerodynamic interference, collision, recovery, or clearance
-logic. The result status is
+stage-to-stage aerodynamic interference, collision, or clearance logic for
+detached bodies. Retained-vehicle recovery is available only through the
+explicit device adapter described above; it remains an effective-area load
+approximation. The result status is
 `analytical-component-checks-only`, and the UI, project JSON, and engineering
 report retain the warning so an impact time cannot be mistaken for a range or
 flight-safety prediction.
@@ -180,7 +192,7 @@ flight-safety prediction.
   and launcher motion are not modeled. Rail-phase state resets must preserve the
   constrained axis and attitude.
 - Results inherit every applicability warning from the staging, aerodynamic,
-  load, environment, launch-rail, and six-degree-of-freedom models.
+  load, recovery, environment, launch-rail, and six-degree-of-freedom models.
 - The half-step convergence rerun can be unavailable when a caller imposes a
   very small rail step budget or another runtime limit; this is surfaced as
   `not-assessed`, never silently treated as converged.
