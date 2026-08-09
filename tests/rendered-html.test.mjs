@@ -60,6 +60,10 @@ test("ships versioned flight results and explainable model UI", async () => {
   );
   assert.match(source, /result\.modelVersion/);
   assert.match(source, /Flight events/);
+  assert.match(source, /Vertical flight profile/);
+  assert.match(source, /FLIGHT_METRICS/);
+  assert.match(source, /Dynamic pressure/);
+  assert.match(source, /role="tablist"/);
   assert.match(source, /modelWarning\.explanation/);
   assert.match(source, /result\.assumptions/);
   assert.match(source, /createSimulationFingerprint/);

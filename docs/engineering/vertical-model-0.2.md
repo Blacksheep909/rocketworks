@@ -46,6 +46,12 @@ Primary references:
 - Altitude-dependent gravity.
 - Explainable limitations and warnings.
 
+The browser's primary trace inspector exposes the returned samples without
+recomputing them: altitude, speed, acceleration, mass, thrust, and dynamic
+pressure can be selected as separate time-series views. Event markers are
+drawn from the result's ordered event list, and pointer/keyboard navigation
+only changes the display selection; it never changes the numerical result.
+
 ## Validation scope
 
 Automated tests cover atmosphere reference points, interpolation, impulse

@@ -1304,79 +1304,269 @@ function createLandingPrediction(
   });
 }
 
+type FlightMetricKey =
+  | "altitude"
+  | "speed"
+  | "acceleration"
+  | "mass"
+  | "thrust"
+  | "dynamicPressure";
+
+type FlightMetricDefinition = Readonly<{
+  key: FlightMetricKey;
+  label: string;
+  unit: string;
+  color: string;
+}>;
+
+const FLIGHT_METRICS: readonly FlightMetricDefinition[] = [
+  { key: "altitude", label: "Altitude", unit: "m", color: "#2f9fff" },
+  { key: "speed", label: "Speed", unit: "m/s", color: "#ff7043" },
+  { key: "acceleration", label: "Acceleration", unit: "m/s²", color: "#f4a340" },
+  { key: "mass", label: "Mass", unit: "kg", color: "#a5c7d8" },
+  { key: "thrust", label: "Thrust", unit: "N", color: "#ffb36b" },
+  { key: "dynamicPressure", label: "Dynamic pressure", unit: "Pa", color: "#a78bfa" },
+];
+
+function flightMetricValue(
+  point: VerticalFlightResult["trace"][number],
+  key: FlightMetricKey,
+): number {
+  if (key === "altitude") return point.altitudeAglM;
+  if (key === "speed") return point.velocityMps;
+  if (key === "acceleration") return point.accelerationMps2;
+  if (key === "mass") return point.massKg;
+  if (key === "thrust") return point.thrustN;
+  return point.dynamicPressurePa;
+}
+
+function formatFlightMetric(value: number, key: FlightMetricKey): string {
+  if (key === "mass") return value.toFixed(3);
+  if (key === "acceleration") return value.toFixed(2);
+  if (key === "dynamicPressure") return value.toFixed(0);
+  if (key === "thrust") return value.toFixed(1);
+  return value.toFixed(1);
+}
+
 function FlightChart({ result }: { result: VerticalFlightResult }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [metric, setMetric] = useState<FlightMetricKey>("altitude");
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const trace = result.trace;
+  const definition = FLIGHT_METRICS.find((item) => item.key === metric)!;
+  const maxTimeS = Math.max(trace.at(-1)?.timeS ?? result.totalFlightTimeS, 1);
+  const metricValues = trace.map((point) => flightMetricValue(point, metric));
+  const peakValue = metricValues.reduce(
+    (peak, value) => Math.max(peak, value),
+    metricValues[0] ?? 0,
+  );
+  const hoverPoint = hoverIndex === null ? null : trace[hoverIndex] ?? null;
+
+  const selectMetricByKeyboard = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    currentIndex: number,
+  ) => {
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      nextIndex = (currentIndex + 1) % FLIGHT_METRICS.length;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      nextIndex = (currentIndex - 1 + FLIGHT_METRICS.length) % FLIGHT_METRICS.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = FLIGHT_METRICS.length - 1;
+    }
+    if (nextIndex === null) return;
+    event.preventDefault();
+    setMetric(FLIGHT_METRICS[nextIndex]!.key);
+    setHoverIndex(null);
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ratio = window.devicePixelRatio || 1;
-    const bounds = canvas.getBoundingClientRect();
-    canvas.width = Math.max(1, bounds.width * ratio);
-    canvas.height = Math.max(1, bounds.height * ratio);
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    context.scale(ratio, ratio);
+    if (!canvas || trace.length === 0) return;
 
-    const width = bounds.width;
-    const height = bounds.height;
-    const padding = { top: 22, right: 18, bottom: 28, left: 42 };
-    const plotWidth = width - padding.left - padding.right;
-    const plotHeight = height - padding.top - padding.bottom;
-    const maxTime = Math.max(result.totalFlightTimeS, 1);
-    const maxAltitude = Math.max(result.apogeeM, 1);
+    const draw = () => {
+      const ratio = window.devicePixelRatio || 1;
+      const bounds = canvas.getBoundingClientRect();
+      const width = Math.max(1, bounds.width);
+      const height = Math.max(1, bounds.height);
+      canvas.width = Math.max(1, Math.round(width * ratio));
+      canvas.height = Math.max(1, Math.round(height * ratio));
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
 
-    context.clearRect(0, 0, width, height);
-    context.font = "11px ui-monospace, SFMono-Regular, Consolas, monospace";
-    context.fillStyle = "#83919e";
-    context.strokeStyle = "rgba(125, 158, 182, 0.16)";
+      const padding = { top: 26, right: 60, bottom: 30, left: 60 };
+      const plotWidth = Math.max(1, width - padding.left - padding.right);
+      const plotHeight = Math.max(1, height - padding.top - padding.bottom);
+      const values = trace.map((point) => flightMetricValue(point, metric));
+      const rawMinimum = values.reduce((minimum, value) => Math.min(minimum, value), values[0] ?? 0);
+      const rawMaximum = values.reduce((maximum, value) => Math.max(maximum, value), values[0] ?? 1);
+      const range = Math.max(rawMaximum - rawMinimum, 1e-9);
+      const domainMinimum = metric === "acceleration"
+        ? rawMinimum - range * 0.08
+        : Math.min(0, rawMinimum);
+      const domainMaximum = rawMaximum + range * 0.08;
+      const xForTime = (timeS: number) =>
+        padding.left + Math.max(0, Math.min(1, timeS / maxTimeS)) * plotWidth;
+      const yForValue = (value: number) =>
+        padding.top + plotHeight -
+        ((value - domainMinimum) / Math.max(domainMaximum - domainMinimum, 1e-9)) * plotHeight;
 
-    for (let index = 0; index <= 4; index += 1) {
-      const y = padding.top + (plotHeight / 4) * index;
+      context.clearRect(0, 0, width, height);
+      context.font = "10px ui-monospace, SFMono-Regular, Consolas, monospace";
+      context.lineWidth = 1;
+      context.strokeStyle = "rgba(125, 158, 182, 0.16)";
+      context.fillStyle = "#718795";
+      for (let index = 0; index <= 4; index += 1) {
+        const fraction = index / 4;
+        const y = padding.top + plotHeight * fraction;
+        const value = domainMaximum - (domainMaximum - domainMinimum) * fraction;
+        context.beginPath();
+        context.moveTo(padding.left, y);
+        context.lineTo(width - padding.right, y);
+        context.stroke();
+        context.fillText(`${formatFlightMetric(value, metric)} ${definition.unit}`, 4, y + 3);
+      }
+      context.fillText("0 s", padding.left, height - 8);
+      context.fillText(`${maxTimeS.toFixed(1)} s`, width - padding.right - 34, height - 8);
+
+      const coordinates = trace.map((point) => ({
+        x: xForTime(point.timeS),
+        y: yForValue(flightMetricValue(point, metric)),
+      }));
+      const gradient = context.createLinearGradient(0, padding.top, 0, height);
+      gradient.addColorStop(0, `${definition.color}45`);
+      gradient.addColorStop(1, `${definition.color}04`);
       context.beginPath();
-      context.moveTo(padding.left, y);
-      context.lineTo(width - padding.right, y);
+      context.moveTo(coordinates[0]!.x, padding.top + plotHeight);
+      coordinates.forEach((point) => context.lineTo(point.x, point.y));
+      context.lineTo(coordinates.at(-1)!.x, padding.top + plotHeight);
+      context.closePath();
+      context.fillStyle = gradient;
+      context.fill();
+      context.beginPath();
+      coordinates.forEach((point, index) =>
+        index === 0 ? context.moveTo(point.x, point.y) : context.lineTo(point.x, point.y),
+      );
+      context.strokeStyle = definition.color;
+      context.lineWidth = 2.2;
+      context.lineJoin = "round";
       context.stroke();
-      context.fillText(`${Math.round(maxAltitude * (1 - index / 4))} m`, 2, y + 4);
-    }
 
-    const coordinates = result.trace.map((point) => ({
-      x: padding.left + (point.timeS / maxTime) * plotWidth,
-      y:
-        padding.top +
-        plotHeight -
-        (point.altitudeAglM / maxAltitude) * plotHeight,
-    }));
-    const gradient = context.createLinearGradient(0, padding.top, 0, height);
-    gradient.addColorStop(0, "rgba(47, 159, 255, 0.28)");
-    gradient.addColorStop(1, "rgba(47, 159, 255, 0.01)");
-    context.beginPath();
-    context.moveTo(coordinates[0].x, padding.top + plotHeight);
-    coordinates.forEach((point) => context.lineTo(point.x, point.y));
-    context.lineTo(coordinates.at(-1)?.x ?? width, padding.top + plotHeight);
-    context.closePath();
-    context.fillStyle = gradient;
-    context.fill();
-    context.beginPath();
-    coordinates.forEach((point, index) =>
-      index === 0 ? context.moveTo(point.x, point.y) : context.lineTo(point.x, point.y),
-    );
-    context.strokeStyle = "#2f9fff";
-    context.lineWidth = 2.4;
-    context.lineJoin = "round";
-    context.stroke();
-    context.fillStyle = "#83919e";
-    context.fillText("0 s", padding.left, height - 7);
-    context.fillText(`${maxTime.toFixed(1)} s`, width - padding.right - 36, height - 7);
-  }, [result]);
+      for (const event of result.events) {
+        const x = xForTime(event.timeS);
+        context.save();
+        context.setLineDash([3, 4]);
+        context.strokeStyle = event.type === "recovery_deploy"
+          ? "rgba(167,139,250,.72)"
+          : event.type === "burnout"
+            ? "rgba(244,163,64,.72)"
+            : "rgba(47,159,255,.62)";
+        context.beginPath();
+        context.moveTo(x, padding.top);
+        context.lineTo(x, padding.top + plotHeight);
+        context.stroke();
+        context.restore();
+      }
+
+      if (hoverIndex !== null && coordinates[hoverIndex]) {
+        const point = coordinates[hoverIndex]!;
+        context.save();
+        context.strokeStyle = "rgba(236,245,249,.52)";
+        context.setLineDash([2, 3]);
+        context.beginPath();
+        context.moveTo(point.x, padding.top);
+        context.lineTo(point.x, padding.top + plotHeight);
+        context.stroke();
+        context.setLineDash([]);
+        context.fillStyle = definition.color;
+        context.beginPath();
+        context.arc(point.x, point.y, 4, 0, Math.PI * 2);
+        context.fill();
+        context.restore();
+      }
+    };
+
+    draw();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(draw);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [definition.color, definition.unit, hoverIndex, maxTimeS, metric, result.events, trace]);
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (trace.length === 0) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const paddingLeft = 60;
+    const paddingRight = 60;
+    const usableWidth = Math.max(1, bounds.width - paddingLeft - paddingRight);
+    const normalizedX = Math.max(0, Math.min(1, (event.clientX - bounds.left - paddingLeft) / usableWidth));
+    const targetTimeS = normalizedX * maxTimeS;
+    let nearestIndex = 0;
+    let nearestDistance = Infinity;
+    trace.forEach((point, index) => {
+      const distance = Math.abs(point.timeS - targetTimeS);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+    setHoverIndex(nearestIndex);
+  };
+
+  if (trace.length === 0) {
+    return <div className="stage-flight-profile-empty">No flight trace samples were returned for this run.</div>;
+  }
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="flight-chart"
-      aria-label="Estimated altitude over time"
-      role="img"
-    />
+    <section className="stage-flight-profile vertical-flight-profile" aria-labelledby="vertical-flight-profile-title">
+      <div className="stage-flight-profile-heading">
+        <div>
+          <span className="eyebrow">Trace inspector</span>
+          <h4 id="vertical-flight-profile-title">Vertical flight profile</h4>
+          <p>Switch metrics, inspect event markers, and scrub the current numerical trace.</p>
+        </div>
+        <div className="stage-flight-profile-tabs" role="tablist" aria-label="Vertical flight trace metric">
+          {FLIGHT_METRICS.map((item, index) => (
+            <button
+              key={item.key}
+              type="button"
+              role="tab"
+              aria-selected={metric === item.key}
+              tabIndex={metric === item.key ? 0 : -1}
+              className={metric === item.key ? "active" : ""}
+              onClick={() => { setMetric(item.key); setHoverIndex(null); }}
+              onKeyDown={(event) => selectMetricByKeyboard(event, index)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="stage-flight-profile-plot">
+        <canvas
+          ref={canvasRef}
+          className="stage-flight-chart"
+          aria-label={`${definition.label} over time`}
+          role="img"
+          onPointerMove={handlePointerMove}
+          onPointerLeave={() => setHoverIndex(null)}
+        />
+        {hoverPoint && (
+          <div className="stage-flight-hover" aria-live="polite">
+            <span>{definition.label}</span>
+            <strong>{formatFlightMetric(flightMetricValue(hoverPoint, metric), metric)} {definition.unit}</strong>
+            <small>t {hoverPoint.timeS.toFixed(2)} s · altitude {hoverPoint.altitudeAglM.toFixed(1)} m</small>
+          </div>
+        )}
+      </div>
+      <div className="stage-flight-profile-footer">
+        <span><i className="profile-key-line" style={{ background: definition.color }} />Peak {formatFlightMetric(peakValue, metric)} {definition.unit}</span>
+        <span><i className="profile-key-event" />{result.events.length} events · {trace.length} samples</span>
+      </div>
+    </section>
   );
 }
 
@@ -3401,7 +3591,7 @@ export default function Home() {
             </div>
             <div className="chart-card">
               <div className="chart-title">
-                <div><strong>Altitude</strong><span>Estimated trajectory over time</span></div>
+                <div><strong>Flight trace</strong><span>Switch metrics and inspect the estimated trajectory over time</span></div>
                 <span className="legend"><i /> Max q {Math.round(result.maxDynamicPressurePa)} Pa</span>
               </div>
               {running ? <div className="chart-loading"><Skeleton height={260} borderRadius={12} /></div> : <FlightChart result={result} />}
