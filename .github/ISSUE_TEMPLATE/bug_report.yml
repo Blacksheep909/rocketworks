@@ -1,0 +1,51 @@
+name: Bug report
+description: Report a reproducible problem in the engineering preview.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not include private launch data, credentials, or sensitive
+        personal information. This project is an engineering preview, not a
+        flight-safety or certification tool.
+  - type: input
+    id: version
+    attributes:
+      label: Commit or release
+      description: Which Kestrel Lab version or commit did you use?
+      placeholder: "30f4602 or 0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and OS
+      placeholder: "Safari 18 on macOS 15"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Tell us the smallest sequence that reproduces the issue.
+      placeholder: "1. Open... 2. Select... 3. Run..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Console output or screenshots
+      description: Remove personal data and private design details before posting.

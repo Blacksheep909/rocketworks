@@ -1,0 +1,31 @@
+name: Feature request
+description: Propose an improvement to the design or analysis workflow.
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What user or engineering workflow is currently difficult?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest useful version of the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: References and validation notes
+      description: Link public standards, equations, or research where relevant.
+  - type: checkboxes
+    id: boundary
+    attributes:
+      label: Clean-room boundary
+      options:
+        - label: This proposal does not require copying or directly reusing OpenRocket code, assets, data, or its simulation engine.
+          required: true
