@@ -14,7 +14,8 @@ research, standards, and original code.
 
 ## Current release surface
 
-- component-aware 2D geometry and an interactive 3D vehicle view;
+- component-aware 2D geometry and an interactive 3D vehicle view with clickable
+  surface-to-inspector selection;
 - mass, centre-of-gravity, inertia, static stability, and centre-of-pressure
   calculations with model versions and assumptions;
 - serial, parallel, radial, clustered, and multi-stage vehicle topology;

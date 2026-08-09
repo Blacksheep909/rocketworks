@@ -1,9 +1,9 @@
 export const ROCKET_PREVIEW_3D_MODEL_VERSION =
-  "kestrel-rocket-preview-3d-0.2.0";
+  "kestrel-rocket-preview-3d-0.2.1";
 export const ROCKET_PREVIEW_3D_MODEL_STATUS = "display-only-unvalidated";
 
 export type PreviewVector3 = Readonly<{ x: number; y: number; z: number }>;
-export type RocketPreviewSurface = "skin" | "accent" | "fin" | "rear" | "nozzle";
+export type RocketPreviewSurface = "nose" | "skin" | "accent" | "fin" | "rear" | "nozzle";
 export type RocketPreviewNoseProfile = "ogive" | "conical" | "elliptical";
 
 export type RocketPreviewTriangle = Readonly<{
@@ -45,6 +45,34 @@ export type ProjectedRocketPreview = Readonly<{
   triangles: readonly ProjectedRocketTriangle[];
   markers: Readonly<Record<string, Readonly<{ x: number; y: number; depth: number }>>>;
 }>;
+
+export function pickProjectedRocketSurface(
+  projected: ProjectedRocketPreview | null,
+  point: Readonly<{ x: number; y: number }>,
+): RocketPreviewSurface | null {
+  if (!projected) return null;
+  for (let index = projected.triangles.length - 1; index >= 0; index -= 1) {
+    const triangle = projected.triangles[index];
+    const [first, second, third] = triangle.points;
+    const denominator =
+      (second.y - third.y) * (first.x - third.x) +
+      (third.x - second.x) * (first.y - third.y);
+    if (Math.abs(denominator) <= 1e-12) continue;
+    const firstWeight =
+      ((second.y - third.y) * (point.x - third.x) +
+        (third.x - second.x) * (point.y - third.y)) /
+      denominator;
+    const secondWeight =
+      ((third.y - first.y) * (point.x - third.x) +
+        (first.x - third.x) * (point.y - third.y)) /
+      denominator;
+    const thirdWeight = 1 - firstWeight - secondWeight;
+    if (firstWeight >= -1e-9 && secondWeight >= -1e-9 && thirdWeight >= -1e-9) {
+      return triangle.surface;
+    }
+  }
+  return null;
+}
 
 type MutableVector3 = { x: number; y: number; z: number };
 
@@ -161,7 +189,7 @@ export function createRocketPreviewMesh(input: Readonly<{
       a: tip,
       b: pointOnRing(firstRingX, firstRingRadius, nextAngle),
       c: pointOnRing(firstRingX, firstRingRadius, angle),
-      surface: "skin",
+      surface: "nose",
     });
   }
   for (let axialIndex = 1; axialIndex < noseAxialSegments; axialIndex += 1) {
@@ -179,7 +207,7 @@ export function createRocketPreviewMesh(input: Readonly<{
         pointOnRing(secondX, secondRadius, angle),
         pointOnRing(secondX, secondRadius, nextAngle),
         pointOnRing(firstX, firstRadius, nextAngle),
-        "skin",
+        "nose",
       );
     }
   }

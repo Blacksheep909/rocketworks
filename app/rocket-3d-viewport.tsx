@@ -12,6 +12,7 @@ import {
 } from "react";
 import {
   createRocketPreviewMesh,
+  pickProjectedRocketSurface,
   projectRocketPreview,
   type ProjectedRocketTriangle,
   type RocketPreviewNoseProfile,
@@ -19,6 +20,7 @@ import {
 } from "../lib/visualization/rocket-preview-3d.ts";
 
 const SURFACE_COLORS: Record<RocketPreviewSurface, readonly [number, number, number]> = {
+  nose: [43, 51, 58],
   skin: [43, 51, 58],
   accent: [47, 159, 255],
   fin: [52, 61, 69],
@@ -49,6 +51,8 @@ export function Rocket3DViewport({
   finThicknessM,
   centerOfMassXM,
   centerOfPressureXM,
+  highlightSurface = null,
+  onSurfaceSelect,
 }: Readonly<{
   noseLengthM: number;
   noseProfile: RocketPreviewNoseProfile;
@@ -62,13 +66,17 @@ export function Rocket3DViewport({
   finThicknessM: number;
   centerOfMassXM: number;
   centerOfPressureXM: number;
+  highlightSurface?: RocketPreviewSurface | null;
+  onSurfaceSelect?: (surface: RocketPreviewSurface) => void;
 }>) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pointerRef = useRef<Readonly<{
     pointerId: number;
     x: number;
     y: number;
+    moved: boolean;
   }> | null>(null);
+  const projectedRef = useRef<ReturnType<typeof projectRocketPreview> | null>(null);
   const [yawRad, setYawRad] = useState(-0.42);
   const [pitchRad, setPitchRad] = useState(-0.18);
   const [zoom, setZoom] = useState(0.86);
@@ -134,6 +142,7 @@ export function Rocket3DViewport({
         },
       ],
     );
+    projectedRef.current = projected;
     const axisStart = projected.markers["axis-start"];
     const axisEnd = projected.markers["axis-end"];
     context.save();
@@ -155,9 +164,10 @@ export function Rocket3DViewport({
       context.globalAlpha = triangle.facingCamera ? 0.98 : 0.52;
       context.fillStyle = triangleColor(triangle);
       context.fill();
-      context.globalAlpha = 0.26;
-      context.strokeStyle = "#a9c2d3";
-      context.lineWidth = 0.45;
+      const isHighlighted = highlightSurface === triangle.surface;
+      context.globalAlpha = isHighlighted ? 0.86 : 0.26;
+      context.strokeStyle = isHighlighted ? "#e7f7ff" : "#a9c2d3";
+      context.lineWidth = isHighlighted ? 1.25 : 0.45;
       context.stroke();
     }
     context.globalAlpha = 1;
@@ -186,7 +196,7 @@ export function Rocket3DViewport({
     };
     drawMarker("cg", "#ffad55", "CG");
     drawMarker("cp", "#69bfff", "CP");
-  }, [centerOfMassXM, centerOfPressureXM, mesh, pitchRad, yawRad, zoom]);
+  }, [centerOfMassXM, centerOfPressureXM, highlightSurface, mesh, pitchRad, yawRad, zoom]);
 
   useEffect(() => {
     draw();
@@ -208,6 +218,7 @@ export function Rocket3DViewport({
       pointerId: event.pointerId,
       x: event.clientX,
       y: event.clientY,
+      moved: false,
     };
   };
   const onPointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
@@ -215,13 +226,27 @@ export function Rocket3DViewport({
     if (!pointer || pointer.pointerId !== event.pointerId) return;
     const deltaX = event.clientX - pointer.x;
     const deltaY = event.clientY - pointer.y;
-    pointerRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+    pointerRef.current = {
+      pointerId: pointer.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      moved: pointer.moved || Math.hypot(deltaX, deltaY) > 2,
+    };
     setYawRad((value) => value + deltaX * 0.008);
     setPitchRad((value) => clamp(value + deltaY * 0.008, -1.2, 1.2));
   };
   const onPointerUp = (event: PointerEvent<HTMLCanvasElement>) => {
-    if (pointerRef.current?.pointerId === event.pointerId) {
+    const pointer = pointerRef.current;
+    if (pointer?.pointerId === event.pointerId) {
       pointerRef.current = null;
+      if (!pointer.moved && onSurfaceSelect) {
+        const bounds = event.currentTarget.getBoundingClientRect();
+        const surface = pickProjectedRocketSurface(projectedRef.current, {
+          x: event.clientX - bounds.left,
+          y: event.clientY - bounds.top,
+        });
+        if (surface) onSurfaceSelect(surface);
+      }
     }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -258,7 +283,7 @@ export function Rocket3DViewport({
         ref={canvasRef}
         tabIndex={0}
         role="img"
-        aria-label={`Interactive three-dimensional ARC 54 preview with a ${noseProfile} nose and ${finCount} fins, ${Math.round(mesh.longitudinalLengthM * 1000)} millimetres long. Drag or use arrow keys to orbit, and use the mouse wheel or plus and minus keys to zoom.`}
+        aria-label={`Interactive three-dimensional ARC 54 preview with a ${noseProfile} nose and ${finCount} fins, ${Math.round(mesh.longitudinalLengthM * 1000)} millimetres long. Click a rendered surface to select its inspector component. Drag or use arrow keys to orbit, and use the mouse wheel or plus and minus keys to zoom.`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -277,7 +302,7 @@ export function Rocket3DViewport({
       <div className="rocket-3d-readout">
         <span>DISPLAY MODEL</span>
         <strong>{mesh.modelVersion}</strong>
-        <small>Drag to orbit · wheel to zoom · arrows / + / − / 0</small>
+        <small>Click a surface to select · drag to orbit · wheel to zoom · arrows / + / − / 0</small>
       </div>
       <p className="rocket-3d-disclaimer">
         Display mesh only. Engineering calculations continue to use the versioned mass and aerodynamic geometry models.

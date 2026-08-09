@@ -3537,6 +3537,29 @@ export default function Home() {
                 finThicknessM={finThickness / 1000}
                 centerOfMassXM={massProperties.centerOfMassM.x}
                 centerOfPressureXM={staticStability.centerOfPressureXM}
+                highlightSurface={
+                  selected === "nose"
+                    ? "nose"
+                    : selected === "body"
+                      ? "skin"
+                      : selected === "fins"
+                        ? "fin"
+                        : selected === "mount"
+                          ? "nozzle"
+                          : null
+                }
+                onSurfaceSelect={(surface) => {
+                  const component: ComponentKey =
+                    surface === "nose"
+                      ? "nose"
+                      : surface === "fin"
+                        ? "fins"
+                        : surface === "nozzle" || surface === "rear"
+                          ? "mount"
+                          : "body";
+                  setSelected(component);
+                  setView("design");
+                }}
               />
             </div>
           )

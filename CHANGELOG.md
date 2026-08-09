@@ -26,6 +26,8 @@ flight-readiness claims.
 - Added staged motor-state diagnostics to the coupled Flight card and
   engineering report, with nominal/watch/failed statuses and retained
   propellant visibility.
+- Added projected 3D surface picking and selection highlights so clicking the
+  nose, airframe, fins, or nozzle keeps the design inspector synchronized.
 
 ## 0.1.0-preview — 2026-08-09
 

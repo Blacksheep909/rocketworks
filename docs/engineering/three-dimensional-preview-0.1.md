@@ -51,6 +51,8 @@ depth-sort painter, and directional intensity calculation. It uses the Canvas
 ## Interaction and accessibility
 
 - Pointer or touch drag orbits the model.
+- Clicking a rendered nose, body, fin, or nozzle surface selects its matching
+  inspector component; the selected surface receives a bright outline.
 - Mouse-wheel zoom and dedicated buttons adjust scale.
 - Arrow keys orbit; plus and minus zoom; zero resets the view.
 - The canvas is keyboard focusable and has a descriptive accessible label.
@@ -71,9 +73,10 @@ Automated tests cover:
 - radial balance of the three-fin mesh
 - finite perspective coordinates and depth ordering
 - linear zoom response
+- foremost-triangle surface picking and empty-space misses
 - invalid geometry, camera, and viewport rejection
 - UI presence, pointer/touch controls, keyboard controls, accessible label, and
-  explicit display-only qualification
+  surface selection, and explicit display-only qualification
 
 These tests validate display behavior only. They are not evidence of CAD
 accuracy, aerodynamic fidelity, manufacturability, structural adequacy, or
@@ -84,19 +87,21 @@ flight safety.
 - The preview currently maps the browser's single-stage ARC 54 dimensions and
   current component geometry, not
   every node in the general assembly graph.
-- Stage visibility, component picking, and expanded assembly-instance rendering
-  are not yet implemented.
+- Stage visibility and expanded assembly-instance rendering are not yet
+  implemented.
 - No internal components, transparency, section cuts, exploded views, stage
-  separation animation, material texture, or component selection.
+  separation animation, or material texture.
 - Painter-style triangle sorting can produce minor overlap artifacts for future
   deeply nested or transparent geometry.
-- No clipping plane, picking ray, GPU acceleration, or level-of-detail system.
+- Surface picking is a projected-triangle hit test, not a full 3D ray or CAD
+  selection system. There is no clipping plane, GPU acceleration, or
+  level-of-detail system.
 - This is not a boundary-representation solid, watertight CAD model, drawing,
   toolpath, mesh export, or manufacturing artifact.
 - CG and CP labels are projected annotations; their screen placement is not a
   dimensional measurement.
 
 The next geometry increment should generate the preview from every expanded
-assembly instance, add component picking and stage visibility, and reuse that
-same original scene graph for CAD-friendly exports without treating the render
-mesh itself as authoritative engineering geometry.
+assembly instance, add stage visibility, and reuse that same original scene
+graph for CAD-friendly exports without treating the render mesh itself as
+authoritative engineering geometry.

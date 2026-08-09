@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   ROCKET_PREVIEW_3D_MODEL_VERSION,
   createRocketPreviewMesh,
+  pickProjectedRocketSurface,
   projectRocketPreview,
   tangentOgiveRadiusM,
 } from "../lib/visualization/rocket-preview-3d.ts";
@@ -39,6 +40,7 @@ test("preview mesh contains finite display surfaces and expected extents", () =>
   const result = mesh();
   assert.equal(result.modelVersion, ROCKET_PREVIEW_3D_MODEL_VERSION);
   assert.ok(result.triangles.length > 1000);
+  assert.ok(result.triangles.some((triangle) => triangle.surface === "nose"));
   assert.ok(result.triangles.some((triangle) => triangle.surface === "skin"));
   assert.ok(result.triangles.some((triangle) => triangle.surface === "accent"));
   assert.ok(result.triangles.some((triangle) => triangle.surface === "fin"));
@@ -115,6 +117,31 @@ test("perspective projection is finite, depth sorted, and zoom responsive", () =
     zoomed.markers.tail.y - zoomed.markers.nose.y,
   );
   assert.ok(Math.abs(zoomedSeparation / separation - 2) < 1e-12);
+});
+
+test("surface picking resolves the foremost triangle and misses empty space", () => {
+  const projected = {
+    markers: {},
+    triangles: [
+      {
+        points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 10 }],
+        surface: "nose",
+        depth: 0,
+        lightIntensity: 1,
+        facingCamera: true,
+      },
+      {
+        points: [{ x: 2, y: 2 }, { x: 8, y: 2 }, { x: 2, y: 8 }],
+        surface: "fin",
+        depth: 1,
+        lightIntensity: 1,
+        facingCamera: true,
+      },
+    ],
+  };
+  assert.equal(pickProjectedRocketSurface(projected, { x: 3, y: 3 }), "fin");
+  assert.equal(pickProjectedRocketSurface(projected, { x: 20, y: 20 }), null);
+  assert.equal(pickProjectedRocketSurface(null, { x: 0, y: 0 }), null);
 });
 
 test("invalid mesh and camera inputs fail explicitly", () => {
