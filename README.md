@@ -37,7 +37,8 @@ research, standards, and original code.
 - persisted pad-pressure and pad-temperature observations shared by the fast
   vertical, launch-environment, landing, and report paths;
 - preliminary vertical flight, coupled 6DOF, staging, ignition delays,
-  failure events, and bounded separated-body ballistic checks;
+  failure events, and bounded separated-body trajectories with optional
+  isotropic point-drag basis;
 - interactive vertical and staged trace inspectors with Mach, dynamic-pressure,
   drag, angle-of-attack, sideslip, event, and topology readouts;
 - preliminary structural-readiness screen for axial stress, Euler buckling,

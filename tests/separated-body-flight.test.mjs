@@ -34,7 +34,7 @@ test("separated-body preview preserves release offset and angular-rate velocity"
     timeStepS: 0.02,
   });
 
-  assert.equal(result.modelVersion, "kestrel-separated-body-flight-0.1.1");
+  assert.equal(result.modelVersion, "kestrel-separated-body-flight-0.2.0");
   assert.equal(result.validationStatus, "analytical-component-checks-only");
   assert.deepEqual(result.releasePositionWorldM, { x: 5, y: 2, z: 100 });
   assert.deepEqual(result.releaseVelocityWorldMps, { x: 3, y: 0, z: 19 });
@@ -44,6 +44,58 @@ test("separated-body preview preserves release offset and angular-rate velocity"
   assert.ok(result.maxAltitudeAglM > 100);
   assert.ok(result.impactTimeS !== null);
   assert.ok(result.warnings.some((warning) => warning.includes("ballistic")));
+});
+
+test("separated-body preview applies bounded isotropic point drag when a basis is supplied", () => {
+  const input = {
+    stageId: "booster",
+    stageName: "Booster",
+    releaseState: {
+      timeS: 1,
+      positionWorldM: { x: 0, y: 0, z: 100 },
+      velocityWorldMps: { x: 0, y: 0, z: 20 },
+      orientationBodyToWorld: IDENTITY_QUATERNION,
+      angularVelocityBodyRadS: { x: 0, y: 0, z: 0 },
+    },
+    stageMassProperties: properties(2, 0),
+    parentCenterOfMassBodyM: { x: 0, y: 0, z: 0 },
+    durationS: 10,
+    timeStepS: 0.02,
+  };
+  const ballistic = simulateSeparatedBodyFlight(input);
+  const drag = simulateSeparatedBodyFlight({
+    ...input,
+    referenceAreaM2: 0.01,
+    dragCoefficient: 0.6,
+  });
+
+  assert.equal(drag.referenceAreaM2, 0.01);
+  assert.equal(drag.dragCoefficient, 0.6);
+  assert.ok(drag.maxSpeedMps < ballistic.maxSpeedMps);
+  assert.ok(drag.warnings.some((warning) => warning.includes("isotropic point drag")));
+  assert.ok(drag.assumptions.some((assumption) => assumption.includes("reference area")));
+});
+
+test("separated-body preview requires a complete drag basis", () => {
+  assert.throws(
+    () => simulateSeparatedBodyFlight({
+      stageId: "booster",
+      stageName: "Booster",
+      releaseState: {
+        timeS: 1,
+        positionWorldM: { x: 0, y: 0, z: 10 },
+        velocityWorldMps: { x: 0, y: 0, z: 5 },
+        orientationBodyToWorld: IDENTITY_QUATERNION,
+        angularVelocityBodyRadS: { x: 0, y: 0, z: 0 },
+      },
+      stageMassProperties: properties(1, 0),
+      parentCenterOfMassBodyM: { x: 0, y: 0, z: 0 },
+      durationS: 2,
+      timeStepS: 0.02,
+      referenceAreaM2: 0.01,
+    }),
+    /requires both reference area and drag coefficient/,
+  );
 });
 
 test("separated-body preview reports retained-body release delta-v without impulsing the branch", () => {

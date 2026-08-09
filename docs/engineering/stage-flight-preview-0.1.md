@@ -1,4 +1,4 @@
-# Stage-aware flight preview 0.4
+# Stage-aware flight preview 0.5
 
 Status: implemented composition adapter; mathematical regression tests only.
 This preview is not flight-safety validated and must not be used for launch
@@ -23,7 +23,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.4.4`.
+`kestrel-stage-flight-preview-0.5.0`.
 
 ## Event and state policy
 
@@ -120,18 +120,26 @@ starts from the pre-event release state. The branch then uses the same original
 6-DOF integrator with altitude-dependent gravity and a terminal ground-impact
 event.
 
-This is intentionally a bounded ballistic component check. It does not invent
-drag coefficients, plume interaction, stage-to-stage aerodynamic interference,
-separation impulse, collision, recovery, or clearance logic. The result status
-is `analytical-component-checks-only`, and the UI, project JSON, and engineering
+When the detached stage has an explicit topology-specific drag coefficient and
+a bounded reference area, the branch also applies isotropic point drag against
+the environment-relative velocity. A coefficient table is sampled only at its
+declared design point for this independent branch; it is not coupled to the
+discarded body's changing Mach or Reynolds state. If either basis is missing,
+the branch stays gravity-only and labels that fallback in its telemetry.
+
+This remains an intentionally bounded ballistic component check. It does not
+invent lift, attitude-dependent aerodynamic torque, plume interaction,
+stage-to-stage aerodynamic interference, separation impulse, collision,
+recovery, or clearance logic. The result status is
+`analytical-component-checks-only`, and the UI, project JSON, and engineering
 report retain the warning so an impact time cannot be mistaken for a range or
 flight-safety prediction.
 
 ## Limitations
 
-- The retained-body staging model remains a single tracked vehicle; the new
-  separated-body branch is an independent gravity-only preview, not a coupled
-  multi-body solver.
+- The retained-body staging model remains a single tracked vehicle; each
+  separated-body branch is an independent 6DOF preview with optional isotropic
+  point drag, not a coupled multi-body solver.
 - A configured separation delta-v is applied to the retained body in body-frame
   +X and is carried into the event/trajectory diagnostics in body and world
   frames. The discarded-body branch starts from the pre-event state and does

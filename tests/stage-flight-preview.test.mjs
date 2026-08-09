@@ -144,7 +144,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.4.4");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.5.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.events.length, 2);
   assert.deepEqual(result.events[0].attachedStageIdsBefore, ["booster", "upper"]);
@@ -176,6 +176,40 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.deepEqual(result.separatedBodies[0].retainedBodyDeltaVBodyMps, { x: 0.1, y: 0, z: 0 });
   assert.ok(result.separatedBodies[0].warnings.some((warning) => warning.includes("ballistic")));
   assert.deepEqual(result.clusterDiagnostics, []);
+});
+
+test("stage-flight adapter supplies detached-stage geometry and coefficient to the drag branch", () => {
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages,
+    regimes: [
+      ...regimes,
+      {
+        id: "booster-only",
+        label: "Booster",
+        activeStageIds: ["booster"],
+        dragCoefficient: 0.72,
+      },
+    ],
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 2.5,
+    timeStepS: 0.05,
+    launchAltitudeM: 0,
+    events: [
+      createScheduledStageSeparationEvent({
+        stageId: "booster",
+        timeS: 1,
+      }),
+      createScheduledStageIgnitionEvent({ stageId: "upper", timeS: 1 }),
+    ],
+  });
+
+  assert.equal(result.separatedBodies.length, 1);
+  assert.ok(Math.abs(result.separatedBodies[0].referenceAreaM2 - Math.PI * 0.04 ** 2) < 1e-12);
+  assert.equal(result.separatedBodies[0].dragCoefficient, 0.72);
+  assert.ok(result.separatedBodies[0].warnings.some((warning) => warning.includes("isotropic point drag")));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("bounded isotropic point drag")));
 });
 
 test("stage-flight adapter exposes configured cluster failure diagnostics", () => {

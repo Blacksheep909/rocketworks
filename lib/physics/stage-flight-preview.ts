@@ -30,7 +30,7 @@ import {
 } from "./separated-body-flight.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.4.4";
+  "kestrel-stage-flight-preview-0.5.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -178,6 +178,57 @@ function stageIdsAt(
   state: RigidBodyState,
 ): readonly string[] {
   return staging.evaluate(state).attachedStageIds;
+}
+
+type DetachedStageAerodynamicBasis = Readonly<{
+  referenceAreaM2: number;
+  dragCoefficient: number;
+}>;
+
+/**
+ * Resolves a deliberately small aerodynamic basis for an independently
+ * propagated discarded stage. A topology-specific regime supplies the
+ * coefficient (a table is sampled at its declared design point); geometry
+ * supplies the largest axisymmetric cross-section when no explicit diameter
+ * is present. If either side is unavailable, the caller keeps the documented
+ * gravity-only fallback instead of borrowing a full-stack coefficient.
+ */
+function detachedStageAerodynamicBasis(
+  components: readonly VehicleComponent[],
+  regimes: readonly StageAerodynamicRegime[],
+  stageId: string,
+): DetachedStageAerodynamicBasis | null {
+  const regime = regimes.find(
+    (candidate) =>
+      candidate.activeStageIds.length === 1 && candidate.activeStageIds[0] === stageId,
+  );
+  const referenceAreaM2 = regime?.referenceDiameterM
+    ? Math.PI * (regime.referenceDiameterM / 2) ** 2
+    : (() => {
+        const maximumRadiusM = Math.max(
+          0,
+          ...components
+            .filter(
+              (component) =>
+                component.stageId === stageId &&
+                component.enabled !== false,
+            )
+            .flatMap((component) =>
+              component.kind === "axisymmetric"
+                ? component.stations.map((station) => station.outerRadiusM)
+                : [],
+            ),
+        );
+        return maximumRadiusM > 0 ? Math.PI * maximumRadiusM ** 2 : undefined;
+      })();
+  const dragCoefficient = regime?.dragCoefficient ?? (
+    regime?.coefficientTable && regime.coefficientTableDesignPoint
+      ? regime.coefficientTable.evaluate(regime.coefficientTableDesignPoint).dragCoefficient
+      : undefined
+  );
+  return referenceAreaM2 !== undefined && dragCoefficient !== undefined
+    ? { referenceAreaM2, dragCoefficient }
+    : null;
 }
 
 function summarizeEvent(
@@ -574,6 +625,11 @@ export function simulateStageFlightPreview(
     );
     for (const stageId of detachedStageIds) {
       if (spawnedStageIds.has(stageId)) continue;
+      const detachedAero = detachedStageAerodynamicBasis(
+        input.components,
+        input.regimes,
+        stageId,
+      );
       try {
         separatedBodies.push(
           simulateSeparatedBodyFlight({
@@ -587,6 +643,7 @@ export function simulateStageFlightPreview(
             launchAltitudeM: input.launchAltitudeM,
             environmentAt: input.environmentAt,
             retainedBodyDeltaVBodyMps: event.separationDeltaVBodyMps,
+            ...(detachedAero ?? {}),
           }),
         );
         spawnedStageIds.add(stageId);
@@ -614,8 +671,8 @@ export function simulateStageFlightPreview(
     ...(primaryRun.rail?.assumptions ?? primaryRun.simulation?.assumptions ?? []),
     ...(primaryRun.rail?.freeFlight?.assumptions ?? []),
     ...convergence.assumptions,
-    "Explicit separation events spawn a separate ballistic gravity-only preview for each newly detached stage; separated bodies are represented independently.",
-    "Separated-body previews do not model drag, plume interaction, aerodynamic interference, recovery, collision, clearance, or the equal-and-opposite discarded-body separation impulse.",
+    `Explicit separation events spawn a separate ballistic-capable trajectory for each newly detached stage; separated bodies are represented independently; ${separatedBodies.filter((body) => body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined).length} branch(es) use bounded isotropic point drag and ${separatedBodies.filter((body) => body.referenceAreaM2 === undefined || body.dragCoefficient === undefined).length} branch(es) use the gravity-only fallback.`,
+    "Separated-body previews do not model lift, attitude-dependent aerodynamic torque, plume interaction, aerodynamic interference, recovery, collision, clearance, or the equal-and-opposite discarded-body separation impulse.",
     "The returned trajectory is a deterministic engineering preview and is not a flight-safety assessment.",
   ];
   return {

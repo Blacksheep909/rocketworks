@@ -3796,7 +3796,7 @@ export default function Home() {
                           <div>
                             <span className="eyebrow">Flight dynamics / discard branch</span>
                             <h4 id="stage-separated-bodies-title">Separated trajectories</h4>
-                            <p>Released stages are carried from the exact event state into an independent ballistic preview. This is an analytical component check—not an aerodynamic clearance or range-safety result.</p>
+                            <p>Released stages are carried from the exact event state into an independent ballistic-capable preview. When a stage-specific area and coefficient are available, isotropic point drag is applied; this remains an analytical component check, not an aerodynamic clearance or range-safety result.</p>
                           </div>
                           <span className="stage-separated-bodies-badge">{stageFlightResult.separatedBodies.length} bod{stageFlightResult.separatedBodies.length === 1 ? "y" : "ies"}</span>
                         </div>
@@ -3812,9 +3812,10 @@ export default function Home() {
                                 <div><span>Retained dV</span><strong>+X {body.retainedBodyDeltaVBodyMps.x.toFixed(2)} m/s</strong><small>body frame</small></div>
                                 <div><span>Peak altitude</span><strong>{body.maxAltitudeAglM.toFixed(1)} m</strong></div>
                                 <div><span>Peak speed</span><strong>{body.maxSpeedMps.toFixed(1)} m/s</strong></div>
+                                <div><span>Drag basis</span><strong>{body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? `Cd ${body.dragCoefficient.toFixed(3)} · ${body.referenceAreaM2.toFixed(4)} m²` : "Gravity only"}</strong><small>{body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? "isotropic point drag" : "no detached-stage aero basis"}</small></div>
                                 <div><span>Model</span><strong>{body.validationStatus}</strong></div>
                               </div>
-                              <p className="stage-separated-body-note">Gravity-only path. The retained-body dV is shown for release traceability; this detached branch starts from the pre-event state and has no equal-and-opposite impulse, drag, plume interaction, collision, clearance, or recovery model.</p>
+                              <p className="stage-separated-body-note">{body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? "Isotropic point-drag path." : "Gravity-only path."} The retained-body dV is shown for release traceability; this detached branch starts from the pre-event state and has no lift, attitude-dependent aero torque, equal-and-opposite impulse, plume interaction, collision, clearance, or recovery model.</p>
                             </article>
                           ))}
                         </div>
@@ -4723,7 +4724,7 @@ export default function Home() {
             </div>
             <div className="history-notice">
               <span>MODEL BOUNDARY</span>
-              <p>Topology changes update analytical assembly mass, centre of gravity, inertia, instance counts, and stage-level aerodynamic source assignments. A regime with one available table uses it; combined stages with conflicting or unavailable tables fall back to the global source with an explicit warning. Coupled separation clearance, aerodynamic interference, and flight-safety validation remain outside this retained-body model; the staged preview exposes a separate ballistic component check for detached bodies.</p>
+              <p>Topology changes update analytical assembly mass, centre of gravity, inertia, instance counts, and stage-level aerodynamic source assignments. A regime with one available table uses it; combined stages with conflicting or unavailable tables fall back to the global source with an explicit warning. Coupled separation clearance, aerodynamic interference, and flight-safety validation remain outside this retained-body model; the staged preview exposes an independent ballistic-capable trajectory for detached bodies and uses isotropic point drag only when a stage-specific area and coefficient are available.</p>
             </div>
           </section>
         </div>

@@ -8,6 +8,9 @@ flight-readiness claims.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.
+- Added bounded isotropic point-drag propagation for separated stages when a
+  topology-specific drag coefficient and reference area are available, with a
+  visible gravity-only fallback when that basis is missing.
 - Added bounded per-stage motor cant and azimuth controls; radial instances
   rotate the cant direction and feed the resulting unit axes into the staged
   propulsion model.

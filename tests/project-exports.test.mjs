@@ -434,7 +434,7 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /### Motor-state diagnostics/);
   assert.match(report, /\| Booster \| 1 \/ 2 \| 1 \| 0\.200 kg \| watch \|/);
   assert.match(report, /### Separated-body trajectories/);
-  assert.match(report, /\| Booster \| 4\.20 s \| not recorded \| 11\.80 s \| 182\.0 m \| 41\.60 m\/s \|/);
+  assert.match(report, /\| Booster \| 4\.20 s \| not recorded \| gravity only \| 11\.80 s \| 182\.0 m \| 41\.60 m\/s \|/);
   assert.match(report, /Convergence status: converged/);
   assert.match(report, /Threshold high convergence/);
   assert.match(report, /Landing uncertainty convergence/);
