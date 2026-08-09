@@ -18,6 +18,15 @@ const parameters = [
   { key: "y", label: "Input Y", distribution: { kind: "triangular", minimum: -1, mode: 0, maximum: 1 } },
 ];
 
+function sampleCorrelation(left, right) {
+  const leftMean = left.reduce((sum, value) => sum + value, 0) / left.length;
+  const rightMean = right.reduce((sum, value) => sum + value, 0) / right.length;
+  const numerator = left.reduce((sum, value, index) => sum + (value - leftMean) * (right[index] - rightMean), 0);
+  const leftVariance = left.reduce((sum, value) => sum + (value - leftMean) ** 2, 0);
+  const rightVariance = right.reduce((sum, value) => sum + (value - rightMean) ** 2, 0);
+  return numerator / Math.sqrt(leftVariance * rightVariance);
+}
+
 test("seeded Latin-hypercube analysis is exactly reproducible", () => {
   const config = {
     seed: "repeatable-seed",
@@ -48,6 +57,45 @@ test("Latin hypercube occupies every equal-probability stratum", () => {
   });
   const strata = result.samples.map((sample) => Math.floor(sample.inputs.x * sampleCount)).sort((a, b) => a - b);
   assert.deepEqual(strata, Array.from({ length: sampleCount }, (_, index) => index));
+});
+
+test("opt-in Gaussian-copula correlations preserve marginals and deterministic LHS strata", () => {
+  const sampleCount = 256;
+  const result = runUncertaintyAnalysis({
+    seed: "correlated-inputs",
+    sampleCount,
+    parameters: [
+      { key: "mass", label: "Mass", distribution: { kind: "uniform", minimum: 0.9, maximum: 1.1 } },
+      { key: "drag", label: "Drag", distribution: { kind: "uniform", minimum: 0.8, maximum: 1.2 } },
+    ],
+    correlations: [{ firstParameterKey: "mass", secondParameterKey: "drag", coefficient: 0.8 }],
+    evaluator: ({ mass, drag }) => ({ mass, drag }),
+  });
+  assert.deepEqual(result, runUncertaintyAnalysis({
+    seed: "correlated-inputs",
+    sampleCount,
+    parameters: [
+      { key: "mass", label: "Mass", distribution: { kind: "uniform", minimum: 0.9, maximum: 1.1 } },
+      { key: "drag", label: "Drag", distribution: { kind: "uniform", minimum: 0.8, maximum: 1.2 } },
+    ],
+    correlations: [{ firstParameterKey: "mass", secondParameterKey: "drag", coefficient: 0.8 }],
+    evaluator: ({ mass, drag }) => ({ mass, drag }),
+  }));
+  assert.equal(result.correlations[0].coefficient, 0.8);
+  assert.deepEqual(
+    result.samples.map((sample) => Math.floor(((sample.inputs.mass - 0.9) / 0.2) * sampleCount)).sort((a, b) => a - b),
+    Array.from({ length: sampleCount }, (_, index) => index),
+  );
+  assert.deepEqual(
+    result.samples.map((sample) => Math.floor(((sample.inputs.drag - 0.8) / 0.4) * sampleCount)).sort((a, b) => a - b),
+    Array.from({ length: sampleCount }, (_, index) => index),
+  );
+  assert.ok(sampleCorrelation(
+    result.samples.map((sample) => sample.inputs.mass),
+    result.samples.map((sample) => sample.inputs.drag),
+  ) > 0.65);
+  assert.ok(result.warnings.some((warning) => warning.includes("Gaussian copula")));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("preserving each declared marginal")));
 });
 
 test("inverse distributions recover central values", () => {
@@ -220,4 +268,32 @@ test("invalid distributions and unsafe sample counts are rejected", () => {
     parameters: [{ key: "deployment", label: "Bad", distribution: { kind: "bernoulli", successProbability: 1.1 } }],
     evaluator: () => ({ response: 1 }),
   }), /success probability must be between/);
+  assert.throws(() => runUncertaintyAnalysis({
+    seed: "invalid-correlation",
+    sampleCount: 4,
+    parameters,
+    correlations: [{ firstParameterKey: "x", secondParameterKey: "missing", coefficient: 0.2 }],
+    evaluator: () => ({ response: 1 }),
+  }), /unknown parameter/);
+  assert.throws(() => runUncertaintyAnalysis({
+    seed: "invalid-correlation-self",
+    sampleCount: 4,
+    parameters,
+    correlations: [{ firstParameterKey: "x", secondParameterKey: "x", coefficient: 0.2 }],
+    evaluator: () => ({ response: 1 }),
+  }), /itself/);
+  assert.throws(() => runUncertaintyAnalysis({
+    seed: "invalid-correlation-matrix",
+    sampleCount: 4,
+    parameters: [
+      ...parameters,
+      { key: "z", label: "Input Z", distribution: { kind: "uniform", minimum: 0, maximum: 1 } },
+    ],
+    correlations: [
+      { firstParameterKey: "x", secondParameterKey: "y", coefficient: 0.9 },
+      { firstParameterKey: "x", secondParameterKey: "z", coefficient: 0.9 },
+      { firstParameterKey: "y", secondParameterKey: "z", coefficient: -0.9 },
+    ],
+    evaluator: () => ({ response: 1 }),
+  }), /positive-definite/);
 });

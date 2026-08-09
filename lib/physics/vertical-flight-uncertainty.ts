@@ -3,10 +3,11 @@ import {
   runUncertaintyAnalysis,
   type ProbabilityDistribution,
   type ThresholdDefinition,
+  type UncertaintyCorrelation,
   type UncertaintyAnalysisResult,
 } from "./uncertainty-analysis.ts";
 
-export const VERTICAL_UNCERTAINTY_ADAPTER_VERSION = "kestrel-vertical-uncertainty-0.1.0";
+export const VERTICAL_UNCERTAINTY_ADAPTER_VERSION = "kestrel-vertical-uncertainty-0.2.0";
 
 export type VerticalFlightUncertaintyFactorKey =
   | "dryMassScale"
@@ -73,12 +74,14 @@ export function analyzeVerticalFlightUncertainty({
   seed,
   sampleCount,
   thresholds,
+  correlations,
 }: {
   baseConfig: VerticalFlightConfig;
   factors: VerticalFlightUncertaintyFactor[];
   seed: string;
   sampleCount: number;
   thresholds?: ThresholdDefinition[];
+  correlations?: readonly UncertaintyCorrelation[];
 }): UncertaintyAnalysisResult {
   return runUncertaintyAnalysis({
     seed,
@@ -86,6 +89,7 @@ export function analyzeVerticalFlightUncertainty({
     sampleCount,
     parameters: factors,
     thresholds,
+    correlations,
     evaluator: (values) => {
       const result = simulateVerticalFlight(createVerticalFlightVariant(baseConfig, values));
       return {

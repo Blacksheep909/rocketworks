@@ -4389,7 +4389,7 @@ export default function Home() {
                 </div>
                 <div className="uncertainty-disclaimer">
                   <span>MODEL UNCERTAINTY</span>
-                  <p>Assumed independent input distributions · seed {uncertainty.seed} · convergence is a heuristic finite-sample check, not validation, certification, or a flight-safety assessment.</p>
+                  <p>{uncertainty.correlations.length === 0 ? "Assumed independent input distributions" : `${uncertainty.correlations.length} Gaussian-copula correlation pair${uncertainty.correlations.length === 1 ? "" : "s"} declared`} · seed {uncertainty.seed} · convergence is a heuristic finite-sample check, not validation, certification, or a flight-safety assessment.</p>
                 </div>
             </div>
             <ParameterSweepCard
@@ -5499,7 +5499,7 @@ function StageFlightUncertaintyCard({
           </div>
           <div className="uncertainty-disclaimer">
             <span>MODEL UNCERTAINTY</span>
-            <p>Independent seeded input distributions · failed samples remain visible · convergence is a finite-sample heuristic, not validation, certification, or a flight-safety assessment.</p>
+            <p>{result.correlations.length === 0 ? "Independent seeded input distributions" : `${result.correlations.length} Gaussian-copula correlation pair${result.correlations.length === 1 ? "" : "s"} declared`} · failed samples remain visible · convergence is a finite-sample heuristic, not validation, certification, or a flight-safety assessment.</p>
           </div>
         </>
       ) : (

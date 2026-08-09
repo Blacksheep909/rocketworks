@@ -401,7 +401,7 @@ test("engineering report leads with status and preserves calculations and limita
     },
     stageUncertainty: {
       ...uncertainty,
-      adapterVersion: "kestrel-stage-flight-uncertainty-0.1.0",
+      adapterVersion: "kestrel-stage-flight-uncertainty-0.3.0",
       metrics: {
         ...uncertainty.metrics,
         maxAltitudeAglM: uncertainty.metrics.response,
@@ -450,7 +450,7 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Euler column buckling/);
   assert.match(report, /## Uncertainty analysis/);
   assert.match(report, /## Coupled 6DOF uncertainty/);
-  assert.match(report, /kestrel-stage-flight-uncertainty-0.1.0/);
+  assert.match(report, /kestrel-stage-flight-uncertainty-0.3.0/);
   assert.match(report, /## Coupled 6DOF preview/);
   assert.match(report, /Step convergence \| watch/);
   assert.match(report, /Fixture convergence warning/);

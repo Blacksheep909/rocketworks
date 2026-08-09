@@ -6,6 +6,13 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Bumped the shared uncertainty model to 0.4.0 and added opt-in,
+  positive-definite Gaussian-copula correlations that preserve declared
+  marginal distributions for Monte Carlo and Latin-hypercube ensembles.
+- Bumped the vertical and coupled stage-flight uncertainty adapters to expose
+  declared correlation pairs and their dependence-model caveats in results and
+  engineering reports; browser defaults remain independent.
+
 - Continue independent model validation, stage-aware review, and public
   documentation.
 - Added a persisted local-ENU wind azimuth control (0° east, +90° north) to

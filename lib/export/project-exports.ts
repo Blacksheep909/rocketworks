@@ -919,6 +919,7 @@ export function createEngineeringReportMarkdown(
           "",
           `- Method: ${markdownText(input.uncertainty.method)}`,
           `- Successful samples: ${input.uncertainty.successfulSampleCount} / ${input.uncertainty.requestedSampleCount}`,
+          `- Correlated parameter pairs: ${input.uncertainty.correlations.length}`,
           `- Convergence status: ${markdownText(input.uncertainty.convergence.status)}`,
           `- Maximum split-sample quantile shift: ${input.uncertainty.convergence.maximumRelativeQuantileShift === null ? "not available" : `${formatNumber(input.uncertainty.convergence.maximumRelativeQuantileShift * 100, 1)}%`}`,
           ...(input.uncertainty.convergence.thresholds.length > 0
@@ -943,10 +944,11 @@ export function createEngineeringReportMarkdown(
           `- Peak speed P05 / P50 / P95: ${formatMetricRange(input.stageUncertainty.metrics.maxSpeedMps, 2, "m/s")}`,
           `- Maximum dynamic pressure P05 / P50 / P95: ${formatMetricRange(input.stageUncertainty.metrics.maxDynamicPressurePa, 0, "Pa")}`,
           `- Final speed P05 / P50 / P95: ${formatMetricRange(input.stageUncertainty.metrics.finalSpeedMps, 2, "m/s")}`,
+          `- Correlated parameter pairs: ${input.stageUncertainty.correlations.length}`,
           `- Maximum split-sample quantile shift: ${input.stageUncertainty.convergence.maximumRelativeQuantileShift === null ? "not available" : `${formatNumber(input.stageUncertainty.convergence.maximumRelativeQuantileShift * 100, 1)}%`}`,
           ...input.stageUncertainty.convergence.warnings.map((warning) => `- ${markdownText(warning)}`),
           "",
-          "> Coupled dispersion propagates independent bounded input assumptions through the staging and 6DOF adapter. It is not validation, certification, or a flight-safety assessment.",
+          "> Coupled dispersion propagates bounded input assumptions (and any declared dependence model) through the staging and 6DOF adapter. It is not validation, certification, or a flight-safety assessment.",
           "",
         ]
       : []),

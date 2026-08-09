@@ -51,6 +51,8 @@ research, standards, and original code.
   propellant, thrust, drag, recovery-area, deployment-outcome, and wind
   assumptions through stage events and launch-rail handoff, with recovery-load
   percentile telemetry;
+- optional Gaussian-copula correlation pairs for uncertainty propagation,
+  validated as positive-definite while preserving each declared marginal;
 - interactive vertical and staged trace inspectors with Mach, dynamic-pressure,
   axial/recovery drag, canopy area, angle-of-attack, sideslip, event, and
   topology readouts;

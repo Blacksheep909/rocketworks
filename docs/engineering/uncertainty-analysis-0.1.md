@@ -1,21 +1,22 @@
-# Seeded uncertainty analysis 0.3
+# Seeded uncertainty analysis 0.4
 
 Status: engineering preview, unvalidated. This module is an original Kestrel Lab implementation from public statistical methods. It does not use OpenRocket code, data, assets, or simulation logic.
 
 ## Purpose
 
-The nominal trajectory answers one deterministic question. The uncertainty layer repeatedly evaluates that same solver while varying explicitly declared inputs. Version 0.3 provides seeded Monte Carlo sampling, stratified Latin-hypercube sampling (LHS), parameter sweeps, distribution summaries, threshold probabilities with Wilson 95% intervals, Spearman rank sensitivity, and deterministic split-sample convergence diagnostics.
+The nominal trajectory answers one deterministic question. The uncertainty layer repeatedly evaluates that same solver while varying explicitly declared inputs. Version 0.4 provides seeded Monte Carlo sampling, stratified Latin-hypercube sampling (LHS), optional Gaussian-copula dependence, parameter sweeps, distribution summaries, threshold probabilities with Wilson 95% intervals, Spearman rank sensitivity, and deterministic split-sample convergence diagnostics.
 
 This is uncertainty propagation through the configured model. It is not experimental validation, certification, reliability qualification, or a flight-safety assessment.
 
 ## Sampling
 
-Supported independent marginal distributions are uniform, triangular, and normal. Normal distributions may be truncated by minimum and/or maximum bounds. LHS divides each marginal cumulative distribution into equal-probability strata, draws one point from every stratum, and independently shuffles strata between parameters. A caller-supplied string seed makes the complete sample matrix repeatable.
+Supported marginal distributions are uniform, triangular, and normal. Normal distributions may be truncated by minimum and/or maximum bounds. Without a dependence declaration, LHS divides each marginal cumulative distribution into equal-probability strata, draws one point from every stratum, and independently shuffles strata between parameters. A caller-supplied string seed makes the complete sample matrix repeatable.
+
+Callers may declare pairwise correlations between parameters. Version 0.4 validates the resulting matrix as positive-definite, maps independent standard-normal draws through its Cholesky factor, and then applies each parameter's inverse marginal distribution. Monte Carlo uses the Gaussian-copula CDF directly; correlated LHS rank-orders the latent scores while retaining one point in every marginal stratum. This preserves the declared marginals but is not a substitute for empirical joint-distribution data, tail-dependence modelling, or a formal copula fit.
 
 The pseudorandom stream uses a documented FNV-1a seed reduction and Mulberry32 generator. It is deterministic and non-cryptographic. A different runtime should reproduce the same IEEE-754 calculations when JavaScript number semantics are preserved.
 
-Version 0.3 still assumes independent uncertain inputs and does not separate
-epistemic from aleatory uncertainty. Its convergence diagnostic is a heuristic
+Version 0.4 still does not separate epistemic from aleatory uncertainty. Its convergence diagnostic is a heuristic
 contiguous-half comparison, not a formal stopping rule or proof of model
 adequacy.
 
@@ -45,8 +46,8 @@ The aggregate status is:
   not met.
 
 This check is deliberately conservative and readable in the browser. It does
-not account for model-form error, numerical integration error, correlated
-inputs, rare-event tails, or validation evidence.
+not account for model-form error, numerical integration error, rare-event
+tails, or validation evidence.
 
 ## Vertical-flight adapter
 
@@ -62,7 +63,7 @@ variance decomposition.
 
 ## Verification
 
-Regression tests cover exact seeded replay, seed changes, one sample per LHS stratum, distribution medians, summary statistics, explicit failures and missing metrics, Wilson interval bounds, deterministic split-sample convergence statuses, Spearman direction, sweep endpoints, validation errors, and a full trajectory-adapter run.
+Regression tests cover exact seeded replay, seed changes, one sample per LHS stratum, correlated marginal preservation and matrix validation, distribution medians, summary statistics, explicit failures and missing metrics, Wilson interval bounds, deterministic split-sample convergence statuses, Spearman direction, sweep endpoints, validation errors, and a full trajectory-adapter run.
 
 ## Public references
 
@@ -74,7 +75,8 @@ Regression tests cover exact seeded replay, seed changes, one sample per LHS str
 ## Known limitations
 
 - Distributions are supplied assumptions, not inferred from measurements.
-- Inputs are independent; correlation can materially change output tails.
+- Dependence is opt-in and uses a Gaussian copula; empirical tail dependence and
+  correlation uncertainty are not modeled.
 - Split-sample convergence is heuristic and should not be used as a formal
   simulation-credibility gate.
 - The small browser ensemble is not adequate for rare-event estimation.

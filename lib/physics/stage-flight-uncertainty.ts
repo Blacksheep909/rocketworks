@@ -2,6 +2,7 @@ import {
   runUncertaintyAnalysis,
   type ProbabilityDistribution,
   type ThresholdDefinition,
+  type UncertaintyCorrelation,
   type UncertaintyAnalysisResult,
 } from "./uncertainty-analysis.ts";
 import type { LaunchEnvironmentProvider } from "./launch-environment.ts";
@@ -24,7 +25,7 @@ import {
 } from "./stage-flight-preview.ts";
 
 export const STAGE_FLIGHT_UNCERTAINTY_ADAPTER_VERSION =
-  "kestrel-stage-flight-uncertainty-0.2.0";
+  "kestrel-stage-flight-uncertainty-0.3.0";
 
 export type StageFlightUncertaintyFactorKey =
   | "dryMassScale"
@@ -244,12 +245,14 @@ export function analyzeStageFlightUncertainty({
   seed,
   sampleCount,
   thresholds,
+  correlations,
 }: {
   baseInput: StageFlightPreviewInput;
   factors: StageFlightUncertaintyFactor[];
   seed: string;
   sampleCount: number;
   thresholds?: ThresholdDefinition[];
+  correlations?: readonly UncertaintyCorrelation[];
 }): StageFlightUncertaintyResult {
   return {
     adapterVersion: STAGE_FLIGHT_UNCERTAINTY_ADAPTER_VERSION,
@@ -259,6 +262,7 @@ export function analyzeStageFlightUncertainty({
     sampleCount,
     parameters: factors,
     thresholds,
+    correlations,
     evaluator: (values) => {
       const result = simulateStageFlightPreview(
         createStageFlightVariant(baseInput, values),

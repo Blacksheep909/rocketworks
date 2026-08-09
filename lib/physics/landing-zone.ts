@@ -7,6 +7,7 @@ import type { Vector3 } from "./linear-algebra.ts";
 import {
   runUncertaintyAnalysis,
   type ProbabilityDistribution,
+  type UncertaintyCorrelation,
   type UncertaintyAnalysisResult,
 } from "./uncertainty-analysis.ts";
 import {
@@ -941,6 +942,7 @@ export function analyzeRecoveryLandingDispersion(input: Readonly<{
     parameterKey: string;
     label?: string;
   }>;
+  correlations?: readonly UncertaintyCorrelation[];
   descentForSample: (
     values: Readonly<Record<string, number>>,
     sampleIndex: number,
@@ -951,6 +953,7 @@ export function analyzeRecoveryLandingDispersion(input: Readonly<{
     method: "latin-hypercube",
     sampleCount: input.sampleCount,
     parameters: [...input.parameters],
+    correlations: input.correlations,
     evaluator: (values, sampleIndex) => {
       const descent = input.descentForSample(values, sampleIndex);
       if (

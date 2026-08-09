@@ -1,4 +1,4 @@
-export const UNCERTAINTY_MODEL_VERSION = "kestrel-uncertainty-0.3.0";
+export const UNCERTAINTY_MODEL_VERSION = "kestrel-uncertainty-0.4.0";
 export const UNCERTAINTY_MODEL_STATUS = "engineering-preview-unvalidated";
 
 export type ProbabilityDistribution =
@@ -18,6 +18,17 @@ export type UncertainParameter = {
   label: string;
   distribution: ProbabilityDistribution;
 };
+
+/**
+ * Optional dependence between two uncertain inputs. Coefficients are
+ * Pearson correlations in the latent standard-normal space used by the
+ * Gaussian copula; the declared marginal distributions remain authoritative.
+ */
+export type UncertaintyCorrelation = Readonly<{
+  firstParameterKey: string;
+  secondParameterKey: string;
+  coefficient: number;
+}>;
 
 export type NumericOutputs = Record<string, number | null>;
 export type SamplingMethod = "monte-carlo" | "latin-hypercube";
@@ -113,6 +124,7 @@ export type UncertaintyAnalysisResult = {
   successfulSampleCount: number;
   failedSampleCount: number;
   parameters: UncertainParameter[];
+  correlations: UncertaintyCorrelation[];
   samples: UncertaintySample[];
   metrics: Record<string, MetricSummary>;
   thresholds: ThresholdResult[];
@@ -258,6 +270,118 @@ export function inverseDistribution(distribution: ProbabilityDistribution, proba
       : standardNormalCdf((distribution.maximum - distribution.mean) / distribution.standardDeviation);
   const mappedProbability = lowerProbability + p * (upperProbability - lowerProbability);
   return distribution.mean + distribution.standardDeviation * inverseStandardNormal(mappedProbability);
+}
+
+function choleskyDecomposition(matrix: readonly (readonly number[])[]): number[][] {
+  const lower = matrix.map((row) => row.map(() => 0));
+  for (let row = 0; row < matrix.length; row += 1) {
+    for (let column = 0; column <= row; column += 1) {
+      let value = matrix[row]![column]!;
+      for (let prior = 0; prior < column; prior += 1) {
+        value -= lower[row]![prior]! * lower[column]![prior]!;
+      }
+      if (row === column) {
+        if (!(value > 1e-12) || !Number.isFinite(value)) {
+          throw new Error("Uncertainty correlation coefficients must form a positive-definite matrix.");
+        }
+        lower[row]![column] = Math.sqrt(value);
+      } else {
+        lower[row]![column] = value / lower[column]![column]!;
+      }
+    }
+  }
+  return lower;
+}
+
+function correlationSetup(
+  parameters: readonly UncertainParameter[],
+  correlations: readonly UncertaintyCorrelation[],
+): { normalized: UncertaintyCorrelation[]; cholesky: number[][] | null } {
+  if (correlations.length === 0) return { normalized: [], cholesky: null };
+  const indices = new Map(parameters.map((parameter, index) => [parameter.key, index]));
+  const matrix: number[][] = parameters.map((_, row) =>
+    parameters.map((__, column) => (row === column ? 1 : 0)),
+  );
+  const seen = new Set<string>();
+  const normalized = correlations.map((correlation) => {
+    if (!correlation.firstParameterKey.trim() || !correlation.secondParameterKey.trim()) {
+      throw new Error("Uncertainty correlation parameter keys must be non-empty.");
+    }
+    if (correlation.firstParameterKey === correlation.secondParameterKey) {
+      throw new Error("An uncertainty parameter cannot be correlated with itself.");
+    }
+    const firstIndex = indices.get(correlation.firstParameterKey);
+    const secondIndex = indices.get(correlation.secondParameterKey);
+    if (firstIndex === undefined || secondIndex === undefined) {
+      throw new Error(`Uncertainty correlation references an unknown parameter: ${correlation.firstParameterKey} / ${correlation.secondParameterKey}.`);
+    }
+    assertFinite(correlation.coefficient, "Uncertainty correlation coefficient");
+    if (correlation.coefficient <= -0.999 || correlation.coefficient >= 0.999) {
+      throw new Error("Uncertainty correlation coefficients must be strictly between -0.999 and 0.999.");
+    }
+    const key = [correlation.firstParameterKey, correlation.secondParameterKey].sort().join("\u0000");
+    if (seen.has(key)) throw new Error(`Duplicate uncertainty correlation pair: ${key.replace("\u0000", " / ")}.`);
+    seen.add(key);
+    matrix[firstIndex]![secondIndex] = correlation.coefficient;
+    matrix[secondIndex]![firstIndex] = correlation.coefficient;
+    return {
+      firstParameterKey: correlation.firstParameterKey,
+      secondParameterKey: correlation.secondParameterKey,
+      coefficient: correlation.coefficient,
+    };
+  });
+  return { normalized, cholesky: choleskyDecomposition(matrix) };
+}
+
+function correlatedProbabilities({
+  parameters,
+  baseProbabilities,
+  sampleCount,
+  method,
+  cholesky,
+}: {
+  parameters: readonly UncertainParameter[];
+  baseProbabilities: ReadonlyMap<string, number[]>;
+  sampleCount: number;
+  method: SamplingMethod;
+  cholesky: number[][];
+}): Map<string, number[]> {
+  const scores = parameters.map(() => new Array<number>(sampleCount));
+  for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
+    const independent = parameters.map((parameter) =>
+      inverseStandardNormal(baseProbabilities.get(parameter.key)![sampleIndex]!),
+    );
+    for (let row = 0; row < parameters.length; row += 1) {
+      let correlated = 0;
+      for (let column = 0; column <= row; column += 1) {
+        correlated += cholesky[row]![column]! * independent[column]!;
+      }
+      scores[row]![sampleIndex] = correlated;
+    }
+  }
+  const probabilities = new Map<string, number[]>();
+  parameters.forEach((parameter, parameterIndex) => {
+    const base = baseProbabilities.get(parameter.key)!;
+    if (method === "monte-carlo") {
+      probabilities.set(
+        parameter.key,
+        scores[parameterIndex]!.map((score) => standardNormalCdf(score)),
+      );
+      return;
+    }
+    const order = Array.from({ length: sampleCount }, (_, index) => index).sort(
+      (left, right) => scores[parameterIndex]![left]! - scores[parameterIndex]![right]! || left - right,
+    );
+    const values = new Array<number>(sampleCount);
+    order.forEach((sampleIndex, rank) => {
+      const baseProbability = base[sampleIndex]!;
+      const stratum = Math.min(sampleCount - 1, Math.floor(baseProbability * sampleCount));
+      const jitter = Math.min(1 - Number.EPSILON, Math.max(0, baseProbability * sampleCount - stratum));
+      values[sampleIndex] = (rank + jitter) / sampleCount;
+    });
+    probabilities.set(parameter.key, values);
+  });
+  return probabilities;
 }
 
 function shuffle(values: number[], random: () => number) {
@@ -518,6 +642,7 @@ export function runUncertaintyAnalysis({
   parameters,
   evaluator,
   thresholds = [],
+  correlations = [],
 }: {
   seed: string;
   method?: SamplingMethod;
@@ -525,6 +650,7 @@ export function runUncertaintyAnalysis({
   parameters: UncertainParameter[];
   evaluator: (inputs: Readonly<Record<string, number>>, sampleIndex: number) => NumericOutputs;
   thresholds?: ThresholdDefinition[];
+  correlations?: readonly UncertaintyCorrelation[];
 }): UncertaintyAnalysisResult {
   if (!Number.isInteger(sampleCount) || sampleCount < 2 || sampleCount > 5000) {
     throw new Error("Sample count must be an integer from 2 through 5000.");
@@ -537,6 +663,7 @@ export function runUncertaintyAnalysis({
     keys.add(parameter.key);
     validateDistribution(parameter.distribution, parameter.label);
   });
+  const correlation = correlationSetup(parameters, correlations);
   const random = seededRandom(seed);
   const probabilities = new Map<string, number[]>();
   for (const parameter of parameters) {
@@ -546,12 +673,21 @@ export function runUncertaintyAnalysis({
     if (method === "latin-hypercube") shuffle(values, random);
     probabilities.set(parameter.key, values);
   }
+  const sampledProbabilities = correlation.cholesky === null
+    ? probabilities
+    : correlatedProbabilities({
+        parameters,
+        baseProbabilities: probabilities,
+        sampleCount,
+        method,
+        cholesky: correlation.cholesky,
+      });
   const samples: UncertaintySample[] = [];
   for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
     const inputs = Object.fromEntries(
       parameters.map((parameter) => [
         parameter.key,
-        inverseDistribution(parameter.distribution, probabilities.get(parameter.key)![sampleIndex]!),
+        inverseDistribution(parameter.distribution, sampledProbabilities.get(parameter.key)![sampleIndex]!),
       ]),
     );
     try {
@@ -622,6 +758,7 @@ export function runUncertaintyAnalysis({
     successfulSampleCount: successful.length,
     failedSampleCount,
     parameters,
+    correlations: correlation.normalized,
     samples,
     metrics,
     thresholds: thresholdResults,
@@ -630,12 +767,20 @@ export function runUncertaintyAnalysis({
     warnings: [
       ...(failedSampleCount > 0 ? [`${failedSampleCount} sample evaluations failed and remain visible in the result.`] : []),
       "Input distributions are user/model assumptions; they are not inferred from test data.",
+      ...(correlation.normalized.length > 0
+        ? ["Correlated inputs use a Gaussian copula in latent normal space; tail dependence and empirical joint-distribution validation remain outside this preview."]
+        : []),
       "Spearman rank correlation measures monotonic association, not causation or independent contribution.",
       "Finite-sample quantiles and probabilities have sampling error; convergence diagnostics are heuristic split-sample checks and threshold probabilities include a Wilson interval.",
       ...convergence.warnings,
     ],
     assumptions: [
-      "Uncertain inputs are sampled independently; correlations are not modeled in version 0.1.",
+      ...(correlation.normalized.length > 0
+        ? [
+            "Declared pairwise correlations are applied through a positive-definite Gaussian copula while preserving each declared marginal distribution.",
+            "Parameter pairs without a declared correlation are independent in the latent normal construction.",
+          ]
+        : ["Uncertain inputs are sampled independently because no correlations were declared."]),
       "Latin-hypercube sampling places one sample in each equal-probability stratum per parameter.",
       "Reported percentiles use linear interpolation between ordered samples.",
       ...convergence.assumptions,
