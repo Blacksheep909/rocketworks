@@ -1,6 +1,12 @@
-# Recovery descent and landing footprint 0.1
+# Recovery descent and landing footprint 0.2
 
-Status: `engineering-preview-unvalidated`
+Status: `engineering-preview-unvalidated`.
+
+The landing-footprint composition version is
+`kestrel-landing-footprint-0.2.0`; the underlying recovery-descent point-mass
+model remains independently versioned. The uncertainty sampler is
+`kestrel-uncertainty-0.2.0` and now supports Bernoulli outcomes alongside its
+continuous distributions.
 
 Implementations:
 
@@ -55,11 +61,21 @@ The browser uses 24 independent Latin-hypercube scenarios with the fixed seed
 - descent mass
 - canopy drag area when recovery is enabled
 - deployment-delay offset when recovery is enabled
+- recovery deployment outcome when recovery is enabled, using an explicit
+  Bernoulli success assumption
 
 Each scenario receives its own deterministic turbulence seed. Failed descent
 evaluations remain visible in uncertainty diagnostics and are excluded from
 footprint geometry. These distributions are engineering assumptions, not values
 inferred from weather observations or recovery tests.
+
+The recovery deployment outcome is encoded as `1 = deployment succeeds` and
+`0 = deployment fails`. A failed outcome does not disappear from the sample: it
+continues through the same point-mass descent with body drag and no canopy drag,
+so the landing footprint, impact-speed distribution, and observed success rate
+remain inspectable together. The browser reports the sampled success/failure
+counts and a Wilson 95% interval; the configured success probability is an
+assumption, not a reliability claim about hardware.
 
 ## WGS84 conversion
 
@@ -128,6 +144,7 @@ Automated tests cover:
 - exact mean, covariance, ellipse ratio, hull, and quantiles for a symmetric
   footprint fixture
 - seeded dispersion replay and sensitivity output
+- deterministic deployment-success/failure branching and Wilson interval
 - invalid state, integration, geodesy, and footprint rejection
 - browser footprint, accessible canvas description, metrics, and safety copy
 
@@ -144,8 +161,9 @@ independent range-safety software, or certified parachute data.
 - Point mass only; no 6DOF attitude, tumbling, canopy-payload geometry, or
   tether dynamics.
 - Constant user/model ballistic and canopy drag coefficients.
-- Deterministic inflation time and no deployment-failure branch in the browser
-  scenarios yet.
+- Deployment reliability is represented by an independent Bernoulli branch; no
+  hardware-derived reliability data, conditional dependencies, or partial
+  deployment states are modeled.
 - Independent scenario inputs; correlations and time-varying forecast error are
   not modeled.
 - The local geodetic approximation is not suitable for large ranges or polar

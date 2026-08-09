@@ -22,6 +22,7 @@ export type EditableProjectInputs = Readonly<{
   recoveryEnabled: boolean;
   recoveryDelayS: number;
   recoveryDiameterM: number;
+  recoveryDeploymentSuccessProbability: number;
 }>;
 
 export type LocalProjectSnapshot = Readonly<{
@@ -59,6 +60,7 @@ const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material
   launchRailLengthM: [0.25, 12],
   recoveryDelayS: [0, 30],
   recoveryDiameterM: [0.1, 3],
+  recoveryDeploymentSuccessProbability: [0, 1],
 };
 
 function objectValue(value: unknown, label: string): Record<string, unknown> {
@@ -94,7 +96,13 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   const input = objectValue(value, "Project inputs");
   const validated = {} as Record<string, number>;
   for (const [key, [minimum, maximum]] of Object.entries(numericRanges)) {
-    const candidate = input[key] ?? (key === "launchRailLengthM" ? 1.2 : undefined);
+    const candidate = input[key] ?? (
+      key === "launchRailLengthM"
+        ? 1.2
+        : key === "recoveryDeploymentSuccessProbability"
+          ? 0.9
+          : undefined
+    );
     if (typeof candidate !== "number" || !Number.isFinite(candidate) || candidate < minimum || candidate > maximum) {
       throw new Error(`${key} must be a finite number from ${minimum} to ${maximum}.`);
     }
@@ -125,6 +133,7 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     recoveryEnabled: input.recoveryEnabled,
     recoveryDelayS: validated.recoveryDelayS,
     recoveryDiameterM: validated.recoveryDiameterM,
+    recoveryDeploymentSuccessProbability: validated.recoveryDeploymentSuccessProbability,
   };
 }
 
@@ -190,6 +199,7 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   recoveryEnabled: "recovery system",
   recoveryDelayS: "recovery delay",
   recoveryDiameterM: "canopy diameter",
+  recoveryDeploymentSuccessProbability: "recovery deployment reliability assumption",
 };
 
 export function describeProjectInputChanges(previous: EditableProjectInputs, current: EditableProjectInputs): string {

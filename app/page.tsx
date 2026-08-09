@@ -959,8 +959,12 @@ function createOptimizationResult(
   });
 }
 
+type LandingPredictionInputs = Parameters<typeof createFlightConfig>[0] & Readonly<{
+  recoveryDeploymentSuccessProbability: number;
+}>;
+
 function createLandingPrediction(
-  inputs: Parameters<typeof createFlightConfig>[0],
+  inputs: LandingPredictionInputs,
   flightResult: VerticalFlightResult,
 ): LandingDispersionResult | null {
   if (!(flightResult.apogeeM > 0)) return null;
@@ -1033,9 +1037,23 @@ function createLandingPrediction(
                 maximum: 0.5,
               },
             },
+            {
+              key: "recoveryDeploymentSuccess",
+              label: "Recovery deployment success",
+              distribution: {
+                kind: "bernoulli" as const,
+                successProbability: inputs.recoveryDeploymentSuccessProbability,
+              },
+            },
           ]
         : []),
     ],
+    deploymentScenario: inputs.recoveryEnabled
+      ? {
+          parameterKey: "recoveryDeploymentSuccess",
+          label: "Recovery deployment",
+        }
+      : undefined,
     descentForSample: (values, sampleIndex) => {
       const environment = createPreviewEnvironment(
         inputs.launchAltitude,
@@ -1056,7 +1074,7 @@ function createLandingPrediction(
         ballisticDragCoefficient: inputs.dragCoefficient,
         ballisticReferenceAreaM2:
           Math.PI * Math.pow(inputs.diameter / 2000, 2),
-        recovery: inputs.recoveryEnabled
+        recovery: inputs.recoveryEnabled && values.recoveryDeploymentSuccess === 1
           ? {
               dragCoefficient: 0.75,
               referenceAreaM2:
@@ -1429,6 +1447,7 @@ export default function Home() {
   const [recoveryEnabled, setRecoveryEnabled] = useState(true);
   const [recoveryDelay, setRecoveryDelay] = useState(0);
   const [recoveryDiameter, setRecoveryDiameter] = useState(0.45);
+  const [recoveryDeploymentSuccessProbability, setRecoveryDeploymentSuccessProbability] = useState(0.9);
   const [running, setRunning] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [optimization, setOptimization] = useState<OptimizationPreview | null>(null);
@@ -1491,8 +1510,9 @@ export default function Home() {
       recoveryEnabled,
       recoveryDelayS: recoveryDelay,
       recoveryDiameterM: recoveryDiameter,
+      recoveryDeploymentSuccessProbability,
     }),
-    [burnTime, diameter, dragCoefficient, launchAltitude, launchRailEnabled, launchRailLengthM, length, material, payloadMass, recoveryDelay, recoveryDiameter, recoveryEnabled, thrust, windSpeed],
+    [burnTime, diameter, dragCoefficient, launchAltitude, launchRailEnabled, launchRailLengthM, length, material, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, thrust, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -1640,6 +1660,7 @@ export default function Home() {
           recoveryEnabled,
           recoveryDelay,
           recoveryDiameter,
+          recoveryDeploymentSuccessProbability,
           motorRecord: previewMotor,
         },
         result,
@@ -1753,6 +1774,7 @@ export default function Home() {
         setRecoveryEnabled(inputs.recoveryEnabled);
         setRecoveryDelay(inputs.recoveryDelayS);
         setRecoveryDiameter(inputs.recoveryDiameterM);
+        setRecoveryDeploymentSuccessProbability(inputs.recoveryDeploymentSuccessProbability);
         lastSavedInputsRef.current = inputs;
         lastSavedFingerprintRef.current = projectInputFingerprint(inputs);
         revisionRef.current = restoredSnapshot.revision;
@@ -1917,6 +1939,7 @@ export default function Home() {
     setRecoveryEnabled(inputs.recoveryEnabled);
     setRecoveryDelay(inputs.recoveryDelayS);
     setRecoveryDiameter(inputs.recoveryDiameterM);
+    setRecoveryDeploymentSuccessProbability(inputs.recoveryDeploymentSuccessProbability);
   };
   const persistCheckpoint = (
     inputs: EditableProjectInputs,
@@ -2165,6 +2188,7 @@ export default function Home() {
                   validationStatus: landingPrediction.validationStatus,
                   seed: landingPrediction.seed,
                   footprint: landingPrediction.footprint,
+                  deploymentScenario: landingPrediction.deploymentScenario,
                   failedScenarioCount:
                     landingPrediction.uncertainty.failedSampleCount,
                 }
@@ -2263,6 +2287,7 @@ export default function Home() {
           recoveryEnabled,
           recoveryDelay,
           recoveryDiameter,
+          recoveryDeploymentSuccessProbability,
           motorRecord: previewMotor,
         };
         const nextResult = createFlightResult(inputs);
@@ -2846,6 +2871,13 @@ export default function Home() {
                       <strong>{landingPrediction.footprint.impactSpeedMps.p50.toFixed(1)} / {landingPrediction.footprint.impactSpeedMps.p95.toFixed(1)} m/s</strong>
                       <small>{landingPrediction.uncertainty.failedSampleCount} failed scenarios retained</small>
                     </div>
+                    {landingPrediction.deploymentScenario && (
+                      <div className="landing-reliability">
+                        <span>{landingPrediction.deploymentScenario.label}</span>
+                        <strong>{landingPrediction.deploymentScenario.failedSampleCount} / {landingPrediction.deploymentScenario.successfulSampleCount + landingPrediction.deploymentScenario.failedSampleCount} failed</strong>
+                        <small>Observed {landingPrediction.deploymentScenario.observedSuccessRate === null ? "—" : `${(landingPrediction.deploymentScenario.observedSuccessRate * 100).toFixed(0)}%`} success · assumed {(landingPrediction.deploymentScenario.assumedSuccessProbability * 100).toFixed(0)}% · 95% range {landingPrediction.deploymentScenario.wilson95 ? `${(landingPrediction.deploymentScenario.wilson95.lower * 100).toFixed(0)}–${(landingPrediction.deploymentScenario.wilson95.upper * 100).toFixed(0)}%` : "—"}</small>
+                      </div>
+                    )}
                     <div>
                       <span>95% covariance ellipse</span>
                       <strong>{landingPrediction.footprint.confidenceEllipses[2].semiMajorM.toFixed(0)} × {landingPrediction.footprint.confidenceEllipses[2].semiMinorM.toFixed(0)} m</strong>
@@ -2855,7 +2887,7 @@ export default function Home() {
                 </div>
                 <div className="landing-disclaimer">
                   <span>RECOVERY PHASE ONLY</span>
-                  <p>Seed {landingPrediction.seed} · includes mean wind, deterministic turbulence, canopy-area, mass, direction, and delay scenarios. Ascent drift, terrain, obstacles, canopy pendulum motion, and range constraints are omitted. Not a flight-safety corridor.</p>
+                  <p>Seed {landingPrediction.seed} · includes mean wind, deterministic turbulence, canopy-area, mass, direction, delay, and a Bernoulli deployment-outcome assumption. Ascent drift, terrain, obstacles, canopy pendulum motion, and range constraints are omitted. Not a flight-safety corridor.</p>
                 </div>
               </div>
             )}
@@ -2991,6 +3023,8 @@ export default function Home() {
             </div>
             {recoveryEnabled && <NumberField id="recovery-delay" label="Deployment delay" value={recoveryDelay} unit="s" min={0} max={30} step={0.1} onChange={setRecoveryDelay} />}
             {recoveryEnabled && <NumberField id="recovery-diameter" label="Canopy diameter" value={recoveryDiameter} unit="m" min={0.1} max={3} step={0.01} onChange={setRecoveryDiameter} />}
+            {recoveryEnabled && <NumberField id="recovery-deployment-success" label="Deployment success assumption" value={recoveryDeploymentSuccessProbability * 100} unit="%" min={0} max={100} step={1} onChange={(value) => setRecoveryDeploymentSuccessProbability(value / 100)} />}
+            {recoveryEnabled && <p className="recovery-provenance">Landing dispersion samples this as a Bernoulli outcome. A failed deployment uses ballistic descent with body drag; the percentage is a modeling assumption, not hardware reliability evidence.</p>}
             <button className="library-button" onClick={() => setMotorLibraryOpen(true)}>
               <span><strong>Motor library</strong><small>{previewMotor.manufacturer} · {previewMotor.designation}</small></span>
               <em>{userMotorRecords.length} saved · Manage</em>

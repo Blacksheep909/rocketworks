@@ -115,7 +115,11 @@ These are equation and integration checks, not canopy qualification.
   canopy mass, and relative motion are absent.
 - Multiple canopies do not interact aerodynamically or mechanically.
 - Delay, inflation, and failure state are deterministic; uncertainty and
-  reliability distributions are future work.
+  reliability distributions in the landing preview are still user/model
+  assumptions, not hardware reliability evidence. The landing preview uses a
+  Bernoulli deployment outcome branch and reports its finite-sample interval,
+  but does not model conditional failures, partial inflation, or hardware
+  dependencies.
 - Ground impact terminates the trajectory but terrain, bounce, snagging, and
   landing damage are separate future models.
 
@@ -140,7 +144,7 @@ These are equation and integration checks, not canopy qualification.
 ## Next work
 
 The next recovery increment should add reefing stages, opening-load estimates,
-line and canopy state, deployment reliability distributions, and uncertainty
-propagation. The browser UI should expose deployment phases, applicability
-warnings, impact-speed ranges, and failure scenarios rather than one nominal
-answer.
+line and canopy state, conditional deployment reliability, and uncertainty
+propagation through partial-inflation states. The browser UI should continue to
+expose deployment phases, applicability warnings, impact-speed ranges, and
+failure scenarios rather than one nominal answer.

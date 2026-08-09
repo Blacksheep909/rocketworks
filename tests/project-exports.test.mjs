@@ -215,6 +215,16 @@ test("engineering report leads with status and preserves calculations and limita
       seed: "landing-seed",
       footprint,
       uncertainty: {},
+      deploymentScenario: {
+        parameterKey: "deploymentSuccess",
+        label: "Recovery deployment",
+        assumedSuccessProbability: 0.96,
+        successfulSampleCount: 23,
+        failedSampleCount: 1,
+        unclassifiedSampleCount: 0,
+        observedSuccessRate: 23 / 24,
+        wilson95: { lower: 0.75, upper: 0.99 },
+      },
       assumptions: [],
       warnings: ["Recovery phase only."],
     },
@@ -223,6 +233,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.ok(report.indexOf("Not flight-safe or manufacturing-approved") < report.indexOf("## Vehicle summary"));
   assert.match(report, /\| Static margin \| 2\.93 calibres \|/);
   assert.match(report, /## Recovery landing footprint/);
+  assert.match(report, /Recovery deployment: 1 \/ 24 sampled failures/);
+  assert.match(report, /assumed 96\.0%/);
   assert.match(report, /Recovery phase only/);
   assert.match(report, /does not embed OpenRocket source code/);
 });

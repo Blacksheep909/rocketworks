@@ -8,7 +8,7 @@ import type { ParameterSweepResult } from "../physics/uncertainty-analysis.ts";
 
 export const KESTREL_PROJECT_SCHEMA_ID = "org.kestrel-lab.project";
 export const KESTREL_PROJECT_SCHEMA_VERSION = 1;
-export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.1.0";
+export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.2.0";
 export const KESTREL_EXPORT_VALIDATION_STATUS =
   "engineering-preview-unvalidated";
 
@@ -569,6 +569,12 @@ export function createEngineeringReportMarkdown(
           `- Radial distance P50 / P95: ${formatNumber(landing.radialDistanceM.p50, 1)} / ${formatNumber(landing.radialDistanceM.p95, 1)} m`,
           `- Impact speed P50 / P95: ${formatNumber(landing.impactSpeedMps.p50, 2)} / ${formatNumber(landing.impactSpeedMps.p95, 2)} m/s`,
           `- 95% covariance ellipse semi-axes: ${formatNumber(landing.confidenceEllipses[2].semiMajorM, 1)} × ${formatNumber(landing.confidenceEllipses[2].semiMinorM, 1)} m`,
+          ...(input.landing!.deploymentScenario
+            ? [
+                `- ${markdownText(input.landing!.deploymentScenario.label)}: ${input.landing!.deploymentScenario.failedSampleCount} / ${input.landing!.deploymentScenario.successfulSampleCount + input.landing!.deploymentScenario.failedSampleCount} sampled failures`,
+                `- Observed deployment success: ${input.landing!.deploymentScenario.observedSuccessRate === null ? "not available" : `${formatNumber(input.landing!.deploymentScenario.observedSuccessRate * 100, 1)}%`} (assumed ${(input.landing!.deploymentScenario.assumedSuccessProbability * 100).toFixed(1)}%)`,
+              ]
+            : []),
           "",
           "> The footprint covers recovery-phase drift only. It is not a launch corridor or range-safety boundary.",
           "",

@@ -193,6 +193,29 @@ test("seeded recovery dispersion is reproducible and exposes sensitivity samples
   );
 });
 
+test("deployment reliability scenarios branch to ballistic descent and remain explicit", () => {
+  const result = analyzeRecoveryLandingDispersion({
+    site,
+    seed: "deployment-reliability",
+    sampleCount: 20,
+    parameters: [
+      { key: "deploymentSuccess", label: "Recovery deployment", distribution: { kind: "bernoulli", successProbability: 0.75 } },
+    ],
+    deploymentScenario: { parameterKey: "deploymentSuccess" },
+    descentForSample: (values) => values.deploymentSuccess === 1
+      ? descent()
+      : descent({ recovery: undefined }),
+  });
+  assert.equal(result.uncertainty.failedSampleCount, 0);
+  assert.equal(result.deploymentScenario.successfulSampleCount, 15);
+  assert.equal(result.deploymentScenario.failedSampleCount, 5);
+  assert.equal(result.deploymentScenario.unclassifiedSampleCount, 0);
+  assert.equal(result.deploymentScenario.observedSuccessRate, 0.75);
+  assert.ok(result.deploymentScenario.wilson95.lower < 0.75);
+  assert.ok(result.deploymentScenario.wilson95.upper > 0.75);
+  assert.ok(result.warnings.some((warning) => warning.includes("ballistic descent")));
+});
+
 test("invalid descent, geodesy, and footprint inputs fail explicitly", () => {
   assert.throws(() => descent({ massKg: 0 }), /mass/);
   assert.throws(() => descent({ initialPositionWorldM: { x: 0, y: 0, z: 0 } }), /above ground/);

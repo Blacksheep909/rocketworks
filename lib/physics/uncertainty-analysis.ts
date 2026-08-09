@@ -1,9 +1,10 @@
-export const UNCERTAINTY_MODEL_VERSION = "kestrel-uncertainty-0.1.0";
+export const UNCERTAINTY_MODEL_VERSION = "kestrel-uncertainty-0.2.0";
 export const UNCERTAINTY_MODEL_STATUS = "engineering-preview-unvalidated";
 
 export type ProbabilityDistribution =
   | { kind: "uniform"; minimum: number; maximum: number }
   | { kind: "triangular"; minimum: number; mode: number; maximum: number }
+  | { kind: "bernoulli"; successProbability: number }
   | {
       kind: "normal";
       mean: number;
@@ -111,6 +112,13 @@ function validateDistribution(distribution: ProbabilityDistribution, label: stri
     }
     return;
   }
+  if (distribution.kind === "bernoulli") {
+    assertFinite(distribution.successProbability, `${label} success probability`);
+    if (distribution.successProbability < 0 || distribution.successProbability > 1) {
+      throw new Error(`${label} success probability must be between 0 and 1.`);
+    }
+    return;
+  }
   assertFinite(distribution.mean, `${label} mean`);
   assertFinite(distribution.standardDeviation, `${label} standard deviation`);
   if (distribution.standardDeviation <= 0) {
@@ -194,6 +202,9 @@ export function inverseDistribution(distribution: ProbabilityDistribution, proba
     return p < split
       ? distribution.minimum + Math.sqrt(p * range * (distribution.mode - distribution.minimum))
       : distribution.maximum - Math.sqrt((1 - p) * range * (distribution.maximum - distribution.mode));
+  }
+  if (distribution.kind === "bernoulli") {
+    return p < distribution.successProbability ? 1 : 0;
   }
   const lowerProbability =
     distribution.minimum === undefined

@@ -11,7 +11,7 @@ import {
 } from "./uncertainty-analysis.ts";
 
 export const RECOVERY_DESCENT_MODEL_VERSION = "kestrel-recovery-descent-0.1.0";
-export const LANDING_FOOTPRINT_MODEL_VERSION = "kestrel-landing-footprint-0.1.0";
+export const LANDING_FOOTPRINT_MODEL_VERSION = "kestrel-landing-footprint-0.2.0";
 export const LANDING_ZONE_MODEL_STATUS = "engineering-preview-unvalidated";
 
 const WGS84_SEMI_MAJOR_AXIS_M = 6_378_137;
@@ -114,8 +114,20 @@ export type LandingDispersionResult = Readonly<{
   seed: string;
   uncertainty: UncertaintyAnalysisResult;
   footprint: LandingFootprintResult;
+  deploymentScenario: LandingDeploymentScenarioSummary | null;
   assumptions: readonly string[];
   warnings: readonly string[];
+}>;
+
+export type LandingDeploymentScenarioSummary = Readonly<{
+  parameterKey: string;
+  label: string;
+  assumedSuccessProbability: number;
+  successfulSampleCount: number;
+  failedSampleCount: number;
+  unclassifiedSampleCount: number;
+  observedSuccessRate: number | null;
+  wilson95: Readonly<{ lower: number; upper: number }> | null;
 }>;
 
 type DescentState = Readonly<{
@@ -153,6 +165,18 @@ function interpolateVector(left: Vector3, right: Vector3, fraction: number): Vec
 function smoothstep(fraction: number): number {
   const bounded = Math.max(0, Math.min(1, fraction));
   return bounded * bounded * (3 - 2 * bounded);
+}
+
+function wilsonInterval95(successes: number, total: number): Readonly<{ lower: number; upper: number }> | null {
+  if (total === 0) return null;
+  const z = 1.959963984540054;
+  const observed = successes / total;
+  const denominator = 1 + (z * z) / total;
+  const center = (observed + (z * z) / (2 * total)) / denominator;
+  const radius =
+    (z / denominator) *
+    Math.sqrt((observed * (1 - observed)) / total + (z * z) / (4 * total * total));
+  return { lower: Math.max(0, center - radius), upper: Math.min(1, center + radius) };
 }
 
 export function simulateRecoveryDescent(input: Readonly<{
@@ -647,6 +671,10 @@ export function analyzeRecoveryLandingDispersion(input: Readonly<{
   seed: string;
   sampleCount: number;
   parameters: readonly LandingDispersionParameter[];
+  deploymentScenario?: Readonly<{
+    parameterKey: string;
+    label?: string;
+  }>;
   descentForSample: (
     values: Readonly<Record<string, number>>,
     sampleIndex: number,
@@ -678,6 +706,47 @@ export function analyzeRecoveryLandingDispersion(input: Readonly<{
       };
     },
   });
+  const deploymentParameter = input.deploymentScenario
+    ? input.parameters.find((parameter) => parameter.key === input.deploymentScenario!.parameterKey)
+    : undefined;
+  const deploymentDistribution = deploymentParameter?.distribution;
+  if (input.deploymentScenario && !deploymentParameter) {
+    throw new Error(`deployment scenario parameter ${input.deploymentScenario.parameterKey} was not declared`);
+  }
+  if (input.deploymentScenario && deploymentDistribution?.kind !== "bernoulli") {
+    throw new Error("deployment scenario parameter must use a Bernoulli distribution");
+  }
+  const deploymentScenario = deploymentDistribution?.kind === "bernoulli" && deploymentParameter
+    ? (() => {
+        const parameterKey = deploymentParameter.key;
+        const classified = uncertainty.samples.reduce(
+          (counts, sample) => {
+            const outcome = sample.inputs[parameterKey];
+            if (outcome === 1) counts.successfulSampleCount += 1;
+            else if (outcome === 0) counts.failedSampleCount += 1;
+            else counts.unclassifiedSampleCount += 1;
+            return counts;
+          },
+          { successfulSampleCount: 0, failedSampleCount: 0, unclassifiedSampleCount: 0 },
+        );
+        const classifiedCount =
+          classified.successfulSampleCount + classified.failedSampleCount;
+        return {
+          parameterKey,
+          label: input.deploymentScenario?.label ?? deploymentParameter.label,
+          assumedSuccessProbability: deploymentDistribution.successProbability,
+          ...classified,
+          observedSuccessRate:
+            classifiedCount === 0
+              ? null
+              : classified.successfulSampleCount / classifiedCount,
+          wilson95: wilsonInterval95(
+            classified.successfulSampleCount,
+            classifiedCount,
+          ),
+        } satisfies LandingDeploymentScenarioSummary;
+      })()
+    : null;
   const impacts = uncertainty.samples
     .filter((sample) => sample.outputs !== null)
     .map(
@@ -696,14 +765,25 @@ export function analyzeRecoveryLandingDispersion(input: Readonly<{
     seed: input.seed,
     uncertainty,
     footprint,
+    deploymentScenario,
     assumptions: [
       ...footprint.assumptions,
       "Scenario inputs use independent Latin-hypercube samples",
+      ...(deploymentScenario
+        ? [
+            `Recovery deployment outcome is modeled as a Bernoulli assumption with ${(deploymentScenario.assumedSuccessProbability * 100).toFixed(1)}% success probability; value 0 uses ballistic descent.`,
+          ]
+        : []),
     ],
     warnings: [
       ...uncertainty.warnings,
       ...footprint.warnings,
       "Failed descent scenarios are excluded from footprint geometry and remain visible in uncertainty diagnostics.",
+      ...(deploymentScenario && deploymentScenario.failedSampleCount > 0
+        ? [
+            `${deploymentScenario.failedSampleCount} sampled recovery deployment scenarios used ballistic descent because the Bernoulli deployment outcome was failure.`,
+          ]
+        : []),
     ],
   };
 }

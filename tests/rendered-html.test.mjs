@@ -204,6 +204,14 @@ test("ships a provenance-qualified recovery landing footprint", async () => {
   assert.match(page, /Landing footprint/);
   assert.match(page, /Recovery-phase drift/);
   assert.match(page, /arc54-landing-v1/);
+  assert.match(page, /recoveryDeploymentSuccess/);
+  assert.match(page, /recoveryDeploymentSuccessProbability/);
+  assert.match(page, /Deployment success assumption/);
+  assert.match(page, /recovery-provenance/);
+  assert.match(page, /deploymentScenario/);
+  assert.match(page, /Bernoulli/);
+  assert.match(page, /failed<\/strong>/);
+  assert.match(page, /assumed/);
   assert.match(page, /Ascent drift, terrain, obstacles/);
   assert.match(page, /Not a flight-safety corridor/);
   assert.match(chart, /50 \/ 90 \/ 95% covariance ellipses/);
@@ -211,6 +219,7 @@ test("ships a provenance-qualified recovery landing footprint", async () => {
   assert.match(chart, /Local east-north landing footprint/);
   assert.match(stylesheet, /\.landing-footprint-chart/);
   assert.match(stylesheet, /\.landing-disclaimer/);
+  assert.match(stylesheet, /\.landing-reliability/);
 });
 
 test("ships an accessible multi-format engineering export center", async () => {
@@ -248,6 +257,7 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(page, /parseLocalProjectSnapshot/);
   assert.match(page, /setLaunchRailEnabled/);
   assert.match(page, /launchRailLengthM/);
+  assert.match(page, /recoveryDeploymentSuccessProbability/);
   assert.match(page, /window\.setTimeout\(\(\) => \{/);
   assert.match(page, /\}, 600\)/);
   assert.match(page, /Local project history/);
@@ -257,6 +267,7 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(projectState, /DEFAULT_LOCAL_HISTORY_LIMIT = 40/);
   assert.match(projectState, /launchRailEnabled/);
   assert.match(projectState, /launchRailLengthM/);
+  assert.match(projectState, /recoveryDeploymentSuccessProbability/);
   assert.match(projectState, /validateEditableProjectInputs/);
   assert.match(projectState, /Unsupported local project schema version/);
   assert.match(stylesheet, /\.history-entry button:focus-visible/);

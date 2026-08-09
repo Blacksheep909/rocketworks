@@ -53,7 +53,26 @@ test("Latin hypercube occupies every equal-probability stratum", () => {
 test("inverse distributions recover central values", () => {
   close(inverseDistribution({ kind: "uniform", minimum: 2, maximum: 6 }, 0.5), 4, 1e-12, "uniform median");
   close(inverseDistribution({ kind: "triangular", minimum: 0, mode: 5, maximum: 10 }, 0.5), 5, 1e-12, "triangular median");
+  assert.equal(inverseDistribution({ kind: "bernoulli", successProbability: 0.5 }, 0.25), 1);
+  assert.equal(inverseDistribution({ kind: "bernoulli", successProbability: 0.5 }, 0.75), 0);
   close(inverseDistribution({ kind: "normal", mean: 8, standardDeviation: 2 }, 0.5), 8, 1e-7, "normal median");
+});
+
+test("Bernoulli sampling preserves a deterministic deployment outcome rate", () => {
+  const result = runUncertaintyAnalysis({
+    seed: "bernoulli-recovery",
+    sampleCount: 20,
+    parameters: [{
+      key: "deploymentSuccess",
+      label: "Deployment success",
+      distribution: { kind: "bernoulli", successProbability: 0.7 },
+    }],
+    evaluator: ({ deploymentSuccess }) => ({ deploymentSuccess }),
+  });
+  assert.equal(result.failedSampleCount, 0);
+  assert.equal(result.metrics.deploymentSuccess.count, 20);
+  assert.equal(result.samples.filter((sample) => sample.inputs.deploymentSuccess === 1).length, 14);
+  assert.equal(result.samples.filter((sample) => sample.inputs.deploymentSuccess === 0).length, 6);
 });
 
 test("summaries use sample standard deviation and interpolated quantiles", () => {
@@ -161,4 +180,10 @@ test("invalid distributions and unsafe sample counts are rejected", () => {
     parameters: [{ key: "x", label: "Bad", distribution: { kind: "uniform", minimum: 2, maximum: 1 } }],
     evaluator: () => ({ response: 1 }),
   }), /maximum must exceed/);
+  assert.throws(() => runUncertaintyAnalysis({
+    seed: "invalid-bernoulli",
+    sampleCount: 4,
+    parameters: [{ key: "deployment", label: "Bad", distribution: { kind: "bernoulli", successProbability: 1.1 } }],
+    evaluator: () => ({ response: 1 }),
+  }), /success probability must be between/);
 });
