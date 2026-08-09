@@ -4,6 +4,7 @@ import type {
   VerticalFlightResult,
 } from "../physics/vertical-flight.ts";
 import type { StageFlightTracePoint } from "../physics/stage-flight-preview.ts";
+import type { ParameterSweepResult } from "../physics/uncertainty-analysis.ts";
 
 export const KESTREL_PROJECT_SCHEMA_ID = "org.kestrel-lab.project";
 export const KESTREL_PROJECT_SCHEMA_VERSION = 1;
@@ -201,6 +202,52 @@ export function createStageFlightTraceCsv(
       assertFinite(value, `stage-flight trace row ${index + 1} column ${headers[valueIndex]}`),
     );
     return [...values, point.attachedStageIds.join("|")].map(csvCell).join(",");
+  });
+  return `${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
+}
+
+export function createParameterSweepCsv(
+  sweep: Readonly<ParameterSweepResult>,
+): string {
+  if (sweep.values.length === 0 || sweep.samples.length === 0) {
+    throw new Error("parameter sweep cannot be empty");
+  }
+  if (sweep.values.length !== sweep.samples.length) {
+    throw new Error("parameter sweep values and samples must have equal length");
+  }
+  const outputKeys = Array.from(
+    new Set(
+      sweep.samples.flatMap((sample) =>
+        sample.outputs ? Object.keys(sample.outputs) : [],
+      ),
+    ),
+  );
+  const headers = [
+    "parameter_key",
+    "parameter_value",
+    ...outputKeys,
+    "error",
+  ];
+  const rows = sweep.samples.map((sample, index) => {
+    if (!Number.isFinite(sample.value)) {
+      throw new Error(`parameter sweep row ${index + 1} value must be finite`);
+    }
+    const outputs = outputKeys.map((key) => sample.outputs?.[key] ?? null);
+    outputs.forEach((value, valueIndex) => {
+      if (value !== null && !Number.isFinite(value)) {
+        throw new Error(
+          `parameter sweep row ${index + 1} column ${outputKeys[valueIndex]} must be finite or null`,
+        );
+      }
+    });
+    return [
+      sweep.parameterKey,
+      sample.value,
+      ...outputs.map((value) => value ?? ""),
+      sample.error ?? "",
+    ]
+      .map((value) => csvCell(value))
+      .join(",");
   });
   return `${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
 }

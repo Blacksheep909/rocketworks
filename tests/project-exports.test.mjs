@@ -6,6 +6,7 @@ import {
   KESTREL_PROJECT_SCHEMA_ID,
   createEngineeringReportMarkdown,
   createFlightTraceCsv,
+  createParameterSweepCsv,
   createStageFlightTraceCsv,
   createKestrelProjectJson,
   createRocketOpenScad,
@@ -101,6 +102,21 @@ test("staged flight CSV preserves attached-stage topology and SI values", () => 
   assert.equal(rows[0], "time_s,altitude_agl_m,speed_mps,mass_kg,thrust_n,attached_stage_ids");
   assert.equal(rows[1], "0,0,0,1.2,30,booster|upper");
   assert.equal(rows[2], "1,42.5,28.2,0.8,18,upper");
+});
+
+test("parameter sweep CSV preserves rows, null outputs, and evaluator errors", () => {
+  const csv = createParameterSweepCsv({
+    parameterKey: "thrustScale",
+    values: [0.8, 1.2],
+    samples: [
+      { value: 0.8, outputs: { apogeeM: 120, impactSpeedMps: null }, error: null },
+      { value: 1.2, outputs: null, error: "no liftoff" },
+    ],
+  });
+  const rows = csv.trim().split("\r\n");
+  assert.equal(rows[0], "parameter_key,parameter_value,apogeeM,impactSpeedMps,error");
+  assert.equal(rows[1], "thrustScale,0.8,120,,");
+  assert.equal(rows[2], "thrustScale,1.2,,,no liftoff");
 });
 
 test("R12 DXF exports millimetre airframe, fins, centerline, CG, and CP layers", () => {

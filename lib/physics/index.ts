@@ -15,6 +15,7 @@ export * from "./stage-flight-preview.ts";
 export * from "./static-aerodynamics.ts";
 export * from "./vehicle-components.ts";
 export * from "./vertical-flight.ts";
+export * from "./vertical-flight-sweep.ts";
 export * from "./uncertainty-analysis.ts";
 export * from "./vertical-flight-uncertainty.ts";
 export * from "./vehicle-assembly.ts";

@@ -8,6 +8,7 @@ import { Rocket3DViewport } from "./rocket-3d-viewport.tsx";
 import {
   createEngineeringReportMarkdown,
   createFlightTraceCsv,
+  createParameterSweepCsv,
   createStageFlightTraceCsv,
   createKestrelProjectJson,
   createRocketOpenScad,
@@ -31,6 +32,7 @@ import {
   simulateStageFlightPreview,
   makeConstantThrustCurve,
   optimizeVerticalFlightDesign,
+  sweepVerticalFlight,
   simulateRecoveryDescent,
   simulateVerticalFlight,
   type DesignOptimizationResult,
@@ -41,6 +43,8 @@ import {
   type VehicleComponent,
   type MotorDataRecord,
   type StageFlightPreviewResult,
+  type VerticalFlightSweepParameterKey,
+  type VerticalFlightSweepResult,
   type RocketStage,
   type StageAerodynamicRegime,
   type LaunchEnvironmentProvider,
@@ -92,12 +96,80 @@ type ComponentKey = "nose" | "body" | "fins" | "mount" | "recovery";
 type ViewKey = "design" | "flight";
 type DesignViewKey = "2d" | "3d";
 type MaterialKey = "kraft" | "fiberglass" | "carbon";
-type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "report" | "dxf" | "openscad";
+type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "sweep-csv" | "report" | "dxf" | "openscad";
 type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
   baseRecoveryDiameterM: number;
 }>;
+
+type SweepParameterDefinition = Readonly<{
+  key: VerticalFlightSweepParameterKey;
+  label: string;
+  unit: string;
+  minimum: number;
+  maximum: number;
+  step: number;
+  precision: number;
+}>;
+
+const SWEEP_PARAMETER_DEFINITIONS: readonly SweepParameterDefinition[] = [
+  {
+    key: "thrustScale",
+    label: "Delivered thrust",
+    unit: "×",
+    minimum: 0.75,
+    maximum: 1.3,
+    step: 0.01,
+    precision: 2,
+  },
+  {
+    key: "dryMassScale",
+    label: "Dry mass",
+    unit: "×",
+    minimum: 0.9,
+    maximum: 1.1,
+    step: 0.01,
+    precision: 2,
+  },
+  {
+    key: "dragCoefficientScale",
+    label: "Drag coefficient",
+    unit: "×",
+    minimum: 0.8,
+    maximum: 1.2,
+    step: 0.01,
+    precision: 2,
+  },
+  {
+    key: "windScale",
+    label: "Wind profile",
+    unit: "×",
+    minimum: 0,
+    maximum: 2,
+    step: 0.01,
+    precision: 2,
+  },
+  {
+    key: "recoveryDelayS",
+    label: "Recovery delay",
+    unit: "s",
+    minimum: 0,
+    maximum: 5,
+    step: 0.1,
+    precision: 1,
+  },
+];
+
+const DEFAULT_SWEEP_STEPS = 9;
+
+function sweepParameterDefinition(
+  key: VerticalFlightSweepParameterKey,
+): SweepParameterDefinition {
+  const definition = SWEEP_PARAMETER_DEFINITIONS.find((item) => item.key === key);
+  if (!definition) throw new Error(`Unknown sweep parameter: ${key}`);
+  return definition;
+}
 
 type MotorImportDraft = {
   id: string;
@@ -644,6 +716,22 @@ function createUncertaintyResult(
   });
 }
 
+function createSweepResult(
+  inputs: Parameters<typeof createFlightConfig>[0],
+  parameterKey: VerticalFlightSweepParameterKey,
+  minimum: number,
+  maximum: number,
+  steps: number,
+): VerticalFlightSweepResult {
+  return sweepVerticalFlight({
+    baseConfig: createFlightConfig(inputs),
+    parameterKey,
+    minimum,
+    maximum,
+    steps,
+  });
+}
+
 function createOptimizationResult(
   inputs: Parameters<typeof createFlightConfig>[0],
 ): DesignOptimizationResult {
@@ -915,6 +1003,15 @@ export default function Home() {
   const [running, setRunning] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [optimization, setOptimization] = useState<OptimizationPreview | null>(null);
+  const [sweepParameter, setSweepParameter] =
+    useState<VerticalFlightSweepParameterKey>("thrustScale");
+  const [sweepMinimum, setSweepMinimum] = useState(0.75);
+  const [sweepMaximum, setSweepMaximum] = useState(1.3);
+  const [sweepSteps, setSweepSteps] = useState(DEFAULT_SWEEP_STEPS);
+  const [sweepRunning, setSweepRunning] = useState(false);
+  const [sweepResult, setSweepResult] =
+    useState<VerticalFlightSweepResult | null>(null);
+  const [sweepError, setSweepError] = useState("");
   const [exportOpen, setExportOpen] = useState(false);
   const exportCloseRef = useRef<HTMLButtonElement>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
@@ -1160,6 +1257,7 @@ export default function Home() {
       (candidate) =>
         candidate.id === optimization.result.recommendedCandidateId,
     ) ?? null;
+  const activeSweepDefinition = sweepParameterDefinition(sweepParameter);
 
   useEffect(() => {
     const hydrationTimer = window.setTimeout(() => {
@@ -1328,6 +1426,8 @@ export default function Home() {
     setSaved(false);
     setStageFlightResult(null);
     setStageFlightError("");
+    setSweepResult(null);
+    setSweepError("");
   };
   const applyEditableInputs = (inputs: EditableProjectInputs) => {
     setLength(inputs.lengthMm);
@@ -1415,6 +1515,8 @@ export default function Home() {
     setSelectedMotorId(id);
     setStageFlightResult(null);
     setStageFlightError("");
+    setSweepResult(null);
+    setSweepError("");
     setMotorLibraryOpen(false);
     setMotorError("");
     notify(id === "synthetic" ? "Synthetic preview selected; rerun the estimate" : "Motor selected; rerun the estimate");
@@ -1559,6 +1661,7 @@ export default function Home() {
           simulations: {
             verticalFlight: result,
             stageFlight: stageFlightResult,
+            verticalSweep: sweepResult,
           } as unknown as JsonValue,
           analyses: {
             uncertainty,
@@ -1607,6 +1710,11 @@ export default function Home() {
         filename = "arc-54-stage-flight-trace.csv";
         mediaType = "text/csv;charset=utf-8";
         content = createStageFlightTraceCsv(stageFlightResult.trace);
+      } else if (format === "sweep-csv") {
+        if (!sweepResult) throw new Error("Run a parameter sweep before exporting its table.");
+        filename = "arc-54-parameter-sweep.csv";
+        mediaType = "text/csv;charset=utf-8";
+        content = createParameterSweepCsv(sweepResult.result);
       } else if (format === "report") {
         filename = "arc-54-engineering-report.md";
         mediaType = "text/markdown;charset=utf-8";
@@ -1687,6 +1795,8 @@ export default function Home() {
         setUncertainty(createUncertaintyResult(inputs));
         setLandingPrediction(createLandingPrediction(inputs, nextResult));
         setOptimization(null);
+        setSweepResult(null);
+        setSweepError("");
         notify("Model run complete");
       } catch (error) {
         notify(error instanceof Error ? error.message : "Unable to run the model");
@@ -1726,6 +1836,70 @@ export default function Home() {
         setStageFlightRunning(false);
       }
     }, 30);
+  };
+  const changeSweepParameter = (parameterKey: VerticalFlightSweepParameterKey) => {
+    const definition = sweepParameterDefinition(parameterKey);
+    setSweepParameter(parameterKey);
+    setSweepMinimum(definition.minimum);
+    setSweepMaximum(definition.maximum);
+    setSweepResult(null);
+    setSweepError("");
+  };
+  const changeSweepMinimum = (value: number) => {
+    setSweepMinimum(value);
+    setSweepResult(null);
+    setSweepError("");
+  };
+  const changeSweepMaximum = (value: number) => {
+    setSweepMaximum(value);
+    setSweepResult(null);
+    setSweepError("");
+  };
+  const changeSweepSteps = (value: number) => {
+    setSweepSteps(value);
+    setSweepResult(null);
+    setSweepError("");
+  };
+  const runSweep = () => {
+    setSweepRunning(true);
+    setSweepError("");
+    setView("flight");
+    window.setTimeout(() => {
+      try {
+        if (!Number.isInteger(sweepSteps) || sweepSteps < 2 || sweepSteps > 25) {
+          throw new Error("Sweep steps must be an integer from 2 through 25 in the browser preview.");
+        }
+        const inputs = {
+          mass,
+          diameter,
+          dragCoefficient,
+          thrust,
+          burnTime,
+          launchAltitude,
+          windSpeed,
+          recoveryEnabled,
+          recoveryDelay,
+          recoveryDiameter,
+          motorRecord: previewMotor,
+        };
+        setSweepResult(
+          createSweepResult(
+            inputs,
+            sweepParameter,
+            sweepMinimum,
+            sweepMaximum,
+            sweepSteps,
+          ),
+        );
+        notify("Parameter sweep complete");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to run parameter sweep";
+        setSweepError(message);
+        notify(message);
+      } finally {
+        setSweepRunning(false);
+      }
+    }, 20);
   };
   const optimize = () => {
     setOptimizing(true);
@@ -2029,6 +2203,21 @@ export default function Home() {
                 <p>Assumed independent input distributions · seed {uncertainty.seed} · not validation, certification, or a flight-safety assessment.</p>
               </div>
             </div>
+            <ParameterSweepCard
+              parameter={sweepParameter}
+              definition={activeSweepDefinition}
+              minimum={sweepMinimum}
+              maximum={sweepMaximum}
+              steps={sweepSteps}
+              running={sweepRunning}
+              result={sweepResult}
+              error={sweepError}
+              onParameterChange={changeSweepParameter}
+              onMinimumChange={changeSweepMinimum}
+              onMaximumChange={changeSweepMaximum}
+              onStepsChange={changeSweepSteps}
+              onRun={runSweep}
+            />
             <div className="optimization-card">
               <div className="event-card-heading">
                 <div>
@@ -2635,6 +2824,11 @@ export default function Home() {
                 <span><strong>Staged 6DOF trace</strong><small>Attached-stage topology, mass, thrust, altitude, and speed at each integration sample.</small></span>
                 <em>↓</em>
               </button>}
+              {sweepResult && <button onClick={() => exportArtifact("sweep-csv")}>
+                <span className="export-extension">CSV</span>
+                <span><strong>Parameter sweep table</strong><small>One-variable trade study with every output row and any retained evaluator errors.</small></span>
+                <em>↓</em>
+              </button>}
               <button onClick={() => exportArtifact("report")}>
                 <span className="export-extension">MD</span>
                 <span><strong>Engineering report</strong><small>Assumptions-first vehicle, motor, weather, flight, event, warning, and footprint summary.</small></span>
@@ -2687,6 +2881,130 @@ function UncertaintyMetric({
       <strong>{format(low)} / {format(median)} / {format(high)} <small>{unit}</small></strong>
       <div className="uncertainty-band" aria-hidden="true"><i style={{ left: `${medianPosition}%` }} /></div>
     </div>
+  );
+}
+
+function ParameterSweepCard({
+  parameter,
+  definition,
+  minimum,
+  maximum,
+  steps,
+  running,
+  result,
+  error,
+  onParameterChange,
+  onMinimumChange,
+  onMaximumChange,
+  onStepsChange,
+  onRun,
+}: {
+  parameter: VerticalFlightSweepParameterKey;
+  definition: SweepParameterDefinition;
+  minimum: number;
+  maximum: number;
+  steps: number;
+  running: boolean;
+  result: VerticalFlightSweepResult | null;
+  error: string;
+  onParameterChange: (value: VerticalFlightSweepParameterKey) => void;
+  onMinimumChange: (value: number) => void;
+  onMaximumChange: (value: number) => void;
+  onStepsChange: (value: number) => void;
+  onRun: () => void;
+}) {
+  const samples = result?.result.samples ?? [];
+  const apogees = samples
+    .map((sample) => sample.outputs?.apogeeM)
+    .filter((value): value is number => typeof value === "number");
+  const maxQ = samples
+    .map((sample) => sample.outputs?.maxDynamicPressurePa)
+    .filter((value): value is number => typeof value === "number");
+  const apogeeMinimum = apogees.length > 0 ? Math.min(...apogees) : null;
+  const apogeeMaximum = apogees.length > 0 ? Math.max(...apogees) : null;
+  const apogeeRange =
+    apogeeMinimum !== null && apogeeMaximum !== null
+      ? Math.max(apogeeMaximum - apogeeMinimum, 1e-9)
+      : 1;
+  const maxQMinimum = maxQ.length > 0 ? Math.min(...maxQ) : null;
+  const maxQMaximum = maxQ.length > 0 ? Math.max(...maxQ) : null;
+  const successfulCount = samples.filter((sample) => sample.outputs !== null).length;
+  const format = (value: number | null | undefined, decimals = 1) =>
+    value === null || value === undefined ? "—" : value.toFixed(decimals);
+  return (
+    <section className="sweep-card" aria-labelledby="sweep-title">
+      <div className="event-card-heading">
+        <div>
+          <strong id="sweep-title">Parameter sweep</strong>
+          <span>One-variable trade study across the current design</span>
+        </div>
+        <span>{result ? `${successfulCount} / ${samples.length} rows` : "Ready to run"}</span>
+      </div>
+      <div className="sweep-controls">
+        <label>Variable
+          <select value={parameter} onChange={(event) => onParameterChange(event.target.value as VerticalFlightSweepParameterKey)}>
+            {SWEEP_PARAMETER_DEFINITIONS.map((item) => <option value={item.key} key={item.key}>{item.label}</option>)}
+          </select>
+        </label>
+        <label>From
+          <input type="number" value={minimum} step={definition.step} onChange={(event) => onMinimumChange(Number(event.target.value))} />
+        </label>
+        <label>To
+          <input type="number" value={maximum} step={definition.step} onChange={(event) => onMaximumChange(Number(event.target.value))} />
+        </label>
+        <label>Steps
+          <input type="number" min={2} max={25} step={1} value={steps} onChange={(event) => onStepsChange(Number(event.target.value))} />
+        </label>
+        <button className="primary-button" onClick={onRun} disabled={running}>
+          {running ? "Sweeping…" : result ? "Rerun sweep" : "Run sweep"}
+        </button>
+      </div>
+      {error && <p className="sweep-error" role="alert">{error}</p>}
+      {result ? (
+        <>
+          <div className="sweep-summary">
+            <div><span>Apogee range</span><strong>{format(apogeeMinimum, 0)}–{format(apogeeMaximum, 0)} m</strong></div>
+            <div><span>Peak-q range</span><strong>{format(maxQMinimum, 0)}–{format(maxQMaximum, 0)} Pa</strong></div>
+            <div><span>Parameter</span><strong>{definition.label} · {definition.unit}</strong></div>
+          </div>
+          <div className="sweep-plot" aria-label={`${definition.label} sweep apogee bars`}>
+            {samples.map((sample, index) => {
+              const apogee = sample.outputs?.apogeeM;
+              const height = typeof apogee === "number" && apogeeMinimum !== null
+                ? Math.max(5, ((apogee - apogeeMinimum) / apogeeRange) * 90 + 10)
+                : 4;
+              return (
+                <div className={sample.error ? "sweep-bar failed" : "sweep-bar"} key={`${sample.value}-${index}`} title={`${sample.value.toFixed(definition.precision)} ${definition.unit} · ${format(apogee, 0)} m apogee`}>
+                  <i style={{ height: `${height}%` }} />
+                  <span>{sample.value.toFixed(definition.precision)}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="sweep-table-wrap">
+            <table className="sweep-table">
+              <caption>Parameter sweep output rows</caption>
+              <thead><tr><th scope="col">{definition.label}</th><th scope="col">Apogee</th><th scope="col">Max q</th><th scope="col">Impact speed</th><th scope="col">Status</th></tr></thead>
+              <tbody>
+                {samples.map((sample, index) => <tr key={`${sample.value}-${index}`}>
+                  <th scope="row">{sample.value.toFixed(definition.precision)} {definition.unit}</th>
+                  <td>{format(sample.outputs?.apogeeM, 0)} m</td>
+                  <td>{format(sample.outputs?.maxDynamicPressurePa, 0)} Pa</td>
+                  <td>{format(sample.outputs?.impactSpeedMps, 1)} m/s</td>
+                  <td className={sample.error ? "sweep-status failed" : "sweep-status"}>{sample.error ?? "evaluated"}</td>
+                </tr>)}
+              </tbody>
+            </table>
+          </div>
+          <div className="sweep-disclaimer">
+            <span>UNVALIDATED TRADE STUDY</span>
+            <p>{result.modelVersion} · {result.result.parameterKey} varied independently · {result.warnings[2]}</p>
+          </div>
+        </>
+      ) : (
+        <div className="sweep-empty"><strong>Inspect sensitivity before changing the design</strong><p>Run {steps || DEFAULT_SWEEP_STEPS} deterministic rows to see how {definition.label.toLowerCase()} moves apogee, peak dynamic pressure, and impact speed.</p></div>
+      )}
+    </section>
   );
 }
 
