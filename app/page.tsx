@@ -1396,6 +1396,22 @@ function formatConvergenceStatus(
   return "Insufficient samples";
 }
 
+function formatStageFlightConvergenceStatus(
+  status: StageFlightPreviewResult["convergence"]["status"],
+): string {
+  if (status === "converged") return "Step-stable heuristic";
+  if (status === "watch") return "Step sensitivity watch";
+  return "Not assessed";
+}
+
+function formatRelativeDifference(value: number | null): string {
+  return value === null ? "—" : `${(value * 100).toFixed(1)}%`;
+}
+
+function formatAbsoluteDifference(value: number | null, unit: string, decimals = 2): string {
+  return value === null ? "—" : `${value.toFixed(decimals)} ${unit}`;
+}
+
 function StageFlightProfileChart({ result }: { result: StageFlightPreviewResult }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [metric, setMetric] = useState<StageFlightMetricKey>("altitude");
@@ -2691,6 +2707,7 @@ export default function Home() {
             provenance: `${previewEnvironment.definition.provenance.sourceName} · ${previewEnvironment.definition.provenance.licenseIdentifier} · ${previewEnvironment.definition.provenance.validationStatus}`,
           },
           flight: result,
+          stageFlight: stageFlightIsCurrent ? stageFlightResult : null,
           uncertainty,
           landing: landingPrediction,
         });
@@ -3158,6 +3175,31 @@ export default function Home() {
                         <div><span>HANDOFF</span><strong>{stageFlightResult.rail.events.find((event) => event.type === "rail_exit")?.timeS.toFixed(2) ?? "—"} s</strong></div>
                       </div>
                     )}
+                    <section className="stage-flight-convergence" aria-labelledby="stage-flight-convergence-title">
+                      <div className="stage-flight-convergence-heading">
+                        <div>
+                          <span className="eyebrow">Numerical check</span>
+                          <h4 id="stage-flight-convergence-title">Integration-step convergence</h4>
+                          <p>Reruns the same coupled model at half the step size. This checks numerical sensitivity; it is not validation, certification, or a flight-safety gate.</p>
+                        </div>
+                        <span className={`uncertainty-status uncertainty-status-${stageFlightResult.convergence.status}`}>
+                          {formatStageFlightConvergenceStatus(stageFlightResult.convergence.status)}
+                        </span>
+                      </div>
+                      <div className="stage-flight-convergence-grid">
+                        <div><span>Step pair</span><strong>{stageFlightResult.convergence.baseTimeStepS.toFixed(3)} → {stageFlightResult.convergence.refinedTimeStepS.toFixed(3)} s</strong><small>coarse → half-step</small></div>
+                        <div><span>Peak altitude shift</span><strong>{formatRelativeDifference(stageFlightResult.convergence.maxAltitudeRelativeDifference)}</strong><small>relative difference</small></div>
+                        <div><span>Peak speed shift</span><strong>{formatRelativeDifference(stageFlightResult.convergence.maxSpeedRelativeDifference)}</strong><small>relative difference</small></div>
+                        <div><span>Apogee timing</span><strong>{formatAbsoluteDifference(stageFlightResult.convergence.apogeeTimeDifferenceS, "s")}</strong><small>absolute difference</small></div>
+                        <div><span>Final position</span><strong>{formatAbsoluteDifference(stageFlightResult.convergence.finalPositionDifferenceM, "m")}</strong><small>state-vector difference</small></div>
+                        <div><span>Event timing</span><strong>{formatAbsoluteDifference(stageFlightResult.convergence.maximumEventTimeDifferenceS, "s")}</strong><small>maximum shared-event delta</small></div>
+                      </div>
+                      {stageFlightResult.convergence.warnings.length > 0 && (
+                        <ul className="stage-flight-convergence-warnings">
+                          {stageFlightResult.convergence.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                        </ul>
+                      )}
+                    </section>
                     <StageFlightProfileChart result={stageFlightResult} />
                     {activeStageCount === 1 && (
                       <section className="stage-flight-comparison" aria-labelledby="stage-flight-comparison-title">
@@ -4125,7 +4167,7 @@ export default function Home() {
               </button>
               {stageFlightResult && <button onClick={() => exportArtifact("stage-flight-csv")}>
                 <span className="export-extension">CSV</span>
-                <span><strong>Staged 6DOF trace</strong><small>Attached-stage topology, mass, thrust, altitude, and speed at each integration sample.</small></span>
+                <span><strong>Staged 6DOF trace</strong><small>Attached-stage topology, mass, thrust, altitude, and speed at each integration sample; convergence is retained in project JSON and the engineering report.</small></span>
                 <em>↓</em>
               </button>}
               {sweepResult && <button onClick={() => exportArtifact("sweep-csv")}>

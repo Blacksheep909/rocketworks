@@ -278,6 +278,7 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(page, /createKestrelProjectJson/);
   assert.match(page, /createFlightTraceCsv/);
   assert.match(page, /createEngineeringReportMarkdown/);
+  assert.match(page, /stageFlight: stageFlightIsCurrent \? stageFlightResult : null/);
   assert.match(page, /createRocketProfileDxf/);
   assert.match(page, /createRocketOpenScad/);
   assert.match(page, /URL\.createObjectURL/);
@@ -421,6 +422,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /formatSignedMetric/);
   assert.match(page, /stage-flight-comparison/);
   assert.match(page, /Stage flight profile/);
+  assert.match(page, /Integration-step convergence/);
+  assert.match(page, /formatStageFlightConvergenceStatus/);
   assert.match(page, /aria-label=\{`\$\{definition\.label\} over time/);
   assert.match(page, /attachedStageIds\.join/);
   assert.match(page, /ArrowRight/);
@@ -441,6 +444,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stagePreview, /simulateRailGuidedLaunch/);
   assert.match(stagePreview, /launchRailMaximumSteps/);
   assert.match(stagePreview, /mathematical-regression-tests-only/);
+  assert.match(stagePreview, /STAGE_FLIGHT_CONVERGENCE_RELATIVE_TOLERANCE/);
+  assert.match(stagePreview, /half the integration step/);
   assert.match(stagePreview, /separated bodies/);
   assert.match(stylesheet, /\.topology-stage/);
   assert.match(stylesheet, /\.topology-stage-events/);
@@ -448,6 +453,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stylesheet, /\.topology-add-actions/);
   assert.match(stylesheet, /\.stage-flight-profile/);
   assert.match(stylesheet, /\.stage-flight-chart/);
+  assert.match(stylesheet, /\.stage-flight-convergence/);
   assert.match(stylesheet, /\.stage-flight-profile-tabs button:focus-visible/);
 });
 

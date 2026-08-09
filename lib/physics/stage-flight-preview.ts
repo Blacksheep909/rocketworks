@@ -25,7 +25,7 @@ import type { WindLayer } from "./curves.ts";
 import type { MassProperties } from "./mass-properties.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.2.0";
+  "kestrel-stage-flight-preview-0.3.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -72,6 +72,23 @@ export type StageFlightEvent = Readonly<{
   attachedStageIdsAfter: readonly string[];
 }>;
 
+export type StageFlightConvergenceDiagnostic = Readonly<{
+  status: "converged" | "watch" | "not-assessed";
+  baseTimeStepS: number;
+  refinedTimeStepS: number;
+  maximumRelativeDifference: number | null;
+  maxAltitudeRelativeDifference: number | null;
+  maxSpeedRelativeDifference: number | null;
+  apogeeTimeDifferenceS: number | null;
+  finalPositionDifferenceM: number | null;
+  finalVelocityDifferenceMps: number | null;
+  maximumEventTimeDifferenceS: number | null;
+  relativeTolerance: number;
+  timeToleranceS: number;
+  warnings: readonly string[];
+  assumptions: readonly string[];
+}>;
+
 export type StageFlightPreviewResult = Readonly<{
   modelVersion: string;
   validationStatus: typeof STAGE_FLIGHT_PREVIEW_STATUS;
@@ -85,11 +102,14 @@ export type StageFlightPreviewResult = Readonly<{
   maxAltitudeAglM: number;
   maxSpeedMps: number;
   timeToApogeeS: number;
+  convergence: StageFlightConvergenceDiagnostic;
   warnings: readonly string[];
   assumptions: readonly string[];
 }>;
 
 const ZERO_VECTOR: Vector3 = { x: 0, y: 0, z: 0 };
+const STAGE_FLIGHT_CONVERGENCE_RELATIVE_TOLERANCE = 0.02;
+const STAGE_FLIGHT_CONVERGENCE_TIME_TOLERANCE_S = 0.05;
 
 function finiteVector(value: Vector3, label: string): void {
   if (![value.x, value.y, value.z].every(Number.isFinite)) {
@@ -144,6 +164,153 @@ function summarizeEvent(
     timeS: event.timeS,
     attachedStageIdsBefore: [...stageIdsAt(staging, event.stateBefore)],
     attachedStageIdsAfter: [...stageIdsAt(staging, event.stateAfter)],
+  };
+}
+
+type StageFlightRun = Readonly<{
+  simulation: SixDofSimulationResult | null;
+  rail: RailGuidedLaunchResult | null;
+  trace: readonly StageFlightTracePoint[];
+  events: readonly StageFlightEvent[];
+  maxAltitudeAglM: number;
+  maxSpeedMps: number;
+  timeToApogeeS: number;
+  finalState: RigidBodyState;
+}>;
+
+function relativeDifference(left: number, right: number): number {
+  const denominator = Math.max(Math.abs(left), Math.abs(right), 1);
+  return Math.abs(left - right) / denominator;
+}
+
+function stateVectorDifference(
+  left: Vector3,
+  right: Vector3,
+): number {
+  return magnitude({
+    x: left.x - right.x,
+    y: left.y - right.y,
+    z: left.z - right.z,
+  });
+}
+
+function assessStageFlightConvergence(
+  base: StageFlightRun,
+  refined: StageFlightRun | null,
+  baseTimeStepS: number,
+): StageFlightConvergenceDiagnostic {
+  const refinedTimeStepS = baseTimeStepS / 2;
+  const common = {
+    baseTimeStepS,
+    refinedTimeStepS,
+    relativeTolerance: STAGE_FLIGHT_CONVERGENCE_RELATIVE_TOLERANCE,
+    timeToleranceS: STAGE_FLIGHT_CONVERGENCE_TIME_TOLERANCE_S,
+  };
+  if (!refined) {
+    return {
+      ...common,
+      status: "not-assessed",
+      maximumRelativeDifference: null,
+      maxAltitudeRelativeDifference: null,
+      maxSpeedRelativeDifference: null,
+      apogeeTimeDifferenceS: null,
+      finalPositionDifferenceM: null,
+      finalVelocityDifferenceMps: null,
+      maximumEventTimeDifferenceS: null,
+      warnings: [
+        "A half-step rerun could not be completed, so numerical convergence was not assessed.",
+      ],
+      assumptions: [
+        "Convergence compares this deterministic preview with a second run at half the integration step.",
+      ],
+    };
+  }
+
+  const maxAltitudeRelativeDifference = relativeDifference(
+    base.maxAltitudeAglM,
+    refined.maxAltitudeAglM,
+  );
+  const maxSpeedRelativeDifference = relativeDifference(
+    base.maxSpeedMps,
+    refined.maxSpeedMps,
+  );
+  const apogeeTimeDifferenceS = Math.abs(
+    base.timeToApogeeS - refined.timeToApogeeS,
+  );
+  const finalPositionDifferenceM = stateVectorDifference(
+    base.finalState.positionWorldM,
+    refined.finalState.positionWorldM,
+  );
+  const finalVelocityDifferenceMps = stateVectorDifference(
+    base.finalState.velocityWorldMps,
+    refined.finalState.velocityWorldMps,
+  );
+  const finalPositionRelativeDifference = relativeDifference(
+    magnitude(base.finalState.positionWorldM),
+    magnitude(refined.finalState.positionWorldM),
+  );
+  const finalVelocityRelativeDifference = relativeDifference(
+    magnitude(base.finalState.velocityWorldMps),
+    magnitude(refined.finalState.velocityWorldMps),
+  );
+  const baseEvents = new Map(base.events.map((event) => [event.id, event.timeS]));
+  const refinedEvents = new Map(refined.events.map((event) => [event.id, event.timeS]));
+  const eventSetsMatch =
+    baseEvents.size === refinedEvents.size &&
+    [...baseEvents.keys()].every((id) => refinedEvents.has(id));
+  const maximumEventTimeDifferenceS = eventSetsMatch
+    ? Math.max(
+        0,
+        ...[...baseEvents.entries()].map(([id, timeS]) =>
+          Math.abs(timeS - refinedEvents.get(id)!),
+        ),
+      )
+    : null;
+  const relativeDifferences = [
+    maxAltitudeRelativeDifference,
+    maxSpeedRelativeDifference,
+    finalPositionRelativeDifference,
+    finalVelocityRelativeDifference,
+  ];
+  const maximumRelativeDifference = Math.max(...relativeDifferences);
+  const timeStable =
+    apogeeTimeDifferenceS <= STAGE_FLIGHT_CONVERGENCE_TIME_TOLERANCE_S &&
+    (maximumEventTimeDifferenceS === null ||
+      maximumEventTimeDifferenceS <= STAGE_FLIGHT_CONVERGENCE_TIME_TOLERANCE_S);
+  const status =
+    eventSetsMatch &&
+    maximumRelativeDifference <= STAGE_FLIGHT_CONVERGENCE_RELATIVE_TOLERANCE &&
+    timeStable
+      ? "converged"
+      : "watch";
+  const warnings = [
+    ...(status === "watch"
+      ? [
+          "The half-step rerun changes one or more trajectory metrics beyond the numerical convergence heuristic; reduce the step or investigate model discontinuities before interpreting the result.",
+        ]
+      : []),
+    ...(!eventSetsMatch
+      ? [
+          "The coarse and half-step runs reached different event sets, so event timing convergence is unavailable.",
+        ]
+      : []),
+  ];
+  return {
+    ...common,
+    status,
+    maximumRelativeDifference,
+    maxAltitudeRelativeDifference,
+    maxSpeedRelativeDifference,
+    apogeeTimeDifferenceS,
+    finalPositionDifferenceM,
+    finalVelocityDifferenceMps,
+    maximumEventTimeDifferenceS,
+    warnings,
+    assumptions: [
+      "Convergence compares the deterministic preview with the same model at half the integration step.",
+      "A 2% aggregate relative-difference threshold and 0.05 s event/apogee threshold are heuristic numerical checks, not validation or certification.",
+      "Different event sets are treated as a convergence warning rather than silently discarded.",
+    ],
   };
 }
 
@@ -210,78 +377,57 @@ export function simulateStageFlightPreview(
         .filter((timeS) => Number.isFinite(timeS) && timeS >= 0),
     ),
   ];
-  const rail = input.launchRail
-    ? simulateRailGuidedLaunch({
-        body: staging.body,
-        initialState,
-        durationS: input.durationS,
-        timeStepS: input.timeStepS,
-        loads: loads.loads,
-        rail: input.launchRail,
-        scheduledTimesS,
-        events: input.events,
-        stateEvents: input.stateEvents,
-        maximumRailSteps: input.launchRailMaximumSteps,
-      })
-    : null;
-  const simulation = rail?.freeFlight ?? (input.launchRail
-    ? null
-    : simulateRigidBody6D({
-        body: staging.body,
-        initialState,
-        durationS: input.durationS,
-        timeStepS: input.timeStepS,
-        loads: loads.loads,
-        events: input.events,
-        stateEvents: input.stateEvents,
-        scheduledTimesS,
-      }));
-  const simulationTrace = rail?.trace ?? simulation?.trace ?? [];
-  const trace = simulationTrace.map((state): StageFlightTracePoint => {
-    const evaluation = staging.evaluate(state);
-    return {
-      timeS: state.timeS,
-      altitudeAglM: state.positionWorldM.z,
-      speedMps: magnitude(state.velocityWorldMps),
-      massKg: evaluation.massProperties.massKg,
-      thrustN: evaluation.totalThrustN,
-      attachedStageIds: [...evaluation.attachedStageIds],
-    };
-  });
-  const maxAltitudeAglM = Math.max(...trace.map((point) => point.altitudeAglM));
-  const maxSpeedMps = Math.max(...trace.map((point) => point.speedMps));
-  const apogeeIndex = trace.reduce(
-    (bestIndex, point, index, points) =>
-      point.altitudeAglM > points[bestIndex].altitudeAglM ? index : bestIndex,
-    0,
-  );
-  const warnings = [
-    ...(input.additionalWarnings ?? []),
-    ...staging.warnings,
-    ...aerodynamics.warnings,
-    ...loads.warnings,
-    ...(rail?.warnings ?? simulation?.warnings ?? []),
-  ];
-  const assumptions = [
-    ...(input.additionalAssumptions ?? []),
-    ...staging.assumptions,
-    ...aerodynamics.assumptions,
-    ...loads.assumptions,
-    ...(rail?.assumptions ?? simulation?.assumptions ?? []),
-    ...(rail?.freeFlight?.assumptions ?? []),
-    "The adapter propagates only the retained vehicle; separated bodies are not spawned or clearance-propagated.",
-    "The returned trajectory is a deterministic engineering preview and is not a flight-safety assessment.",
-  ];
-  return {
-    modelVersion: STAGE_FLIGHT_PREVIEW_MODEL_VERSION,
-    validationStatus: STAGE_FLIGHT_PREVIEW_STATUS,
-    stagingModelVersion: staging.modelVersion,
-    aerodynamicsModelVersion: aerodynamics.modelVersion,
-    loadsModelVersion: loads.modelVersion,
-    simulation,
-    rail,
-    trace,
-    events: [
+  const runAtTimeStep = (timeStepS: number): StageFlightRun => {
+    const rail = input.launchRail
+      ? simulateRailGuidedLaunch({
+          body: staging.body,
+          initialState,
+          durationS: input.durationS,
+          timeStepS,
+          loads: loads.loads,
+          rail: input.launchRail,
+          scheduledTimesS,
+          events: input.events,
+          stateEvents: input.stateEvents,
+          maximumRailSteps: input.launchRailMaximumSteps,
+        })
+      : null;
+    const simulation = rail?.freeFlight ?? (input.launchRail
+      ? null
+      : simulateRigidBody6D({
+          body: staging.body,
+          initialState,
+          durationS: input.durationS,
+          timeStepS,
+          loads: loads.loads,
+          events: input.events,
+          stateEvents: input.stateEvents,
+          scheduledTimesS,
+        }));
+    const simulationTrace = rail?.trace ?? simulation?.trace ?? [];
+    const trace = simulationTrace.map((state): StageFlightTracePoint => {
+      const evaluation = staging.evaluate(state);
+      return {
+        timeS: state.timeS,
+        altitudeAglM: state.positionWorldM.z,
+        speedMps: magnitude(state.velocityWorldMps),
+        massKg: evaluation.massProperties.massKg,
+        thrustN: evaluation.totalThrustN,
+        attachedStageIds: [...evaluation.attachedStageIds],
+      };
+    });
+    const maxAltitudeAglM = trace.length > 0
+      ? Math.max(...trace.map((point) => point.altitudeAglM))
+      : 0;
+    const maxSpeedMps = trace.length > 0
+      ? Math.max(...trace.map((point) => point.speedMps))
+      : 0;
+    const apogeeIndex = trace.reduce(
+      (bestIndex, point, index, points) =>
+        point.altitudeAglM > points[bestIndex].altitudeAglM ? index : bestIndex,
+      0,
+    );
+    const events = [
       ...(rail?.events.map((event, index): StageFlightEvent => ({
         id: `launch-rail-${event.type}-${index}`,
         label: event.label,
@@ -293,10 +439,74 @@ export function simulateStageFlightPreview(
       ...(rail?.appliedEvents ?? simulation?.events ?? []).map((event) =>
         summarizeEvent(staging, event),
       ),
-    ].sort((a, b) => a.timeS - b.timeS || a.id.localeCompare(b.id)),
-    maxAltitudeAglM,
-    maxSpeedMps,
-    timeToApogeeS: trace[apogeeIndex]?.timeS ?? 0,
+    ].sort((a, b) => a.timeS - b.timeS || a.id.localeCompare(b.id));
+    return {
+      simulation,
+      rail,
+      trace,
+      events,
+      maxAltitudeAglM,
+      maxSpeedMps,
+      timeToApogeeS: trace[apogeeIndex]?.timeS ?? 0,
+      finalState: rail?.finalState ?? simulation?.finalState ?? simulationTrace.at(-1) ?? initialState,
+    };
+  };
+
+  const primaryRun = runAtTimeStep(input.timeStepS);
+  let refinedRun: StageFlightRun | null = null;
+  let convergenceFailure: string | null = null;
+  try {
+    refinedRun = runAtTimeStep(input.timeStepS / 2);
+  } catch (error) {
+    convergenceFailure = error instanceof Error ? error.message : "unknown error";
+  }
+  const convergenceBase = assessStageFlightConvergence(
+    primaryRun,
+    refinedRun,
+    input.timeStepS,
+  );
+  const convergence = convergenceFailure
+    ? {
+        ...convergenceBase,
+        warnings: [
+          ...convergenceBase.warnings,
+          `Half-step convergence rerun failed: ${convergenceFailure}`,
+        ],
+      }
+    : convergenceBase;
+  const warnings = [
+    ...(input.additionalWarnings ?? []),
+    ...staging.warnings,
+    ...aerodynamics.warnings,
+    ...loads.warnings,
+    ...(primaryRun.rail?.warnings ?? primaryRun.simulation?.warnings ?? []),
+    ...convergence.warnings,
+  ];
+  const assumptions = [
+    ...(input.additionalAssumptions ?? []),
+    ...staging.assumptions,
+    ...aerodynamics.assumptions,
+    ...loads.assumptions,
+    ...(primaryRun.rail?.assumptions ?? primaryRun.simulation?.assumptions ?? []),
+    ...(primaryRun.rail?.freeFlight?.assumptions ?? []),
+    ...convergence.assumptions,
+    "The adapter propagates only the retained vehicle; separated bodies are not spawned or clearance-propagated.",
+    "The returned trajectory is a deterministic engineering preview and is not a flight-safety assessment.",
+  ];
+  return {
+    modelVersion: STAGE_FLIGHT_PREVIEW_MODEL_VERSION,
+    validationStatus: STAGE_FLIGHT_PREVIEW_STATUS,
+    stagingModelVersion: staging.modelVersion,
+    aerodynamicsModelVersion: aerodynamics.modelVersion,
+    loadsModelVersion: loads.modelVersion,
+    simulation: primaryRun.simulation,
+    rail: primaryRun.rail,
+    trace: primaryRun.trace,
+    events: primaryRun.events,
+    maxAltitudeAglM: primaryRun.maxAltitudeAglM,
+    maxSpeedMps: primaryRun.maxSpeedMps,
+    timeToApogeeS: primaryRun.timeToApogeeS,
+    convergence,
     warnings: [...new Set(warnings)],
     assumptions: [...new Set(assumptions)],
   };

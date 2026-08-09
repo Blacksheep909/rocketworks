@@ -1,4 +1,4 @@
-# Stage-aware flight preview 0.2
+# Stage-aware flight preview 0.3
 
 Status: implemented composition adapter; mathematical regression tests only.
 This preview is not flight-safety validated and must not be used for launch
@@ -23,7 +23,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.2.0`.
+`kestrel-stage-flight-preview-0.3.0`.
 
 ## Event and state policy
 
@@ -72,6 +72,23 @@ the models use different force, attitude, environment, and rail pathways, so a
 delta is not a validation result or a reason to prefer one model without
 independent evidence.
 
+## Numerical convergence diagnostic
+
+Every browser run also performs a second deterministic integration with half
+the requested time step. The result exposes the coarse and refined step sizes,
+relative peak-altitude and peak-speed differences, apogee timing difference,
+final position and velocity differences, and the maximum shared-event timing
+delta. A `converged` status requires an aggregate relative difference no larger
+than 2% and apogee/shared-event timing differences no larger than 0.05 s. A
+different event set or a larger difference produces `watch`; a failed refined
+run produces `not-assessed`.
+
+These thresholds are deliberately simple numerical heuristics. They detect
+step-size sensitivity and discontinuity effects but do not establish physical
+model validity, uncertainty adequacy, hardware agreement, or flight safety.
+The engineering report and project JSON retain the diagnostic assumptions and
+warnings alongside the primary trace.
+
 ## Limitations
 
 - The retained-body staging model does not spawn or propagate discarded stages.
@@ -85,6 +102,9 @@ independent evidence.
   and attitude.
 - Results inherit every applicability warning from the staging, aerodynamic,
   load, environment, launch-rail, and six-degree-of-freedom models.
+- The half-step convergence rerun can be unavailable when a caller imposes a
+  very small rail step budget or another runtime limit; this is surfaced as
+  `not-assessed`, never silently treated as converged.
 - Integration and coupling checks are software and mathematical regressions,
   not wind-tunnel, instrumented-flight, or certification evidence.
 

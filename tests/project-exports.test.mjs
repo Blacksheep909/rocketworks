@@ -225,6 +225,23 @@ test("engineering report leads with status and preserves calculations and limita
       trace,
       assumptions: ["Constant drag coefficient"],
     },
+    stageFlight: {
+      modelVersion: "stage-flight-fixture",
+      validationStatus: "mathematical-regression-tests-only",
+      maxAltitudeAglM: 298,
+      maxSpeedMps: 49.4,
+      timeToApogeeS: 6.1,
+      convergence: {
+        status: "watch",
+        baseTimeStepS: 0.02,
+        refinedTimeStepS: 0.01,
+        maximumRelativeDifference: 0.031,
+        apogeeTimeDifferenceS: 0.012,
+        maximumEventTimeDifferenceS: 0.003,
+        assumptions: ["Half-step fixture comparison."],
+        warnings: ["Fixture convergence warning."],
+      },
+    },
     uncertainty,
     landing: {
       modelVersion: "landing-fixture",
@@ -256,6 +273,9 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /\| Static margin \| 2\.93 calibres \|/);
   assert.match(report, /## Recovery landing footprint/);
   assert.match(report, /## Uncertainty analysis/);
+  assert.match(report, /## Coupled 6DOF preview/);
+  assert.match(report, /Step convergence \| watch/);
+  assert.match(report, /Fixture convergence warning/);
   assert.match(report, /Convergence status: converged/);
   assert.match(report, /Threshold high convergence/);
   assert.match(report, /Landing uncertainty convergence/);

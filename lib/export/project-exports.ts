@@ -3,7 +3,10 @@ import type {
   FlightTracePoint,
   VerticalFlightResult,
 } from "../physics/vertical-flight.ts";
-import type { StageFlightTracePoint } from "../physics/stage-flight-preview.ts";
+import type {
+  StageFlightPreviewResult,
+  StageFlightTracePoint,
+} from "../physics/stage-flight-preview.ts";
 import type {
   ParameterSweepResult,
   UncertaintyAnalysisResult,
@@ -11,7 +14,7 @@ import type {
 
 export const KESTREL_PROJECT_SCHEMA_ID = "org.kestrel-lab.project";
 export const KESTREL_PROJECT_SCHEMA_VERSION = 1;
-export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.5.0";
+export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.6.0";
 export const KESTREL_EXPORT_VALIDATION_STATUS =
   "engineering-preview-unvalidated";
 
@@ -69,6 +72,7 @@ export type EngineeringReportInput = Readonly<{
     provenance: string;
   }>;
   flight: VerticalFlightResult;
+  stageFlight?: StageFlightPreviewResult | null;
   uncertainty?: UncertaintyAnalysisResult | null;
   landing?: LandingDispersionResult | null;
 }>;
@@ -577,6 +581,30 @@ export function createEngineeringReportMarkdown(
         `| ${markdownText(event.label)} | ${formatNumber(event.timeS, 2)} s | ${formatNumber(event.altitudeAglM, 1)} m | ${formatNumber(event.velocityMps, 2)} m/s |`,
     ),
     "",
+    ...(input.stageFlight
+      ? [
+          "## Coupled 6DOF preview",
+          "",
+          `Model: \`${markdownText(input.stageFlight.modelVersion)}\`  `,
+          `Status: \`${markdownText(input.stageFlight.validationStatus)}\``,
+          "",
+          "| Diagnostic | Value |",
+          "|---|---:|",
+          `| Peak altitude | ${formatNumber(input.stageFlight.maxAltitudeAglM, 1)} m |`,
+          `| Peak speed | ${formatNumber(input.stageFlight.maxSpeedMps, 2)} m/s |`,
+          `| Apogee estimate | ${formatNumber(input.stageFlight.timeToApogeeS, 2)} s |`,
+          `| Step convergence | ${markdownText(input.stageFlight.convergence.status)} |`,
+          `| Coarse step | ${formatNumber(input.stageFlight.convergence.baseTimeStepS, 4)} s |`,
+          `| Half-step | ${formatNumber(input.stageFlight.convergence.refinedTimeStepS, 4)} s |`,
+          `| Maximum relative shift | ${input.stageFlight.convergence.maximumRelativeDifference === null ? "not available" : `${formatNumber(input.stageFlight.convergence.maximumRelativeDifference * 100, 2)}%`} |`,
+          `| Apogee timing difference | ${input.stageFlight.convergence.apogeeTimeDifferenceS === null ? "not available" : `${formatNumber(input.stageFlight.convergence.apogeeTimeDifferenceS, 4)} s`} |`,
+          `| Event timing difference | ${input.stageFlight.convergence.maximumEventTimeDifferenceS === null ? "not available" : `${formatNumber(input.stageFlight.convergence.maximumEventTimeDifferenceS, 4)} s`} |`,
+          "",
+          ...input.stageFlight.convergence.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+          ...input.stageFlight.convergence.warnings.map((warning) => `- **Convergence warning:** ${markdownText(warning)}`),
+          "",
+        ]
+      : []),
     ...(input.uncertainty
       ? [
           "## Uncertainty analysis",

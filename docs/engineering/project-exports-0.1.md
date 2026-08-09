@@ -1,4 +1,4 @@
-# Project, analysis, report, and CAD exports 0.4
+# Project, analysis, report, and CAD exports 0.5
 
 Status: `engineering-preview-unvalidated`
 
@@ -17,13 +17,15 @@ The browser's Export action now opens a keyboard-accessible artifact center.
 Escape or the close button dismisses it. Downloads are created in memory and
 initiated only after the user selects a format.
 
-Version 0.4 offers five inspectable formats:
+Version 0.5 offers seven inspectable formats:
 
 1. Versioned Kestrel project JSON
 2. Flight-trace CSV
-3. Preliminary engineering report in Markdown
-4. R11/R12-compatible ASCII DXF side profile
-5. Parametric OpenSCAD reference geometry
+3. Staged 6DOF trace CSV
+4. Parameter-sweep CSV
+5. Preliminary engineering report in Markdown
+6. R11/R12-compatible ASCII DXF side profile
+7. Parametric OpenSCAD reference geometry
 
 Every engineering or CAD surface presents manufacturing and validation limits
 before download. The DXF, SCAD, project, and report files also embed status or
@@ -36,7 +38,7 @@ The root document declares:
 ```text
 schema: org.kestrel-lab.project
 schemaVersion: 1
-exportModelVersion: kestrel-export-0.5.0
+exportModelVersion: kestrel-export-0.6.0
 validationStatus: engineering-preview-unvalidated
 ```
 
@@ -46,6 +48,11 @@ analysis, optional optimization Pareto summary, optional landing footprint,
   and source/licence provenance, including the ascent-to-recovery handoff
   proxy, recovery deployment reliability assumptions, and sampled outcomes when
   a landing dispersion is present.
+
+When a current coupled 6DOF preview exists, the project JSON retains its
+step-size convergence diagnostic, and the Markdown report includes the same
+status, metric deltas, assumptions, and warnings. These are numerical
+sensitivity checks, not physical validation or flight-safety evidence.
 
 All numbers must be finite and all values must be JSON-compatible. Circular
 references, unsupported values, invalid identifiers, and invalid timestamps are
