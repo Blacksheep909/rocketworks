@@ -1,5 +1,8 @@
 # Kestrel Lab
 
+Independent rocket design, simulation, and mission-analysis tools for the
+browser.
+
 Kestrel Lab is a browser-first rocket design and flight-analysis workbench
 with a graphite mission-console interface. It is being built as an independent
 clean-room implementation from public aerospace equations, published
@@ -9,7 +12,7 @@ research, standards, and original code.
 > manufacturing-approved, or a substitute for instrumented testing,
 > independent analysis, range procedures, or qualified engineering review.
 
-## What is here
+## Current release surface
 
 - component-aware 2D geometry and an interactive 3D vehicle view;
 - mass, centre-of-gravity, inertia, static stability, and centre-of-pressure
@@ -21,6 +24,8 @@ research, standards, and original code.
   landing-dispersion previews;
 - preliminary vertical flight, coupled 6DOF, staging, ignition delays,
   failure events, and bounded separated-body ballistic checks;
+- interactive vertical and staged trace inspectors with Mach, dynamic-pressure,
+  drag, event, and topology readouts;
 - preliminary structural-readiness screen for axial stress, Euler buckling,
   fin-root bending/shear, and static-margin review with explicit assumptions;
 - uncertainty analysis, parameter sweeps, sensitivity, and constraint-aware
@@ -62,6 +67,20 @@ npm test
 `npm test` builds the app and runs the physics, state, export, UI-source, and
 rendered-HTML regression suites.
 
+## Public-project guardrails
+
+This repository is intentionally transparent about what it does and does not
+claim. Every calculation result carries a model version, validation status,
+assumptions, warnings, and scope limits. The current implementation is an
+engineering preview: it is useful for exploration, regression testing, and
+design conversations, but it is not a flight-safety, range-safety,
+manufacturing, or certification tool.
+
+The project is released under the [MIT License](LICENSE). See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the clean-room rules, data-provenance
+requirements, test workflow, and UI conventions. Security reports belong in
+[SECURITY.md](SECURITY.md), not in a public issue.
+
 ## Repository map
 
 ```text
@@ -75,9 +94,9 @@ tests/                Deterministic physics, UI, export, and integration checks
 
 ## Roadmap
 
-The next major steps are stronger experimental/benchmark validation, a coupled
-multi-body separation solver, richer structural and aeroelastic checks,
-collaboration and cloud project storage, and native desktop/tablet packaging.
-Those additions will preserve the same provenance boundary and will never
-upgrade an analytical preview to flight-safe status without independent
-evidence.
+Near-term work is stronger experimental/benchmark validation, a coupled
+multi-body separation solver, richer structural and aeroelastic checks, and
+more stage-aware design review. Longer-term work includes collaboration and
+cloud project storage plus native desktop/tablet packaging. Those additions
+will preserve the same provenance boundary and will never upgrade an
+analytical preview to flight-safe status without independent evidence.
