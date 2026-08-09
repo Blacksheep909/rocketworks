@@ -89,9 +89,19 @@ test("simulation fingerprints change when a modeled input or motor changes", () 
       thrustCurve: motor.thrustCurve.map((point) => ({ ...point, thrustN: point.thrustN * 1.1 })),
     },
   });
+  const cantChanged = fingerprint({
+    topology: {
+      ...createDefaultVehicleTopology(),
+      stages: createDefaultVehicleTopology().stages.map((stage) => ({
+        ...stage,
+        thrustCantAngleDeg: 4,
+      })),
+    },
+  });
   assert.notEqual(baseline, windChanged);
   assert.notEqual(baseline, topologyChanged);
   assert.notEqual(baseline, motorChanged);
+  assert.notEqual(baseline, cantChanged);
   assert.equal(isSimulationFingerprintCurrent(baseline, windChanged), false);
   assert.equal(isSimulationFingerprintCurrent(null, baseline), false);
 });

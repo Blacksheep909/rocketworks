@@ -98,6 +98,8 @@ const portableConfiguration = {
       enabled: true,
       repeatCount: 1,
       repeatRadiusM: 0,
+      thrustCantAngleDeg: 0,
+      thrustCantAzimuthDeg: 0,
       ignitionDelayS: 0,
       separationDelayS: 0.1,
       ignitionFailure: false,
