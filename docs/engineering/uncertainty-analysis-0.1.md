@@ -51,7 +51,7 @@ tails, or validation evidence.
 
 ## Vertical-flight adapter
 
-`vertical-flight-uncertainty.ts` maps sampled factors into the existing 1D flight configuration. Version 0.1 can vary dry mass, propellant mass, body drag coefficient, delivered thrust, wind, recovery drag area, recovery delay, and launch altitude. It records apogee, maximum speed, Mach, maximum dynamic pressure, event times, impact speed, thrust-to-weight ratio, impulse, and liftoff state.
+`vertical-flight-uncertainty.ts` maps sampled factors into the existing 1D flight configuration. Version 0.3 can vary dry mass, propellant mass, body drag coefficient, delivered thrust, wind, recovery drag area, recovery deployment outcome, recovery-delay offset, and launch altitude. The delay factor is an additive, bounded offset around the configured nominal delay; the adapter clamps the resulting command time at zero so a negative sample cannot create an invalid flight configuration. A Bernoulli deployment failure removes the recovery device for that scenario. It records apogee, maximum speed, Mach, maximum dynamic pressure, event times, impact speed, thrust-to-weight ratio, impulse, liftoff state, and a `recoveryDeployed` output suitable for threshold-rate reporting.
 
 The browser preview defaults to 48 seeded LHS samples, but its Analysis controls
 persist a bounded 16–512 scenario count and a caller-visible replay seed in the
@@ -68,7 +68,7 @@ variance decomposition.
 
 ## Verification
 
-Regression tests cover exact seeded replay, seed changes, one sample per LHS stratum, correlated marginal preservation and matrix validation, distribution medians, summary statistics, explicit failures and missing metrics, Wilson interval bounds, deterministic split-sample convergence statuses, Spearman direction, sweep endpoints, validation errors, and a full trajectory-adapter run.
+Regression tests cover exact seeded replay, seed changes, one sample per LHS stratum, correlated marginal preservation and matrix validation, distribution medians, summary statistics, explicit failures and missing metrics, Wilson interval bounds, deterministic split-sample convergence statuses, Spearman direction, sweep endpoints, validation errors, full trajectory-adapter runs, and recovery deployment/delay-offset scenarios without hidden evaluator failures.
 
 ## Public references
 

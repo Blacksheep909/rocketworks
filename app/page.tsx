@@ -236,7 +236,7 @@ const UNCERTAINTY_CORRELATION_DEFINITIONS: readonly UncertaintyCorrelationDefini
   { key: "windScale", label: "Wind profile", scope: "vertical + coupled + landing" },
   { key: "recoveryDragAreaScale", label: "Vertical recovery area", scope: "vertical" },
   { key: "recoveryAreaScale", label: "Coupled recovery area", scope: "coupled + landing" },
-  { key: "recoveryDeploymentSuccess", label: "Recovery deployment", scope: "coupled + landing" },
+  { key: "recoveryDeploymentSuccess", label: "Recovery deployment", scope: "vertical + coupled + landing" },
   { key: "recoveryDelayS", label: "Vertical recovery delay", scope: "vertical" },
   { key: "launchAltitudeOffsetM", label: "Launch altitude offset", scope: "vertical" },
   { key: "windDirectionOffsetRad", label: "Wind direction offset", scope: "landing" },
@@ -1313,8 +1313,12 @@ function createFlightResult(inputs: Parameters<typeof createFlightConfig>[0]) {
   return simulateVerticalFlight(createFlightConfig(inputs));
 }
 
+type BrowserUncertaintyInputs = Parameters<typeof createFlightConfig>[0] & Readonly<{
+  recoveryDeploymentSuccessProbability: number;
+}>;
+
 function createUncertaintyResult(
-  inputs: Parameters<typeof createFlightConfig>[0],
+  inputs: BrowserUncertaintyInputs,
   uncertaintyCorrelations: readonly ProjectUncertaintyCorrelation[] = [],
   sampleCount = DEFAULT_UNCERTAINTY_SAMPLE_COUNT,
   seed = DEFAULT_UNCERTAINTY_SEED,
@@ -1353,8 +1357,13 @@ function createUncertaintyResult(
             distribution: { kind: "triangular" as const, minimum: 0.8, mode: 1, maximum: 1.2 },
           },
           {
+            key: "recoveryDeploymentSuccess" as const,
+            label: "Recovery deployment",
+            distribution: { kind: "bernoulli" as const, successProbability: inputs.recoveryDeploymentSuccessProbability },
+          },
+          {
             key: "recoveryDelayS" as const,
-            label: "Recovery delay",
+            label: "Recovery delay offset",
             distribution: { kind: "normal" as const, mean: 0, standardDeviation: 0.18, minimum: -0.3, maximum: 0.5 },
           },
         ]
@@ -1368,6 +1377,9 @@ function createUncertaintyResult(
     correlations: filterUncertaintyCorrelations(uncertaintyCorrelations, factors.map((factor) => factor.key)),
     thresholds: [
       { id: "low-apogee", metric: "apogeeM", comparison: "less-than", value: 250 },
+      ...(inputs.recoveryEnabled
+        ? [{ id: "recovery-deployed", metric: "recoveryDeployed", comparison: "greater-than-or-equal" as const, value: 1 }]
+        : []),
     ],
   });
 }
@@ -1389,7 +1401,10 @@ function createSweepResult(
 }
 
 function createOptimizationResult(
-  inputs: Parameters<typeof createFlightConfig>[0] & Readonly<{ uncertaintyCorrelations?: readonly ProjectUncertaintyCorrelation[] }>,
+  inputs: Parameters<typeof createFlightConfig>[0] & Readonly<{
+    uncertaintyCorrelations?: readonly ProjectUncertaintyCorrelation[];
+    recoveryDeploymentSuccessProbability: number;
+  }>,
   mode: "nominal" | "robust" = "nominal",
 ): DesignOptimizationResult {
   const robust = mode === "robust";
@@ -1475,13 +1490,14 @@ function createOptimizationResult(
               ...(inputs.recoveryEnabled
                 ? [
                     { key: "recoveryDragAreaScale" as const, label: "Recovery area", distribution: { kind: "triangular" as const, minimum: 0.8, mode: 1, maximum: 1.2 } },
-                    { key: "recoveryDelayS" as const, label: "Recovery delay", distribution: { kind: "normal" as const, mean: 0, standardDeviation: 0.18, minimum: -0.3, maximum: 0.5 } },
+                    { key: "recoveryDeploymentSuccess" as const, label: "Recovery deployment", distribution: { kind: "bernoulli" as const, successProbability: inputs.recoveryDeploymentSuccessProbability } },
+                    { key: "recoveryDelayS" as const, label: "Recovery delay offset", distribution: { kind: "normal" as const, mean: 0, standardDeviation: 0.18, minimum: -0.3, maximum: 0.5 } },
                   ]
                 : []),
             ],
             correlations: filterUncertaintyCorrelations(
               inputs.uncertaintyCorrelations ?? [],
-              ["dryMassScale", "propellantMassScale", "dragCoefficientScale", "thrustScale", "windScale", ...(inputs.recoveryEnabled ? ["recoveryDragAreaScale", "recoveryDelayS"] : [])],
+              ["dryMassScale", "propellantMassScale", "dragCoefficientScale", "thrustScale", "windScale", ...(inputs.recoveryEnabled ? ["recoveryDragAreaScale", "recoveryDeploymentSuccess", "recoveryDelayS"] : [])],
             ),
           },
         }
@@ -2734,6 +2750,7 @@ export default function Home() {
       recoveryReefingEnabled,
       recoveryReefingDurationS,
       recoveryReefingStartAreaFraction,
+      recoveryDeploymentSuccessProbability,
       motorRecord: previewMotor,
       aerodynamicTable: selectedAerodynamicTable,
     }, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed),
@@ -2855,6 +2872,8 @@ export default function Home() {
     ) ?? null;
   const activeSweepDefinition = sweepParameterDefinition(sweepParameter);
   const primaryThresholdConvergence = uncertainty.convergence.thresholds[0] ?? null;
+  const primaryRecoveryThreshold = uncertainty.thresholds.find((threshold) => threshold.id === "recovery-deployed") ?? null;
+  const primaryRecoveryThresholdConvergence = uncertainty.convergence.thresholds.find((threshold) => threshold.thresholdId === "recovery-deployed") ?? null;
   const stageFlightIsCurrent =
     stageFlightResult !== null &&
     isSimulationFingerprintCurrent(stageFlightFingerprint, simulationFingerprint);
@@ -4086,6 +4105,7 @@ export default function Home() {
           recoveryReefingEnabled,
           recoveryReefingDurationS,
           recoveryReefingStartAreaFraction,
+          recoveryDeploymentSuccessProbability,
           uncertaintyCorrelations,
           motorRecord: previewMotor,
           aerodynamicTable: selectedAerodynamicTable,
@@ -4619,6 +4639,7 @@ export default function Home() {
                   <span>Seeded input-uncertainty propagation</span>
                 </div>
                 <div className="uncertainty-card-heading-meta">
+                  <span>{uncertainty.successfulSampleCount}/{uncertainty.requestedSampleCount} scenarios</span>
                   <span>{uncertainty.method} · n={uncertainty.successfulSampleCount}</span>
                   <strong className={`uncertainty-status uncertainty-status-${uncertainty.convergence.status}`}>{formatConvergenceStatus(uncertainty.convergence.status)}</strong>
                 </div>
@@ -4648,6 +4669,14 @@ export default function Home() {
                   unit="m/s"
                   decimals={1}
                 />
+                {recoveryEnabled && (
+                  <UncertaintyMetric
+                    label="Impact speed P05 / P50 / P95"
+                    summary={uncertainty.metrics.impactSpeedMps}
+                    unit="m/s"
+                    decimals={1}
+                  />
+                )}
                 <div className="uncertainty-driver">
                   <span>Primary apogee driver</span>
                   <strong>{uncertainty.sensitivityByMetric.apogeeM?.[0]?.parameterLabel ?? "Unavailable"}</strong>
@@ -4655,6 +4684,13 @@ export default function Home() {
                     Spearman ρ {uncertainty.sensitivityByMetric.apogeeM?.[0]?.spearmanRho?.toFixed(2) ?? "—"}
                   </small>
                 </div>
+                {recoveryEnabled && primaryRecoveryThreshold && (
+                  <div className="uncertainty-driver">
+                    <span>Recovery deployment scenarios</span>
+                    <strong>{primaryRecoveryThreshold.probability === null ? "Unavailable" : `${(primaryRecoveryThreshold.probability * 100).toFixed(0)}%`}</strong>
+                    <small>{primaryRecoveryThreshold.validSampleCount} valid samples · Wilson {primaryRecoveryThreshold.wilson95 === null ? "—" : `${(primaryRecoveryThreshold.wilson95.lower * 100).toFixed(0)}–${(primaryRecoveryThreshold.wilson95.upper * 100).toFixed(0)}%`}</small>
+                  </div>
+                )}
                 </div>
                 <UncertaintySensitivityList result={uncertainty} />
                 <div className="uncertainty-convergence" aria-label="Uncertainty convergence diagnostic">
@@ -4668,6 +4704,13 @@ export default function Home() {
                       <span>Threshold-rate stability</span>
                       <strong className={`uncertainty-status uncertainty-status-${primaryThresholdConvergence.status}`}>{formatConvergenceStatus(primaryThresholdConvergence.status)}</strong>
                       <small>Half-rate shift {primaryThresholdConvergence.halfProbabilityShift === null ? "—" : `${(primaryThresholdConvergence.halfProbabilityShift * 100).toFixed(0)}%`} · Wilson width {primaryThresholdConvergence.wilson95Width === null ? "—" : `${(primaryThresholdConvergence.wilson95Width * 100).toFixed(0)}%`}</small>
+                    </div>
+                  )}
+                  {recoveryEnabled && primaryRecoveryThresholdConvergence && (
+                    <div>
+                      <span>Recovery-rate stability</span>
+                      <strong className={`uncertainty-status uncertainty-status-${primaryRecoveryThresholdConvergence.status}`}>{formatConvergenceStatus(primaryRecoveryThresholdConvergence.status)}</strong>
+                      <small>Half-rate shift {primaryRecoveryThresholdConvergence.halfProbabilityShift === null ? "—" : `${(primaryRecoveryThresholdConvergence.halfProbabilityShift * 100).toFixed(0)}%`} · Wilson width {primaryRecoveryThresholdConvergence.wilson95Width === null ? "—" : `${(primaryRecoveryThresholdConvergence.wilson95Width * 100).toFixed(0)}%`}</small>
                     </div>
                   )}
                 </div>

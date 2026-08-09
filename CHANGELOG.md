@@ -35,6 +35,10 @@ flight-readiness claims.
   vertical estimate, change the design or environment, rerun, and inspect
   apogee, speed, maximum-q, timing, and impact-speed deltas. The panel labels
   stale results and does not persist or upgrade them into validation evidence.
+- Bumped the vertical uncertainty adapter to 0.3.0. Recovery scenarios now
+  include a Bernoulli deployment outcome, a `recoveryDeployed` metric and
+  threshold, and an additive delay-offset interpretation clamped at zero so
+  bounded negative timing samples cannot become hidden evaluator failures.
 
 - Continue independent model validation, stage-aware review, and public
   documentation.

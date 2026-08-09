@@ -249,6 +249,32 @@ test("vertical-flight adapter propagates physical inputs into flight metrics", (
   assert.match(result.assumptions.at(-1), /not validation, certification/);
 });
 
+test("vertical uncertainty models recovery deployment outcomes and bounded delay offsets", () => {
+  const result = analyzeVerticalFlightUncertainty({
+    baseConfig: {
+      vehicle: { dryMassKg: 0.42, propellantMassKg: 0.06, referenceAreaM2: 0.0023, dragCoefficient: 0.52 },
+      motor: { thrustCurve: makeConstantThrustCurve(22, 1.6) },
+      recovery: { enabled: true, dragAreaM2: 0.15, dragCoefficient: 0.75, deploymentDelayAfterApogeeS: 0.2 },
+      environment: { launchAltitudeM: 80 },
+      integration: { timeStepS: 0.02, maxTimeS: 180 },
+    },
+    seed: "vertical-recovery-outcomes",
+    sampleCount: 32,
+    factors: [
+      { key: "recoveryDeploymentSuccess", label: "Recovery deployment", distribution: { kind: "bernoulli", successProbability: 0.75 } },
+      { key: "recoveryDelayS", label: "Recovery delay offset", distribution: { kind: "normal", mean: 0, standardDeviation: 0.18, minimum: -0.3, maximum: 0.5 } },
+    ],
+    thresholds: [{ id: "recovery-deployed", metric: "recoveryDeployed", comparison: "greater-than-or-equal", value: 1 }],
+  });
+  assert.equal(result.failedSampleCount, 0);
+  assert.equal(result.metrics.recoveryDeployed.count, 32);
+  assert.equal(result.thresholds[0].validSampleCount, 32);
+  assert.ok(result.thresholds[0].probability > 0.5 && result.thresholds[0].probability < 1);
+  assert.ok(result.samples.some((sample) => sample.inputs.recoveryDeploymentSuccess === 0));
+  assert.ok(result.samples.some((sample) => sample.inputs.recoveryDeploymentSuccess === 1));
+  assert.equal(result.modelVersion, "kestrel-uncertainty-0.4.0");
+});
+
 test("invalid distributions and unsafe sample counts are rejected", () => {
   assert.throws(() => runUncertaintyAnalysis({
     seed: "invalid",
