@@ -63,6 +63,7 @@ test("local project snapshots round-trip through a strict versioned schema", () 
   assert.equal(source.inputs.launchSiteName, "ARC 54 synthetic range");
   assert.equal(source.inputs.launchLatitudeDeg, -36.85);
   assert.equal(source.inputs.launchLongitudeDeg, 174.76);
+  assert.deepEqual(source.inputs.windProfileLayers, []);
   assert.equal(source.inputs.noseLengthMm, 180);
   assert.equal(source.inputs.noseProfile, "ogive");
   assert.equal(source.inputs.finCount, 3);
@@ -172,6 +173,29 @@ test("project snapshots persist bounded uncertainty dependence assumptions", () 
   assert.throws(
     () => createLocalProjectSnapshot({ ...snapshot(2), inputs: { ...inputs, uncertaintyCorrelations: [{ firstParameterKey: "dryMassScale", secondParameterKey: "thrustScale", coefficient: 0.999 }] } }),
     /strictly between/,
+  );
+});
+
+test("project snapshots validate and persist custom ENU wind layers", () => {
+  const profile = [
+    { altitudeM: 0, eastMps: 3, northMps: 1, upMps: 0 },
+    { altitudeM: 500, eastMps: 5, northMps: 2, upMps: 0.1 },
+    { altitudeM: 2_000, eastMps: 8, northMps: 4, upMps: -0.2 },
+  ];
+  const source = snapshot(1, { windProfileLayers: profile });
+  assert.deepEqual(parseLocalProjectSnapshot(serializeLocalProjectSnapshot(source)).inputs.windProfileLayers, profile);
+  assert.equal(describeProjectInputChanges(inputs, source.inputs), "Changed altitude-dependent wind profile");
+  assert.throws(
+    () => snapshot(2, { windProfileLayers: [{ altitudeM: 0, eastMps: 1, northMps: 0, upMps: 0 }] }),
+    /at least two layers/,
+  );
+  assert.throws(
+    () => snapshot(2, { windProfileLayers: [{ altitudeM: 500, eastMps: 1, northMps: 0, upMps: 0 }, { altitudeM: 0, eastMps: 1, northMps: 0, upMps: 0 }] }),
+    /strictly increasing/,
+  );
+  assert.throws(
+    () => snapshot(2, { windProfileLayers: [{ altitudeM: 0, eastMps: 201, northMps: 0, upMps: 0 }, { altitudeM: 500, eastMps: 1, northMps: 0, upMps: 0 }] }),
+    /eastMps/,
   );
 });
 

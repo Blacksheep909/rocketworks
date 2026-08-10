@@ -104,6 +104,9 @@ test("ships versioned flight results and explainable model UI", async () => {
   assert.match(source, /launch-latitude/);
   assert.match(source, /launch-longitude/);
   assert.match(source, /WGS84/);
+  assert.match(source, /wind-profile-editor/);
+  assert.match(source, /Use custom layers/);
+  assert.match(source, /setWindProfileLayers/);
   assert.match(source, /launchSiteName/);
   assert.match(source, /launchLatitudeDeg/);
   assert.match(source, /launchLongitudeDeg/);
@@ -333,6 +336,9 @@ test("shows a deterministic provenance-qualified launch environment", async () =
   assert.match(source, /surfaceTemperatureC/);
   assert.match(source, /windAzimuthDeg/);
   assert.match(source, /Wind azimuth · east toward north/);
+  assert.match(source, /windProfileLayerCount/);
+  assert.match(source, /Mean-wind source/);
+  assert.match(source, /user-wind-profile-v1/);
   assert.match(source, /Pad pressure/);
   assert.match(source, /Pad temperature/);
   assert.match(source, /Air density @ 500 m/);
@@ -517,6 +523,9 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(page, /parseLocalProjectSnapshot/);
   assert.match(page, /projectConfigurationFingerprint/);
   assert.match(page, /describeProjectConfigurationChanges/);
+  assert.match(page, /setLaunchSiteName\(inputs\.launchSiteName\)/);
+  assert.match(page, /setLaunchLatitudeDeg\(inputs\.launchLatitudeDeg\)/);
+  assert.match(page, /setLaunchLongitudeDeg\(inputs\.launchLongitudeDeg\)/);
   assert.match(page, /topology: vehicleTopology/);
   assert.match(page, /LOCAL_MOTOR_SELECTION_STORAGE_KEY/);
   assert.match(page, /selectedMotorId: restoredMotorSelection/);

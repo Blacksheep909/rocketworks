@@ -6,6 +6,13 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a validated altitude-dependent mean-wind editor. Users can switch
+  between the deterministic synthetic profile and up to 32 strictly ordered
+  local-ENU layers; custom profiles persist through autosave, history, share
+  links, landing scenarios, vertical/coupled previews, and engineering reports
+  with an explicit `user-supplied-unvalidated` provenance state. Loading a
+  saved/template/shared project now also restores launch-site name and WGS84
+  coordinates alongside altitude.
 - Launch environment provenance is now editable in the Flight inspector:
   site name plus WGS84 latitude/longitude flow through local snapshots, share
   links, landing-zone sampling, coupled environment providers, and engineering

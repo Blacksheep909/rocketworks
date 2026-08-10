@@ -34,6 +34,7 @@ import {
   launchRailDirectionFromAngles,
   launchRailOrientationFromAngles,
   verticalLaunchOrientationBodyToEnu,
+  interpolateWind,
   createMotorDataRecord,
   createMultiStageVehicleModel,
   failStageIgnition,
@@ -97,6 +98,7 @@ import {
   type SeparationDynamicsResult,
   type CoupledSeparationImpulseResult,
   type RecoveryReefingStage,
+  type WindLayer,
 } from "../lib/physics/index.ts";
 import {
   createPreviewWindProfile,
@@ -120,6 +122,7 @@ import {
   type LocalProjectHistory,
   type LocalProjectSnapshot,
   type NoseProfile,
+  type ProjectWindLayer,
   type ProjectUncertaintyCorrelation,
 } from "../lib/project/project-state.ts";
 import {
@@ -491,6 +494,7 @@ function createPreviewEnvironment(
     latitudeDeg?: number;
     longitudeDeg?: number;
     windAzimuthDeg?: number;
+    windProfileLayers?: readonly ProjectWindLayer[];
     seed?: string;
     windScale?: number;
     directionOffsetRad?: number;
@@ -501,6 +505,29 @@ function createPreviewEnvironment(
   }> = {},
 ) {
   const turbulenceScale = options.turbulenceScale ?? 1;
+  const customWindProfile = options.windProfileLayers && options.windProfileLayers.length > 0
+    ? options.windProfileLayers.map((layer) => ({ ...layer }))
+    : null;
+  const windScale = options.windScale ?? 1;
+  const directionOffsetRad = options.directionOffsetRad ?? 0;
+  const profileAngleRad = customWindProfile
+    ? directionOffsetRad
+    : ((options.windAzimuthDeg ?? 0) * Math.PI) / 180 + directionOffsetRad;
+  const rotateWindProfile = (layers: readonly WindLayer[]) => layers.map((layer) => ({
+    altitudeM: layer.altitudeM,
+    eastMps: (layer.eastMps * Math.cos(profileAngleRad) - layer.northMps * Math.sin(profileAngleRad)) * windScale,
+    northMps: (layer.eastMps * Math.sin(profileAngleRad) + layer.northMps * Math.cos(profileAngleRad)) * windScale,
+    upMps: (layer.upMps ?? 0) * windScale,
+  }));
+  const meanWindProfile = customWindProfile
+    ? rotateWindProfile(customWindProfile)
+    : createPreviewWindProfile(windSpeed, {
+        ...options,
+        windAzimuthRad: ((options.windAzimuthDeg ?? 0) * Math.PI) / 180,
+      });
+  const referenceWindSpeedMps = customWindProfile
+    ? interpolateWind([...meanWindProfile], 500).horizontalSpeedMps
+    : windSpeed * windScale;
   const siteAtmosphere = standardAtmosphere(launchAltitude);
   const relativeHumidityFraction = options.relativeHumidityPercent === undefined
     ? undefined
@@ -517,17 +544,16 @@ function createPreviewEnvironment(
       timeZone: "Pacific/Auckland",
     },
     provenance: {
-      sourceName: "ARC 54 browser input",
-      sourceKind: "synthetic",
-      dataVersion: PREVIEW_WIND_PROFILE_MODEL_VERSION,
-      licenseIdentifier: "CC0-1.0",
-      attribution: "Original RocketWorks synthetic environment",
-      validationStatus: "synthetic-unvalidated",
+      sourceName: customWindProfile ? "RocketWorks local wind profile" : "ARC 54 browser input",
+      sourceKind: customWindProfile ? "user-supplied" : "synthetic",
+      dataVersion: customWindProfile ? "user-wind-profile-v1" : PREVIEW_WIND_PROFILE_MODEL_VERSION,
+      licenseIdentifier: customWindProfile ? "user-declared" : "CC0-1.0",
+      attribution: customWindProfile
+        ? "User-supplied altitude-dependent mean-wind layers"
+        : "Original RocketWorks synthetic environment",
+      validationStatus: customWindProfile ? "user-supplied-unvalidated" : "synthetic-unvalidated",
     },
-    meanWindProfile: createPreviewWindProfile(windSpeed, {
-      ...options,
-      windAzimuthRad: ((options.windAzimuthDeg ?? 0) * Math.PI) / 180,
-    }),
+    meanWindProfile,
     surfaceObservation: {
       stationPressurePa: surfacePressureHpa * 100,
       temperatureK: surfaceTemperatureC + 273.15,
@@ -536,9 +562,9 @@ function createPreviewEnvironment(
     turbulence: {
       seed: options.seed ?? "arc54-weather-v1",
       rmsVelocityMps: {
-        longitudinal: windSpeed * 0.12 * turbulenceScale,
-        lateral: windSpeed * 0.1 * turbulenceScale,
-        vertical: windSpeed * 0.06 * turbulenceScale,
+        longitudinal: referenceWindSpeedMps * 0.12 * turbulenceScale,
+        lateral: referenceWindSpeedMps * 0.1 * turbulenceScale,
+        vertical: referenceWindSpeedMps * 0.06 * turbulenceScale,
       },
       lengthScaleM: { longitudinal: 80, lateral: 50, vertical: 30 },
       minimumWavelengthM: 3,
@@ -1519,6 +1545,7 @@ function createFlightConfig({
   launchAltitude,
   windSpeed,
   windAzimuthDeg,
+  windProfileLayers,
   relativeHumidityPercent,
   surfacePressureHpa,
   surfaceTemperatureC,
@@ -1539,6 +1566,7 @@ function createFlightConfig({
   launchAltitude: number;
   windSpeed: number;
   windAzimuthDeg: number;
+  windProfileLayers?: readonly ProjectWindLayer[];
   relativeHumidityPercent: number;
   surfacePressureHpa: number;
   surfaceTemperatureC: number;
@@ -1586,9 +1614,11 @@ function createFlightConfig({
     },
     environment: {
       launchAltitudeM: launchAltitude,
-      windProfile: createPreviewWindProfile(windSpeed, {
-        windAzimuthRad: (windAzimuthDeg * Math.PI) / 180,
-      }),
+      windProfile: windProfileLayers && windProfileLayers.length > 0
+        ? windProfileLayers.map((layer) => ({ ...layer }))
+        : createPreviewWindProfile(windSpeed, {
+            windAzimuthRad: (windAzimuthDeg * Math.PI) / 180,
+          }),
       surfaceObservation: {
         stationPressurePa: surfacePressureHpa * 100,
         temperatureK: surfaceTemperatureC + 273.15,
@@ -1926,6 +1956,7 @@ function createLandingPrediction(
         inputs.windSpeed,
         {
           windAzimuthDeg: inputs.windAzimuthDeg,
+          windProfileLayers: inputs.windProfileLayers,
           seed: `arc54-landing-weather-${sampleIndex}`,
           windScale: values.windScale,
           directionOffsetRad: values.windDirectionOffsetRad,
@@ -3084,6 +3115,7 @@ export default function Home() {
   const [launchAltitude, setLaunchAltitude] = useState(80);
   const [windSpeed, setWindSpeed] = useState(4);
   const [windAzimuthDeg, setWindAzimuthDeg] = useState(0);
+  const [windProfileLayers, setWindProfileLayers] = useState<ProjectWindLayer[]>([]);
   const [relativeHumidityPercent, setRelativeHumidityPercent] = useState(60);
   const [surfacePressureHpa, setSurfacePressureHpa] = useState(1004);
   const [surfaceTemperatureC, setSurfaceTemperatureC] = useState(15);
@@ -3185,6 +3217,7 @@ export default function Home() {
       launchAltitudeM: launchAltitude,
       windSpeedMps: windSpeed,
       windAzimuthDeg,
+      windProfileLayers,
       relativeHumidityPercent,
       surfacePressureHpa,
       surfaceTemperatureC,
@@ -3204,7 +3237,7 @@ export default function Home() {
       uncertaintySeed,
       uncertaintyCorrelations,
     }),
-    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, launchSiteName, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, windAzimuthDeg, windSpeed],
+    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, launchSiteName, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -3378,8 +3411,8 @@ export default function Home() {
     [editableInputs, previewMotor, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, vehicleTopology],
   );
   const previewEnvironment = useMemo(
-    () => createPreviewEnvironment(launchAltitude, windSpeed, { siteName: launchSiteName, latitudeDeg: launchLatitudeDeg, longitudeDeg: launchLongitudeDeg, windAzimuthDeg, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
-    [launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchSiteName, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, windAzimuthDeg, windSpeed],
+    () => createPreviewEnvironment(launchAltitude, windSpeed, { siteName: launchSiteName, latitudeDeg: launchLatitudeDeg, longitudeDeg: launchLongitudeDeg, windAzimuthDeg, windProfileLayers, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
+    [launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchSiteName, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const environmentAtPad = useMemo(
     () => previewEnvironment.at({ timeS: 0, positionWorldM: { x: 0, y: 0, z: 0 } }),
@@ -3411,6 +3444,7 @@ export default function Home() {
       launchAltitude,
       windSpeed,
       windAzimuthDeg,
+      windProfileLayers,
       relativeHumidityPercent,
       surfacePressureHpa,
       surfaceTemperatureC,
@@ -3455,6 +3489,7 @@ export default function Home() {
       launchAltitude,
       windSpeed,
       windAzimuthDeg,
+      windProfileLayers,
       relativeHumidityPercent,
       surfacePressureHpa,
       surfaceTemperatureC,
@@ -3484,6 +3519,7 @@ export default function Home() {
           launchAltitude,
           windSpeed,
           windAzimuthDeg,
+          windProfileLayers,
           relativeHumidityPercent,
           surfacePressureHpa,
           surfaceTemperatureC,
@@ -3761,6 +3797,7 @@ export default function Home() {
         setLaunchAltitude(inputs.launchAltitudeM);
         setWindSpeed(inputs.windSpeedMps);
         setWindAzimuthDeg(inputs.windAzimuthDeg);
+        setWindProfileLayers([...(inputs.windProfileLayers ?? [])]);
         setRelativeHumidityPercent(inputs.relativeHumidityPercent);
         setSurfacePressureHpa(inputs.surfacePressureHpa);
         setSurfaceTemperatureC(inputs.surfaceTemperatureC);
@@ -3848,6 +3885,7 @@ export default function Home() {
         setLaunchAltitude(inputs.launchAltitudeM);
         setWindSpeed(inputs.windSpeedMps);
         setWindAzimuthDeg(inputs.windAzimuthDeg);
+        setWindProfileLayers([...(inputs.windProfileLayers ?? [])]);
         setRelativeHumidityPercent(inputs.relativeHumidityPercent);
         setSurfacePressureHpa(inputs.surfacePressureHpa);
         setSurfaceTemperatureC(inputs.surfaceTemperatureC);
@@ -4165,6 +4203,67 @@ export default function Home() {
     setSweepResult(null);
     setSweepError("");
   };
+  const enableCustomWindProfile = () => {
+    const angleRad = (windAzimuthDeg * Math.PI) / 180;
+    const eastMps = windSpeed * Math.cos(angleRad);
+    const northMps = windSpeed * Math.sin(angleRad);
+    setWindProfileLayers([
+      { altitudeM: 0, eastMps, northMps, upMps: 0 },
+      { altitudeM: 500, eastMps, northMps, upMps: 0 },
+      { altitudeM: 2_000, eastMps: eastMps * 1.4, northMps: northMps * 1.4, upMps: 0 },
+    ]);
+    markChanged();
+  };
+  const resetWindProfile = () => {
+    setWindProfileLayers([]);
+    markChanged();
+  };
+  const addWindProfileLayer = () => {
+    if (windProfileLayers.length >= 32) return;
+    const last = windProfileLayers.at(-1);
+    const altitudeM = Math.min(50_000, (last?.altitudeM ?? 0) + 500);
+    setWindProfileLayers((current) => [
+      ...current,
+      {
+        altitudeM,
+        eastMps: last?.eastMps ?? windSpeed,
+        northMps: last?.northMps ?? 0,
+        upMps: last?.upMps ?? 0,
+      },
+    ]);
+    markChanged();
+  };
+  const updateWindProfileLayer = (
+    index: number,
+    key: keyof ProjectWindLayer,
+    value: number,
+  ) => {
+    if (!Number.isFinite(value)) return;
+    setWindProfileLayers((current) => current.map((layer, layerIndex) => {
+      if (layerIndex !== index) return layer;
+      if (key !== "altitudeM") {
+        const bounds: Readonly<Record<Exclude<keyof ProjectWindLayer, "altitudeM">, readonly [number, number]>> = {
+          eastMps: [-200, 200],
+          northMps: [-200, 200],
+          upMps: [-100, 100],
+        };
+        const [minimum, maximum] = bounds[key];
+        return { ...layer, [key]: Math.min(maximum, Math.max(minimum, value)) };
+      }
+      const lowerBound = index === 0 ? -500 : current[index - 1]!.altitudeM + 1;
+      const upperBound = index === current.length - 1 ? 50_000 : current[index + 1]!.altitudeM - 1;
+      return { ...layer, altitudeM: Math.min(upperBound, Math.max(lowerBound, value)) };
+    }));
+    markChanged();
+  };
+  const removeWindProfileLayer = (index: number) => {
+    if (windProfileLayers.length <= 2) {
+      resetWindProfile();
+      return;
+    }
+    setWindProfileLayers((current) => current.filter((_, layerIndex) => layerIndex !== index));
+    markChanged();
+  };
   const changeAirframeLength = (value: number) => {
     const nextLength = Math.min(1600, Math.max(200, value));
     const nextRoot = Math.min(finRootChord, nextLength);
@@ -4209,9 +4308,13 @@ export default function Home() {
     setThrust(inputs.thrustN);
     setBurnTime(inputs.burnTimeS);
     setDragCoefficient(inputs.dragCoefficient);
+    setLaunchSiteName(inputs.launchSiteName);
+    setLaunchLatitudeDeg(inputs.launchLatitudeDeg);
+    setLaunchLongitudeDeg(inputs.launchLongitudeDeg);
     setLaunchAltitude(inputs.launchAltitudeM);
     setWindSpeed(inputs.windSpeedMps);
     setWindAzimuthDeg(inputs.windAzimuthDeg);
+    setWindProfileLayers([...(inputs.windProfileLayers ?? [])]);
     setRelativeHumidityPercent(inputs.relativeHumidityPercent);
     setSurfacePressureHpa(inputs.surfacePressureHpa);
     setSurfaceTemperatureC(inputs.surfaceTemperatureC);
@@ -4810,6 +4913,8 @@ export default function Home() {
               environmentAt500M.meanWindWorldMps.y,
             ),
             windAzimuthDeg,
+            windProfileLayerCount: previewEnvironment.definition.meanWindProfile?.length ?? 0,
+            windProfileSource: windProfileLayers.length > 0 ? "user-supplied" : "synthetic",
             surfacePressureHpa,
             surfaceTemperatureC,
             relativeHumidityPercent,
@@ -4862,6 +4967,7 @@ export default function Home() {
       launchAltitude,
       windSpeed,
       windAzimuthDeg,
+      windProfileLayers,
       relativeHumidityPercent,
       surfacePressureHpa,
       surfaceTemperatureC,
@@ -5114,6 +5220,7 @@ export default function Home() {
           launchAltitude,
           windSpeed,
           windAzimuthDeg,
+          windProfileLayers,
           relativeHumidityPercent,
           surfacePressureHpa,
           surfaceTemperatureC,
@@ -5160,6 +5267,7 @@ export default function Home() {
           launchAltitude,
           windSpeed,
           windAzimuthDeg,
+          windProfileLayers,
           relativeHumidityPercent,
           surfacePressureHpa,
           surfaceTemperatureC,
@@ -6351,6 +6459,42 @@ export default function Home() {
             <NumberField id="launch-latitude" label="Latitude (WGS84)" value={launchLatitudeDeg} unit="deg" min={-90} max={90} step={0.0001} onChange={(value) => { setLaunchLatitudeDeg(value); markChanged(); }} />
             <NumberField id="launch-longitude" label="Longitude (WGS84)" value={launchLongitudeDeg} unit="deg" min={-180} max={180} step={0.0001} onChange={(value) => { setLaunchLongitudeDeg(value); markChanged(); }} />
             <NumberField id="launch-altitude" label="Launch-site altitude" value={launchAltitude} unit="m" min={-400} max={10000} step={10} onChange={(value) => { setLaunchAltitude(value); markChanged(); }} />
+            <div className="wind-profile-editor" id="wind-profile-editor">
+              <div className="wind-profile-editor-heading">
+                <div>
+                  <span>Altitude-dependent wind</span>
+                  <small>{windProfileLayers.length === 0 ? "Synthetic 3-layer preview" : `${windProfileLayers.length} user layers`}</small>
+                </div>
+                {windProfileLayers.length === 0 ? (
+                  <button className="quiet-button" type="button" onClick={enableCustomWindProfile}>Use custom layers</button>
+                ) : (
+                  <button className="quiet-button" type="button" onClick={resetWindProfile}>Use synthetic</button>
+                )}
+              </div>
+              {windProfileLayers.length > 0 && (
+                <>
+                  <div className="wind-profile-table-wrap">
+                    <table className="wind-profile-table">
+                      <caption>Mean wind in local ENU coordinates</caption>
+                      <thead><tr><th scope="col">AGL</th><th scope="col">East</th><th scope="col">North</th><th scope="col">Up</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
+                      <tbody>
+                        {windProfileLayers.map((layer, index) => (
+                          <tr key={`${layer.altitudeM}-${index}`}>
+                            <td><input aria-label={`Wind layer ${index + 1} altitude`} type="number" min={-500} max={50_000} step={10} value={layer.altitudeM} onChange={(event) => updateWindProfileLayer(index, "altitudeM", Number(event.target.value))} /><span>m</span></td>
+                            <td><input aria-label={`Wind layer ${index + 1} east component`} type="number" min={-200} max={200} step={0.1} value={layer.eastMps} onChange={(event) => updateWindProfileLayer(index, "eastMps", Number(event.target.value))} /><span>m/s</span></td>
+                            <td><input aria-label={`Wind layer ${index + 1} north component`} type="number" min={-200} max={200} step={0.1} value={layer.northMps} onChange={(event) => updateWindProfileLayer(index, "northMps", Number(event.target.value))} /><span>m/s</span></td>
+                            <td><input aria-label={`Wind layer ${index + 1} up component`} type="number" min={-100} max={100} step={0.1} value={layer.upMps} onChange={(event) => updateWindProfileLayer(index, "upMps", Number(event.target.value))} /><span>m/s</span></td>
+                            <td><button className="icon-button" type="button" aria-label={`Remove wind layer ${index + 1}`} onClick={() => removeWindProfileLayer(index)}>×</button></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <button className="quiet-button wind-profile-add" type="button" onClick={addWindProfileLayer} disabled={windProfileLayers.length >= 32}>+ Add altitude layer</button>
+                  <p className="field-help">Layers are linearly interpolated and clamped outside the supplied altitude range. East, north, and up are local ENU components; the wind-azimuth input is ignored while custom layers are active. User data remain unvalidated.</p>
+                </>
+              )}
+            </div>
             <NumberField id="surface-pressure" label="Pad pressure" value={surfacePressureHpa} unit="hPa" min={20} max={1100} step={0.1} onChange={(value) => { setSurfacePressureHpa(value); markChanged(); }} />
             <NumberField id="surface-temperature" label="Pad temperature" value={surfaceTemperatureC} unit="°C" min={-90} max={70} step={0.5} onChange={(value) => { setSurfaceTemperatureC(value); markChanged(); }} />
             <NumberField id="wind-speed" label="Wind at 500 m" value={windSpeed} unit="m/s" min={0} max={80} step={0.5} onChange={(value) => { setWindSpeed(value); markChanged(); }} />
@@ -6438,6 +6582,7 @@ export default function Home() {
                   <div><span>Altitude reference</span><strong>{environmentAt500M.altitudeAslM.toFixed(0)} m ASL at 500 m AGL</strong></div>
                   <div><span>Mean wind at 500 m</span><strong>{Math.hypot(environmentAt500M.meanWindWorldMps.x, environmentAt500M.meanWindWorldMps.y).toFixed(1)} m/s</strong></div>
                   <div><span>Wind azimuth input</span><strong>{windAzimuthDeg.toFixed(0)}° ENU</strong></div>
+                  <div><span>Mean-wind source</span><strong>{windProfileLayers.length > 0 ? `User layers Â· ${windProfileLayers.length}` : "Synthetic Â· 3 layers"}</strong></div>
                   <div><span>Pad pressure</span><strong>{(environmentAtPad.atmosphere.pressurePa / 100).toFixed(1)} hPa</strong></div>
                   <div><span>Pad temperature</span><strong>{(environmentAtPad.atmosphere.temperatureK - 273.15).toFixed(1)} °C</strong></div>
                   <div><span>Relative humidity</span><strong>{relativeHumidityPercent.toFixed(0)}% · coupled</strong></div>

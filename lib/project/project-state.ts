@@ -16,6 +16,17 @@ export type ProjectMaterial = "kraft" | "fiberglass" | "carbon";
 export type NoseProfile = "ogive" | "conical" | "elliptical";
 
 /**
+ * A user-supplied mean-wind layer in the local ENU frame. An empty array
+ * keeps the deterministic RocketWorks synthetic profile.
+ */
+export type ProjectWindLayer = Readonly<{
+  altitudeM: number;
+  eastMps: number;
+  northMps: number;
+  upMps: number;
+}>;
+
+/**
  * A persisted pairwise dependence assumption for uncertainty analyses. The
  * coefficient is interpreted in the latent Gaussian-copula space by the
  * physics adapters; it is not a measured physical correlation.
@@ -52,6 +63,7 @@ export type EditableProjectInputs = Readonly<{
   windSpeedMps: number;
   /** Mean-wind azimuth in the local ENU frame: 0° east, +90° north. */
   windAzimuthDeg: number;
+  windProfileLayers: ReadonlyArray<ProjectWindLayer>;
   relativeHumidityPercent: number;
   surfacePressureHpa: number;
   surfaceTemperatureC: number;
@@ -110,7 +122,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "recoveryEnabled" | "launchRailEnabled" | "recoveryReefingEnabled" | "uncertaintySeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "windProfileLayers" | "recoveryEnabled" | "launchRailEnabled" | "recoveryReefingEnabled" | "uncertaintySeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -198,6 +210,47 @@ function validateUncertaintyCorrelations(value: unknown): ProjectUncertaintyCorr
     if (seen.has(key)) throw new Error(`Duplicate uncertainty correlation pair: ${key.replace("\u0000", " / ")}.`);
     seen.add(key);
     return { firstParameterKey, secondParameterKey, coefficient };
+  });
+}
+
+function validateWindProfileLayers(value: unknown): ProjectWindLayer[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error("windProfileLayers must be an array.");
+  if (value.length > 32) throw new Error("windProfileLayers cannot contain more than 32 layers.");
+  if (value.length === 1) throw new Error("windProfileLayers requires at least two layers when supplied.");
+  let previousAltitudeM = -Infinity;
+  return value.map((candidate, index) => {
+    const layer = objectValue(candidate, `windProfileLayers[${index}]`);
+    const numberValue = (value: unknown, label: string): number => {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new Error(`windProfileLayers[${index}].${label} must be finite.`);
+      }
+      return value;
+    };
+    const altitudeM = numberValue(layer.altitudeM, "altitudeM");
+    const eastMps = numberValue(layer.eastMps, "eastMps");
+    const northMps = numberValue(layer.northMps, "northMps");
+    const upMps = numberValue(layer.upMps ?? 0, "upMps");
+    for (const [label, component, minimum, maximum] of [
+      ["altitudeM", altitudeM, -500, 50_000],
+      ["eastMps", eastMps, -200, 200],
+      ["northMps", northMps, -200, 200],
+      ["upMps", upMps, -100, 100],
+    ] as const) {
+      if (
+        component < minimum ||
+        component > maximum
+      ) {
+        throw new Error(
+          `windProfileLayers[${index}].${label} must be a finite value from ${minimum} to ${maximum}.`,
+        );
+      }
+    }
+    if (altitudeM <= previousAltitudeM) {
+      throw new Error("windProfileLayers altitudes must be strictly increasing.");
+    }
+    previousAltitudeM = altitudeM;
+    return { altitudeM, eastMps, northMps, upMps };
   });
 }
 
@@ -306,6 +359,7 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     launchAltitudeM: validated.launchAltitudeM,
     windSpeedMps: validated.windSpeedMps,
     windAzimuthDeg: validated.windAzimuthDeg,
+    windProfileLayers: validateWindProfileLayers(input.windProfileLayers),
     relativeHumidityPercent: validated.relativeHumidityPercent,
     surfacePressureHpa: validated.surfacePressureHpa,
     surfaceTemperatureC: validated.surfaceTemperatureC,
@@ -422,6 +476,7 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   launchAltitudeM: "launch altitude",
   windSpeedMps: "wind speed",
   windAzimuthDeg: "wind azimuth",
+  windProfileLayers: "altitude-dependent wind profile",
   relativeHumidityPercent: "relative humidity",
   surfacePressureHpa: "surface pressure",
   surfaceTemperatureC: "surface temperature",
@@ -446,7 +501,7 @@ export function describeProjectInputChanges(previous: EditableProjectInputs, cur
   const before = validateEditableProjectInputs(previous);
   const after = validateEditableProjectInputs(current);
   const changed = (Object.keys(inputLabels) as Array<keyof EditableProjectInputs>)
-    .filter((key) => key === "uncertaintyCorrelations"
+    .filter((key) => key === "uncertaintyCorrelations" || key === "windProfileLayers"
       ? JSON.stringify(before[key] ?? []) !== JSON.stringify(after[key] ?? [])
       : before[key] !== after[key])
     .map((key) => inputLabels[key]);

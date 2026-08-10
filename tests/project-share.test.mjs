@@ -22,6 +22,7 @@ const inputs = {
   launchAltitudeM: 80,
   windSpeedMps: 4,
   windAzimuthDeg: 0,
+  windProfileLayers: [],
   relativeHumidityPercent: 60,
   surfacePressureHpa: 1004,
   surfaceTemperatureC: 15,

@@ -55,6 +55,9 @@ research, standards, and original code.
   temperature, density, sound-speed, and Reynolds-number diagnostics;
 - configurable local-ENU wind azimuth (0° east, +90° north) shared by the
   altitude-dependent vertical, landing, and coupled 6DOF environment paths;
+- validated custom altitude-dependent mean-wind layers (up to 32 local-ENU
+  points) with explicit user-supplied provenance, local persistence, share
+  links, landing/coupled propagation, and synthetic-profile fallback;
 - persisted pad-pressure and pad-temperature observations shared by the fast
   vertical, launch-environment, landing, and report paths;
 - preliminary vertical flight, coupled 6DOF, staging, ignition delays,

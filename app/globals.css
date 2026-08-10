@@ -2320,6 +2320,23 @@ body {
 .stage-separated-body-metrics strong { display: block; overflow: hidden; margin-top: 4px; color: #f4f7f8; font: 700 9px var(--font-geist-mono), monospace; text-overflow: ellipsis; white-space: nowrap; }
 .stage-separated-body-note { margin-top: 8px; color: #9a8875; font-size: 7px; line-height: 1.45; }
 
+.wind-profile-editor { margin: 10px 0; padding: 10px; border: 1px solid rgba(72, 159, 255, .22); border-radius: 4px; background: linear-gradient(135deg, rgba(42, 96, 145, .12), rgba(10, 16, 22, .72) 72%); }
+.wind-profile-editor-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.wind-profile-editor-heading span { display: block; color: #d9eaff; font-size: 9px; font-weight: 650; }
+.wind-profile-editor-heading small { display: block; margin-top: 3px; color: #7893a9; font: 7px var(--font-geist-mono), monospace; }
+.wind-profile-table-wrap { overflow-x: auto; margin-top: 9px; border: 1px solid rgba(72, 159, 255, .18); border-radius: 3px; }
+.wind-profile-table { width: 100%; min-width: 430px; border-collapse: collapse; font-size: 7px; }
+.wind-profile-table caption { padding: 7px 8px; color: #8eacc3; text-align: left; font: 7px var(--font-geist-mono), monospace; letter-spacing: .04em; text-transform: uppercase; }
+.wind-profile-table th { padding: 5px 6px; color: #7592a8; border-bottom: 1px solid rgba(72, 159, 255, .16); font: 650 7px var(--font-geist-mono), monospace; letter-spacing: .04em; text-align: left; text-transform: uppercase; }
+.wind-profile-table td { padding: 4px 5px; color: #b5c9d5; border-bottom: 1px solid rgba(72, 159, 255, .1); white-space: nowrap; }
+.wind-profile-table tr:last-child td { border-bottom: 0; }
+.wind-profile-table td input { width: 68px; padding: 5px 4px; color: #e9f5fb; border: 1px solid rgba(117, 149, 169, .3); border-radius: 2px; background: rgba(7, 12, 16, .8); font: 8px var(--font-geist-mono), monospace; }
+.wind-profile-table td input:focus { border-color: #4ca8ff; outline: 2px solid rgba(76, 168, 255, .26); outline-offset: 1px; }
+.wind-profile-table td span { margin-left: 3px; color: #718b9b; font: 7px var(--font-geist-mono), monospace; }
+.wind-profile-table .icon-button { width: 23px; height: 23px; padding: 0; color: #ffb8a5; border: 1px solid rgba(255, 112, 67, .28); border-radius: 2px; background: rgba(255, 112, 67, .06); font-size: 14px; line-height: 1; }
+.wind-profile-add { margin-top: 8px; }
+.wind-profile-editor .field-help { margin-bottom: 0; }
+
 @media (max-width: 760px) {
   .pwa-install-card { right: 10px; bottom: 10px; grid-template-columns: 1fr; gap: 11px; width: min(420px, calc(100vw - 20px)); }
   .pwa-install-actions { justify-content: flex-end; }

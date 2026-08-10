@@ -131,6 +131,10 @@ export type EngineeringReportInput = Readonly<{
     meanWindAt500Mps: number;
     /** Optional local-ENU input azimuth: 0° east, +90° north. */
     windAzimuthDeg?: number;
+    /** Number of mean-wind layers used by the environment adapter. */
+    windProfileLayerCount?: number;
+    /** Whether the profile is the deterministic synthetic fallback or user data. */
+    windProfileSource?: "synthetic" | "user-supplied";
     surfacePressureHpa?: number;
     surfaceTemperatureC?: number;
     relativeHumidityPercent?: number;
@@ -1379,6 +1383,14 @@ export function createEngineeringReportMarkdown(
       throw new Error("report wind azimuth must be between -180 and 180 degrees");
     }
   }
+  if (input.environment.windProfileLayerCount !== undefined) {
+    if (!Number.isInteger(input.environment.windProfileLayerCount) || input.environment.windProfileLayerCount < 0 || input.environment.windProfileLayerCount > 32) {
+      throw new Error("report wind profile layer count must be an integer from 0 through 32");
+    }
+  }
+  if (input.environment.windProfileSource !== undefined && !["synthetic", "user-supplied"].includes(input.environment.windProfileSource)) {
+    throw new Error("report wind profile source is invalid");
+  }
   for (const [label, value, minimum, maximum] of [
     ["report latitude", input.environment.latitudeDeg, -90, 90],
     ["report longitude", input.environment.longitudeDeg, -180, 180],
@@ -1448,6 +1460,9 @@ export function createEngineeringReportMarkdown(
     ...(input.environment.windAzimuthDeg === undefined
       ? []
       : [`- Wind azimuth input: ${formatNumber(input.environment.windAzimuthDeg, 0)}° ENU (0° east, +90° north)`]),
+    ...(input.environment.windProfileLayerCount === undefined
+      ? []
+      : [`- Mean-wind profile: ${input.environment.windProfileSource === "user-supplied" ? "user-supplied" : "synthetic fallback"} (${input.environment.windProfileLayerCount} altitude layers)`]),
     ...(input.environment.surfacePressureHpa === undefined
       ? []
       : [`- Pad pressure observation: ${formatNumber(input.environment.surfacePressureHpa, 1)} hPa`]),

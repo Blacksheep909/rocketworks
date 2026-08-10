@@ -81,6 +81,17 @@ source and the input is persisted in local project snapshots; older snapshots
 default to the ARC 54 synthetic-range label and Auckland WGS84 coordinates for
 backward compatibility.
 
+The Flight inspector can replace the synthetic anchors with up to 32 validated
+user-supplied ENU layers. Custom layers require at least two strictly
+increasing AGL altitudes, are linearly interpolated and endpoint-clamped, and
+are carried through local history, share links, simulation fingerprints,
+landing scenarios, vertical previews, coupled previews, and engineering
+reports. Custom layers are marked `user-supplied-unvalidated`; the scalar
+azimuth control is ignored for those layers because their east/north
+components are already explicit. A user profile is not authenticated or
+experimentally validated, and it does not make a weather or range-safety
+prediction.
+
 Turbulence is synthesized from logarithmically bounded spatial modes with
 seeded phases. The longitudinal and transverse mode weights use the Dryden
 spatial power spectral density shapes:
