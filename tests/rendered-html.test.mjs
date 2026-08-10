@@ -386,6 +386,15 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(stylesheet, /.rocket-3d-display-mode/);
 });
 
+test("keeps command search and experience mode reachable on narrow screens", async () => {
+  const styles = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+  assert.match(styles, /@media \(max-width: 760px\)[\s\S]*\.command-button \{ display: inline-flex;/);
+  assert.match(styles, /@media \(max-width: 760px\)[\s\S]*\.mode-switch \{ display: inline-flex;/);
+});
+
 test("ships a provenance-qualified recovery landing footprint", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const chart = await readFile(

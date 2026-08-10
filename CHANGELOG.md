@@ -18,6 +18,8 @@ flight-readiness claims.
   aligned with the live motor model.
 - User motor records with measured histories can now export the same strict
   mass-flow CSV alongside their thrust CSV and RASP/ENG interchange file.
+- Narrow-screen layouts keep command search and beginner/expert mode controls
+  reachable instead of hiding the only paths to advanced workbench actions.
 - Expanded coupled stage-flight uncertainty to sample additional motor/stage
   ignition delay, annotated separation impulse, and initial launch-alignment
   perturbations. Variants wrap event updates without mutating the base project;

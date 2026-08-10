@@ -1686,7 +1686,11 @@ kbd {
   .beginner-guide-detail { grid-template-columns: 1fr; }
   .template-grid { grid-template-columns: 1fr; padding: 14px; }
   .template-card > p { min-height: 0; }
-  .mode-switch { display: none; }
+  .command-button { display: inline-flex; width: 32px; min-height: 30px; justify-content: center; padding: 0 5px; }
+  .command-button span { display: none; }
+  .command-button kbd { padding: 1px 3px; font-size: 8px; }
+  .mode-switch { display: inline-flex; }
+  .mode-switch button { min-height: 26px; padding: 0 6px; font-size: 8px; }
   .motor-library-list { padding: 12px 14px; }
   .motor-record { align-items: flex-start; flex-direction: column; gap: 9px; }
   .motor-record-actions { justify-content: flex-start; }
