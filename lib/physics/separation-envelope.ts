@@ -172,7 +172,8 @@ function normalizedRadius(
 /**
  * Applies constant spherical bounds to the existing multi-body COM paths.
  * This deliberately does not create a contact solver: it only subtracts the
- * sum of two fixed conservative radii from the sampled COM minimum.
+ * sum of two fixed conservative radii from the continuous piecewise-linear
+ * COM closest approach.
  */
 export function analyzeSphericalSeparationEnvelope(
   input: Readonly<{ bodies: readonly SeparationEnvelopeBody[] }>,

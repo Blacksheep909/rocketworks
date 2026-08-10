@@ -18,7 +18,7 @@ test("separation clearance interpolates the retained path and preserves the clos
     detachedTrace: [point(1, 2, 0), point(1.5, 2.5, 0), point(2, 3, 0), point(3, 5, 0)],
   });
 
-  assert.equal(result.modelVersion, "kestrel-separation-clearance-0.1.0");
+  assert.equal(result.modelVersion, "kestrel-separation-clearance-0.2.0");
   assert.equal(result.validationStatus, "analytical-component-checks-only");
   assert.equal(result.status, "assessed");
   assert.equal(result.sampleCount, 4);
@@ -42,6 +42,20 @@ test("separation clearance reports partial trajectory overlap without extrapolat
   assert.equal(result.sampleCount, 3);
   assert.equal(result.matchedSampleCount, 2);
   assert.ok(result.warnings.some((warning) => warning.includes("coverage matched 2 of 3")));
+});
+
+test("separation clearance catches a closest approach between integration samples", () => {
+  const result = analyzeSeparationClearance({
+    releaseTimeS: 0,
+    retainedTrace: [point(0, -1), point(2, 1)],
+    detachedTrace: [point(0, 1, -1), point(2, -1, -1)],
+  });
+
+  assert.equal(result.status, "assessed");
+  assert.equal(result.minimumDistanceM, 0);
+  assert.equal(result.minimumDistanceTimeS, 1);
+  assert.equal(result.releaseDistanceM, 2);
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("continuous closest approach")));
 });
 
 test("separation clearance rejects malformed trajectories and non-finite release time", () => {
@@ -87,7 +101,7 @@ test("multi-body separation checks every pair and reports the closest path", () 
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-multi-body-separation-0.1.0");
+  assert.equal(result.modelVersion, "kestrel-multi-body-separation-0.2.0");
   assert.equal(result.validationStatus, "analytical-component-checks-only");
   assert.equal(result.status, "assessed");
   assert.equal(result.bodies.length, 3);

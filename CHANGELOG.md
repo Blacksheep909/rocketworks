@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Refined retained/detached and multi-body separation diagnostics with a
+  continuous piecewise-linear closest-approach pass over the union of both
+  traces' sample times. Between-sample crossings are now surfaced instead of
+  being hidden by the integration cadence; this remains a center-of-mass
+  diagnostic, not a contact or flight-safety solver.
 - Expanded the coupled trace inspector and CSV export with aerodynamic-force,
   static-plus-damping moment, damping-moment, coefficient-basis, and direct
   table-application telemetry. The new series come directly from per-state

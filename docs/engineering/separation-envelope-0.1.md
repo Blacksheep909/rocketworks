@@ -34,9 +34,10 @@ screen reports:
 
 `c(t) = d(t) - (r_1 + r_2)`
 
-The reported minimum is the existing sampled COM minimum minus the radius sum.
-A non-positive value is labeled `potential overlap`; it does not prove that
-physical surfaces touch because the bound is spherical and sampled.
+The reported minimum is the continuous piecewise-linear COM closest approach
+minus the radius sum. A non-positive value is labeled `potential overlap`; it
+does not prove that physical surfaces touch because the bound is spherical and
+geometry-free.
 
 Pairs without both geometry radii, or without overlapping post-release traces,
 remain `not-assessed`. The browser preserves those missing-data states instead

@@ -1,11 +1,18 @@
-import { magnitude, subtractVectors, type Vector3 } from "./linear-algebra.ts";
+import {
+  addVectors,
+  dot,
+  magnitude,
+  scaleVector,
+  subtractVectors,
+  type Vector3,
+} from "./linear-algebra.ts";
 
 export const SEPARATION_CLEARANCE_MODEL_VERSION =
-  "kestrel-separation-clearance-0.1.0";
+  "kestrel-separation-clearance-0.2.0";
 export const SEPARATION_CLEARANCE_STATUS =
   "analytical-component-checks-only" as const;
 export const MULTI_BODY_SEPARATION_MODEL_VERSION =
-  "kestrel-multi-body-separation-0.1.0";
+  "kestrel-multi-body-separation-0.2.0";
 
 export type SeparationClearanceTracePoint = Readonly<{
   timeS: number;
@@ -153,6 +160,107 @@ function interpolatePoint(
   };
 }
 
+type RelativeClosestApproach = Readonly<{
+  timeS: number;
+  distanceM: number;
+}>;
+
+/**
+ * Finds the closest relative position over a piecewise-linear interval. Both
+ * traces are interpolated at the same union of sample times, so the relative
+ * position is linear between adjacent candidates. This catches a crossing
+ * between integration samples that a sample-only minimum would miss.
+ */
+function continuousClosestApproach(
+  retainedTrace: readonly SeparationClearanceTracePoint[],
+  detachedTrace: readonly SeparationClearanceTracePoint[],
+  releaseTimeS: number,
+): RelativeClosestApproach | null {
+  const overlapStartS = Math.max(
+    releaseTimeS,
+    retainedTrace[0]!.timeS,
+    detachedTrace[0]!.timeS,
+  );
+  const overlapEndS = Math.min(
+    retainedTrace.at(-1)!.timeS,
+    detachedTrace.at(-1)!.timeS,
+  );
+  if (overlapStartS > overlapEndS + TIME_TOLERANCE_S) return null;
+
+  const candidateTimes = [
+    overlapStartS,
+    ...retainedTrace.map((point) => point.timeS),
+    ...detachedTrace.map((point) => point.timeS),
+    overlapEndS,
+  ]
+    .filter(
+      (timeS) =>
+        timeS >= overlapStartS - TIME_TOLERANCE_S &&
+        timeS <= overlapEndS + TIME_TOLERANCE_S,
+    )
+    .sort((a, b) => a - b)
+    .reduce<number[]>((times, timeS) => {
+      const previous = times.at(-1);
+      if (previous === undefined || Math.abs(timeS - previous) > TIME_TOLERANCE_S) {
+        times.push(timeS);
+      }
+      return times;
+    }, []);
+  const samples = candidateTimes.flatMap((timeS) => {
+    const retained = interpolatePoint(retainedTrace, timeS);
+    const detached = interpolatePoint(detachedTrace, timeS);
+    if (!retained || !detached) return [];
+    return [{ timeS, relativePositionM: subtractVectors(detached.positionWorldM, retained.positionWorldM) }];
+  });
+  if (samples.length === 0) return null;
+
+  let closest: RelativeClosestApproach | null = null;
+  const consider = (candidate: RelativeClosestApproach): void => {
+    if (!closest || candidate.distanceM < closest.distanceM) closest = candidate;
+  };
+  samples.forEach((sample) =>
+    consider({ timeS: sample.timeS, distanceM: magnitude(sample.relativePositionM) }),
+  );
+  for (let index = 0; index < samples.length - 1; index += 1) {
+    const before = samples[index]!;
+    const after = samples[index + 1]!;
+    const durationS = after.timeS - before.timeS;
+    if (!(durationS > TIME_TOLERANCE_S)) continue;
+    const relativeDeltaM = subtractVectors(
+      after.relativePositionM,
+      before.relativePositionM,
+    );
+    const deltaSquaredM2 = dot(relativeDeltaM, relativeDeltaM);
+    const fraction = deltaSquaredM2 > 1e-24
+      ? Math.min(
+          1,
+          Math.max(
+            0,
+            -dot(before.relativePositionM, relativeDeltaM) / deltaSquaredM2,
+          ),
+        )
+      : 0;
+    const closestPositionM = addRelativePosition(
+      before.relativePositionM,
+      relativeDeltaM,
+      fraction,
+    );
+    consider({
+      timeS: before.timeS + fraction * durationS,
+      distanceM: magnitude(closestPositionM),
+    });
+  }
+  return closest;
+}
+
+function addRelativePosition(
+  origin: Vector3,
+  delta: Vector3,
+  fraction: number,
+): Vector3 {
+  return addVectors(origin, scaleVector(delta, fraction));
+}
+
 /**
  * Compare retained-vehicle and detached-body center-of-mass paths after a
  * staging event. This is intentionally a geometry-free diagnostic: it does
@@ -189,11 +297,10 @@ export function analyzeSeparationClearance(
     matched.push({ timeS: detachedPoint.timeS, distanceM, relativeVelocityMps });
   }
 
-  const minimum = matched.reduce<{ timeS: number; distanceM: number } | null>(
-    (best, sample) => !best || sample.distanceM < best.distanceM
-      ? { timeS: sample.timeS, distanceM: sample.distanceM }
-      : best,
-    null,
+  const minimum = continuousClosestApproach(
+    retainedTrace,
+    detachedTrace,
+    input.releaseTimeS,
   );
   const releaseSample = matched.find(
     (sample) => Math.abs(sample.timeS - input.releaseTimeS) <= TIME_TOLERANCE_S,
@@ -242,6 +349,7 @@ export function analyzeSeparationClearance(
     assumptions: [
       "Retained and detached positions are compared in the shared world frame.",
       "Retained positions are linearly interpolated at detached-body sample times.",
+      "Minimum separation uses continuous closest approach over piecewise-linear relative position between the union of both traces' sample times; it is not a contact solve.",
       "The detached body is represented by its center of mass; no body envelope or attitude-dependent geometry is applied.",
       "A partial result reports only the overlapping time interval and must not be extrapolated.",
     ],

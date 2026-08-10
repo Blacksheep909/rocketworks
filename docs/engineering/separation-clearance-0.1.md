@@ -5,7 +5,7 @@ Status: `analytical-component-checks-only`.
 RocketWorks compares each detached-stage center-of-mass trajectory with the
 retained vehicle's propagated center-of-mass path after an explicit staging
 event. It also aggregates every retained/detached and detached/detached pair
-into one multi-body diagnostic. The diagnostics report the minimum sampled
+into one multi-body diagnostic. The diagnostics report the minimum assessed
 separation, the time of that minimum, release separation, final separation, and
 relative speed at release where the traces provide it.
 
@@ -16,7 +16,10 @@ coupled preview (including the launch-rail handoff when configured). The
 detached branch is the independent world-frame trajectory produced by the
 separated-body model. For every detached sample at or after release, the
 retained position is linearly interpolated in time and the Euclidean distance
-between the two center points is evaluated:
+between the two center points is evaluated. The minimum is now refined over
+continuous piecewise-linear relative motion between the union of both traces'
+sample times, so a crossing between integration samples is not silently
+missed:
 
 \[
 d(t) = \lVert \mathbf r_{detached}(t) - \mathbf r_{retained}(t) \rVert_2
@@ -37,8 +40,10 @@ closest assessed pair, the minimum distance across all matched pairs, and an
 aggregate `assessed`, `partial`, or `not-assessed` status.
 
 The aggregate model is versioned independently as
-`kestrel-multi-body-separation-0.1.0`; the original single-pair result remains
-`kestrel-separation-clearance-0.1.0` for compatibility.
+`kestrel-multi-body-separation-0.2.0`; the single-pair result is
+`kestrel-separation-clearance-0.2.0`. The `kestrel-*` prefix is retained for
+serialized project compatibility even though the public product is branded
+RocketWorks.
 
 ## Scope boundary
 
@@ -55,7 +60,8 @@ separated-body branch.
 
 ## Verification
 
-- Unit tests cover interpolation, minimum-distance selection, release relative
+- Unit tests cover interpolation, continuous minimum-distance selection,
+  between-sample crossings, release relative
   speed, partial time overlap, malformed trajectories, pairwise aggregation,
   duplicate identifiers, and insufficient body inputs.
 - Stage-flight previews pass their exact retained world-frame trace into each
