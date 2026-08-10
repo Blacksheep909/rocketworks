@@ -263,10 +263,13 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
   assert.match(source, /retainedBodyTrace/);
   assert.match(source, /retainedBodyTrace/);
   assert.match(source, /analyzeMultiBodySeparation/);
+  assert.match(source, /analyzeSphericalSeparationEnvelope/);
   assert.match(source, /multiBodySeparation/);
+  assert.match(source, /separationEnvelope/);
   assert.match(stylesheet, /\.stage-separated-bodies/);
   assert.match(stylesheet, /\.stage-separated-body-grid/);
   assert.match(stylesheet, /\.stage-multi-body-separation/);
+  assert.match(stylesheet, /\.stage-separation-envelope/);
 });
 
 test("routes browser mass properties through the hierarchical assembly graph", async () => {
@@ -673,6 +676,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stylesheet, /\.recovery-opening-load-grid/);
   assert.match(stylesheet, /\.stage-flight-uncertainty/);
   assert.match(stylesheet, /\.stage-flight-profile-tabs button:focus-visible/);
+  assert.match(page, /Spherical-envelope clearance/);
+  assert.match(page, /separationEnvelope/);
+  assert.match(stylesheet, /\.stage-separation-envelope/);
 });
 
 test("ships a bounded parameter-sweep workflow with inspectable exports", async () => {

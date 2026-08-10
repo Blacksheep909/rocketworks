@@ -165,8 +165,10 @@ modeled.
 
 This remains an intentionally bounded ballistic component check. It does not
 invent lift, attitude-dependent aerodynamic torque, plume interaction,
-stage-to-stage aerodynamic interference, collision, or clearance logic for
-detached bodies. Retained-vehicle recovery is available only through the
+stage-to-stage aerodynamic interference, or contact logic for detached bodies.
+When supplied component geometry is available, a separate fixed spherical
+envelope screen subtracts conservative bounds from the COM paths; that screen
+is still only a potential-overlap diagnostic. Retained-vehicle recovery is available only through the
 explicit device adapter described above; it remains an effective-area load
 approximation. The result status is
 `analytical-component-checks-only`, and the UI, project JSON, and engineering
@@ -174,10 +176,12 @@ report retain the warning so an impact time cannot be mistaken for a range or
 flight-safety prediction.
 
 When detached branches are available, the adapter also returns an aggregate
-pairwise center-of-mass diagnostic. It compares every retained/detached and
-detached/detached trace pair from the later release time and reports the
-closest assessed pair. This is path-divergence telemetry only; it does not
-model body envelopes, collision, aerodynamic clearance, or range safety.
+pairwise center-of-mass diagnostic and, when geometry bounds are supplied, a
+separate spherical-envelope result. The COM diagnostic compares every
+retained/detached and detached/detached trace pair from the later release time
+and reports the closest assessed pair. The envelope result subtracts fixed
+component-derived radii and labels non-positive values as potential overlap;
+neither result models contact, aerodynamic clearance, or range safety.
 
 If the retained payload/recovery allowance is made only from collinear point
 masses, the browser adapter adds a versioned compact-package shape inertia
@@ -189,8 +193,9 @@ explicitly approximate; it is not a substitute for retained CAD geometry.
 
 - The retained-body staging model remains a single tracked vehicle; each
   separated-body branch is an independent 6DOF preview with optional isotropic
-  point drag. The aggregate pairwise diagnostic compares those paths but is
-  not a coupled multi-body force, contact, or aerodynamic solver.
+  point drag. The aggregate pairwise diagnostic and spherical-envelope screen
+  compare those paths but are not a coupled multi-body force, contact, or
+  aerodynamic solver.
 - A configured separation delta-v is applied to the retained body in body-frame
   +X and is carried into the event/trajectory diagnostics in body and world
   frames. The discarded-body branch receives the mass-ratio equal-and-opposite
@@ -217,6 +222,6 @@ explicitly approximate; it is not a substitute for retained CAD geometry.
 This is intentionally a narrow composition layer. Keeping the existing models
 independently versioned makes it possible to improve propulsion, aerodynamics,
 environment, or event mechanics without hiding a new monolithic simulator
-behind the browser UI. Future work can add correlated/model-form uncertainty
-and a coupled multi-body separation solver while preserving this provenance
-boundary.
+  behind the browser UI. Future work can add correlated/model-form uncertainty,
+  attitude-aware envelope geometry, and a coupled multi-body separation solver
+  while preserving this provenance boundary.

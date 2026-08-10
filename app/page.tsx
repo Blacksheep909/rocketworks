@@ -60,6 +60,7 @@ import {
   runPhysicsBenchmarkSuite,
   computeStructuralScreen,
   estimateRecoveryOpeningLoad,
+  estimateSphericalEnvelopeRadiusM,
   resolveStageAerodynamicTable,
   type DesignOptimizationResult,
   type AerodynamicCoefficientTableDefinition,
@@ -782,6 +783,138 @@ function makePlacedStageComponents(
   });
 }
 
+function unplaceComponentForEnvelope(
+  component: VehicleComponent,
+  placement: StagePlacement,
+  stageInstanceIndex: number,
+): VehicleComponent {
+  const angle = placement.stage.attachment === "parallel"
+    ? (stageInstanceIndex * 2 * Math.PI) / Math.max(placement.instanceCount, 1)
+    : 0;
+  const radialTranslation = placement.stage.attachment === "parallel"
+    ? {
+        y: placement.stage.repeatRadiusM * Math.cos(angle),
+        z: placement.stage.repeatRadiusM * Math.sin(angle),
+      }
+    : { y: 0, z: 0 };
+  if (component.kind === "axisymmetric") {
+    const position = component.positionM ?? { x: 0, y: 0, z: 0 };
+    return {
+      ...component,
+      positionM: {
+        x: position.x - placement.translationXM,
+        y: position.y - radialTranslation.y,
+        z: position.z - radialTranslation.z,
+      },
+    };
+  }
+  if (component.kind === "finSet") {
+    return {
+      ...component,
+      axialPositionM: component.axialPositionM - placement.translationXM,
+      angularOffsetRad: (component.angularOffsetRad ?? 0) - angle,
+    };
+  }
+  return {
+    ...component,
+    positionM: {
+      x: component.positionM.x - placement.translationXM,
+      y: component.positionM.y - radialTranslation.y,
+      z: component.positionM.z - radialTranslation.z,
+    },
+  };
+}
+
+function createSeparationEnvelopeRadiusMap({
+  topology,
+  assembly,
+  stageComponents,
+  lengthM,
+  noseLengthM,
+}: Readonly<{
+  topology: LocalVehicleTopology;
+  assembly: VehicleAssemblyEvaluation;
+  stageComponents: readonly VehicleComponent[];
+  lengthM: number;
+  noseLengthM: number;
+}>): Readonly<Record<string, number>> {
+  const placements = new Map(
+    createStagePlacements(topology.stages, lengthM, noseLengthM).map((placement) => [placement.stage.id, placement]),
+  );
+  const stageById = new Map(topology.stages.map((stage) => [stage.id, stage]));
+  const normalizedStageComponents = stageComponents.flatMap((component) => {
+    const placement = placements.get(component.stageId);
+    if (!placement) return [];
+    const match = component.id.match(/-instance-(\d+)$/);
+    const stageInstanceIndex = match ? Number(match[1]) - 1 : 0;
+    return [[
+      component.id,
+      unplaceComponentForEnvelope(component, placement, stageInstanceIndex),
+    ] as const];
+  });
+  const componentsById = new Map(normalizedStageComponents);
+  const componentsByBaseId = new Map(
+    normalizedStageComponents.map(([id, component]) => [id.replace(/-instance-\d+$/, ""), component]),
+  );
+  const groups = new Map<string, Array<{
+    component: VehicleComponent;
+    originM: { x: number; y: number; z: number };
+    centerOfMassM: { x: number; y: number; z: number };
+    massProperties: VehicleAssemblyEvaluation["componentInstances"][number]["massProperties"];
+  }>>();
+  const add = (
+    key: string,
+    component: VehicleComponent,
+    instance: VehicleAssemblyEvaluation["componentInstances"][number],
+  ) => {
+    const existing = groups.get(key);
+    const member = {
+      component,
+      originM: instance.transform.translationM,
+      centerOfMassM: instance.massProperties.centerOfMassM,
+      massProperties: instance.massProperties,
+    };
+    if (existing) existing.push(member);
+    else groups.set(key, [member]);
+  };
+  for (const instance of assembly.componentInstances) {
+    const stage = stageById.get(instance.stageId);
+    const placement = placements.get(instance.stageId);
+    if (!stage || !placement) continue;
+    const sourceComponent =
+      componentsById.get(instance.sourceComponentId) ??
+      componentsByBaseId.get(instance.sourceComponentId);
+    if (!sourceComponent) continue;
+    const retained =
+      stage.role === "payload" ||
+      sourceComponent.id === "recovery" ||
+      sourceComponent.id === "payload";
+    if (retained) {
+      add("retained-vehicle", sourceComponent, instance);
+      continue;
+    }
+    const instanceId = placement.instanceCount > 1
+      ? `${stage.id}-instance-${instance.stageInstanceIndex + 1}`
+      : stage.id;
+    add(`${stage.id}/${instanceId}`, sourceComponent, instance);
+  }
+  const radii: Record<string, number> = {};
+  for (const [key, members] of groups) {
+    if (members.length === 0) continue;
+    const massProperties = combineMassProperties(members.map((member) => member.massProperties));
+    const radius = estimateSphericalEnvelopeRadiusM({
+      centerOfMassM: massProperties.centerOfMassM,
+      components: members.map(({ component, originM, centerOfMassM }) => ({
+        component,
+        originM,
+        centerOfMassM,
+      })),
+    });
+    if (radius !== null && Number.isFinite(radius)) radii[key] = radius;
+  }
+  return radii;
+}
+
 function makeAssemblyStageComponents(
   stage: VehicleStagePlan,
   baseComponents: readonly VehicleComponent[],
@@ -835,6 +968,7 @@ function createStageFlightPreviewInputs({
   assembly,
   stageComponents,
   lengthM,
+  noseLengthM,
   diameterM,
   motor,
   userMotorRecords,
@@ -857,6 +991,7 @@ function createStageFlightPreviewInputs({
   assembly: VehicleAssemblyEvaluation;
   stageComponents: readonly VehicleComponent[];
   lengthM: number;
+  noseLengthM: number;
   diameterM: number;
   motor: MotorDataRecord;
   userMotorRecords: readonly MotorDataRecord[];
@@ -880,6 +1015,13 @@ function createStageFlightPreviewInputs({
   const motorAssignmentWarnings: string[] = [];
   const stageFailureWarnings: string[] = [];
   const aerodynamicAssignmentWarnings: string[] = [];
+  const separationEnvelopeRadiiM = createSeparationEnvelopeRadiusMap({
+    topology,
+    assembly,
+    stageComponents,
+    lengthM,
+    noseLengthM,
+  });
   const motorAssignmentAssumptions = [
     "A stage without an explicit motor assignment uses the current global motor selection.",
   ];
@@ -1199,6 +1341,7 @@ function createStageFlightPreviewInputs({
     events,
     stateEvents,
     recoveryDevices,
+    separationEnvelopeRadiiM,
     additionalWarnings: [
       ...(retainedInertiaWarning ? [retainedInertiaWarning] : []),
       ...motorAssignmentWarnings,
@@ -4342,6 +4485,7 @@ export default function Home() {
             assembly,
             stageComponents: stageFlightComponents,
             lengthM: length / 1000,
+            noseLengthM: noseLength / 1000,
             diameterM: diameter / 1000,
             motor: previewMotor,
             userMotorRecords,
@@ -4389,6 +4533,7 @@ export default function Home() {
           assembly,
           stageComponents: stageFlightComponents,
           lengthM: length / 1000,
+          noseLengthM: noseLength / 1000,
           diameterM: diameter / 1000,
           motor: previewMotor,
           userMotorRecords,
@@ -5038,7 +5183,7 @@ export default function Home() {
                               <div>
                                 <span className="eyebrow">Pairwise path diagnostic</span>
                                 <h5>Multi-body COM separation</h5>
-                                <p>Checks every retained/detached and detached/detached center-of-mass path pair from the later release time. It is useful for spotting converging paths, but it is not a body-envelope, collision, aerodynamic-clearance, or range-safety solver.</p>
+                                <p>Checks every retained/detached and detached/detached center-of-mass path pair from the later release time. A separate conservative spherical-envelope screen below adds geometry bounds when the component geometry is available; neither view is a contact or range-safety solver.</p>
                               </div>
                               <span className={`stage-multi-body-separation-status stage-multi-body-separation-status-${stageFlightResult.multiBodySeparation.status}`}>
                                 {stageFlightResult.multiBodySeparation.status}
@@ -5053,6 +5198,31 @@ export default function Home() {
                             {stageFlightResult.multiBodySeparation.warnings.length > 0 && (
                               <ul className="stage-multi-body-separation-warnings">
                                 {stageFlightResult.multiBodySeparation.warnings.slice(0, 2).map((warning) => <li key={warning}>{warning}</li>)}
+                              </ul>
+                            )}
+                          </div>
+                        )}
+                        {stageFlightResult.separationEnvelope && (
+                          <div className="stage-separation-envelope">
+                            <div className="stage-separation-envelope-heading">
+                              <div>
+                                <span className="eyebrow">Geometry-bound screen</span>
+                                <h5>Spherical-envelope clearance</h5>
+                                <p>Subtracts fixed conservative component bounds from the sampled center-of-mass separation. A non-positive result is a potential-overlap diagnostic, not proof of contact.</p>
+                              </div>
+                              <span className={`stage-separation-envelope-status stage-separation-envelope-status-${stageFlightResult.separationEnvelope.envelopeStatus}`}>
+                                {stageFlightResult.separationEnvelope.envelopeStatus}
+                              </span>
+                            </div>
+                            <div className="stage-separation-envelope-grid">
+                              <div><span>Geometry-bounded bodies</span><strong>{stageFlightResult.separationEnvelope.bodies.filter((body) => body.envelopeRadiusM !== null).length} / {stageFlightResult.separationEnvelope.bodies.length}</strong><small>fixed spherical bounds</small></div>
+                              <div><span>Minimum envelope clearance</span><strong>{stageFlightResult.separationEnvelope.minimumEnvelopeClearanceM === null ? "Not assessed" : `${stageFlightResult.separationEnvelope.minimumEnvelopeClearanceM.toFixed(2)} m`}</strong><small>{stageFlightResult.separationEnvelope.closestEnvelopePair ? `at ${stageFlightResult.separationEnvelope.closestEnvelopePair.timeS.toFixed(2)} s` : "no geometry-qualified pair"}</small></div>
+                              <div><span>Closest envelope pair</span><strong>{stageFlightResult.separationEnvelope.closestEnvelopePair ? `${stageFlightResult.separationEnvelope.closestEnvelopePair.firstBodyId} / ${stageFlightResult.separationEnvelope.closestEnvelopePair.secondBodyId}` : "Not assessed"}</strong><small>{stageFlightResult.separationEnvelope.closestEnvelopePair ? `${stageFlightResult.separationEnvelope.closestEnvelopePair.radiusSumM.toFixed(2)} m radius sum` : "supply component bounds"}</small></div>
+                              <div><span>Overlap screen</span><strong>{stageFlightResult.separationEnvelope.closestEnvelopePair && stageFlightResult.separationEnvelope.closestEnvelopePair.clearanceM <= 0 ? "Potential overlap" : stageFlightResult.separationEnvelope.envelopeStatus === "not-assessed" ? "Not assessed" : "No overlap sampled"}</strong><small>not a collision solver</small></div>
+                            </div>
+                            {stageFlightResult.separationEnvelope.warnings.length > 0 && (
+                              <ul className="stage-separation-envelope-warnings">
+                                {stageFlightResult.separationEnvelope.warnings.slice(0, 2).map((warning) => <li key={warning}>{warning}</li>)}
                               </ul>
                             )}
                           </div>
@@ -5075,6 +5245,7 @@ export default function Home() {
                                 {body.clearance && (
                                   <div><span>Min COM separation</span><strong>{body.clearance.minimumDistanceM === null ? "Not assessed" : `${body.clearance.minimumDistanceM.toFixed(2)} m`}</strong><small>{body.clearance.minimumDistanceTimeS === null ? body.clearance.status : `closest at ${body.clearance.minimumDistanceTimeS.toFixed(2)} s · ${body.clearance.status}`}</small></div>
                                 )}
+                                <div><span>Spherical envelope</span><strong>{body.envelopeRadiusM === undefined ? "Not assessed" : `${body.envelopeRadiusM.toFixed(2)} m`}</strong><small>fixed conservative radius</small></div>
                                 <div><span>Model</span><strong>{body.validationStatus}</strong></div>
                               </div>
                               <p className="stage-separated-body-note">{body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? "Isotropic point-drag path." : "Gravity-only path."} {body.separationImpulseModel === "mass-ratio-linear-momentum" ? "The detached dV uses an instantaneous equal-and-opposite linear-momentum impulse based on the event delta-v and mass ratio." : "No detached-body impulse was supplied, so the branch starts from the pre-event release velocity."} Lift, attitude-dependent aero torque, separation mechanism dynamics, plume interaction, collision, clearance, and recovery remain outside this preview.</p>

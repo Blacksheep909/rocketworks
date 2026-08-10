@@ -179,6 +179,9 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.equal(result.multiBodySeparation.bodies.length, 2);
   assert.equal(result.multiBodySeparation.pairs.length, 1);
   assert.ok(["assessed", "partial", "not-assessed"].includes(result.multiBodySeparation.status));
+  assert.ok(result.separationEnvelope);
+  assert.equal(result.separationEnvelope.bodies.length, 2);
+  assert.ok(["assessed", "partial", "not-assessed"].includes(result.separationEnvelope.envelopeStatus));
   assert.equal(result.separatedBodies[0].stageId, "booster");
   assert.equal(result.separatedBodies[0].releaseTimeS, 1);
   assert.deepEqual(result.separatedBodies[0].retainedBodyDeltaVBodyMps, { x: 0.1, y: 0, z: 0 });

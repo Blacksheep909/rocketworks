@@ -42,12 +42,13 @@ The aggregate model is versioned independently as
 
 ## Scope boundary
 
-This is a path-divergence diagnostic, not a collision or range-safety solver.
-The implementation does not model body envelopes, fin geometry, joint or
-spring mechanisms, angular separation impulse, plume interaction,
-aerodynamic interference, lift, contact, or recovery on the detached body. A
-small center-of-mass distance must not be interpreted as a collision result,
-and a large distance must not be interpreted as a certified clearance margin.
+This remains a path-divergence diagnostic, not a collision or range-safety
+solver. The implementation does not model fin geometry, joint or spring
+mechanisms, angular separation impulse, plume interaction, aerodynamic
+interference, lift, contact, or recovery on the detached body. The separate
+`separation-envelope-0.1.md` screen may subtract conservative fixed spherical
+geometry bounds from this COM path, but it does not turn the result into a
+contact or certified clearance margin.
 
 Both results carry the same unvalidated engineering-preview status as the
 separated-body branch.

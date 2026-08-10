@@ -1006,6 +1006,25 @@ export function createEngineeringReportMarkdown(
                 ...input.stageFlight.multiBodySeparation.warnings.map((warning) => `- **Pairwise separation warning:** ${markdownText(warning)}`),
                 "",
                 "> Pairwise center-of-mass paths are a diagnostic only. Body envelopes, contact, collision, plume interaction, aerodynamic interference, and range-safety margins are not modeled; do not use this section as a clearance or flight-safety determination.",
+                ...(input.stageFlight.separationEnvelope
+                  ? [
+                      "",
+                      "### Spherical-envelope separation screen",
+                      "",
+                      "| Diagnostic | Value |",
+                      "|---|---:|",
+                      `| Envelope status | ${markdownText(input.stageFlight.separationEnvelope.envelopeStatus)} |`,
+                      `| Geometry-bounded bodies | ${input.stageFlight.separationEnvelope.bodies.filter((body) => body.envelopeRadiusM !== null).length} / ${input.stageFlight.separationEnvelope.bodies.length} |`,
+                      `| Minimum spherical clearance | ${input.stageFlight.separationEnvelope.minimumEnvelopeClearanceM === null ? "not assessed" : `${formatNumber(input.stageFlight.separationEnvelope.minimumEnvelopeClearanceM, 3)} m`} |`,
+                      `| Closest envelope pair | ${input.stageFlight.separationEnvelope.closestEnvelopePair ? `${markdownText(input.stageFlight.separationEnvelope.closestEnvelopePair.firstBodyId)} / ${markdownText(input.stageFlight.separationEnvelope.closestEnvelopePair.secondBodyId)} at ${formatNumber(input.stageFlight.separationEnvelope.closestEnvelopePair.timeS, 2)} s` : "not assessed"} |`,
+                      `| Model | \`${markdownText(input.stageFlight.separationEnvelope.modelVersion)}\` |`,
+                      "",
+                      ...input.stageFlight.separationEnvelope.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+                      ...input.stageFlight.separationEnvelope.warnings.map((warning) => `- **Envelope warning:** ${markdownText(warning)}`),
+                      "",
+                      "> Spherical envelopes are conservative fixed-radius bounds derived from supplied component geometry. A non-positive clearance is a potential-overlap diagnostic, not a contact, collision, or flight-safety determination.",
+                    ]
+                  : []),
               ]
             : []),
           "",

@@ -11,6 +11,11 @@ flight-readiness claims.
   drag, trapezoidal inflation impulse, and a force-rate proxy while explicitly
   excluding opening shock, snatch force, lines, fabric, canopy geometry, and
   structural qualification.
+- Added a conservative spherical-envelope separation screen driven by original
+  component geometry. Staged previews now distinguish center-of-mass path
+  divergence from fixed-radius potential overlap, preserve missing-geometry
+  states, and keep contact, plume, interference, and range-safety analysis out
+  of scope.
 - Added a display-only exploded assembly mode to the 3D design viewport. Users
   can separate component or legacy stage display instances along the vehicle
   axis, keep stage filtering and surface selection, and toggle the view with

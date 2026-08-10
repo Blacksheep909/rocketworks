@@ -10,6 +10,7 @@ export * from "./propellant-mass.ts";
 export * from "./recovery-system.ts";
 export * from "./recovery-opening-load.ts";
 export * from "./recovery-reefing.ts";
+export * from "./separation-envelope.ts";
 export * from "./rocket-loads.ts";
 export * from "./six-dof.ts";
 export * from "./stage-aware-aerodynamics.ts";

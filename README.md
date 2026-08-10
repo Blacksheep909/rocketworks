@@ -50,6 +50,9 @@ research, standards, and original code.
   trajectories with optional isotropic point-drag basis and retained-versus-
   detached center-of-mass separation diagnostics, plus aggregate pairwise
   retained/detached and detached/detached path checks;
+- a conservative spherical-envelope separation screen derived from supplied
+  component geometry, with explicit potential-overlap and missing-geometry
+  states; it remains outside contact and range-safety analysis;
 - a trace-backed recovery opening-load screen with coverage labels, peak
   dynamic pressure, quasi-steady `q Cd A` drag, inflation impulse, and a
   force-rate proxy; opening shock and structural response remain explicitly

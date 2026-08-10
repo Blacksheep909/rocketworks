@@ -63,6 +63,8 @@ export type SeparatedBodyTrajectory = Readonly<{
   /** Constant isotropic drag basis when a bounded detached-stage aero basis is available. */
   referenceAreaM2?: number;
   dragCoefficient?: number;
+  /** Optional fixed conservative spherical envelope radius for clearance screening. */
+  envelopeRadiusM?: number;
   clearance?: SeparationClearanceResult;
   warnings: readonly string[];
   assumptions: readonly string[];
@@ -88,6 +90,8 @@ export type SeparatedBodyFlightInput = Readonly<{
   referenceAreaM2?: number;
   /** Detached-stage constant drag coefficient for the bounded isotropic drag branch. */
   dragCoefficient?: number;
+  /** Optional fixed conservative spherical envelope radius for clearance screening. */
+  envelopeRadiusM?: number;
   /** Optional retained-body path used for center-of-mass separation diagnostics. */
   retainedBodyTrace?: readonly RigidBodyState[];
 }>;
@@ -208,6 +212,12 @@ export function simulateSeparatedBodyFlight(
   ) {
     throw new Error("separated-body drag coefficient must be positive and finite");
   }
+  if (
+    input.envelopeRadiusM !== undefined &&
+    (!Number.isFinite(input.envelopeRadiusM) || input.envelopeRadiusM < 0)
+  ) {
+    throw new Error("separated-body envelope radius must be non-negative and finite");
+  }
   const retainedBodyDeltaVWorldMps = rotateBodyToWorld(
     input.releaseState.orientationBodyToWorld,
     retainedBodyDeltaVBodyMps,
@@ -322,6 +332,9 @@ export function simulateSeparatedBodyFlight(
           dragCoefficient: input.dragCoefficient,
         }
       : {}),
+    ...(input.envelopeRadiusM !== undefined
+      ? { envelopeRadiusM: input.envelopeRadiusM }
+      : {}),
     ...(clearance ? { clearance } : {}),
     warnings: [
       hasReferenceArea && hasDragCoefficient
@@ -331,6 +344,11 @@ export function simulateSeparatedBodyFlight(
         ? "The detached branch includes the supplied equal-and-opposite linear-momentum delta-v; this is an instantaneous two-body impulse idealization and does not model the separation mechanism, joint dynamics, or angular impulse."
         : "No detached-body separation impulse was supplied; this branch starts from the pre-event release velocity and is not a momentum-balanced separation analysis.",
       "The result is an analytical component check, not a clearance, range-safety, or flight-safety assessment.",
+      ...(input.envelopeRadiusM !== undefined
+        ? [
+            `A fixed ${input.envelopeRadiusM.toFixed(3)} m spherical envelope bound is available for the separate geometry screen; it is not an oriented collision shape.`,
+          ]
+        : ["No detached-body spherical envelope was supplied, so geometry clearance remains unavailable."]),
       ...(clearance?.warnings ?? []),
       ...simulation.warnings,
     ],
@@ -345,6 +363,11 @@ export function simulateSeparatedBodyFlight(
         ? "When present, drag uses the supplied reference area and constant coefficient against environment-relative velocity; it is an isotropic point-drag approximation with no aerodynamic torque."
         : "A terminal ground-impact crossing is root-found only for the discarded body's ballistic path.",
       ...(clearance?.assumptions ?? []),
+      ...(input.envelopeRadiusM !== undefined
+        ? [
+            "The detached-body envelope radius is a conservative fixed bound derived by the caller from component geometry and is centered on the simulated body center of mass.",
+          ]
+        : []),
       ...simulation.assumptions,
     ],
   };
