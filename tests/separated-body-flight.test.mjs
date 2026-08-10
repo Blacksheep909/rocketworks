@@ -34,7 +34,7 @@ test("separated-body preview preserves release offset and angular-rate velocity"
     timeStepS: 0.02,
   });
 
-  assert.equal(result.modelVersion, "kestrel-separated-body-flight-0.3.0");
+  assert.equal(result.modelVersion, "kestrel-separated-body-flight-0.4.0");
   assert.equal(result.validationStatus, "analytical-component-checks-only");
   assert.deepEqual(result.releasePositionWorldM, { x: 5, y: 2, z: 100 });
   assert.deepEqual(result.releaseVelocityWorldMps, { x: 3, y: 0, z: 19 });
@@ -43,6 +43,8 @@ test("separated-body preview preserves release offset and angular-rate velocity"
   assert.deepEqual(result.detachedBodyDeltaVBodyMps, { x: 0, y: 0, z: 0 });
   assert.deepEqual(result.detachedBodyDeltaVWorldMps, { x: 0, y: 0, z: 0 });
   assert.equal(result.separationImpulseModel, "not-modeled");
+  assert.equal(result.trace[0].recoveryDragN, 0);
+  assert.equal(result.trace[0].recoveryEffectiveAreaM2, 0);
   assert.ok(result.trace.length > 1);
   assert.ok(result.maxAltitudeAglM > 100);
   assert.ok(result.impactTimeS !== null);
@@ -77,6 +79,46 @@ test("separated-body preview applies bounded isotropic point drag when a basis i
   assert.ok(drag.maxSpeedMps < ballistic.maxSpeedMps);
   assert.ok(drag.warnings.some((warning) => warning.includes("isotropic point drag")));
   assert.ok(drag.assumptions.some((assumption) => assumption.includes("reference area")));
+});
+
+test("separated-body preview propagates a stage recovery canopy after branch apogee", () => {
+  const input = {
+    stageId: "upper-01",
+    stageName: "Upper stage 1",
+    releaseState: {
+      timeS: 1,
+      positionWorldM: { x: 0, y: 0, z: 100 },
+      velocityWorldMps: { x: 0, y: 0, z: 20 },
+      orientationBodyToWorld: IDENTITY_QUATERNION,
+      angularVelocityBodyRadS: { x: 0, y: 0, z: 0 },
+    },
+    stageMassProperties: properties(2, 0),
+    parentCenterOfMassBodyM: { x: 0, y: 0, z: 0 },
+    durationS: 60,
+    timeStepS: 0.02,
+  };
+  const ballistic = simulateSeparatedBodyFlight(input);
+  const recovery = simulateSeparatedBodyFlight({
+    ...input,
+    recoveryDevices: [{
+      id: "upper-01-recovery",
+      name: "Upper stage recovery canopy",
+      dragCoefficient: 0.75,
+      referenceAreaM2: 0.5,
+      deploymentDelayS: 0,
+      inflationTimeS: 0.2,
+    }],
+  });
+
+  assert.equal(recovery.recoveryModelVersion, "kestrel-recovery-loads-0.2.0");
+  assert.ok(recovery.simulation.events.some((event) => event.id === "recovery-upper-01-recovery-apogee-command"));
+  assert.ok(recovery.trace.some((point) => point.recoveryDragN > 0));
+  assert.ok(recovery.trace.some((point) => point.recoveryEffectiveAreaM2 > 0));
+  assert.ok(recovery.impactTimeS !== null);
+  assert.ok(ballistic.impactTimeS !== null);
+  assert.ok(recovery.impactTimeS > ballistic.impactTimeS);
+  assert.ok(recovery.warnings.some((warning) => warning.includes("Detached recovery devices")));
+  assert.ok(recovery.assumptions.some((assumption) => assumption.includes("recovery loads")));
 });
 
 test("separated-body preview requires a complete drag basis", () => {

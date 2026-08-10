@@ -1269,6 +1269,18 @@ function createStageFlightPreviewInputs({
           separationDeltaVBodyMps: stage.separationDeltaVBodyMps ?? 0,
         };
       });
+    const stageRecoveryDevices = stage.recovery?.enabled && stage.role !== "payload"
+      ? [
+          {
+            id: `${stage.id}-recovery`,
+            name: `${stage.name} recovery canopy`,
+            dragCoefficient: BROWSER_RECOVERY_DRAG_COEFFICIENT,
+            referenceAreaM2: Math.PI * (stage.recovery.diameterM / 2) ** 2,
+            deploymentDelayS: stage.recovery.deploymentDelayS,
+            inflationTimeS: BROWSER_RECOVERY_INFLATION_TIME_S,
+          },
+        ]
+      : undefined;
     return {
       id: stage.id,
       name: stage.name,
@@ -1276,6 +1288,7 @@ function createStageFlightPreviewInputs({
       motors,
       ...(physicalInstances.length > 1 ? { instances: physicalInstances } : {}),
       separationDeltaVBodyMps: stage.separationDeltaVBodyMps ?? 0,
+      ...(stageRecoveryDevices ? { recoveryDevices: stageRecoveryDevices } : {}),
     };
   });
   if (stages.length === 0) throw new Error("Enable at least one propulsive stage before running a stage preview.");
@@ -4461,6 +4474,17 @@ export default function Home() {
     }
     return updateTopologyStage(id, { [key]: numericValue });
   };
+  const updateTopologyRecovery = (
+    stage: VehicleStagePlan,
+    patch: Partial<NonNullable<VehicleStagePlan["recovery"]>>,
+  ): boolean => updateTopologyStage(stage.id, {
+    recovery: {
+      enabled: stage.recovery?.enabled ?? false,
+      diameterM: stage.recovery?.diameterM ?? 0.45,
+      deploymentDelayS: stage.recovery?.deploymentDelayS ?? 0,
+      ...patch,
+    },
+  });
   const updateTopologyMotorFailures = (stage: VehicleStagePlan, value: string): boolean => {
     try {
       return updateTopologyStage(stage.id, {
@@ -6754,17 +6778,22 @@ export default function Home() {
                       <label>Ignition delay (s)<input type="number" min="0" max="120" step="0.01" value={stage.ignitionDelayS} onChange={(event) => updateTopologyStage(stage.id, { ignitionDelayS: Number(event.target.value) })} /></label>
                       <label>Separation delay (s)<input type="number" min="0" max="120" step="0.01" value={stage.separationDelayS} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { separationDelayS: Number(event.target.value) })} /></label>
                       <label>Separation dV (+X, m/s)<input type="number" min="0" max="30" step="0.01" value={stage.separationDeltaVBodyMps ?? 0} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { separationDeltaVBodyMps: Number(event.target.value) })} /></label>
+                      {stage.role !== "core" && stage.role !== "payload" && <>
+                        <label className="topology-failure-toggle"><input type="checkbox" checked={stage.recovery?.enabled ?? false} onChange={(event) => updateTopologyRecovery(stage, { enabled: event.target.checked })} /> Detached recovery at apogee</label>
+                        <label>Canopy diameter (m)<input type="number" min="0.05" max="3" step="0.01" value={stage.recovery?.diameterM ?? 0.45} disabled={!stage.recovery?.enabled} onChange={(event) => updateTopologyRecovery(stage, { diameterM: Number(event.target.value) })} /></label>
+                        <label>Recovery delay (s)<input type="number" min="0" max="60" step="0.1" value={stage.recovery?.deploymentDelayS ?? 0} disabled={!stage.recovery?.enabled} onChange={(event) => updateTopologyRecovery(stage, { deploymentDelayS: Number(event.target.value) })} /></label>
+                      </>}
                       <label>Failed motors (1-based)<input type="text" inputMode="text" placeholder={stageMotorInstanceCount(stage) > 1 ? "e.g. 1, 3" : "none"} value={topologyFailureDrafts[stage.id] ?? stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")} disabled={stage.role === "payload"} onChange={(event) => { setTopologyFailureDrafts((current) => ({ ...current, [stage.id]: event.target.value })); setTopologyError(""); }} onBlur={() => { const value = topologyFailureDrafts[stage.id]; if (value === undefined) return; if (updateTopologyMotorFailures(stage, value)) { setTopologyFailureDrafts((current) => { const next = { ...current }; delete next[stage.id]; return next; }); } }} /></label>
                       <label className="topology-failure-toggle"><input type="checkbox" checked={stage.ignitionFailure} onChange={(event) => updateTopologyStage(stage.id, { ignitionFailure: event.target.checked })} /> Force ignition failure in preview</label>
                     </div>
-                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{(stage.separationDeltaVBodyMps ?? 0) > 0 ? ` · separation +${(stage.separationDeltaVBodyMps ?? 0).toFixed(2)} m/s` : ""}{stage.failedMotorInstanceIndices.length > 0 ? ` · failed motor${stage.failedMotorInstanceIndices.length > 1 ? "s" : ""} ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}` : ""}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>
+                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{(stage.separationDeltaVBodyMps ?? 0) > 0 ? ` · separation +${(stage.separationDeltaVBodyMps ?? 0).toFixed(2)} m/s` : ""}{stage.recovery?.enabled ? ` · detached recovery Ø${stage.recovery.diameterM.toFixed(2)} m` : ""}{stage.failedMotorInstanceIndices.length > 0 ? ` · failed motor${stage.failedMotorInstanceIndices.length > 1 ? "s" : ""} ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}` : ""}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>
                   </div>
                 </article>
               ))}
             </div>
             <div className="history-notice">
               <span>MODEL BOUNDARY</span>
-              <p>Topology changes update analytical assembly mass, centre of gravity, inertia, instance counts, and stage-level aerodynamic source assignments. Repeated physical copies can separate independently in the retained-body event model. A regime with one available table uses it; combined stages with conflicting or unavailable tables fall back to the global source with an explicit warning. Coupled separation clearance, aerodynamic interference, and flight-safety validation remain outside this retained-body model; the staged preview exposes an independent ballistic-capable trajectory for detached bodies and uses isotropic point drag only when a stage-specific area and coefficient are available.</p>
+              <p>Topology changes update analytical assembly mass, centre of gravity, inertia, instance counts, and stage-level aerodynamic source assignments. Repeated physical copies can separate independently in the retained-body event model. A regime with one available table uses it; combined stages with conflicting or unavailable tables fall back to the global source with an explicit warning. Coupled separation clearance, aerodynamic interference, and flight-safety validation remain outside this retained-body model; the staged preview exposes an independent trajectory for detached bodies, carries stage recovery only when configured, and otherwise uses bounded isotropic point drag or the gravity-only fallback.</p>
             </div>
           </section>
         </div>

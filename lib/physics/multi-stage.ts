@@ -36,6 +36,7 @@ import {
   type ScheduledRigidBodyEvent,
   type StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
+import type { RecoveryDevice } from "./recovery-system.ts";
 
 export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.4.0";
 
@@ -75,6 +76,8 @@ export type RocketStage = Readonly<{
   instances?: readonly RocketStageInstance[];
   /** Retained-body axial separation delta-v in the body frame (+X nose direction). */
   separationDeltaVBodyMps?: number;
+  /** Recovery hardware that deploys if this stage becomes a detached body. */
+  recoveryDevices?: readonly RecoveryDevice[];
 }>;
 
 export type StagePhase =

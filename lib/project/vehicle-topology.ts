@@ -6,6 +6,13 @@ export const MAX_VEHICLE_STAGES = 8;
 export type VehicleStageRole = "core" | "upper" | "booster" | "payload";
 export type VehicleStageAttachment = "serial" | "parallel";
 
+/** Optional recovery hardware carried by a detachable stage. */
+export type VehicleStageRecoveryPlan = Readonly<{
+  enabled: boolean;
+  diameterM: number;
+  deploymentDelayS: number;
+}>;
+
 export type VehicleStagePlan = Readonly<{
   id: string;
   name: string;
@@ -32,6 +39,8 @@ export type VehicleStagePlan = Readonly<{
   ignitionFailure: boolean;
   /** Zero-based radial motor instance indices that are configured not to ignite. */
   failedMotorInstanceIndices: readonly number[];
+  /** Optional recovery canopy carried by this stage after separation. */
+  recovery?: VehicleStageRecoveryPlan;
 }>;
 
 export type VehicleThrustAxis = Readonly<{
@@ -160,6 +169,32 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     }
     failedMotorSet.add(value as number);
   }
+  const recoveryValue = stage.recovery;
+  let recovery: VehicleStageRecoveryPlan | undefined;
+  if (recoveryValue !== undefined) {
+    const recoveryObject = objectValue(recoveryValue, `Stage ${id} recovery`);
+    const enabled = recoveryObject.enabled ?? false;
+    if (typeof enabled !== "boolean") throw new Error(`Stage ${id} recovery enabled must be boolean.`);
+    const recoveryDiameterM = recoveryObject.diameterM ?? 0.45;
+    if (
+      typeof recoveryDiameterM !== "number" ||
+      !Number.isFinite(recoveryDiameterM) ||
+      recoveryDiameterM < 0.05 ||
+      recoveryDiameterM > 3
+    ) {
+      throw new Error(`Stage ${id} recovery diameterM must be a finite value from 0.05 through 3 m.`);
+    }
+    const deploymentDelayS = recoveryObject.deploymentDelayS ?? 0;
+    if (
+      typeof deploymentDelayS !== "number" ||
+      !Number.isFinite(deploymentDelayS) ||
+      deploymentDelayS < 0 ||
+      deploymentDelayS > 60
+    ) {
+      throw new Error(`Stage ${id} recovery deploymentDelayS must be a finite value from 0 through 60 s.`);
+    }
+    recovery = { enabled, diameterM: recoveryDiameterM, deploymentDelayS };
+  }
   return {
     id,
     name,
@@ -181,6 +216,7 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     separationDeltaVBodyMps,
     ignitionFailure,
     failedMotorInstanceIndices: [...failedMotorSet].sort((left, right) => left - right),
+    ...(recovery ? { recovery } : {}),
   };
 }
 
@@ -261,6 +297,7 @@ export function createStagePlan(input: Readonly<{
   separationDeltaVBodyMps?: number;
   ignitionFailure?: boolean;
   failedMotorInstanceIndices?: readonly number[];
+  recovery?: VehicleStageRecoveryPlan;
 }>): VehicleStagePlan {
   return validStage({
     ...input,

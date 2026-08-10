@@ -51,7 +51,7 @@ import {
 } from "./separated-body-flight.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.12.0";
+  "kestrel-stage-flight-preview-0.13.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -834,6 +834,8 @@ export function simulateStageFlightPreview(
         input.regimes,
         stageId,
       );
+      const stageDefinition = input.stages.find((stage) => stage.id === stageId);
+      const detachedRecoveryDevices = stageDefinition?.recoveryDevices;
       try {
         separatedBodies.push(
           simulateSeparatedBodyFlight({
@@ -854,6 +856,9 @@ export function simulateStageFlightPreview(
               ? { envelopeRadiusM }
               : {}),
             ...(detachedAero ?? {}),
+            ...(detachedRecoveryDevices && detachedRecoveryDevices.length > 0
+              ? { recoveryDevices: detachedRecoveryDevices }
+              : {}),
           }),
         );
         spawnedStageInstances.add(spawnKey);
@@ -943,9 +948,14 @@ export function simulateStageFlightPreview(
     ...(primaryRun.rail?.assumptions ?? primaryRun.simulation?.assumptions ?? []),
     ...(primaryRun.rail?.freeFlight?.assumptions ?? []),
     ...convergence.assumptions,
-    `Explicit separation events spawn a separate ballistic-capable trajectory for each newly detached stage; separated bodies are represented independently; ${separatedBodies.filter((body) => body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined).length} branch(es) use bounded isotropic point drag and ${separatedBodies.filter((body) => body.referenceAreaM2 === undefined || body.dragCoefficient === undefined).length} branch(es) use the gravity-only fallback.`,
+    `Explicit separation events spawn a separate ballistic-capable trajectory for each newly detached stage; separated bodies are represented independently; ${separatedBodies.filter((body) => body.recoveryModelVersion !== undefined).length} branch(es) carry configured recovery devices, ${separatedBodies.filter((body) => body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined).length} branch(es) use bounded isotropic point drag, and ${separatedBodies.filter((body) => body.referenceAreaM2 === undefined || body.dragCoefficient === undefined).length} branch(es) use the gravity-only fallback.`,
     "When one separation event releases multiple physical copies, the equal-and-opposite impulse uses their combined detached mass and assigns one shared detached velocity increment to each copy; individual separation-mechanism impulses are not modeled.",
-    "Separated-body previews apply a mass-ratio equal-and-opposite linear-momentum delta-v when the separation event carries a configured retained-body delta-v; a single event releasing multiple copies uses their combined detached mass and assigns one shared detached velocity increment. Separation mechanism dynamics, angular impulse, lift, attitude-dependent aerodynamic torque, plume interaction, aerodynamic interference, and contact/collision response remain outside the model; the separate fixed spherical-envelope screen is only a potential-overlap diagnostic. Retained-vehicle recovery devices, when configured, are not propagated into detached-stage branches.",
+    "Separated-body previews apply a mass-ratio equal-and-opposite linear-momentum delta-v when the separation event carries a configured retained-body delta-v; a single event releasing multiple copies uses their combined detached mass and assigns one shared detached velocity increment. Separation mechanism dynamics, angular impulse, lift, attitude-dependent aerodynamic torque, plume interaction, aerodynamic interference, and contact/collision response remain outside the model; the separate fixed spherical-envelope screen is only a potential-overlap diagnostic. Detached-stage recovery devices are propagated only when explicitly configured on that stage and remain a deterministic canopy-load approximation.",
+    ...(separatedBodies.some((body) => body.recoveryModelVersion !== undefined)
+      ? [
+          "Detached recovery commands are located at each branch apogee; deployment delay, inflation, and optional reefing are carried by the independent recovery-load model rather than copied from the retained vehicle.",
+        ]
+      : []),
     ...(multiBodySeparation?.assumptions ?? []),
     ...(separationEnvelope?.assumptions ?? []),
     ...separationDynamics.flatMap((audit) => audit.assumptions),

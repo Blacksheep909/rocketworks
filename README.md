@@ -59,6 +59,9 @@ research, standards, and original code.
   trajectories with optional isotropic point-drag basis and retained-versus-
   detached center-of-mass separation diagnostics, plus aggregate pairwise
   retained/detached and detached/detached path checks;
+- optional stage-specific detached recovery plans for upper stages and booster
+  sets, with apogee command events, canopy inflation telemetry, and explicit
+  recovery-load applicability warnings;
 - a conservative spherical-envelope separation screen derived from supplied
   component geometry, with explicit potential-overlap and missing-geometry
   states; it remains outside contact and range-safety analysis;

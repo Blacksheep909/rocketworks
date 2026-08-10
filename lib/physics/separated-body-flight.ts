@@ -14,6 +14,12 @@ import {
 } from "./linear-algebra.ts";
 import type { MassProperties } from "./mass-properties.ts";
 import {
+  createApogeeRecoveryDeploymentEvent,
+  createRecoverySystemModel,
+  type RecoveryDevice,
+  type RecoverySystemModel,
+} from "./recovery-system.ts";
+import {
   rotateBodyToWorld,
   simulateRigidBody6D,
   type RigidBodyState,
@@ -25,7 +31,7 @@ import {
 } from "./separation-clearance.ts";
 
 export const SEPARATED_BODY_FLIGHT_MODEL_VERSION =
-  "kestrel-separated-body-flight-0.3.0";
+  "kestrel-separated-body-flight-0.4.0";
 export const SEPARATED_BODY_FLIGHT_STATUS =
   "analytical-component-checks-only" as const;
 
@@ -39,6 +45,8 @@ export type SeparatedBodyTracePoint = Readonly<{
   speedMps: number;
   positionWorldM: Vector3;
   velocityWorldMps: Vector3;
+  recoveryDragN: number;
+  recoveryEffectiveAreaM2: number;
 }>;
 
 export type SeparatedBodyTrajectory = Readonly<{
@@ -60,6 +68,8 @@ export type SeparatedBodyTrajectory = Readonly<{
   maxAltitudeAglM: number;
   maxSpeedMps: number;
   impactTimeS: number | null;
+  /** Recovery model identity when this detached branch carries a canopy. */
+  recoveryModelVersion?: string;
   /** Constant isotropic drag basis when a bounded detached-stage aero basis is available. */
   referenceAreaM2?: number;
   dragCoefficient?: number;
@@ -94,6 +104,8 @@ export type SeparatedBodyFlightInput = Readonly<{
   envelopeRadiusM?: number;
   /** Optional retained-body path used for center-of-mass separation diagnostics. */
   retainedBodyTrace?: readonly RigidBodyState[];
+  /** Optional recovery devices carried by this detached stage. */
+  recoveryDevices?: readonly RecoveryDevice[];
 }>;
 
 function validateMassProperties(properties: MassProperties): void {
@@ -227,6 +239,20 @@ export function simulateSeparatedBodyFlight(
     detachedBodyDeltaVBodyMps,
   );
   validateMassProperties(input.stageMassProperties);
+  const recovery: RecoverySystemModel | null = input.recoveryDevices && input.recoveryDevices.length > 0
+    ? createRecoverySystemModel({
+        devices: input.recoveryDevices,
+        environmentAt: input.environmentAt,
+        launchAltitudeM: input.environmentAt ? undefined : input.launchAltitudeM,
+        centerOfMassBodyM: () => input.stageMassProperties.centerOfMassM,
+      })
+    : null;
+  const recoveryEvents = input.recoveryDevices?.map((device) =>
+    createApogeeRecoveryDeploymentEvent({
+      deviceId: device.id,
+      label: `${input.stageName} ${device.name} command at branch apogee`,
+    }),
+  ) ?? [];
   const initialState = releaseStateAtStageCenterOfMass(
     input,
     detachedBodyDeltaVWorldMps,
@@ -254,29 +280,34 @@ export function simulateSeparatedBodyFlight(
         y: 0,
         z: -input.stageMassProperties.massKg * gravityAtAltitude(altitudeAslM),
       };
-      if (!hasReferenceArea || !hasDragCoefficient) {
-        return { forceWorldN: gravityForceWorldN };
+      let dragForceWorldN = ZERO_VECTOR;
+      if (hasReferenceArea && hasDragCoefficient) {
+        const atmosphere = environment?.atmosphere ?? standardAtmosphere(altitudeAslM);
+        const relativeAirVelocityMps = subtractVectors(
+          state.velocityWorldMps,
+          environment?.windWorldMps ?? ZERO_VECTOR,
+        );
+        const relativeAirSpeedMps = magnitude(relativeAirVelocityMps);
+        if (relativeAirSpeedMps > 0) {
+          const dragMagnitudeN =
+            0.5 *
+            atmosphere.densityKgM3 *
+            relativeAirSpeedMps ** 2 *
+            input.dragCoefficient! *
+            input.referenceAreaM2!;
+          dragForceWorldN = scaleVector(
+            relativeAirVelocityMps,
+            -dragMagnitudeN / relativeAirSpeedMps,
+          );
+        }
       }
-      const atmosphere = environment?.atmosphere ?? standardAtmosphere(altitudeAslM);
-      const relativeAirVelocityMps = subtractVectors(
-        state.velocityWorldMps,
-        environment?.windWorldMps ?? ZERO_VECTOR,
-      );
-      const relativeAirSpeedMps = magnitude(relativeAirVelocityMps);
-      if (!(relativeAirSpeedMps > 0)) {
-        return { forceWorldN: gravityForceWorldN };
-      }
-      const dragMagnitudeN =
-        0.5 *
-        atmosphere.densityKgM3 *
-        relativeAirSpeedMps ** 2 *
-        input.dragCoefficient! *
-        input.referenceAreaM2!;
+      const recoveryLoads = recovery?.loads(state);
       return {
         forceWorldN: addVectors(
-          gravityForceWorldN,
-          scaleVector(relativeAirVelocityMps, -dragMagnitudeN / relativeAirSpeedMps),
+          addVectors(gravityForceWorldN, dragForceWorldN),
+          recoveryLoads?.forceWorldN ?? ZERO_VECTOR,
         ),
+        ...(recoveryLoads?.momentBodyNm ? { momentBodyNm: recoveryLoads.momentBodyNm } : {}),
       };
     },
     stateEvents: [
@@ -287,15 +318,21 @@ export function simulateSeparatedBodyFlight(
         value: (state) => state.positionWorldM.z,
         terminal: true,
       },
+      ...recoveryEvents,
     ],
   });
-  const trace = simulation.trace.map((state): SeparatedBodyTracePoint => ({
-    timeS: state.timeS,
-    altitudeAglM: state.positionWorldM.z,
-    speedMps: magnitude(state.velocityWorldMps),
-    positionWorldM: state.positionWorldM,
-    velocityWorldMps: state.velocityWorldMps,
-  }));
+  const trace = simulation.trace.map((state): SeparatedBodyTracePoint => {
+    const recoveryEvaluation = recovery?.evaluate(state);
+    return {
+      timeS: state.timeS,
+      altitudeAglM: state.positionWorldM.z,
+      speedMps: magnitude(state.velocityWorldMps),
+      positionWorldM: state.positionWorldM,
+      velocityWorldMps: state.velocityWorldMps,
+      recoveryDragN: recoveryEvaluation?.devices.reduce((sum, device) => sum + device.dragN, 0) ?? 0,
+      recoveryEffectiveAreaM2: recoveryEvaluation?.devices.reduce((sum, device) => sum + device.effectiveAreaM2, 0) ?? 0,
+    };
+  });
   const maxAltitudeAglM = Math.max(...trace.map((point) => point.altitudeAglM));
   const maxSpeedMps = Math.max(...trace.map((point) => point.speedMps));
   const clearance: SeparationClearanceResult | undefined = input.retainedBodyTrace
@@ -326,6 +363,7 @@ export function simulateSeparatedBodyFlight(
     maxAltitudeAglM,
     maxSpeedMps,
     impactTimeS: simulation.termination?.timeS ?? null,
+    ...(recovery ? { recoveryModelVersion: recovery.modelVersion } : {}),
     ...(hasReferenceArea && hasDragCoefficient
       ? {
           referenceAreaM2: input.referenceAreaM2,
@@ -338,8 +376,17 @@ export function simulateSeparatedBodyFlight(
     ...(clearance ? { clearance } : {}),
     warnings: [
       hasReferenceArea && hasDragCoefficient
-        ? "This separated-body branch is a ballistic rigid-body propagation with altitude-dependent gravity and isotropic point drag from the supplied constant coefficient and reference area; attitude-dependent aerodynamics, plume interaction, aerodynamic interference, recovery, and collision are not modeled."
-        : "This separated-body branch is ballistic and applies gravity only; drag, plume interaction, aerodynamic interference, recovery, and collision are not modeled.",
+        ? recovery
+          ? "This separated-body branch is a ballistic rigid-body propagation with altitude-dependent gravity, isotropic point drag, and the configured detached recovery devices; attitude-dependent aerodynamics, plume interaction, aerodynamic interference, and collision are not modeled."
+          : "This separated-body branch is a ballistic rigid-body propagation with altitude-dependent gravity and isotropic point drag from the supplied constant coefficient and reference area; attitude-dependent aerodynamics, plume interaction, aerodynamic interference, recovery, and collision are not modeled."
+        : recovery
+          ? "This separated-body branch applies altitude-dependent gravity and the configured detached recovery devices; aerodynamic drag, plume interaction, aerodynamic interference, and collision are not modeled."
+          : "This separated-body branch is ballistic and applies gravity only; drag, plume interaction, aerodynamic interference, recovery, and collision are not modeled.",
+      ...(recovery
+        ? [
+            "Detached recovery devices are commanded at branch apogee and use deterministic delay, inflation, and optional reefing effective-area approximations; opening shock and canopy-line dynamics remain outside the model.",
+          ]
+        : []),
       input.detachedBodyDeltaVBodyMps
         ? "The detached branch includes the supplied equal-and-opposite linear-momentum delta-v; this is an instantaneous two-body impulse idealization and does not model the separation mechanism, joint dynamics, or angular impulse."
         : "No detached-body separation impulse was supplied; this branch starts from the pre-event release velocity and is not a momentum-balanced separation analysis.",
@@ -350,6 +397,7 @@ export function simulateSeparatedBodyFlight(
           ]
         : ["No detached-body spherical envelope was supplied, so geometry clearance remains unavailable."]),
       ...(clearance?.warnings ?? []),
+      ...(recovery?.warnings ?? []),
       ...simulation.warnings,
     ],
     assumptions: [
@@ -362,12 +410,18 @@ export function simulateSeparatedBodyFlight(
       hasReferenceArea && hasDragCoefficient
         ? "When present, drag uses the supplied reference area and constant coefficient against environment-relative velocity; it is an isotropic point-drag approximation with no aerodynamic torque."
         : "A terminal ground-impact crossing is root-found only for the discarded body's ballistic path.",
+      ...(recovery
+        ? [
+            `Detached recovery loads are coupled through ${recovery.modelVersion}; each device is evaluated against the same branch atmosphere and center-of-mass frame.`,
+          ]
+        : []),
       ...(clearance?.assumptions ?? []),
       ...(input.envelopeRadiusM !== undefined
         ? [
             "The detached-body envelope radius is a conservative fixed bound derived by the caller from component geometry and is centered on the simulated body center of mass.",
           ]
         : []),
+      ...(recovery?.assumptions ?? []),
       ...simulation.assumptions,
     ],
   };

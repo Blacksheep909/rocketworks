@@ -148,7 +148,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.12.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.13.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.events.length, 2);
   assert.deepEqual(result.events[0].attachedStageIdsBefore, ["booster", "upper"]);
@@ -227,6 +227,47 @@ test("stage-flight adapter couples retained recovery loads and apogee command te
   assert.ok(result.trace.some((point) => point.recoveryDragN > 0));
   assert.ok(result.assumptions.some((assumption) => assumption.includes("Retained-vehicle recovery devices are coupled")));
   assert.ok(result.warnings.some((warning) => warning.includes("Opening shock")));
+});
+
+test("stage-flight adapter carries configured recovery into detached branches", () => {
+  const stagesWithRecovery = stages.map((stage) => stage.id === "booster"
+    ? {
+        ...stage,
+        recoveryDevices: [{
+          id: "booster-recovery",
+          name: "Booster recovery canopy",
+          dragCoefficient: 0.75,
+          referenceAreaM2: 0.3,
+          deploymentDelayS: 0,
+          inflationTimeS: 0.1,
+        }],
+      }
+    : stage);
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages: stagesWithRecovery,
+    regimes,
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 8,
+    timeStepS: 0.05,
+    launchAltitudeM: 0,
+    initialState: {
+      positionWorldM: { x: 0, y: 0, z: 100 },
+      velocityWorldMps: { x: 0, y: 0, z: 20 },
+    },
+    events: [createScheduledStageSeparationEvent({
+      stageId: "booster",
+      timeS: 1,
+      separationDeltaVBodyMps: { x: 0.1, y: 0, z: 0 },
+    })],
+  });
+
+  assert.equal(result.separatedBodies.length, 1);
+  assert.equal(result.separatedBodies[0].recoveryModelVersion, "kestrel-recovery-loads-0.2.0");
+  assert.ok(result.separatedBodies[0].simulation.events.some((event) => event.id === "recovery-booster-recovery-apogee-command"));
+  assert.ok(result.separatedBodies[0].trace.some((point) => point.recoveryDragN > 0));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("Detached recovery commands")));
 });
 
 test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", () => {
@@ -461,6 +502,10 @@ test("stage-flight adapter spawns one separated-body branch per repeated physica
     durationS: 2.5,
     timeStepS: 0.05,
     launchAltitudeM: 0,
+    initialState: {
+      positionWorldM: { x: 0, y: 0, z: 100 },
+      velocityWorldMps: { x: 0, y: 0, z: 20 },
+    },
     events: [
       createScheduledStageSeparationEvent({ stageId: "booster", instanceId: "booster-1", timeS: 1 }),
       createScheduledStageSeparationEvent({ stageId: "booster", instanceId: "booster-2", timeS: 1.4 }),

@@ -60,6 +60,48 @@ test("serial upper stages and repeated parallel boosters validate in order", () 
   assert.deepEqual(validated.stages[2].failedMotorInstanceIndices, [0, 2]);
 });
 
+test("detachable stages can carry a bounded recovery plan", () => {
+  const topology = {
+    ...createDefaultVehicleTopology(),
+    stages: [
+      createStagePlan({ id: "sustainer", name: "Sustainer", role: "core", attachment: "serial" }),
+      createStagePlan({
+        id: "upper-01",
+        name: "Upper stage 1",
+        role: "upper",
+        attachment: "serial",
+        parentStageId: "sustainer",
+        recovery: { enabled: true, diameterM: 0.8, deploymentDelayS: 2.5 },
+      }),
+    ],
+  };
+  const validated = validateVehicleTopology(topology);
+  assert.deepEqual(validated.stages[1].recovery, {
+    enabled: true,
+    diameterM: 0.8,
+    deploymentDelayS: 2.5,
+  });
+  assert.deepEqual(parseVehicleTopology(serializeVehicleTopology(validated)), validated);
+  assert.throws(
+    () => validateVehicleTopology({
+      ...topology,
+      stages: topology.stages.map((stage) => stage.id === "upper-01"
+        ? { ...stage, recovery: { enabled: true, diameterM: 0.04, deploymentDelayS: 0 } }
+        : stage),
+    }),
+    /recovery diameterM/,
+  );
+  assert.throws(
+    () => validateVehicleTopology({
+      ...topology,
+      stages: topology.stages.map((stage) => stage.id === "upper-01"
+        ? { ...stage, recovery: { enabled: true, diameterM: 0.8, deploymentDelayS: 61 } }
+        : stage),
+    }),
+    /recovery deploymentDelayS/,
+  );
+});
+
 test("topology rejects unsafe structure edits explicitly", () => {
   const base = createDefaultVehicleTopology();
   assert.throws(() => validateVehicleTopology({ ...base, stages: [] }), /requires 1/);

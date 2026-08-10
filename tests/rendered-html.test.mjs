@@ -718,6 +718,10 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Nose length \(m\)/);
   assert.match(page, /stagePreviewGeometry/);
   assert.match(page, /Separation dV \(\+X, m\/s\)/);
+  assert.match(page, /Detached recovery at apogee/);
+  assert.match(page, /Canopy diameter \(m\)/);
+  assert.match(page, /Recovery delay \(s\)/);
+  assert.match(page, /updateTopologyRecovery/);
   assert.match(page, /thrustCantAngleDeg/);
   assert.match(topology, /MAX_VEHICLE_STAGES = 8/);
   assert.match(topology, /Parallel stage/);
@@ -727,6 +731,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(topology, /noseLengthM/);
   assert.match(topology, /failedMotorInstanceIndices/);
   assert.match(topology, /separationDeltaVBodyMps/);
+  assert.match(topology, /VehicleStageRecoveryPlan/);
+  assert.match(topology, /recoveryValue/);
   assert.match(stagePreview, /simulateStageFlightPreview/);
   assert.match(stagePreview, /simulateRailGuidedLaunch/);
   assert.match(stagePreview, /sideslipRad/);

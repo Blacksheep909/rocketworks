@@ -24,15 +24,17 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.12.0`.
+`kestrel-stage-flight-preview-0.13.0`.
 
 When `recoveryDevices` is supplied, the adapter composes the independent
 recovery-load model into the retained vehicle's force and moment callback. A
 state-triggered apogee command can write the recovery device's discrete state,
 after which deployment delay, inflation, and reefing affect the coupled trace.
 The trace exposes recovery drag and effective area, and the result reports the
-recovery model version. Recovery devices are deliberately not copied into
-detached-stage branches.
+recovery model version. A detachable stage may also carry an explicitly
+configured recovery device; that device is instantiated on the independent
+branch after separation and commanded at that branch's apogee. Retained
+vehicle settings are not copied into detached stages.
 
 ## Event and state policy
 
@@ -147,7 +149,9 @@ separation delta-v in both body and world frames. When present, the adapter
 also adds the derived detached-body impulse to that release velocity. The
 branch then uses the same original
 6-DOF integrator with altitude-dependent gravity and a terminal ground-impact
-event.
+event. If the stage topology carries a recovery device, the same branch also
+couples its canopy force and moment after the apogee command, including the
+configured delay and inflation approximation.
 
 When the detached stage has an explicit topology-specific drag coefficient and
 a bounded reference area, the branch also applies isotropic point drag against
@@ -167,14 +171,14 @@ spring or joint dynamics, or angular impulse. When no event delta-v is
 supplied, the detached branch explicitly reports that the impulse is not
 modeled.
 
-This remains an intentionally bounded ballistic component check. It does not
+This remains an intentionally bounded ballistic-capable component check. It does not
 invent lift, attitude-dependent aerodynamic torque, plume interaction,
 stage-to-stage aerodynamic interference, or contact logic for detached bodies.
 When supplied component geometry is available, a separate fixed spherical
 envelope screen subtracts conservative bounds from the COM paths; that screen
-is still only a potential-overlap diagnostic. Retained-vehicle recovery is available only through the
-explicit device adapter described above; it remains an effective-area load
-approximation. The result status is
+is still only a potential-overlap diagnostic. Retained-vehicle and explicitly
+configured detached-stage recovery remain effective-area load approximations.
+The result status is
 `analytical-component-checks-only`, and the UI, project JSON, and engineering
 report retain the warning so an impact time cannot be mistaken for a range or
 flight-safety prediction.
@@ -206,7 +210,7 @@ explicitly approximate; it is not a substitute for retained CAD geometry.
 
 - The retained-body staging model remains a single tracked vehicle; each
   separated-body branch is an independent 6DOF preview with optional isotropic
-  point drag. The aggregate pairwise diagnostic and spherical-envelope screen
+  point drag and optional stage-specific recovery loads. The aggregate pairwise diagnostic and spherical-envelope screen
   compare those paths but are not a coupled multi-body force, contact, or
   aerodynamic solver. The impulse allocation diagnostic is event-level only
   and does not propagate a coupled multi-body state.

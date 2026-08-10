@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added explicit per-stage detached recovery plans. Upper stages and booster
+  sets can carry an independent canopy with bounded diameter and deployment
+  delay, and detached branches now command that device at their own apogee
+  instead of silently falling back to a recovery-free path. The result keeps
+  recovery-load warnings and remains an analytical component check only.
 - Completed the public-branding pass across the mission console: the mark and
   mission identifier now use RocketWorks nomenclature, and visible model badges
   translate legacy internal prefixes without changing compatibility schemas or
