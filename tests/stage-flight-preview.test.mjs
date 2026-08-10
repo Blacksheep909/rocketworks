@@ -148,7 +148,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.10.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.11.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.events.length, 2);
   assert.deepEqual(result.events[0].attachedStageIdsBefore, ["booster", "upper"]);
@@ -178,6 +178,9 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.equal(result.separationDynamics.length, 1);
   assert.ok(["balanced", "review", "unavailable"].includes(result.separationDynamics[0].status));
   assert.ok(Number.isFinite(result.separationDynamics[0].linearMomentumResidualMagnitudeKgMps));
+  assert.equal(result.separationImpulseSolutions.length, 1);
+  assert.ok(["balanced", "review", "unavailable"].includes(result.separationImpulseSolutions[0].status));
+  assert.equal(result.separationImpulseSolutions[0].correctionModel, "minimum-norm-linear-and-angular-impulse");
   assert.ok(result.multiBodySeparation);
   assert.equal(result.multiBodySeparation.bodies.length, 2);
   assert.equal(result.multiBodySeparation.pairs.length, 1);

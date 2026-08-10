@@ -9,6 +9,15 @@ branch is propagated. This is a bounded diagnostic step toward a coupled
 multi-body separation solver. It does not replace that solver and it never
 promotes a separation result to flight-safe evidence.
 
+The stage-flight adapter also exposes
+`rocketworks-coupled-separation-impulse-0.1.0`. This event-level allocator
+starts from the configured retained-body delta-v and distributes minimum-norm
+detached-body velocity corrections across the supplied point-mass geometry.
+When the moment-arm matrix has sufficient rank, it can balance both linear and
+first-order angular impulse within the deterministic audit tolerance. The
+correction is telemetry only; it is not silently applied to the retained or
+detached trajectories.
+
 ## Linear momentum
 
 At the event boundary, each body inherits the parent translational velocity
@@ -45,6 +54,19 @@ change. A non-zero value is a visible `review` condition because the current
 branch does not model separation springs, pyrotechnics, joint compliance,
 plume interaction, contact, or attitude-dependent aerodynamic torque.
 
+The optional allocator uses the same residual as its target and solves a
+regularized minimum-norm system over detached point-mass velocity increments:
+
+```text
+[ sum(m_i Delta-v_i) ]       = -r_p
+[ sum(r_i x m_i Delta-v_i) ] = -r_H
+```
+
+Each returned correction is rotated back into the event body frame. A
+rank-deficient arrangement can satisfy the three linear constraints while
+leaving one or more angular components unresolved; the result reports the
+resolved constraint count and remains `review`.
+
 ## Limits
 
 The audit is instantaneous and assumes the supplied mass properties and event
@@ -53,3 +75,10 @@ window and does not solve coupled retained/detached six-degree-of-freedom
 motion, oriented collision geometry, lift, plume interference, range safety,
 or detached-stage recovery. Those remain roadmap work and require independent
 benchmark and test evidence.
+
+The allocator is an impulse-distribution diagnostic, not a mechanism model.
+It assumes the retained-body delta-v is known, treats detached bodies as point
+masses at their centers of mass, applies no correction to the active flight
+state, and does not query relative-body aerodynamic databases. Time-propagated
+coupled separation, contact, plume interaction, and geometry-aware clearance
+remain future work.

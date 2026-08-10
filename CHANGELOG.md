@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added an event-level coupled separation impulse allocator. It distributes
+  minimum-norm detached-body velocity corrections across supplied point-mass
+  moment arms, reports linear/angular residuals and resolved-constraint count,
+  and keeps the correction telemetry-only rather than silently changing the
+  existing flight branches. Time-propagated multi-body aerodynamics remain
+  explicitly out of scope.
 - Refined retained/detached and multi-body separation diagnostics with a
   continuous piecewise-linear closest-approach pass over the union of both
   traces' sample times. Between-sample crossings are now surfaced instead of

@@ -91,6 +91,7 @@ import {
   type StructuralMaterialModel,
   type StructuralScreenResult,
   type SeparationDynamicsResult,
+  type CoupledSeparationImpulseResult,
   type RecoveryReefingStage,
 } from "../lib/physics/index.ts";
 import {
@@ -2519,6 +2520,14 @@ function separationAuditStatus(
 ): SeparationDynamicsResult["status"] {
   if (audits.some((audit) => audit.status === "review")) return "review";
   if (audits.length > 0 && audits.every((audit) => audit.status === "balanced")) return "balanced";
+  return "unavailable";
+}
+
+function coupledImpulseStatus(
+  solutions: readonly CoupledSeparationImpulseResult[],
+): CoupledSeparationImpulseResult["status"] {
+  if (solutions.some((solution) => solution.status === "review")) return "review";
+  if (solutions.length > 0 && solutions.every((solution) => solution.status === "balanced")) return "balanced";
   return "unavailable";
 }
 
@@ -5285,8 +5294,8 @@ export default function Home() {
                             )}
                           </div>
                         )}
-                        {stageFlightResult.separationDynamics.length > 0 && (
-                          <div className="stage-separation-dynamics">
+                          {stageFlightResult.separationDynamics.length > 0 && (
+                            <div className="stage-separation-dynamics">
                             <div className="stage-separation-dynamics-heading">
                               <div>
                                 <span className="eyebrow">Event handoff diagnostic</span>
@@ -5306,6 +5315,31 @@ export default function Home() {
                             {stageFlightResult.separationDynamics.some((audit) => audit.status !== "balanced") && (
                               <ul className="stage-separation-dynamics-warnings">
                                 {[...new Set(stageFlightResult.separationDynamics.flatMap((audit) => audit.warnings))].slice(0, 3).map((warning) => <li key={warning}>{warning}</li>)}
+                              </ul>
+                            )}
+                          </div>
+                        )}
+                        {stageFlightResult.separationImpulseSolutions.length > 0 && (
+                          <div className="stage-separation-impulse-solver">
+                            <div className="stage-separation-impulse-solver-heading">
+                              <div>
+                                <span className="eyebrow">Coupled event diagnostic</span>
+                                <h5>Momentum-balanced impulse allocation</h5>
+                                <p>Distributes a minimum-norm detached-body correction across the supplied point-mass moment arms. The proposed correction is review telemetry only; it is not applied to the active flight branches.</p>
+                              </div>
+                              <span className={`stage-separation-impulse-solver-status stage-separation-impulse-solver-status-${coupledImpulseStatus(stageFlightResult.separationImpulseSolutions)}`}>
+                                {coupledImpulseStatus(stageFlightResult.separationImpulseSolutions)}
+                              </span>
+                            </div>
+                            <div className="stage-separation-impulse-solver-grid">
+                              <div><span>Release events</span><strong>{stageFlightResult.separationImpulseSolutions.length}</strong><small>{stageFlightResult.separationImpulseSolutions.filter((solution) => solution.status === "balanced").length} balanced</small></div>
+                              <div><span>Max correction</span><strong>{(() => { const value = maximumNullableMetric(stageFlightResult.separationImpulseSolutions.map((solution) => solution.maximumCorrectionMps)); return value === null ? "Not assessed" : `${value.toFixed(4)} m/s`; })()}</strong><small>minimum-norm proposal</small></div>
+                              <div><span>Angular residual</span><strong>{(() => { const value = maximumNullableMetric(stageFlightResult.separationImpulseSolutions.map((solution) => solution.angularImpulseResidualMagnitudeKgM2PerS)); return value === null ? "Not assessed" : `${value.toExponential(2)} kg·m²/s`; })()}</strong><small>after proposed correction</small></div>
+                              <div><span>Model</span><strong>{stageFlightResult.separationImpulseSolutions[0].modelVersion}</strong><small>event-level only</small></div>
+                            </div>
+                            {stageFlightResult.separationImpulseSolutions.some((solution) => solution.status !== "balanced") && (
+                              <ul className="stage-separation-impulse-solver-warnings">
+                                {[...new Set(stageFlightResult.separationImpulseSolutions.flatMap((solution) => solution.warnings))].slice(0, 3).map((warning) => <li key={warning}>{warning}</li>)}
                               </ul>
                             )}
                           </div>

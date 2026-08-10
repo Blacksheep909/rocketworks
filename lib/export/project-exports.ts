@@ -1061,6 +1061,24 @@ export function createEngineeringReportMarkdown(
                 "> The audit checks only the instantaneous event handoff. It does not synthesize angular impulse, solve contact or mechanism dynamics, or replace coupled multi-body propagation.",
               ]
             : []),
+          ...((input.stageFlight.separationImpulseSolutions ?? []).length > 0
+            ? [
+                "",
+                "### Coupled separation impulse allocation",
+                "",
+                "| Event | Status | Resolved constraints | Maximum correction | Linear residual | Angular residual |",
+                "|---|---|---:|---:|---:|---:|",
+                ...(input.stageFlight.separationImpulseSolutions ?? []).map(
+                  (solution) =>
+                    `| ${markdownText(solution.eventId)} | ${markdownText(solution.status)} | ${solution.resolvedConstraintCount === null ? "not assessed" : `${solution.resolvedConstraintCount} / 6`} | ${solution.maximumCorrectionMps === null ? "not assessed" : `${formatNumber(solution.maximumCorrectionMps, 6)} m/s`} | ${solution.linearMomentumResidualMagnitudeKgMps === null ? "not assessed" : `${formatNumber(solution.linearMomentumResidualMagnitudeKgMps, 6)} kgÂ·m/s`} | ${solution.angularImpulseResidualMagnitudeKgM2PerS === null ? "not assessed" : `${formatNumber(solution.angularImpulseResidualMagnitudeKgM2PerS, 6)} kgÂ·mÂ²/s`} |`,
+                ),
+                "",
+                ...input.stageFlight.separationImpulseSolutions.flatMap((solution) => solution.assumptions.map((assumption) => `- ${markdownText(assumption)}`)),
+                ...input.stageFlight.separationImpulseSolutions.flatMap((solution) => solution.warnings.map((warning) => `- **Impulse-allocation warning:** ${markdownText(warning)}`)),
+                "",
+                "> This minimum-norm allocation is event-level telemetry only. It does not replace a time-propagated multi-body separation solver or authorize a state reset.",
+              ]
+            : []),
           "",
         ]
       : []),

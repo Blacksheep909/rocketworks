@@ -41,6 +41,8 @@ import {
 } from "./separation-envelope.ts";
 import {
   auditSeparationDynamics,
+  solveCoupledSeparationImpulse,
+  type CoupledSeparationImpulseResult,
   type SeparationDynamicsResult,
 } from "./separation-dynamics.ts";
 import {
@@ -49,7 +51,7 @@ import {
 } from "./separated-body-flight.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.10.0";
+  "kestrel-stage-flight-preview-0.11.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -174,6 +176,7 @@ export type StageFlightPreviewResult = Readonly<{
   clusterDiagnostics: readonly StageFlightClusterDiagnostic[];
   separatedBodies: readonly SeparatedBodyTrajectory[];
   separationDynamics: readonly SeparationDynamicsResult[];
+  separationImpulseSolutions: readonly CoupledSeparationImpulseResult[];
   multiBodySeparation: MultiBodySeparationResult | null;
   separationEnvelope: SeparationEnvelopeResult | null;
   convergence: StageFlightConvergenceDiagnostic;
@@ -751,6 +754,7 @@ export function simulateStageFlightPreview(
     : convergenceBase;
   const separatedBodies: SeparatedBodyTrajectory[] = [];
   const separationDynamics: SeparationDynamicsResult[] = [];
+  const separationImpulseSolutions: CoupledSeparationImpulseResult[] = [];
   const separatedBodyWarnings: string[] = [];
   const retainedBodyTrace = primaryRun.rail?.trace ?? primaryRun.simulation?.trace ?? [];
   const stageNames = new Map(input.stages.map((stage) => [stage.id, stage.name]));
@@ -789,25 +793,35 @@ export function simulateStageFlightPreview(
         )
       : undefined;
     if (detachedStageMassEntries.length > 0) {
+      const separationInput = {
+        eventId: event.id,
+        releaseState: event.stateBefore,
+        retainedStateAfter: event.stateAfter,
+        retainedMassPropertiesBefore: before.massProperties,
+        retainedMassPropertiesAfter: retainedMassPropertiesAfterSeparation,
+        configuredRetainedDeltaVBodyMps: event.separationDeltaVBodyMps,
+        detachedBodies: detachedStageMassEntries.map((entry) => ({
+          id: `${entry.stageId}/${entry.instanceId}`,
+          massProperties: entry.massProperties,
+          deltaVBodyMps: detachedBodyDeltaVBodyMps ?? ZERO_VECTOR,
+        })),
+      } as const;
       try {
         separationDynamics.push(
-          auditSeparationDynamics({
-            eventId: event.id,
-            releaseState: event.stateBefore,
-            retainedStateAfter: event.stateAfter,
-            retainedMassPropertiesBefore: before.massProperties,
-            retainedMassPropertiesAfter: retainedMassPropertiesAfterSeparation,
-            configuredRetainedDeltaVBodyMps: event.separationDeltaVBodyMps,
-            detachedBodies: detachedStageMassEntries.map((entry) => ({
-              id: `${entry.stageId}/${entry.instanceId}`,
-              massProperties: entry.massProperties,
-              deltaVBodyMps: detachedBodyDeltaVBodyMps ?? ZERO_VECTOR,
-            })),
-          }),
+          auditSeparationDynamics(separationInput),
         );
       } catch (error) {
         separatedBodyWarnings.push(
           `${event.id} separation impulse audit unavailable: ${error instanceof Error ? error.message : "unknown error"}`,
+        );
+      }
+      try {
+        separationImpulseSolutions.push(
+          solveCoupledSeparationImpulse(separationInput),
+        );
+      } catch (error) {
+        separatedBodyWarnings.push(
+          `${event.id} coupled separation impulse allocation unavailable: ${error instanceof Error ? error.message : "unknown error"}`,
         );
       }
     }
@@ -918,6 +932,7 @@ export function simulateStageFlightPreview(
     ...(multiBodySeparation?.warnings ?? []),
     ...(separationEnvelope?.warnings ?? []),
     ...separationDynamics.flatMap((audit) => audit.warnings),
+    ...separationImpulseSolutions.flatMap((solution) => solution.warnings),
   ];
   const assumptions = [
     ...(input.additionalAssumptions ?? []),
@@ -934,6 +949,7 @@ export function simulateStageFlightPreview(
     ...(multiBodySeparation?.assumptions ?? []),
     ...(separationEnvelope?.assumptions ?? []),
     ...separationDynamics.flatMap((audit) => audit.assumptions),
+    ...separationImpulseSolutions.flatMap((solution) => solution.assumptions),
     ...(recovery
       ? [
           `Retained-vehicle recovery devices are coupled as body loads through ${recovery.modelVersion}; deployment commands, inflation, and reefing remain deterministic effective-area approximations.`,
@@ -958,6 +974,7 @@ export function simulateStageFlightPreview(
     clusterDiagnostics,
     separatedBodies,
     separationDynamics,
+    separationImpulseSolutions,
     multiBodySeparation,
     separationEnvelope,
     convergence,

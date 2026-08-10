@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   IDENTITY_QUATERNION,
   auditSeparationDynamics,
+  solveCoupledSeparationImpulse,
 } from "../lib/physics/index.ts";
 
 const inertia = [
@@ -103,3 +104,62 @@ test("separation audit keeps missing impulse configuration explicitly unavailabl
   assert.ok(result.warnings.some((warning) => /unavailable/i.test(warning)));
 });
 
+test("coupled separation impulse allocation can remove a point-mass angular residual", () => {
+  const result = solveCoupledSeparationImpulse({
+    eventId: "three-body-release",
+    releaseState: state({ x: 0, y: 0, z: 0 }),
+    retainedStateAfter: {
+      ...state({ x: 1, y: 0, z: 0 }),
+      timeS: 4,
+    },
+    retainedMassPropertiesBefore: massProperties(4, { x: 0, y: 0, z: 0 }),
+    retainedMassPropertiesAfter: massProperties(1, { x: 0, y: 0, z: 0 }),
+    configuredRetainedDeltaVBodyMps: { x: 1, y: 0, z: 0 },
+    detachedBodies: [
+      {
+        id: "body-a",
+        massProperties: massProperties(1, { x: 0, y: 1, z: 0 }),
+        deltaVBodyMps: { x: -1 / 3, y: 0, z: 0 },
+      },
+      {
+        id: "body-b",
+        massProperties: massProperties(1, { x: 0, y: 0, z: 1 }),
+        deltaVBodyMps: { x: -1 / 3, y: 0, z: 0 },
+      },
+      {
+        id: "body-c",
+        massProperties: massProperties(1, { x: 1, y: 0, z: 1 }),
+        deltaVBodyMps: { x: -1 / 3, y: 0, z: 0 },
+      },
+    ],
+  });
+
+  assert.equal(result.modelVersion, "rocketworks-coupled-separation-impulse-0.1.0");
+  assert.equal(result.status, "balanced");
+  assert.equal(result.correctionModel, "minimum-norm-linear-and-angular-impulse");
+  assert.equal(result.resolvedConstraintCount, 6);
+  assert.ok((result.maximumCorrectionMps ?? 0) > 0);
+  assert.ok((result.linearMomentumResidualMagnitudeKgMps ?? 1) < 1e-8);
+  assert.ok((result.angularImpulseResidualMagnitudeKgM2PerS ?? 1) < 1e-8);
+  assert.equal(result.detachedBodies.length, 3);
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("minimum-norm")));
+});
+
+test("coupled separation impulse allocation remains unavailable without configured event delta-v", () => {
+  const result = solveCoupledSeparationImpulse({
+    eventId: "no-impulse",
+    releaseState: state({ x: 0, y: 0, z: 0 }),
+    retainedStateAfter: state({ x: 0, y: 0, z: 0 }),
+    retainedMassPropertiesBefore: massProperties(2, { x: 0, y: 0, z: 0 }),
+    retainedMassPropertiesAfter: massProperties(1, { x: 0, y: 0, z: 0 }),
+    detachedBodies: [{
+      id: "body-a",
+      massProperties: massProperties(1, { x: 0, y: 1, z: 0 }),
+    }],
+  });
+
+  assert.equal(result.status, "unavailable");
+  assert.equal(result.correctionModel, "not-modeled");
+  assert.equal(result.maximumCorrectionMps, null);
+  assert.ok(result.warnings.some((warning) => /configured retained-body/i.test(warning)));
+});

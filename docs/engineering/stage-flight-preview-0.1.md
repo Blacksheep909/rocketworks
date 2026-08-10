@@ -1,4 +1,4 @@
-# Stage-aware flight preview 0.9
+# Stage-aware flight preview 1.0
 
 Status: implemented composition adapter; mathematical regression tests only.
 This preview is not flight-safety validated and must not be used for launch
@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.10.0`.
+`kestrel-stage-flight-preview-0.11.0`.
 
 When `recoveryDevices` is supplied, the adapter composes the independent
 recovery-load model into the retained vehicle's force and moment callback. A
@@ -187,6 +187,15 @@ and reports the closest assessed pair. The envelope result subtracts fixed
 component-derived radii and labels non-positive values as potential overlap;
 neither result models contact, aerodynamic clearance, or range safety.
 
+The adapter also returns a coupled separation impulse allocation diagnostic for
+each event that releases one or more bodies. It starts from the configured
+retained-body delta-v and the existing detached-body mass-ratio increments,
+then solves a regularized minimum-norm point-mass correction for linear and
+first-order angular momentum. The correction is reported in body and world
+frames with residuals and a resolved-constraint count; it is not applied to the
+current trajectories. Rank-deficient release geometry remains `review` rather
+than being presented as a solved mechanism impulse.
+
 If the retained payload/recovery allowance is made only from collinear point
 masses, the browser adapter adds a versioned compact-package shape inertia
 (`kestrel-compact-package-inertia-0.1.0`) before constructing the rigid-body
@@ -199,7 +208,8 @@ explicitly approximate; it is not a substitute for retained CAD geometry.
   separated-body branch is an independent 6DOF preview with optional isotropic
   point drag. The aggregate pairwise diagnostic and spherical-envelope screen
   compare those paths but are not a coupled multi-body force, contact, or
-  aerodynamic solver.
+  aerodynamic solver. The impulse allocation diagnostic is event-level only
+  and does not propagate a coupled multi-body state.
 - A configured separation delta-v is applied to the retained body in body-frame
   +X and is carried into the event/trajectory diagnostics in body and world
   frames. The discarded-body branch receives the mass-ratio equal-and-opposite
@@ -227,5 +237,6 @@ This is intentionally a narrow composition layer. Keeping the existing models
 independently versioned makes it possible to improve propulsion, aerodynamics,
 environment, or event mechanics without hiding a new monolithic simulator
   behind the browser UI. Future work can add correlated/model-form uncertainty,
-  attitude-aware envelope geometry, and a coupled multi-body separation solver
-  while preserving this provenance boundary.
+  relative-body aerodynamic databases, attitude-aware envelope geometry, and a
+  time-propagated coupled multi-body separation solver while preserving this
+  provenance boundary.

@@ -440,6 +440,19 @@ test("engineering report leads with status and preserves calculations and limita
           warnings: [],
         },
       ],
+      separationImpulseSolutions: [
+        {
+          modelVersion: "rocketworks-coupled-separation-impulse-0.1.0",
+          eventId: "booster-separation",
+          status: "review",
+          maximumCorrectionMps: 0.012345,
+          resolvedConstraintCount: 3,
+          linearMomentumResidualMagnitudeKgMps: 0.000001,
+          angularImpulseResidualMagnitudeKgM2PerS: 0.000002,
+          assumptions: ["Impulse allocator fixture assumption."],
+          warnings: ["Impulse allocator fixture warning."],
+        },
+      ],
       multiBodySeparation: {
         modelVersion: "kestrel-multi-body-separation-0.1.0",
         validationStatus: "analytical-component-checks-only",
@@ -526,6 +539,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /\| Minimum COM separation \| 0\.400 m \|/);
   assert.match(report, /Closest pair \| retained-vehicle \/ booster\/logical-1 at 4\.20 s/);
   assert.match(report, /Pairwise fixture warning/);
+  assert.match(report, /### Coupled separation impulse allocation/);
+  assert.match(report, /Impulse allocator fixture warning/);
   assert.match(report, /Convergence status: converged/);
   assert.match(report, /Threshold high convergence/);
   assert.match(report, /Landing uncertainty convergence/);

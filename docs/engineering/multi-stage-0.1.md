@@ -227,7 +227,10 @@ preview input.
 ## Next work
 
 Add optional measured mass-flow histories, measured separation impulses, and a
-coupled multi-body branch that resolves discarded stages and momentum exchange.
+time-propagated coupled multi-body branch that resolves discarded stages,
+relative-body aerodynamic databases, and momentum exchange. The current
+event-level minimum-norm impulse allocator is diagnostic telemetry only and
+does not replace that propagated branch.
 Monte Carlo event uncertainty
 should then vary
 ignition delay, failure, separation impulse, thrust, mass, and alignment while

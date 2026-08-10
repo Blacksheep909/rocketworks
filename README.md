@@ -163,7 +163,8 @@ tests/                Deterministic physics, UI, export, and integration checks
 
 Near-term work is stronger experimental/benchmark validation, a full coupled
 multi-body separation solver beyond the current impulse audit and mass-ratio
-branch, validated structural/aeroelastic benchmarks beyond the preliminary fin
+branch (an event-level minimum-norm impulse allocator is now available as
+telemetry), validated structural/aeroelastic benchmarks beyond the preliminary fin
 flutter screen, and more stage-aware design review. Angular and direct
 force/moment coefficient volumes are now supported as explicit interpolation
 sources; benchmarked data packages, relative-body separation databases, and
