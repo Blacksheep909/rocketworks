@@ -445,6 +445,7 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(page, /createRocketOpenScad/);
   assert.match(page, /computeStructuralScreen/);
   assert.match(page, /flutterFlightCondition/);
+  assert.match(page, /Separation impulse audit/);
   assert.match(page, /STRUCTURAL SCREEN/);
   assert.match(page, /Flutter-safe speed/);
   assert.match(page, /Analytical component checks only/);
@@ -455,6 +456,7 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(stylesheet, /\.export-backdrop/);
   assert.match(stylesheet, /\.structural-screen-card/);
   assert.match(stylesheet, /\.structural-check-review/);
+  assert.match(stylesheet, /\.stage-separation-dynamics/);
   assert.match(stylesheet, /\.structural-check-review/);
   assert.match(stylesheet, /\.export-grid button:focus-visible/);
 });

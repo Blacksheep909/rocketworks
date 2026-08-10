@@ -116,10 +116,13 @@ release velocity. The result reports any retained-body separation delta-v in
 body and world frames. When that delta-v is present, the adapter derives the
 detached-body delta-v from equal-and-opposite linear momentum using the
 retained and detached masses at the event; without an event delta-v the branch
-explicitly remains a no-impulse fallback. This branch is not a coupled
-multi-body solver and does not model drag beyond its optional bounded point
-basis, plume interaction, separation mechanism, angular impulse, collision,
-recovery, or clearance.
+explicitly remains a no-impulse fallback. The stage-flight adapter also runs
+the versioned `separation-dynamics-0.1.md` conservation audit, which checks
+the instantaneous linear momentum residual and exposes first-order angular
+impulse rather than silently treating it as solved. This branch is not a
+coupled multi-body solver and does not model drag beyond its optional bounded
+point basis, plume interaction, separation mechanism, angular impulse
+response, collision, recovery, or clearance.
 
 It does not conserve the angular momentum of the pre-separation combined stack
 inside the retained body alone; the discarded body carries away its share.
@@ -144,6 +147,7 @@ The regression suite verifies:
 - prevention of false burnout transitions after ignition failure
 - exact scheduled ignition, failure, and separation changes
 - retained-body separation delta-v in the current body attitude
+- instantaneous separation linear-momentum and angular-impulse audit
 - inertia-tensor rate against centered finite differences
 - end-to-end stage switching in the coupled 6-DOF kernel
 - propulsion-adapter force, moment, and live-CG consistency
@@ -167,8 +171,9 @@ flight performance.
   flight-safety decisions. A bounded body-frame +X delta-v may be applied to
   the retained body and is surfaced as explicit event/trajectory telemetry;
   the adapter supplies the detached body's mass-ratio equal-and-opposite
-  linear impulse when that annotation is present, but does not model the
-  separation mechanism or angular impulse.
+  linear impulse when that annotation is present. The separate impulse audit
+  reports linear residual and unmodeled angular impulse but does not correct
+  either by synthesizing new state.
 - Pyrotechnic and spring impulses, joint forces, tip-off, flexure, plume
   impingement, wake interaction, collision, and recontact are absent.
 - Stage-aware aerodynamics 0.1 now reconfigures retained-body geometry, CP,

@@ -90,6 +90,7 @@ import {
   type RocketStageInstance,
   type StructuralMaterialModel,
   type StructuralScreenResult,
+  type SeparationDynamicsResult,
   type RecoveryReefingStage,
 } from "../lib/physics/index.ts";
 import {
@@ -2499,6 +2500,21 @@ function formatRelativeDifference(value: number | null): string {
 
 function formatAbsoluteDifference(value: number | null, unit: string, decimals = 2): string {
   return value === null ? "—" : `${value.toFixed(decimals)} ${unit}`;
+}
+
+function separationAuditStatus(
+  audits: readonly SeparationDynamicsResult[],
+): SeparationDynamicsResult["status"] {
+  if (audits.some((audit) => audit.status === "review")) return "review";
+  if (audits.length > 0 && audits.every((audit) => audit.status === "balanced")) return "balanced";
+  return "unavailable";
+}
+
+function maximumNullableMetric(
+  values: readonly (number | null)[],
+): number | null {
+  const finiteValues = values.filter((value): value is number => value !== null && Number.isFinite(value));
+  return finiteValues.length > 0 ? Math.max(...finiteValues) : null;
 }
 
 function StageFlightProfileChart({ result }: { result: StageFlightPreviewResult }) {
@@ -5219,6 +5235,31 @@ export default function Home() {
                             {stageFlightResult.multiBodySeparation.warnings.length > 0 && (
                               <ul className="stage-multi-body-separation-warnings">
                                 {stageFlightResult.multiBodySeparation.warnings.slice(0, 2).map((warning) => <li key={warning}>{warning}</li>)}
+                              </ul>
+                            )}
+                          </div>
+                        )}
+                        {stageFlightResult.separationDynamics.length > 0 && (
+                          <div className="stage-separation-dynamics">
+                            <div className="stage-separation-dynamics-heading">
+                              <div>
+                                <span className="eyebrow">Event handoff diagnostic</span>
+                                <h5>Separation impulse audit</h5>
+                                <p>Checks the instantaneous retained/detached handoff for linear momentum balance and exposes any first-order angular impulse that the current branch does not synthesize.</p>
+                              </div>
+                              <span className={`stage-separation-dynamics-status stage-separation-dynamics-status-${separationAuditStatus(stageFlightResult.separationDynamics)}`}>
+                                {separationAuditStatus(stageFlightResult.separationDynamics)}
+                              </span>
+                            </div>
+                            <div className="stage-separation-dynamics-grid">
+                              <div><span>Audited events</span><strong>{stageFlightResult.separationDynamics.length}</strong><small>{stageFlightResult.separationDynamics.filter((audit) => audit.status === "balanced").length} balanced</small></div>
+                              <div><span>Maximum momentum residual</span><strong>{(() => { const value = maximumNullableMetric(stageFlightResult.separationDynamics.map((audit) => audit.linearMomentumResidualMagnitudeKgMps)); return value === null ? "Not assessed" : `${value.toExponential(2)} kg·m/s`; })()}</strong><small>instantaneous audit</small></div>
+                              <div><span>Maximum angular impulse</span><strong>{(() => { const value = maximumNullableMetric(stageFlightResult.separationDynamics.map((audit) => audit.angularImpulseResidualMagnitudeKgM2PerS)); return value === null ? "Not assessed" : `${value.toExponential(2)} kg·m²/s`; })()}</strong><small>unmodeled first-order term</small></div>
+                              <div><span>Model</span><strong>{stageFlightResult.separationDynamics[0].modelVersion}</strong><small>conservation audit only</small></div>
+                            </div>
+                            {stageFlightResult.separationDynamics.some((audit) => audit.status !== "balanced") && (
+                              <ul className="stage-separation-dynamics-warnings">
+                                {[...new Set(stageFlightResult.separationDynamics.flatMap((audit) => audit.warnings))].slice(0, 3).map((warning) => <li key={warning}>{warning}</li>)}
                               </ul>
                             )}
                           </div>

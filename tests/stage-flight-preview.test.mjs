@@ -175,6 +175,9 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.ok(Number.isFinite(result.convergence.maximumRelativeDifference));
   assert.ok(result.assumptions.some((assumption) => assumption.includes("separated bodies")));
   assert.equal(result.separatedBodies.length, 1);
+  assert.equal(result.separationDynamics.length, 1);
+  assert.ok(["balanced", "review", "unavailable"].includes(result.separationDynamics[0].status));
+  assert.ok(Number.isFinite(result.separationDynamics[0].linearMomentumResidualMagnitudeKgMps));
   assert.ok(result.multiBodySeparation);
   assert.equal(result.multiBodySeparation.bodies.length, 2);
   assert.equal(result.multiBodySeparation.pairs.length, 1);

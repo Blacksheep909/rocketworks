@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added an instantaneous separation impulse audit to staged previews and
+  engineering reports. Each detached event now checks mass-ratio linear
+  momentum balance and reports first-order angular impulse that the current
+  branch does not synthesize, with explicit unavailable/review states and no
+  claim of a coupled separation solver.
 - Added a preliminary, independent fin-flutter screen to the structural review.
   The browser and engineering reports now show the NACA-TN-4197-style
   thin-plate flutter speed, safety margin, local atmosphere, and explicit

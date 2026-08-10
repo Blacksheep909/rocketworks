@@ -427,6 +427,19 @@ test("engineering report leads with status and preserves calculations and limita
           maxSpeedMps: 41.6,
         },
       ],
+      separationDynamics: [
+        {
+          modelVersion: "rocketworks-separation-dynamics-0.1.0",
+          eventId: "booster-separation",
+          status: "balanced",
+          retainedMassKg: 0.58,
+          detachedMassKg: 0.2,
+          linearMomentumResidualMagnitudeKgMps: 0,
+          angularImpulseResidualMagnitudeKgM2PerS: 0,
+          assumptions: ["Instantaneous fixture audit."],
+          warnings: [],
+        },
+      ],
       multiBodySeparation: {
         modelVersion: "kestrel-multi-body-separation-0.1.0",
         validationStatus: "analytical-component-checks-only",
@@ -498,6 +511,7 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /## Preliminary structural screen/);
   assert.match(report, /Euler column buckling/);
   assert.match(report, /Fin flutter margin/);
+  assert.match(report, /Separation impulse audit/);
   assert.match(report, /## Uncertainty analysis/);
   assert.match(report, /## Coupled 6DOF uncertainty/);
   assert.match(report, /kestrel-stage-flight-uncertainty-0.3.0/);

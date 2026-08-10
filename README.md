@@ -53,6 +53,9 @@ research, standards, and original code.
 - a conservative spherical-envelope separation screen derived from supplied
   component geometry, with explicit potential-overlap and missing-geometry
   states; it remains outside contact and range-safety analysis;
+- an instantaneous separation impulse audit that checks mass-ratio linear
+  momentum balance and exposes unmodeled first-order angular impulse before
+  detached-body propagation;
 - a trace-backed recovery opening-load screen with coverage labels, peak
   dynamic pressure, quasi-steady `q Cd A` drag, inflation impulse, and a
   force-rate proxy; opening shock and structural response remain explicitly
@@ -154,7 +157,8 @@ tests/                Deterministic physics, UI, export, and integration checks
 ## Roadmap
 
 Near-term work is stronger experimental/benchmark validation, a full coupled
-multi-body separation solver beyond the current mass-ratio impulse branch,
+multi-body separation solver beyond the current impulse audit and mass-ratio
+branch,
 validated structural/aeroelastic benchmarks beyond the preliminary fin
 flutter screen, and more stage-aware design review.
 Longer-term work includes collaboration and cloud project storage plus native

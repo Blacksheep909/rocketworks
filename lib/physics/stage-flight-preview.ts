@@ -40,6 +40,10 @@ import {
   type SeparationEnvelopeResult,
 } from "./separation-envelope.ts";
 import {
+  auditSeparationDynamics,
+  type SeparationDynamicsResult,
+} from "./separation-dynamics.ts";
+import {
   simulateSeparatedBodyFlight,
   type SeparatedBodyTrajectory,
 } from "./separated-body-flight.ts";
@@ -156,6 +160,7 @@ export type StageFlightPreviewResult = Readonly<{
   timeToApogeeS: number;
   clusterDiagnostics: readonly StageFlightClusterDiagnostic[];
   separatedBodies: readonly SeparatedBodyTrajectory[];
+  separationDynamics: readonly SeparationDynamicsResult[];
   multiBodySeparation: MultiBodySeparationResult | null;
   separationEnvelope: SeparationEnvelopeResult | null;
   convergence: StageFlightConvergenceDiagnostic;
@@ -717,6 +722,7 @@ export function simulateStageFlightPreview(
       }
     : convergenceBase;
   const separatedBodies: SeparatedBodyTrajectory[] = [];
+  const separationDynamics: SeparationDynamicsResult[] = [];
   const separatedBodyWarnings: string[] = [];
   const retainedBodyTrace = primaryRun.rail?.trace ?? primaryRun.simulation?.trace ?? [];
   const stageNames = new Map(input.stages.map((stage) => [stage.id, stage.name]));
@@ -754,6 +760,29 @@ export function simulateStageFlightPreview(
           -retainedMassPropertiesAfterSeparation.massKg / detachedMassKg,
         )
       : undefined;
+    if (detachedStageMassEntries.length > 0) {
+      try {
+        separationDynamics.push(
+          auditSeparationDynamics({
+            eventId: event.id,
+            releaseState: event.stateBefore,
+            retainedStateAfter: event.stateAfter,
+            retainedMassPropertiesBefore: before.massProperties,
+            retainedMassPropertiesAfter: retainedMassPropertiesAfterSeparation,
+            configuredRetainedDeltaVBodyMps: event.separationDeltaVBodyMps,
+            detachedBodies: detachedStageMassEntries.map((entry) => ({
+              id: `${entry.stageId}/${entry.instanceId}`,
+              massProperties: entry.massProperties,
+              deltaVBodyMps: detachedBodyDeltaVBodyMps ?? ZERO_VECTOR,
+            })),
+          }),
+        );
+      } catch (error) {
+        separatedBodyWarnings.push(
+          `${event.id} separation impulse audit unavailable: ${error instanceof Error ? error.message : "unknown error"}`,
+        );
+      }
+    }
     for (const { stageId, instanceId, massProperties } of detachedStageMassEntries) {
       const spawnKey = `${stageId}/${instanceId}`;
       if (spawnedStageInstances.has(spawnKey)) continue;
@@ -860,6 +889,7 @@ export function simulateStageFlightPreview(
     ...separatedBodyWarnings,
     ...(multiBodySeparation?.warnings ?? []),
     ...(separationEnvelope?.warnings ?? []),
+    ...separationDynamics.flatMap((audit) => audit.warnings),
   ];
   const assumptions = [
     ...(input.additionalAssumptions ?? []),
@@ -875,6 +905,7 @@ export function simulateStageFlightPreview(
     "Separated-body previews apply a mass-ratio equal-and-opposite linear-momentum delta-v when the separation event carries a configured retained-body delta-v; a single event releasing multiple copies uses their combined detached mass and assigns one shared detached velocity increment. Separation mechanism dynamics, angular impulse, lift, attitude-dependent aerodynamic torque, plume interaction, aerodynamic interference, and contact/collision response remain outside the model; the separate fixed spherical-envelope screen is only a potential-overlap diagnostic. Retained-vehicle recovery devices, when configured, are not propagated into detached-stage branches.",
     ...(multiBodySeparation?.assumptions ?? []),
     ...(separationEnvelope?.assumptions ?? []),
+    ...separationDynamics.flatMap((audit) => audit.assumptions),
     ...(recovery
       ? [
           `Retained-vehicle recovery devices are coupled as body loads through ${recovery.modelVersion}; deployment commands, inflation, and reefing remain deterministic effective-area approximations.`,
@@ -898,6 +929,7 @@ export function simulateStageFlightPreview(
     timeToApogeeS: primaryRun.timeToApogeeS,
     clusterDiagnostics,
     separatedBodies,
+    separationDynamics,
     multiBodySeparation,
     separationEnvelope,
     convergence,

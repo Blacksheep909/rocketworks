@@ -1027,6 +1027,24 @@ export function createEngineeringReportMarkdown(
                   : []),
               ]
             : []),
+          ...((input.stageFlight.separationDynamics ?? []).length > 0
+            ? [
+                "",
+                "### Separation impulse audit",
+                "",
+                "| Event | Status | Retained mass | Detached mass | Momentum residual | Angular impulse residual |",
+                "|---|---|---:|---:|---:|---:|",
+                ...(input.stageFlight.separationDynamics ?? []).map(
+                  (audit) =>
+                    `| ${markdownText(audit.eventId)} | ${markdownText(audit.status)} | ${formatNumber(audit.retainedMassKg, 3)} kg | ${formatNumber(audit.detachedMassKg, 3)} kg | ${audit.linearMomentumResidualMagnitudeKgMps === null ? "not assessed" : `${formatNumber(audit.linearMomentumResidualMagnitudeKgMps, 6)} kg·m/s`} | ${audit.angularImpulseResidualMagnitudeKgM2PerS === null ? "not assessed" : `${formatNumber(audit.angularImpulseResidualMagnitudeKgM2PerS, 6)} kg·m²/s`} |`,
+                ),
+                "",
+                ...input.stageFlight.separationDynamics.flatMap((audit) => audit.assumptions.map((assumption) => `- ${markdownText(assumption)}`)),
+                ...input.stageFlight.separationDynamics.flatMap((audit) => audit.warnings.map((warning) => `- **Separation audit warning:** ${markdownText(warning)}`)),
+                "",
+                "> The audit checks only the instantaneous event handoff. It does not synthesize angular impulse, solve contact or mechanism dynamics, or replace coupled multi-body propagation.",
+              ]
+            : []),
           "",
         ]
       : []),
