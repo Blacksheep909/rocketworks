@@ -15,6 +15,9 @@ The model provides one deterministic environment state for a local
 east-north-up position and time:
 
 - WGS84 launch-site metadata and AGL/ASL altitude bookkeeping
+- browser-editable site name, latitude, and longitude carried into landing
+  dispersion and engineering-report provenance; coordinates remain metadata
+  for the local ENU solver
 - standard or surface-observation-adjusted pressure and temperature
 - optional relative-humidity coupling to water-vapor pressure, virtual
   temperature, density, and speed of sound
@@ -75,7 +78,8 @@ dispersion adds a sampled direction offset on top of this base azimuth, while
 the coupled 6DOF and vertical paths consume the same rotated provider. A
 profile model version (`kestrel-preview-wind-profile-0.2.0`) is exposed in the
 source and the input is persisted in local project snapshots; older snapshots
-default to 0° for backward compatibility.
+default to the ARC 54 synthetic-range label and Auckland WGS84 coordinates for
+backward compatibility.
 
 Turbulence is synthesized from logarithmically bounded spatial modes with
 seeded phases. The longitudinal and transverse mode weights use the Dryden

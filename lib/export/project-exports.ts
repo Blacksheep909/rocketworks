@@ -125,6 +125,9 @@ export type EngineeringReportInput = Readonly<{
   environment: Readonly<{
     siteName: string;
     elevationM: number;
+    /** Optional WGS84 launch-site coordinates for portable provenance. */
+    latitudeDeg?: number;
+    longitudeDeg?: number;
     meanWindAt500Mps: number;
     /** Optional local-ENU input azimuth: 0° east, +90° north. */
     windAzimuthDeg?: number;
@@ -1376,6 +1379,14 @@ export function createEngineeringReportMarkdown(
       throw new Error("report wind azimuth must be between -180 and 180 degrees");
     }
   }
+  for (const [label, value, minimum, maximum] of [
+    ["report latitude", input.environment.latitudeDeg, -90, 90],
+    ["report longitude", input.environment.longitudeDeg, -180, 180],
+  ] as const) {
+    if (value === undefined) continue;
+    assertFinite(value, label);
+    if (value < minimum || value > maximum) throw new Error(`${label} must be between ${minimum} and ${maximum} degrees`);
+  }
   if (input.recovery) {
     assertFinite(input.recovery.reefingDurationS, "report reefing duration");
     assertFinite(input.recovery.reefingStartAreaFraction, "report reefing start area fraction");
@@ -1429,6 +1440,9 @@ export function createEngineeringReportMarkdown(
     "## Launch environment",
     "",
     `- Site: ${markdownText(input.environment.siteName)}`,
+    ...(input.environment.latitudeDeg === undefined || input.environment.longitudeDeg === undefined
+      ? []
+      : [`- Site coordinates (WGS84): ${formatNumber(input.environment.latitudeDeg, 5)}°, ${formatNumber(input.environment.longitudeDeg, 5)}°`]),
     `- Site elevation: ${formatNumber(input.environment.elevationM, 0)} m`,
     `- Mean wind at 500 m AGL: ${formatNumber(input.environment.meanWindAt500Mps, 2)} m/s`,
     ...(input.environment.windAzimuthDeg === undefined

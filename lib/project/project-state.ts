@@ -42,6 +42,12 @@ export type EditableProjectInputs = Readonly<{
   thrustN: number;
   burnTimeS: number;
   dragCoefficient: number;
+  /** User-facing launch range label carried into environment provenance. */
+  launchSiteName: string;
+  /** Launch-site latitude in WGS84 degrees. */
+  launchLatitudeDeg: number;
+  /** Launch-site longitude in WGS84 degrees. */
+  launchLongitudeDeg: number;
   launchAltitudeM: number;
   windSpeedMps: number;
   /** Mean-wind azimuth in the local ENU frame: 0° east, +90° north. */
@@ -104,7 +110,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "recoveryEnabled" | "launchRailEnabled" | "recoveryReefingEnabled" | "uncertaintySeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "recoveryEnabled" | "launchRailEnabled" | "recoveryReefingEnabled" | "uncertaintySeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -118,6 +124,8 @@ const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material
   thrustN: [1, 5000],
   burnTimeS: [0.1, 30],
   dragCoefficient: [0.1, 2],
+  launchLatitudeDeg: [-90, 90],
+  launchLongitudeDeg: [-180, 180],
   launchAltitudeM: [-400, 10000],
   windSpeedMps: [0, 80],
   windAzimuthDeg: [-180, 180],
@@ -148,6 +156,8 @@ const numericDefaults: Readonly<Partial<Record<keyof typeof numericRanges, numbe
   launchRailInclinationDeg: 0,
   launchRailAzimuthDeg: 0,
   relativeHumidityPercent: 60,
+  launchLatitudeDeg: -36.85,
+  launchLongitudeDeg: 174.76,
   surfacePressureHpa: 1004,
   surfaceTemperatureC: 15,
   windAzimuthDeg: 0,
@@ -257,6 +267,9 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   if (input.material !== "kraft" && input.material !== "fiberglass" && input.material !== "carbon") {
     throw new Error("material must be kraft, fiberglass, or carbon.");
   }
+  const launchSiteName = input.launchSiteName === undefined
+    ? "ARC 54 synthetic range"
+    : nonEmptyString(input.launchSiteName, "launchSiteName", 120);
   if (typeof input.recoveryEnabled !== "boolean") {
     throw new Error("recoveryEnabled must be boolean.");
   }
@@ -287,6 +300,9 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     thrustN: validated.thrustN,
     burnTimeS: validated.burnTimeS,
     dragCoefficient: validated.dragCoefficient,
+    launchSiteName,
+    launchLatitudeDeg: validated.launchLatitudeDeg,
+    launchLongitudeDeg: validated.launchLongitudeDeg,
     launchAltitudeM: validated.launchAltitudeM,
     windSpeedMps: validated.windSpeedMps,
     windAzimuthDeg: validated.windAzimuthDeg,
@@ -400,6 +416,9 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   thrustN: "motor thrust",
   burnTimeS: "burn duration",
   dragCoefficient: "drag coefficient",
+  launchSiteName: "launch-site name",
+  launchLatitudeDeg: "launch-site latitude",
+  launchLongitudeDeg: "launch-site longitude",
   launchAltitudeM: "launch altitude",
   windSpeedMps: "wind speed",
   windAzimuthDeg: "wind azimuth",

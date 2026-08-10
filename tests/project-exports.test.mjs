@@ -502,6 +502,8 @@ test("engineering report leads with status and preserves calculations and limita
     },
     environment: {
       siteName: "Test range",
+      latitudeDeg: -36.85,
+      longitudeDeg: 174.76,
       elevationM: 80,
       meanWindAt500Mps: 4.08,
       windAzimuthDeg: 35,
@@ -648,6 +650,7 @@ test("engineering report leads with status and preserves calculations and limita
     },
   });
   assert.match(report, /^# ARC 54 — Preliminary Engineering Report/);
+  assert.match(report, /Site coordinates \(WGS84\): -36\.85000°, 174\.76000°/);
   assert.match(report, /Pad pressure observation: 1004\.0 hPa/);
   assert.match(report, /Wind azimuth input: 35° ENU/);
   assert.match(report, /Relative humidity observation: 60%/);

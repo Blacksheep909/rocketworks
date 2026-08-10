@@ -100,6 +100,13 @@ test("ships versioned flight results and explainable model UI", async () => {
   assert.match(source, /mass-ratio-linear-momentum/);
   assert.match(source, /equal-and-opposite linear-momentum/);
   assert.match(source, /analytical component check/);
+  assert.match(source, /launch-site-name/);
+  assert.match(source, /launch-latitude/);
+  assert.match(source, /launch-longitude/);
+  assert.match(source, /WGS84/);
+  assert.match(source, /launchSiteName/);
+  assert.match(source, /launchLatitudeDeg/);
+  assert.match(source, /launchLongitudeDeg/);
 });
 
 test("ships a portable project import path with validated restoration warnings", async () => {

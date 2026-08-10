@@ -487,6 +487,9 @@ function createPreviewEnvironment(
   launchAltitude: number,
   windSpeed: number,
   options: Readonly<{
+    siteName?: string;
+    latitudeDeg?: number;
+    longitudeDeg?: number;
     windAzimuthDeg?: number;
     seed?: string;
     windScale?: number;
@@ -506,9 +509,9 @@ function createPreviewEnvironment(
   const surfaceTemperatureC = options.surfaceTemperatureC ?? siteAtmosphere.temperatureK - 273.15;
   return createLaunchEnvironmentModel({
     site: {
-      name: "ARC 54 synthetic range",
-      latitudeDeg: -36.85,
-      longitudeDeg: 174.76,
+      name: options.siteName ?? "ARC 54 synthetic range",
+      latitudeDeg: options.latitudeDeg ?? -36.85,
+      longitudeDeg: options.longitudeDeg ?? 174.76,
       elevationM: launchAltitude,
       datum: "WGS84",
       timeZone: "Pacific/Auckland",
@@ -1824,6 +1827,9 @@ function createOptimizationResult(
 }
 
 type LandingPredictionInputs = Parameters<typeof createFlightConfig>[0] & Readonly<{
+  launchSiteName: string;
+  launchLatitudeDeg: number;
+  launchLongitudeDeg: number;
   recoveryDeploymentSuccessProbability: number;
   uncertaintyCorrelations?: readonly ProjectUncertaintyCorrelation[];
 }>;
@@ -1847,9 +1853,9 @@ function createLandingPrediction(
   const launchMassKg = inputs.mass;
   const descentMassKg = launchMassKg - motor.metrics.propellantMassKg;
   const site = {
-    name: "ARC 54 synthetic range",
-    latitudeDeg: -36.85,
-    longitudeDeg: 174.76,
+    name: inputs.launchSiteName,
+    latitudeDeg: inputs.launchLatitudeDeg,
+    longitudeDeg: inputs.launchLongitudeDeg,
     elevationM: inputs.launchAltitude,
     datum: "WGS84" as const,
     timeZone: "Pacific/Auckland",
@@ -1927,6 +1933,9 @@ function createLandingPrediction(
           relativeHumidityPercent: inputs.relativeHumidityPercent,
           surfacePressureHpa: inputs.surfacePressureHpa,
           surfaceTemperatureC: inputs.surfaceTemperatureC,
+          siteName: inputs.launchSiteName,
+          latitudeDeg: inputs.launchLatitudeDeg,
+          longitudeDeg: inputs.launchLongitudeDeg,
         },
       );
       const ascentDrift = estimateAscentWindDrift({
@@ -3069,6 +3078,9 @@ export default function Home() {
   const [thrust, setThrust] = useState(22);
   const [burnTime, setBurnTime] = useState(1.65);
   const [dragCoefficient, setDragCoefficient] = useState(0.52);
+  const [launchSiteName, setLaunchSiteName] = useState("ARC 54 synthetic range");
+  const [launchLatitudeDeg, setLaunchLatitudeDeg] = useState(-36.85);
+  const [launchLongitudeDeg, setLaunchLongitudeDeg] = useState(174.76);
   const [launchAltitude, setLaunchAltitude] = useState(80);
   const [windSpeed, setWindSpeed] = useState(4);
   const [windAzimuthDeg, setWindAzimuthDeg] = useState(0);
@@ -3167,6 +3179,9 @@ export default function Home() {
       thrustN: thrust,
       burnTimeS: burnTime,
       dragCoefficient,
+      launchSiteName,
+      launchLatitudeDeg,
+      launchLongitudeDeg,
       launchAltitudeM: launchAltitude,
       windSpeedMps: windSpeed,
       windAzimuthDeg,
@@ -3189,7 +3204,7 @@ export default function Home() {
       uncertaintySeed,
       uncertaintyCorrelations,
     }),
-    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, windAzimuthDeg, windSpeed],
+    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, launchSiteName, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, windAzimuthDeg, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -3363,8 +3378,8 @@ export default function Home() {
     [editableInputs, previewMotor, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, vehicleTopology],
   );
   const previewEnvironment = useMemo(
-    () => createPreviewEnvironment(launchAltitude, windSpeed, { windAzimuthDeg, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
-    [launchAltitude, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, windAzimuthDeg, windSpeed],
+    () => createPreviewEnvironment(launchAltitude, windSpeed, { siteName: launchSiteName, latitudeDeg: launchLatitudeDeg, longitudeDeg: launchLongitudeDeg, windAzimuthDeg, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
+    [launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchSiteName, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, windAzimuthDeg, windSpeed],
   );
   const environmentAtPad = useMemo(
     () => previewEnvironment.at({ timeS: 0, positionWorldM: { x: 0, y: 0, z: 0 } }),
@@ -3463,6 +3478,9 @@ export default function Home() {
           dragCoefficient,
           thrust,
           burnTime,
+          launchSiteName,
+          launchLatitudeDeg,
+          launchLongitudeDeg,
           launchAltitude,
           windSpeed,
           windAzimuthDeg,
@@ -3737,6 +3755,9 @@ export default function Home() {
         setThrust(inputs.thrustN);
         setBurnTime(inputs.burnTimeS);
         setDragCoefficient(inputs.dragCoefficient);
+        setLaunchSiteName(inputs.launchSiteName);
+        setLaunchLatitudeDeg(inputs.launchLatitudeDeg);
+        setLaunchLongitudeDeg(inputs.launchLongitudeDeg);
         setLaunchAltitude(inputs.launchAltitudeM);
         setWindSpeed(inputs.windSpeedMps);
         setWindAzimuthDeg(inputs.windAzimuthDeg);
@@ -3821,6 +3842,9 @@ export default function Home() {
         setThrust(inputs.thrustN);
         setBurnTime(inputs.burnTimeS);
         setDragCoefficient(inputs.dragCoefficient);
+        setLaunchSiteName(inputs.launchSiteName);
+        setLaunchLatitudeDeg(inputs.launchLatitudeDeg);
+        setLaunchLongitudeDeg(inputs.launchLongitudeDeg);
         setLaunchAltitude(inputs.launchAltitudeM);
         setWindSpeed(inputs.windSpeedMps);
         setWindAzimuthDeg(inputs.windAzimuthDeg);
@@ -4778,6 +4802,8 @@ export default function Home() {
           },
           environment: {
             siteName: previewEnvironment.definition.site.name,
+            latitudeDeg: previewEnvironment.definition.site.latitudeDeg,
+            longitudeDeg: previewEnvironment.definition.site.longitudeDeg,
             elevationM: previewEnvironment.definition.site.elevationM,
             meanWindAt500Mps: Math.hypot(
               environmentAt500M.meanWindWorldMps.x,
@@ -4830,6 +4856,9 @@ export default function Home() {
       dragCoefficient,
       thrust,
       burnTime,
+      launchSiteName,
+      launchLatitudeDeg,
+      launchLongitudeDeg,
       launchAltitude,
       windSpeed,
       windAzimuthDeg,
@@ -6050,7 +6079,7 @@ export default function Home() {
                 <div className="event-card-heading">
                   <div>
                     <strong>Landing footprint</strong>
-                    <span>Recovery-phase drift · local WGS84 tangent plane</span>
+                    <span>Recovery-phase drift · local WGS84 tangent plane · {launchSiteName}</span>
                   </div>
                   <span>{landingPrediction.footprint.sampleCount} seeded scenarios</span>
                 </div>
@@ -6315,13 +6344,19 @@ export default function Home() {
             <NumberField id="thrust" label="Average thrust" value={thrust} unit="N" min={1} max={5000} step={0.5} onChange={(value) => { setThrust(value); markChanged(); }} />
             <NumberField id="burn-time" label="Burn time" value={burnTime} unit="s" min={0.1} max={30} step={0.05} onChange={(value) => { setBurnTime(value); markChanged(); }} />
             <NumberField id="drag" label="Drag coefficient" value={dragCoefficient} unit="Cd" min={0.1} max={2} step={0.01} onChange={(value) => { setDragCoefficient(value); markChanged(); }} />
+            <div className="field-group">
+              <label htmlFor="launch-site-name">Launch site</label>
+              <input id="launch-site-name" type="text" maxLength={120} value={launchSiteName} onChange={(event) => { setLaunchSiteName(event.target.value || "ARC 54 synthetic range"); markChanged(); }} />
+            </div>
+            <NumberField id="launch-latitude" label="Latitude (WGS84)" value={launchLatitudeDeg} unit="deg" min={-90} max={90} step={0.0001} onChange={(value) => { setLaunchLatitudeDeg(value); markChanged(); }} />
+            <NumberField id="launch-longitude" label="Longitude (WGS84)" value={launchLongitudeDeg} unit="deg" min={-180} max={180} step={0.0001} onChange={(value) => { setLaunchLongitudeDeg(value); markChanged(); }} />
             <NumberField id="launch-altitude" label="Launch-site altitude" value={launchAltitude} unit="m" min={-400} max={10000} step={10} onChange={(value) => { setLaunchAltitude(value); markChanged(); }} />
             <NumberField id="surface-pressure" label="Pad pressure" value={surfacePressureHpa} unit="hPa" min={20} max={1100} step={0.1} onChange={(value) => { setSurfacePressureHpa(value); markChanged(); }} />
             <NumberField id="surface-temperature" label="Pad temperature" value={surfaceTemperatureC} unit="°C" min={-90} max={70} step={0.5} onChange={(value) => { setSurfaceTemperatureC(value); markChanged(); }} />
             <NumberField id="wind-speed" label="Wind at 500 m" value={windSpeed} unit="m/s" min={0} max={80} step={0.5} onChange={(value) => { setWindSpeed(value); markChanged(); }} />
             <NumberField id="wind-azimuth" label="Wind azimuth · east toward north" value={windAzimuthDeg} unit="deg" min={-180} max={180} step={1} onChange={(value) => { setWindAzimuthDeg(value); markChanged(); }} />
             <NumberField id="relative-humidity" label="Relative humidity" value={relativeHumidityPercent} unit="%" min={0} max={100} step={1} onChange={(value) => { setRelativeHumidityPercent(value); markChanged(); }} />
-            <p className="field-help">Pressure and temperature anchor the launch-site profile; wind azimuth uses the local ENU frame (0° east, +90° north); humidity couples to water-vapor pressure, virtual temperature, density, and sound speed. These are user observations, not a live weather feed.</p>
+            <p className="field-help">The site label and WGS84 coordinates flow into landing-zone provenance and exported reports. Pressure and temperature anchor the launch-site profile; wind azimuth uses the local ENU frame (0° east, +90° north); humidity couples to water-vapor pressure, virtual temperature, density, and sound speed. These are user observations, not a live weather feed.</p>
             <div className="field-group rail-control-group">
               <label htmlFor="launch-rail-enabled">Launch rail constraint</label>
               <select id="launch-rail-enabled" value={launchRailEnabled ? "enabled" : "disabled"} onChange={(event) => { setLaunchRailEnabled(event.target.value === "enabled"); markChanged(); }}>
@@ -6398,6 +6433,8 @@ export default function Home() {
                   <small>{publicModelVersion(previewEnvironment.modelVersion)}</small>
                 </div>
                 <div className="mass-properties-card stability-properties-card">
+                  <div><span>Launch site</span><strong>{previewEnvironment.definition.site.name}</strong></div>
+                  <div><span>WGS84 coordinates</span><strong>{previewEnvironment.definition.site.latitudeDeg.toFixed(5)}°, {previewEnvironment.definition.site.longitudeDeg.toFixed(5)}°</strong></div>
                   <div><span>Altitude reference</span><strong>{environmentAt500M.altitudeAslM.toFixed(0)} m ASL at 500 m AGL</strong></div>
                   <div><span>Mean wind at 500 m</span><strong>{Math.hypot(environmentAt500M.meanWindWorldMps.x, environmentAt500M.meanWindWorldMps.y).toFixed(1)} m/s</strong></div>
                   <div><span>Wind azimuth input</span><strong>{windAzimuthDeg.toFixed(0)}° ENU</strong></div>

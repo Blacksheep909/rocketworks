@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Launch environment provenance is now editable in the Flight inspector:
+  site name plus WGS84 latitude/longitude flow through local snapshots, share
+  links, landing-zone sampling, coupled environment providers, and engineering
+  reports. Legacy snapshots keep the ARC 54 synthetic-range defaults.
 - Added explicit per-stage detached recovery plans. Upper stages and booster
   sets can carry an independent canopy with bounded diameter and deployment
   delay, and detached branches now command that device at their own apogee

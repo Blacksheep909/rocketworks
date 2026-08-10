@@ -43,6 +43,9 @@ research, standards, and original code.
   a strict optional CSV field in the browser motor library;
 - atmosphere, launch-site, wind, turbulence, launch-rail, recovery, and
   landing-dispersion previews;
+- editable launch-site name and WGS84 coordinates carried into local history,
+  share links, landing-zone provenance, coupled environment providers, and
+  engineering reports;
 - seeded coupled-flight uncertainty runs can independently vary direct
   body-axis force and static-moment coefficient databases when those sources
   are present, with the selected factors and nominal fallbacks disclosed;
