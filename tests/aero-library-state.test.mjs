@@ -31,10 +31,39 @@ function definition(overrides = {}) {
   };
 }
 
+function angularVolume(base) {
+  return {
+    values: [0, 1].map((sideslipIndex) =>
+      [0, 1].map((angleOfAttackIndex) =>
+        [0, 1].map((reynoldsIndex) =>
+          [0, 1].map(
+            (machIndex) =>
+              base + sideslipIndex + angleOfAttackIndex + reynoldsIndex + machIndex,
+          ),
+        ),
+      ),
+    ),
+  };
+}
+
 test("aerodynamic library round-trips validated coefficient definitions", () => {
   const serialized = serializeLocalAerodynamicLibrary([definition()]);
   const parsed = parseLocalAerodynamicLibrary(serialized);
   assert.deepEqual(parsed, [definition()]);
+});
+
+test("aerodynamic library preserves optional angle and sideslip volumes", () => {
+  const angular = definition({
+    angleOfAttackPointsRad: [-0.2, 0.2],
+    sideslipPointsRad: [-0.1, 0.1],
+    dragCoefficientByAngle: angularVolume(0.5),
+    normalForceSlopePerRadByAngle: angularVolume(4),
+    centerOfPressureXMByAngle: angularVolume(0.4),
+  });
+  const parsed = parseLocalAerodynamicLibrary(
+    serializeLocalAerodynamicLibrary([angular]),
+  );
+  assert.deepEqual(parsed, [angular]);
 });
 
 test("aerodynamic library rejects malformed grids, provenance, and duplicates", () => {

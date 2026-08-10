@@ -22,6 +22,16 @@ function closeTo(actual, expected, tolerance, label) {
   );
 }
 
+function angularVolume(value) {
+  return {
+    values: [0, 1].map(() =>
+      [0, 1].map(() =>
+        [0, 1].map(() => [value, value]),
+      ),
+    ),
+  };
+}
+
 test("standard atmosphere reproduces sea-level reference conditions", () => {
   const state = standardAtmosphere(0);
   closeTo(state.temperatureK, 288.15, 1e-9, "temperature");
@@ -182,6 +192,39 @@ test("vertical flight can consume a Mach-Reynolds drag table with explicit appli
   assert.equal(tableResult.aerodynamicModelVersion, table.modelVersion);
   assert.ok(tableResult.apogeeM > constantResult.apogeeM);
   assert.ok(tableResult.warnings.some((warning) => warning.code === "REYNOLDS_BELOW_TABLE"));
+});
+
+test("vertical flight evaluates an angular coefficient volume at the zero-angle slice", () => {
+  const table = createAerodynamicCoefficientTable({
+    id: "angular-vertical-fixture",
+    name: "Angular vertical fixture",
+    machPoints: [0, 1],
+    reynoldsPoints: [1, 1e9],
+    angleOfAttackPointsRad: [-0.2, 0.2],
+    sideslipPointsRad: [-0.2, 0.2],
+    dragCoefficient: { values: [[0.8, 0.8], [0.8, 0.8]] },
+    normalForceSlopePerRad: { values: [[4, 4], [4, 4]] },
+    centerOfPressureXM: { values: [[0.4, 0.4], [0.4, 0.4]] },
+    dragCoefficientByAngle: angularVolume(0.3),
+    normalForceSlopePerRadByAngle: angularVolume(4),
+    centerOfPressureXMByAngle: angularVolume(0.4),
+    provenance: {
+      sourceName: "RocketWorks angular fixture",
+      sourceKind: "user-supplied",
+      dataVersion: "test-1",
+      licenseIdentifier: "CC0-1.0",
+      attribution: "Original test fixture",
+      validationStatus: "user-supplied-unvalidated",
+    },
+  });
+  const result = simulateVerticalFlight({
+    vehicle: { dryMassKg: 0.5, propellantMassKg: 0.05, referenceAreaM2: 0.002, dragCoefficient: 0.8 },
+    motor: { thrustCurve: makeConstantThrustCurve(20, 1) },
+    integration: { timeStepS: 0.02, maxTimeS: 10 },
+    aerodynamics: { coefficientTable: table, referenceLengthM: 0.05 },
+  });
+  assert.equal(result.aerodynamicCoefficientBasis, "mach-reynolds-angle-table");
+  assert.ok(result.assumptions.some((assumption) => /zero angle of attack/i.test(assumption)));
 });
 
 test("vertical flight propagates the optional humidity correction into its trace", () => {

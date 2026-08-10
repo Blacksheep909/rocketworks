@@ -78,6 +78,25 @@ function table(overrides = {}) {
   });
 }
 
+function volume(base, sideslipWeight, angleOfAttackWeight, reynoldsWeight, machWeight) {
+  return {
+    values: [0, 1].map((sideslipIndex) =>
+      [0, 1].map((angleOfAttackIndex) =>
+        [0, 1].map((reynoldsIndex) =>
+          [0, 1].map(
+            (machIndex) =>
+              base +
+              sideslipIndex * sideslipWeight +
+              angleOfAttackIndex * angleOfAttackWeight +
+              reynoldsIndex * reynoldsWeight +
+              machIndex * machWeight,
+          ),
+        ),
+      ),
+    ),
+  };
+}
+
 function properties(massKg, x, inertia = 0.1) {
   return {
     massKg,
@@ -153,6 +172,56 @@ test("clamp policy reports every unsupported axis excursion", () => {
   assert.ok(result.applicability.slice(0, 2).every((issue) => issue.severity === "unsupported"));
 });
 
+test("angular coefficient volumes interpolate alpha and sideslip with explicit bounds", () => {
+  const model = table({
+    angleOfAttackPointsRad: [-0.2, 0.2],
+    sideslipPointsRad: [-0.1, 0.1],
+    dragCoefficientByAngle: volume(0.4, 0.1, 0.2, 0.05, 0.05),
+    normalForceSlopePerRadByAngle: volume(2, 0.4, 0.8, 0.2, 0.1),
+    centerOfPressureXMByAngle: volume(0.5, 0.1, 0.2, 0.05, 0.05),
+  });
+  const result = model.evaluate({
+    mach: 0.5,
+    reynoldsNumber: 1e6,
+    angleOfAttackRad: 0,
+    sideslipRad: 0,
+  });
+  close(result.dragCoefficient, 0.6, 1e-15, "angular drag coefficient");
+  close(result.normalForceSlopePerRad, 2.75, 1e-15, "angular normal slope");
+  close(result.centerOfPressureXM, 0.7, 1e-15, "angular center of pressure");
+  assert.equal(result.modelVersion, "rocketworks-aero-angle-table-0.1.0");
+  assert.deepEqual(result.evaluatedAngleOfAttackRad, 0);
+  assert.deepEqual(result.evaluatedSideslipRad, 0);
+  assert.deepEqual(model.angleOfAttackRangeRad, [-0.2, 0.2]);
+  assert.deepEqual(model.sideslipRangeRad, [-0.1, 0.1]);
+
+  assert.throws(
+    () => model.evaluate({ mach: 0.5, reynoldsNumber: 1e6, angleOfAttackRad: 0.4, sideslipRad: 0 }),
+    /outside table bounds/,
+  );
+  const clampedModel = table({
+    angleOfAttackPointsRad: [-0.2, 0.2],
+    sideslipPointsRad: [-0.1, 0.1],
+    dragCoefficientByAngle: volume(0.4, 0.1, 0.2, 0.05, 0.05),
+    normalForceSlopePerRadByAngle: volume(2, 0.4, 0.8, 0.2, 0.1),
+    centerOfPressureXMByAngle: volume(0.5, 0.1, 0.2, 0.05, 0.05),
+    outOfRangePolicy: "clamp-with-warning",
+  });
+  const clampedResult = clampedModel.evaluate({
+    mach: 0.5,
+    reynoldsNumber: 1e6,
+    angleOfAttackRad: 0.4,
+    sideslipRad: -0.3,
+  });
+  assert.equal(clampedResult.evaluatedAngleOfAttackRad, 0.2);
+  assert.equal(clampedResult.evaluatedSideslipRad, -0.1);
+  assert.deepEqual(
+    clampedResult.applicability.slice(0, 2).map((issue) => issue.code),
+    ["ANGLE_OF_ATTACK_ABOVE_TABLE", "SIDESLIP_BELOW_TABLE"],
+  );
+  assert.ok(Number.isFinite(clampedResult.dragCoefficient));
+});
+
 test("Sutherland viscosity and Reynolds number match reference calculations", () => {
   const viscosity = dynamicViscosityAirPaS(288.15);
   close(viscosity, 1.7892976260350732e-5, 1e-17, "sea-level viscosity");
@@ -177,7 +246,7 @@ test("Sutherland viscosity and Reynolds number match reference calculations", ()
   );
 });
 
-function integratedModels() {
+function integratedModels(coefficientTableOverrides = {}) {
   const coefficientTable = table({
     machPoints: [0, 0.5],
     reynoldsPoints: [1e4, 1e8],
@@ -190,6 +259,7 @@ function integratedModels() {
       yaw: { values: [[-3, -3], [-3, -3]] },
     },
     outOfRangePolicy: "clamp-with-warning",
+    ...coefficientTableOverrides,
   });
   const staging = createMultiStageVehicleModel({
     retainedMassProperties: properties(1, 0.3),
@@ -275,7 +345,7 @@ function integratedModels() {
     propulsion: staging.propulsion,
     aerodynamicsAt: aerodynamics.aerodynamicsAt,
   });
-  return { staging, aerodynamics, loads };
+  return { staging, aerodynamics, loads, coefficientTable };
 }
 
 test("tabulated topology provider exposes Mach, Reynolds, provenance, and uncertainty", () => {
@@ -295,6 +365,33 @@ test("tabulated topology provider exposes Mach, Reynolds, provenance, and uncert
       (issue) => issue.code === "FIXED_DRAG_COEFFICIENT",
     ),
   );
+});
+
+test("stage-aware loads pass angle-of-attack and sideslip into angular coefficient volumes", () => {
+  const angularOverrides = {
+    angleOfAttackPointsRad: [-0.3, 0.3],
+    sideslipPointsRad: [-0.3, 0.3],
+    dragCoefficientByAngle: volume(0.6, 0.05, 0.1, 0.02, 0.01),
+    normalForceSlopePerRadByAngle: volume(3, 0.2, 0.4, 0.1, 0.05),
+    centerOfPressureXMByAngle: volume(0.75, 0.01, 0.02, 0.01, 0.01),
+  };
+  const { loads, coefficientTable } = integratedModels(angularOverrides);
+  const current = initializeMultiStageState(
+    rigidState(0, { velocityWorldMps: { x: -34, y: 5, z: 0 } }),
+    ["sustainer"],
+  );
+  const result = loads.evaluate(current);
+  const expected = coefficientTable.evaluate({
+    mach: result.diagnostics.mach,
+    reynoldsNumber: result.diagnostics.reynoldsNumber,
+    angleOfAttackRad: result.diagnostics.angleOfAttackRad,
+    sideslipRad: result.diagnostics.sideslipRad,
+  });
+  close(result.diagnostics.dragCoefficient, expected.dragCoefficient, 1e-12, "angular table drag");
+  close(result.diagnostics.normalForceSlopePerRad, expected.normalForceSlopePerRad, 1e-12, "angular table normal slope");
+  assert.equal(result.diagnostics.coefficientBasis, "mach-reynolds-angle-table");
+  assert.ok(result.diagnostics.angleOfAttackRad > 0.1);
+  assert.ok(result.diagnostics.sideslipRad > 0.1);
 });
 
 test("dimensionless pitch derivative produces the documented damping moment", () => {
@@ -402,6 +499,18 @@ test("malformed grids and incomplete provenance fail explicitly", () => {
   assert.throws(
     () => table({ provenance: { ...provenance, licenseIdentifier: "" } }),
     /requires source name/,
+  );
+  assert.throws(
+    () => table({ angleOfAttackPointsRad: [-0.1, 0.1] }),
+    /axes must be supplied together/,
+  );
+  assert.throws(
+    () => table({
+      angleOfAttackPointsRad: [-0.1, 0.1],
+      sideslipPointsRad: [-0.1, 0.1],
+      dragCoefficientByAngle: { values: [[[ [0.5, 0.5] ]]] },
+    }),
+    /ordered sideslip/,
   );
   assert.throws(
     () => dynamicViscosityAirPaS(0),

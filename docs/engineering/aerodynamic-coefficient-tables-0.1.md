@@ -142,9 +142,11 @@ any real vehicle.
 - Bilinear interpolation cannot reconstruct shocks, boundary-layer transition,
   hysteresis, discontinuities, or nonlinear angle-of-attack behavior absent
   from the source grid.
-- Version 0.1 tables are indexed only by Mach and Reynolds number. Angle of
-  attack, sideslip, control deflection, surface condition, motor plume state,
-  and relative separated-body position are not axes.
+- Legacy Version 0.1 tables are indexed only by Mach and Reynolds number.
+  Optional angular volumes are documented separately in
+  `aerodynamic-angle-tables-0.1.md`; control deflection, surface condition,
+  motor plume state, and relative separated-body position remain outside both
+  table forms.
 - Normal force remains linear in bounded angle of attack after table lookup.
 - Damping derivatives are uncoupled diagonal body-axis terms. Cross derivatives
   and unsteady aerodynamic states are absent.
@@ -176,8 +178,8 @@ any real vehicle.
 
 ## Next work
 
-Add angle-of-attack and sideslip axes, monotone/high-gradient interpolation
-options, covariance and correlation metadata, deterministic seeded dispersion,
-and importer validation for user CSV/JSON coefficient packages. Experimental
-benchmarks must then compare complete force and moment histories, not only
-interpolation mechanics.
+Add monotone/high-gradient interpolation options, covariance and correlation
+metadata, deterministic seeded dispersion, and importer validation for user
+CSV/JSON coefficient packages. Experimental benchmarks must compare complete
+force and moment histories, not only interpolation mechanics or angular-volume
+round trips.

@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added optional angle-of-attack and sideslip coefficient volumes to the
+  provenance-qualified aerodynamic library. Volumes interpolate in signed
+  angular axes plus Mach/Reynolds, propagate into stage-aware flight loads,
+  preserve explicit bounds and uncertainty, and remain clearly separate from
+  a nonlinear CFD or flight-safety model.
 - Added an instantaneous separation impulse audit to staged previews and
   engineering reports. Each detached event now checks mass-ratio linear
   momentum balance and reports first-order angular impulse that the current

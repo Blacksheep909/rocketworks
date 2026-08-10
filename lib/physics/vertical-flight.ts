@@ -116,7 +116,10 @@ export type VerticalFlightResult = {
   impactSpeedMps: number | null;
   thrustToWeightAtIgnition: number;
   totalImpulseNs: number;
-  aerodynamicCoefficientBasis?: "constant" | "mach-reynolds-table";
+  aerodynamicCoefficientBasis?:
+    | "constant"
+    | "mach-reynolds-table"
+    | "mach-reynolds-angle-table";
   aerodynamicModelVersion?: string;
   events: FlightEvent[];
   warnings: ModelWarning[];
@@ -297,6 +300,8 @@ export function simulateVerticalFlight(
         const evaluation = config.aerodynamics.coefficientTable.evaluate({
           mach,
           reynoldsNumber: queryReynoldsNumber,
+          angleOfAttackRad: 0,
+          sideslipRad: 0,
         });
         bodyDragCoefficient = evaluation.dragCoefficient;
         for (const issue of evaluation.applicability) {
@@ -609,7 +614,9 @@ export function simulateVerticalFlight(
     thrustToWeightAtIgnition,
     totalImpulseNs: totalImpulse(thrustCurve),
     aerodynamicCoefficientBasis: config.aerodynamics
-      ? "mach-reynolds-table"
+      ? config.aerodynamics.coefficientTable.angleOfAttackRangeRad === null
+        ? "mach-reynolds-table"
+        : "mach-reynolds-angle-table"
       : "constant",
     aerodynamicModelVersion: config.aerodynamics?.coefficientTable.modelVersion,
     events,
@@ -619,7 +626,9 @@ export function simulateVerticalFlight(
       "One-dimensional vertical translation",
       "U.S. Standard Atmosphere 1976 through 20 km",
       config.aerodynamics
-        ? "Drag coefficient is interpolated from the supplied Mach-Reynolds table"
+        ? config.aerodynamics.coefficientTable.angleOfAttackRangeRad === null
+          ? "Drag coefficient is interpolated from the supplied Mach-Reynolds table"
+          : "The supplied angular coefficient volume is evaluated at zero angle of attack and zero sideslip in this one-dimensional vertical solver"
         : "User-supplied drag coefficient is constant with Mach and Reynolds number",
       "Thrust curve is linearly interpolated",
       "Propellant depletion is proportional to delivered impulse",

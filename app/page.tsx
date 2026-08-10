@@ -2816,13 +2816,22 @@ function AerodynamicTableInspector({ table }: { table: AerodynamicCoefficientTab
   const surface = selectedSurface.read(table);
   if (!surface) return null;
   const hasUncertainty = surface.absoluteUncertainty !== undefined;
+  const hasAngularVolume =
+    table.angleOfAttackPointsRad !== undefined &&
+    table.sideslipPointsRad !== undefined &&
+    [
+      table.dragCoefficientByAngle,
+      table.normalForceSlopePerRadByAngle,
+      table.centerOfPressureXMByAngle,
+      table.dampingDerivativeBodyByAngle,
+    ].some((value) => value !== undefined);
   return (
     <section className="aerodynamic-inspector" aria-labelledby="aerodynamic-inspector-title">
       <div className="aerodynamic-inspector-heading">
         <div>
           <span className="eyebrow">Inspectable surface</span>
           <h3 id="aerodynamic-inspector-title">{table.name}</h3>
-          <p>Review the supplied Mach / Reynolds grid before it drives a flight estimate. Rows are Reynolds points; columns are Mach points.</p>
+          <p>Review the supplied Mach / Reynolds grid before it drives a flight estimate. Rows are Reynolds points; columns are Mach points.{hasAngularVolume ? " This record also carries optional angle-of-attack and sideslip volumes for the consuming flight condition." : ""}</p>
         </div>
         <span className="model-badge">{table.provenance.validationStatus}</span>
       </div>
@@ -2832,7 +2841,7 @@ function AerodynamicTableInspector({ table }: { table: AerodynamicCoefficientTab
             {availableSurfaces.map((definition) => <option key={definition.id} value={definition.id}>{definition.label}</option>)}
           </select>
         </label>
-        <div><span>Interpolation</span><strong>Mach linear · log10 Reynolds</strong></div>
+        <div><span>Interpolation</span><strong>{hasAngularVolume ? "α / β linear · Mach linear · log10 Reynolds" : "Mach linear · log10 Reynolds"}</strong></div>
         <div><span>Uncertainty</span><strong>{hasUncertainty ? "absolute grid supplied" : "not supplied"}</strong></div>
       </div>
       <div className="aerodynamic-inspector-grid" role="region" aria-label={`${selectedSurface.label} Mach Reynolds grid`} tabIndex={0}>
@@ -2865,6 +2874,7 @@ function AerodynamicTableInspector({ table }: { table: AerodynamicCoefficientTab
       <div className="aerodynamic-inspector-meta">
         <div><span>Mach domain</span><strong>{table.machPoints[0].toFixed(2)} → {table.machPoints.at(-1)?.toFixed(2)}</strong></div>
         <div><span>Reynolds domain</span><strong>{table.reynoldsPoints[0].toExponential(1)} → {table.reynoldsPoints.at(-1)?.toExponential(1)}</strong></div>
+        <div><span>Angle axes</span><strong>{hasAngularVolume ? `α ${((table.angleOfAttackPointsRad![0] * 180) / Math.PI).toFixed(1)}° → ${((table.angleOfAttackPointsRad!.at(-1)! * 180) / Math.PI).toFixed(1)}° · β ${((table.sideslipPointsRad![0] * 180) / Math.PI).toFixed(1)}° → ${((table.sideslipPointsRad!.at(-1)! * 180) / Math.PI).toFixed(1)}°` : "not supplied"}</strong></div>
         <div><span>Out-of-range policy</span><strong>{table.outOfRangePolicy === "clamp-with-warning" ? "Clamp + warning" : "Reject query"}</strong></div>
         <div><span>Source</span><strong>{table.provenance.sourceName} · {table.provenance.dataVersion}</strong></div>
       </div>
@@ -5053,7 +5063,7 @@ export default function Home() {
               <div className="flight-heading-badges">
                 <span className="model-badge">{result.modelVersion}</span>
                 <span className="model-badge model-badge-source" title={result.aerodynamicModelVersion ?? "Explicit constant drag coefficient"}>
-                  {result.aerodynamicCoefficientBasis === "mach-reynolds-table" ? "CD TABLE" : "CD CONSTANT"}
+                  {result.aerodynamicCoefficientBasis === "mach-reynolds-angle-table" ? "CD α/β TABLE" : result.aerodynamicCoefficientBasis === "mach-reynolds-table" ? "CD TABLE" : "CD CONSTANT"}
                 </span>
               </div>
             </div>
@@ -5961,6 +5971,7 @@ export default function Home() {
                   <div><span>Source</span><strong>{selectedAerodynamicTable?.name ?? "Constant Cd"}</strong></div>
                   <div><span>Mach range</span><strong>{selectedAerodynamicTable ? `${selectedAerodynamicTable.machRange[0].toFixed(2)}–${selectedAerodynamicTable.machRange[1].toFixed(2)}` : "fixed"}</strong></div>
                   <div><span>Reynolds range</span><strong>{selectedAerodynamicTable ? `${selectedAerodynamicTable.reynoldsRange[0].toExponential(1)}–${selectedAerodynamicTable.reynoldsRange[1].toExponential(1)}` : "fixed"}</strong></div>
+                  <div><span>Angular axes</span><strong>{selectedAerodynamicTable?.angleOfAttackRangeRad ? "AoA + sideslip" : "not supplied"}</strong></div>
                   <div><span>Validation</span><strong>{selectedAerodynamicTable?.validationStatus ?? "analytical preview"}</strong></div>
                 </div>
                 <p className="motor-provenance">Coefficient tables now drive both the fast vertical estimate and topology-aware 6DOF preview when selected. Out-of-range queries remain visible as warnings, and table data are never promoted to flight certification.</p>
@@ -6241,7 +6252,7 @@ export default function Home() {
                 <article className={selectedAerodynamicTableId === table.id ? "aerodynamic-record active" : "aerodynamic-record"} key={table.id}>
                   <div className="aerodynamic-record-main">
                     <span className="motor-record-badge user">TABLE</span>
-                    <div><strong>{table.name}</strong><small>M {table.machPoints[0]}–{table.machPoints.at(-1)} · Re {table.reynoldsPoints[0].toExponential(1)}–{table.reynoldsPoints.at(-1)?.toExponential(1)} · {table.provenance.sourceName}</small></div>
+                    <div><strong>{table.name}</strong><small>M {table.machPoints[0]}–{table.machPoints.at(-1)} · Re {table.reynoldsPoints[0].toExponential(1)}–{table.reynoldsPoints.at(-1)?.toExponential(1)}{table.angleOfAttackPointsRad && table.sideslipPointsRad ? ` · α/β ${table.angleOfAttackPointsRad.length}×${table.sideslipPointsRad.length}` : ""} · {table.provenance.sourceName}</small></div>
                   </div>
                   <div className="aerodynamic-record-actions">
                     <span>{table.provenance.licenseIdentifier} · {table.provenance.validationStatus}</span>
@@ -6259,13 +6270,13 @@ export default function Home() {
             })()}
             <div className="aerodynamic-import-section">
               <div className="motor-import-heading"><div><span className="eyebrow">User-supplied data</span><h3>Import a coefficient table</h3></div><span>{aerodynamicTableDefinitions.length} / 8 saved</span></div>
-              <label className="motor-csv-field">JSON table definition <small>Rows are Reynolds points; columns are Mach points. SI lengths, positive finite coefficient surfaces, and provenance are required.</small><textarea value={aerodynamicTableImportDraft.json} onChange={(event) => setAerodynamicTableImportDraft({ json: event.target.value })} spellCheck={false} /></label>
+              <label className="motor-csv-field">JSON table definition <small>Rows are Reynolds points; columns are Mach points. Optional angular volumes use sideslip × angle-of-attack × Reynolds × Mach order. SI lengths, positive finite coefficient surfaces, and provenance are required.</small><textarea value={aerodynamicTableImportDraft.json} onChange={(event) => setAerodynamicTableImportDraft({ json: event.target.value })} spellCheck={false} /></label>
               {aerodynamicTableError && <p className="motor-import-error" role="alert">{aerodynamicTableError}</p>}
               <div className="motor-import-actions"><button className="primary-button" onClick={importAerodynamicTable}>Validate and save table</button><span>Strict schema · max 8 tables · user-supplied-unvalidated</span></div>
             </div>
             <div className="history-notice">
               <span>MODEL BOUNDARY</span>
-              <p>Tables are interpolated in Mach and log10 Reynolds number exactly as supplied, with optional boundary clamping warnings. RocketWorks validates the document shape and provenance but does not certify aerodynamic accuracy or source licensing.</p>
+              <p>Tables are interpolated in Mach and log10 Reynolds number exactly as supplied. When provided, angle-of-attack and sideslip volumes are linearly interpolated and query limits remain visible. RocketWorks validates the document shape and provenance but does not certify aerodynamic accuracy or source licensing.</p>
             </div>
           </section>
         </div>

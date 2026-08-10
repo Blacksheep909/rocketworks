@@ -569,6 +569,8 @@ test("ships a provenance-aware local aerodynamic table workflow", async () => {
   assert.match(page, /selectedAerodynamicTable/);
   assert.match(page, /AerodynamicTableInspector/);
   assert.match(page, /Mach \/ Reynolds grid/);
+  assert.match(page, /optional angle-of-attack and sideslip volumes/);
+  assert.match(page, /sideslip × angle-of-attack × Reynolds × Mach/);
   assert.match(page, /absolute grid supplied/);
   assert.match(page, /aerodynamicTable: selectedAerodynamicTable/);
   assert.match(verticalFlight, /mach-reynolds-table/);
@@ -578,6 +580,7 @@ test("ships a provenance-aware local aerodynamic table workflow", async () => {
   assert.match(library, /parseLocalAerodynamicLibrary/);
   assert.match(library, /createAerodynamicCoefficientTable/);
   assert.match(stageAware, /multiple aerodynamic tables/);
+  assert.match(stageAware, /angleOfAttackRad: condition\.angleOfAttackRad/);
   assert.match(stylesheet, /.aerodynamic-dialog/);
   assert.match(stylesheet, /.aerodynamic-record/);
   assert.match(stylesheet, /.aerodynamic-inspector/);

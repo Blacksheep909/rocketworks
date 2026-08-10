@@ -53,6 +53,7 @@ export type RocketLoadApplicabilityCode =
   | "STAGE_SEPARATION_PROXIMITY"
   | "AERODYNAMIC_TABLE_MACH_RANGE"
   | "AERODYNAMIC_TABLE_REYNOLDS_RANGE"
+  | "AERODYNAMIC_TABLE_ANGLE_RANGE"
   | "COEFFICIENT_UNCERTAINTY_PRESENT";
 
 export type RocketLoadApplicabilityIssue = Readonly<{
@@ -74,7 +75,10 @@ export type PreliminaryAerodynamicState = Readonly<{
   centerOfPressureXM?: number;
   centerOfMassXM?: number;
   staticMarginCalibers?: number;
-  coefficientBasis?: "constant" | "mach-reynolds-table";
+  coefficientBasis?:
+    | "constant"
+    | "mach-reynolds-table"
+    | "mach-reynolds-angle-table";
   reynoldsNumber?: number;
   dampingDerivativeBody?: Vector3;
   dampingReferenceLengthBodyM?: Vector3;
@@ -157,6 +161,7 @@ export type PreliminaryRocketLoadDiagnostics = Readonly<{
   centerOfPressureXM: number | null;
   centerOfMassXM: number | null;
   staticMarginCalibers: number | null;
+  coefficientBasis: "constant" | "mach-reynolds-table" | "mach-reynolds-angle-table" | null;
   reynoldsNumber: number | null;
   dampingDerivativeBody: Vector3 | null;
   dampingReferenceLengthBodyM: Vector3 | null;
@@ -602,6 +607,7 @@ export function createPreliminaryRocketLoadModel(
         centerOfPressureXM: aerodynamics.centerOfPressureXM ?? null,
         centerOfMassXM: aerodynamics.centerOfMassXM ?? null,
         staticMarginCalibers: aerodynamics.staticMarginCalibers ?? null,
+        coefficientBasis: aerodynamics.coefficientBasis ?? null,
         reynoldsNumber: aerodynamics.reynoldsNumber ?? null,
         dampingDerivativeBody: aerodynamics.dampingDerivativeBody ?? null,
         dampingReferenceLengthBodyM:

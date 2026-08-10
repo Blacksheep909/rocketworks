@@ -1,6 +1,7 @@
 import {
   createAerodynamicCoefficientTable,
   type AerodynamicCoefficientTableDefinition,
+  type CoefficientVolume,
   type CoefficientSurface,
 } from "../physics/aerodynamic-coefficients.ts";
 
@@ -80,6 +81,70 @@ function coefficientSurface(value: unknown, label: string): CoefficientSurface {
   return absoluteUncertainty ? { values, absoluteUncertainty } : { values };
 }
 
+function coefficientVolume(value: unknown, label: string): CoefficientVolume {
+  const volume = objectValue(value, label);
+  if (!Array.isArray(volume.values) || volume.values.length === 0) {
+    throw new Error(`${label}.values must be a non-empty volume.`);
+  }
+  const values = volume.values.map((sideslipLayer, sideslipIndex) => {
+    if (!Array.isArray(sideslipLayer) || sideslipLayer.length === 0) {
+      throw new Error(`${label}.values[${sideslipIndex}] must be a non-empty angle layer.`);
+    }
+    return sideslipLayer.map((angleLayer, angleIndex) => {
+      if (!Array.isArray(angleLayer) || angleLayer.length === 0) {
+        throw new Error(
+          `${label}.values[${sideslipIndex}][${angleIndex}] must be a non-empty Reynolds layer.`,
+        );
+      }
+      return angleLayer.map((row, reynoldsIndex) => {
+        if (!Array.isArray(row) || row.length === 0) {
+          throw new Error(
+            `${label}.values[${sideslipIndex}][${angleIndex}][${reynoldsIndex}] must be a non-empty Mach row.`,
+          );
+        }
+        return row.map((entry, machIndex) =>
+          finiteNumber(
+            entry,
+            `${label}.values[${sideslipIndex}][${angleIndex}][${reynoldsIndex}][${machIndex}]`,
+          ),
+        );
+      });
+    });
+  });
+  let absoluteUncertainty: number[][][][] | undefined;
+  if (volume.absoluteUncertainty !== undefined) {
+    if (!Array.isArray(volume.absoluteUncertainty)) {
+      throw new Error(`${label}.absoluteUncertainty must be a volume.`);
+    }
+    absoluteUncertainty = volume.absoluteUncertainty.map((sideslipLayer, sideslipIndex) => {
+      if (!Array.isArray(sideslipLayer) || sideslipLayer.length === 0) {
+        throw new Error(`${label}.absoluteUncertainty[${sideslipIndex}] must be a non-empty angle layer.`);
+      }
+      return sideslipLayer.map((angleLayer, angleIndex) => {
+        if (!Array.isArray(angleLayer) || angleLayer.length === 0) {
+          throw new Error(
+            `${label}.absoluteUncertainty[${sideslipIndex}][${angleIndex}] must be a non-empty Reynolds layer.`,
+          );
+        }
+        return angleLayer.map((row, reynoldsIndex) => {
+          if (!Array.isArray(row) || row.length === 0) {
+            throw new Error(
+              `${label}.absoluteUncertainty[${sideslipIndex}][${angleIndex}][${reynoldsIndex}] must be a non-empty Mach row.`,
+            );
+          }
+          return row.map((entry, machIndex) =>
+            finiteNumber(
+              entry,
+              `${label}.absoluteUncertainty[${sideslipIndex}][${angleIndex}][${reynoldsIndex}][${machIndex}]`,
+            ),
+          );
+        });
+      });
+    });
+  }
+  return absoluteUncertainty ? { values, absoluteUncertainty } : { values };
+}
+
 function provenance(value: unknown): AerodynamicCoefficientTableDefinition["provenance"] {
   const source = objectValue(value, "aerodynamic table provenance");
   const sourceKind = source.sourceKind;
@@ -142,6 +207,46 @@ function definitionFromUnknown(value: unknown, index: number): AerodynamicCoeffi
       record.centerOfPressureXM,
       `Aerodynamic table ${index + 1} center of pressure`,
     ),
+    ...(record.angleOfAttackPointsRad !== undefined
+      ? {
+          angleOfAttackPointsRad: finiteNumberArray(
+            record.angleOfAttackPointsRad,
+            `Aerodynamic table ${index + 1} angle-of-attack points`,
+          ),
+        }
+      : {}),
+    ...(record.sideslipPointsRad !== undefined
+      ? {
+          sideslipPointsRad: finiteNumberArray(
+            record.sideslipPointsRad,
+            `Aerodynamic table ${index + 1} sideslip points`,
+          ),
+        }
+      : {}),
+    ...(record.dragCoefficientByAngle !== undefined
+      ? {
+          dragCoefficientByAngle: coefficientVolume(
+            record.dragCoefficientByAngle,
+            `Aerodynamic table ${index + 1} angular drag coefficient`,
+          ),
+        }
+      : {}),
+    ...(record.normalForceSlopePerRadByAngle !== undefined
+      ? {
+          normalForceSlopePerRadByAngle: coefficientVolume(
+            record.normalForceSlopePerRadByAngle,
+            `Aerodynamic table ${index + 1} angular normal-force slope`,
+          ),
+        }
+      : {}),
+    ...(record.centerOfPressureXMByAngle !== undefined
+      ? {
+          centerOfPressureXMByAngle: coefficientVolume(
+            record.centerOfPressureXMByAngle,
+            `Aerodynamic table ${index + 1} angular center of pressure`,
+          ),
+        }
+      : {}),
     ...(damping !== undefined
       ? (() => {
           const dampingRecord = objectValue(
@@ -161,6 +266,30 @@ function definitionFromUnknown(value: unknown, index: number): AerodynamicCoeffi
               yaw: coefficientSurface(
                 dampingRecord.yaw,
                 `Aerodynamic table ${index + 1} yaw damping`,
+              ),
+            },
+          };
+        })()
+      : {}),
+    ...(record.dampingDerivativeBodyByAngle !== undefined
+      ? (() => {
+          const dampingRecord = objectValue(
+            record.dampingDerivativeBodyByAngle,
+            `Aerodynamic table ${index + 1} angular damping derivatives`,
+          );
+          return {
+            dampingDerivativeBodyByAngle: {
+              roll: coefficientVolume(
+                dampingRecord.roll,
+                `Aerodynamic table ${index + 1} angular roll damping`,
+              ),
+              pitch: coefficientVolume(
+                dampingRecord.pitch,
+                `Aerodynamic table ${index + 1} angular pitch damping`,
+              ),
+              yaw: coefficientVolume(
+                dampingRecord.yaw,
+                `Aerodynamic table ${index + 1} angular yaw damping`,
               ),
             },
           };

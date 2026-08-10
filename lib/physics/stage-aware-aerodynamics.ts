@@ -343,6 +343,8 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
               dynamicViscosityPaS:
                 condition.atmosphere.dynamicViscosityPaS,
             }),
+            angleOfAttackRad: condition.angleOfAttackRad,
+            sideslipRad: condition.sideslipRad,
           }
         : regime.coefficientTableDesignPoint
       : undefined;
@@ -391,7 +393,9 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
             ? "COEFFICIENT_UNCERTAINTY_PRESENT"
             : issue.code.startsWith("MACH_")
               ? "AERODYNAMIC_TABLE_MACH_RANGE"
-              : "AERODYNAMIC_TABLE_REYNOLDS_RANGE",
+              : issue.code.startsWith("REYNOLDS_")
+                ? "AERODYNAMIC_TABLE_REYNOLDS_RANGE"
+                : "AERODYNAMIC_TABLE_ANGLE_RANGE",
         severity: issue.severity,
         explanation: issue.explanation,
       });
@@ -438,7 +442,9 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       centerOfMassXM: result.staticStability.centerOfMassXM,
       staticMarginCalibers: result.staticMarginCalibers,
       coefficientBasis: result.coefficientEvaluation
-        ? "mach-reynolds-table"
+        ? result.coefficientEvaluation.evaluatedAngleOfAttackRad === null
+          ? "mach-reynolds-table"
+          : "mach-reynolds-angle-table"
         : "constant",
       reynoldsNumber: result.reynoldsNumber ?? undefined,
       dampingDerivativeBody:

@@ -2,6 +2,8 @@ import type { Vector3 } from "./linear-algebra.ts";
 
 export const AERODYNAMIC_COEFFICIENT_TABLE_MODEL_VERSION =
   "kestrel-aero-coefficient-table-0.1.0";
+export const AERODYNAMIC_ANGLE_TABLE_MODEL_VERSION =
+  "rocketworks-aero-angle-table-0.1.0";
 
 export type AerodynamicDataProvenance = Readonly<{
   sourceName: string;
@@ -26,6 +28,16 @@ export type CoefficientSurface = Readonly<{
   absoluteUncertainty?: readonly (readonly number[])[];
 }>;
 
+/**
+ * Four-dimensional coefficient data ordered as sideslip, angle of attack,
+ * Reynolds number, then Mach number. The legacy two-dimensional surfaces
+ * remain valid and are used for any coefficient that has no angular volume.
+ */
+export type CoefficientVolume = Readonly<{
+  values: readonly (readonly (readonly (readonly number[])[])[])[];
+  absoluteUncertainty?: readonly (readonly (readonly (readonly number[])[])[])[];
+}>;
+
 export type AerodynamicCoefficientTableDefinition = Readonly<{
   id: string;
   name: string;
@@ -34,10 +46,20 @@ export type AerodynamicCoefficientTableDefinition = Readonly<{
   dragCoefficient: CoefficientSurface;
   normalForceSlopePerRad: CoefficientSurface;
   centerOfPressureXM: CoefficientSurface;
+  angleOfAttackPointsRad?: readonly number[];
+  sideslipPointsRad?: readonly number[];
+  dragCoefficientByAngle?: CoefficientVolume;
+  normalForceSlopePerRadByAngle?: CoefficientVolume;
+  centerOfPressureXMByAngle?: CoefficientVolume;
   dampingDerivativeBody?: Readonly<{
     roll: CoefficientSurface;
     pitch: CoefficientSurface;
     yaw: CoefficientSurface;
+  }>;
+  dampingDerivativeBodyByAngle?: Readonly<{
+    roll: CoefficientVolume;
+    pitch: CoefficientVolume;
+    yaw: CoefficientVolume;
   }>;
   outOfRangePolicy?: "reject" | "clamp-with-warning";
   provenance: AerodynamicDataProvenance;
@@ -49,6 +71,10 @@ export type AerodynamicCoefficientApplicabilityIssue = Readonly<{
     | "MACH_ABOVE_TABLE"
     | "REYNOLDS_BELOW_TABLE"
     | "REYNOLDS_ABOVE_TABLE"
+    | "ANGLE_OF_ATTACK_BELOW_TABLE"
+    | "ANGLE_OF_ATTACK_ABOVE_TABLE"
+    | "SIDESLIP_BELOW_TABLE"
+    | "SIDESLIP_ABOVE_TABLE"
     | "COEFFICIENT_UNCERTAINTY_PRESENT";
   severity: "info" | "caution" | "unsupported";
   explanation: string;
@@ -66,8 +92,12 @@ export type AerodynamicCoefficientEvaluation = Readonly<{
   validationStatus: AerodynamicDataProvenance["validationStatus"];
   requestedMach: number;
   requestedReynoldsNumber: number;
+  requestedAngleOfAttackRad: number;
+  requestedSideslipRad: number;
   evaluatedMach: number;
   evaluatedReynoldsNumber: number;
+  evaluatedAngleOfAttackRad: number | null;
+  evaluatedSideslipRad: number | null;
   dragCoefficient: number;
   normalForceSlopePerRad: number;
   centerOfPressureXM: number;
@@ -84,10 +114,14 @@ export type AerodynamicCoefficientTableModel = Readonly<{
   name: string;
   machRange: readonly [number, number];
   reynoldsRange: readonly [number, number];
+  angleOfAttackRangeRad: readonly [number, number] | null;
+  sideslipRangeRad: readonly [number, number] | null;
   provenance: AerodynamicDataProvenance;
   evaluate: (input: Readonly<{
     mach: number;
     reynoldsNumber: number;
+    angleOfAttackRad?: number;
+    sideslipRad?: number;
   }>) => AerodynamicCoefficientEvaluation;
   assumptions: readonly string[];
   warnings: readonly string[];
@@ -123,6 +157,20 @@ function validateAxis(
     ) {
       throw new Error(
         `${label} axis must contain strictly increasing ${allowZero ? "non-negative" : "positive"} finite values`,
+      );
+    }
+  });
+}
+
+function validateSignedAxis(values: readonly number[], label: string): void {
+  if (values.length === 0) throw new Error(`${label} axis cannot be empty`);
+  values.forEach((value, index) => {
+    if (
+      !Number.isFinite(value) ||
+      (index > 0 && value <= values[index - 1])
+    ) {
+      throw new Error(
+        `${label} axis must contain strictly increasing finite values`,
       );
     }
   });
@@ -164,6 +212,73 @@ function validateSurface(
       `${label} uncertainty`,
       (value) => value >= 0,
     );
+  }
+}
+
+function validateVolume(
+  volume: CoefficientVolume,
+  sideslipCount: number,
+  angleOfAttackCount: number,
+  reynoldsCount: number,
+  machCount: number,
+  label: string,
+  predicate: (value: number) => boolean,
+): void {
+  const shapeMatches =
+    volume.values.length === sideslipCount &&
+    volume.values.every(
+      (sideslipLayer) =>
+        sideslipLayer.length === angleOfAttackCount &&
+        sideslipLayer.every(
+          (angleLayer) =>
+            angleLayer.length === reynoldsCount &&
+            angleLayer.every((row) => row.length === machCount),
+        ),
+    );
+  if (!shapeMatches) {
+    throw new Error(
+      `${label} volume must be ordered sideslip × angle of attack × Reynolds × Mach`,
+    );
+  }
+  if (
+    volume.values.some((sideslipLayer) =>
+      sideslipLayer.some((angleLayer) =>
+        angleLayer.some((row) =>
+          row.some((value) => !Number.isFinite(value) || !predicate(value)),
+        ),
+      ),
+    )
+  ) {
+    throw new Error(`${label} volume contains an invalid value`);
+  }
+  if (volume.absoluteUncertainty) {
+    const uncertaintyShapeMatches =
+      volume.absoluteUncertainty.length === sideslipCount &&
+      volume.absoluteUncertainty.every(
+        (sideslipLayer) =>
+          sideslipLayer.length === angleOfAttackCount &&
+          sideslipLayer.every(
+            (angleLayer) =>
+              angleLayer.length === reynoldsCount &&
+              angleLayer.every((row) => row.length === machCount),
+          ),
+      );
+    if (!uncertaintyShapeMatches) {
+      throw new Error(
+        `${label} uncertainty volume must be ordered sideslip × angle of attack × Reynolds × Mach`,
+      );
+    }
+    if (
+      volume.absoluteUncertainty.some((sideslipLayer) =>
+        sideslipLayer.some((angleLayer) =>
+          angleLayer.some((row) =>
+            row.some((value) => !Number.isFinite(value) || value < 0),
+          ),
+        ),
+      )
+    ) {
+      throw new Error(`${label} uncertainty volume contains an invalid value`);
+    }
   }
 }
 
@@ -279,6 +394,31 @@ function interpolateGrid(
   );
 }
 
+function interpolateVolume(
+  volume: CoefficientVolume["values"],
+  angleOfAttack: AxisBracket,
+  sideslip: AxisBracket,
+  mach: AxisBracket,
+  reynolds: AxisBracket,
+): number {
+  const atAngle = (sideslipIndex: number, angleIndex: number) =>
+    interpolateGrid(volume[sideslipIndex][angleIndex], mach, reynolds);
+  const lowerSideslip =
+    atAngle(sideslip.lowerIndex, angleOfAttack.lowerIndex) *
+      (1 - angleOfAttack.fraction) +
+    atAngle(sideslip.lowerIndex, angleOfAttack.upperIndex) *
+      angleOfAttack.fraction;
+  const upperSideslip =
+    atAngle(sideslip.upperIndex, angleOfAttack.lowerIndex) *
+      (1 - angleOfAttack.fraction) +
+    atAngle(sideslip.upperIndex, angleOfAttack.upperIndex) *
+      angleOfAttack.fraction;
+  return (
+    lowerSideslip * (1 - sideslip.fraction) +
+    upperSideslip * sideslip.fraction
+  );
+}
+
 export function createAerodynamicCoefficientTable(
   definition: AerodynamicCoefficientTableDefinition,
 ): AerodynamicCoefficientTableModel {
@@ -310,6 +450,56 @@ export function createAerodynamicCoefficientTable(
     "center of pressure",
     () => true,
   );
+  const hasAngularCoefficientVolume = [
+    definition.dragCoefficientByAngle,
+    definition.normalForceSlopePerRadByAngle,
+    definition.centerOfPressureXMByAngle,
+    definition.dampingDerivativeBodyByAngle?.roll,
+    definition.dampingDerivativeBodyByAngle?.pitch,
+    definition.dampingDerivativeBodyByAngle?.yaw,
+  ].some((surface) => surface !== undefined);
+  const hasAngularAxes =
+    definition.angleOfAttackPointsRad !== undefined ||
+    definition.sideslipPointsRad !== undefined;
+  if (hasAngularCoefficientVolume !== hasAngularAxes) {
+    throw new Error(
+      "angle-of-attack and sideslip axes must be supplied together with at least one angular coefficient volume",
+    );
+  }
+  if (hasAngularCoefficientVolume) {
+    validateSignedAxis(definition.angleOfAttackPointsRad!, "angle-of-attack");
+    validateSignedAxis(definition.sideslipPointsRad!, "sideslip");
+    const angleOfAttackCount = definition.angleOfAttackPointsRad!.length;
+    const sideslipCount = definition.sideslipPointsRad!.length;
+    const validateAngular = (
+      surface: CoefficientVolume | undefined,
+      label: string,
+      predicate: (value: number) => boolean,
+    ) => {
+      if (surface) {
+        validateVolume(
+          surface,
+          sideslipCount,
+          angleOfAttackCount,
+          reynoldsCount,
+          machCount,
+          label,
+          predicate,
+        );
+      }
+    };
+    validateAngular(definition.dragCoefficientByAngle, "angular drag coefficient", (value) => value > 0);
+    validateAngular(definition.normalForceSlopePerRadByAngle, "angular normal-force slope", (value) => value > 0);
+    validateAngular(definition.centerOfPressureXMByAngle, "angular center of pressure", () => true);
+    validateAngular(definition.dampingDerivativeBodyByAngle?.roll, "angular roll damping derivative", () => true);
+    validateAngular(definition.dampingDerivativeBodyByAngle?.pitch, "angular pitch damping derivative", () => true);
+    validateAngular(definition.dampingDerivativeBodyByAngle?.yaw, "angular yaw damping derivative", () => true);
+  }
+  if (definition.dampingDerivativeBodyByAngle && !definition.dampingDerivativeBody) {
+    throw new Error(
+      "angular damping derivative volumes require their legacy damping surfaces",
+    );
+  }
   if (definition.dampingDerivativeBody) {
     validateSurface(
       definition.dampingDerivativeBody.roll,
@@ -337,10 +527,15 @@ export function createAerodynamicCoefficientTable(
   if (!["reject", "clamp-with-warning"].includes(outOfRangePolicy)) {
     throw new Error("aerodynamic table out-of-range policy is invalid");
   }
+  const modelVersion = hasAngularCoefficientVolume
+    ? AERODYNAMIC_ANGLE_TABLE_MODEL_VERSION
+    : AERODYNAMIC_COEFFICIENT_TABLE_MODEL_VERSION;
 
   const evaluate = (input: Readonly<{
     mach: number;
     reynoldsNumber: number;
+    angleOfAttackRad?: number;
+    sideslipRad?: number;
   }>): AerodynamicCoefficientEvaluation => {
     if (!Number.isFinite(input.mach) || input.mach < 0) {
       throw new Error("coefficient-table Mach query must be finite and non-negative");
@@ -348,13 +543,31 @@ export function createAerodynamicCoefficientTable(
     if (!Number.isFinite(input.reynoldsNumber) || input.reynoldsNumber < 0) {
       throw new Error("coefficient-table Reynolds query must be finite and non-negative");
     }
+    const requestedAngleOfAttackRad = input.angleOfAttackRad ?? 0;
+    const requestedSideslipRad = input.sideslipRad ?? 0;
+    if (!Number.isFinite(requestedAngleOfAttackRad)) {
+      throw new Error("coefficient-table angle of attack query must be finite");
+    }
+    if (!Number.isFinite(requestedSideslipRad)) {
+      throw new Error("coefficient-table sideslip query must be finite");
+    }
     const mach = bracketAxis(definition.machPoints, input.mach, false);
     const reynolds = bracketAxis(
       definition.reynoldsPoints,
       input.reynoldsNumber,
       true,
     );
-    const outside = mach.range !== "inside" || reynolds.range !== "inside";
+    const angleOfAttack = hasAngularCoefficientVolume
+      ? bracketAxis(definition.angleOfAttackPointsRad!, requestedAngleOfAttackRad, false)
+      : null;
+    const sideslip = hasAngularCoefficientVolume
+      ? bracketAxis(definition.sideslipPointsRad!, requestedSideslipRad, false)
+      : null;
+    const outside =
+      mach.range !== "inside" ||
+      reynolds.range !== "inside" ||
+      (angleOfAttack?.range ?? "inside") !== "inside" ||
+      (sideslip?.range ?? "inside") !== "inside";
     if (outside && outOfRangePolicy === "reject") {
       throw new Error(
         `aerodynamic coefficient query is outside table bounds: Mach ${input.mach}, Reynolds ${input.reynoldsNumber}`,
@@ -378,30 +591,99 @@ export function createAerodynamicCoefficientTable(
         explanation: `Reynolds number ${input.reynoldsNumber} is outside the table and was clamped to ${reynolds.evaluatedValue}.`,
       });
     }
-    const value = (surface: CoefficientSurface) =>
-      interpolateGrid(surface.values, mach, reynolds);
-    const uncertainty = (surface: CoefficientSurface) =>
-      surface.absoluteUncertainty
-        ? interpolateGrid(surface.absoluteUncertainty, mach, reynolds)
-        : 0;
+    if (angleOfAttack && angleOfAttack.range !== "inside") {
+      applicability.push({
+        code:
+          angleOfAttack.range === "below"
+            ? "ANGLE_OF_ATTACK_BELOW_TABLE"
+            : "ANGLE_OF_ATTACK_ABOVE_TABLE",
+        severity: "unsupported",
+        explanation: `Angle of attack ${requestedAngleOfAttackRad} rad is outside the table and was clamped to ${angleOfAttack.evaluatedValue}.`,
+      });
+    }
+    if (sideslip && sideslip.range !== "inside") {
+      applicability.push({
+        code:
+          sideslip.range === "below"
+            ? "SIDESLIP_BELOW_TABLE"
+            : "SIDESLIP_ABOVE_TABLE",
+        severity: "unsupported",
+        explanation: `Sideslip ${requestedSideslipRad} rad is outside the table and was clamped to ${sideslip.evaluatedValue}.`,
+      });
+    }
+    const value = (
+      surface: CoefficientSurface,
+      angularSurface?: CoefficientVolume,
+    ) =>
+      angularSurface && angleOfAttack && sideslip
+        ? interpolateVolume(
+            angularSurface.values,
+            angleOfAttack,
+            sideslip,
+            mach,
+            reynolds,
+          )
+        : interpolateGrid(surface.values, mach, reynolds);
+    const uncertainty = (
+      surface: CoefficientSurface,
+      angularSurface?: CoefficientVolume,
+    ) =>
+      angularSurface?.absoluteUncertainty && angleOfAttack && sideslip
+        ? interpolateVolume(
+            angularSurface.absoluteUncertainty,
+            angleOfAttack,
+            sideslip,
+            mach,
+            reynolds,
+          )
+        : surface.absoluteUncertainty
+          ? interpolateGrid(surface.absoluteUncertainty, mach, reynolds)
+          : 0;
     const dampingDerivativeBody = definition.dampingDerivativeBody
       ? {
-          x: value(definition.dampingDerivativeBody.roll),
-          y: value(definition.dampingDerivativeBody.pitch),
-          z: value(definition.dampingDerivativeBody.yaw),
+          x: value(
+            definition.dampingDerivativeBody.roll,
+            definition.dampingDerivativeBodyByAngle?.roll,
+          ),
+          y: value(
+            definition.dampingDerivativeBody.pitch,
+            definition.dampingDerivativeBodyByAngle?.pitch,
+          ),
+          z: value(
+            definition.dampingDerivativeBody.yaw,
+            definition.dampingDerivativeBodyByAngle?.yaw,
+          ),
         }
       : null;
     const dampingUncertainty = definition.dampingDerivativeBody
       ? {
-          x: uncertainty(definition.dampingDerivativeBody.roll),
-          y: uncertainty(definition.dampingDerivativeBody.pitch),
-          z: uncertainty(definition.dampingDerivativeBody.yaw),
+          x: uncertainty(
+            definition.dampingDerivativeBody.roll,
+            definition.dampingDerivativeBodyByAngle?.roll,
+          ),
+          y: uncertainty(
+            definition.dampingDerivativeBody.pitch,
+            definition.dampingDerivativeBodyByAngle?.pitch,
+          ),
+          z: uncertainty(
+            definition.dampingDerivativeBody.yaw,
+            definition.dampingDerivativeBodyByAngle?.yaw,
+          ),
         }
       : null;
     const coefficientUncertainty: AerodynamicCoefficientUncertainty = {
-      dragCoefficient: uncertainty(definition.dragCoefficient),
-      normalForceSlopePerRad: uncertainty(definition.normalForceSlopePerRad),
-      centerOfPressureXM: uncertainty(definition.centerOfPressureXM),
+      dragCoefficient: uncertainty(
+        definition.dragCoefficient,
+        definition.dragCoefficientByAngle,
+      ),
+      normalForceSlopePerRad: uncertainty(
+        definition.normalForceSlopePerRad,
+        definition.normalForceSlopePerRadByAngle,
+      ),
+      centerOfPressureXM: uncertainty(
+        definition.centerOfPressureXM,
+        definition.centerOfPressureXMByAngle,
+      ),
       dampingDerivativeBody: dampingUncertainty,
     };
     if (
@@ -421,15 +703,28 @@ export function createAerodynamicCoefficientTable(
       });
     }
     return {
-      modelVersion: AERODYNAMIC_COEFFICIENT_TABLE_MODEL_VERSION,
+      modelVersion,
       validationStatus: definition.provenance.validationStatus,
       requestedMach: input.mach,
       requestedReynoldsNumber: input.reynoldsNumber,
+      requestedAngleOfAttackRad,
+      requestedSideslipRad,
       evaluatedMach: mach.evaluatedValue,
       evaluatedReynoldsNumber: reynolds.evaluatedValue,
-      dragCoefficient: value(definition.dragCoefficient),
-      normalForceSlopePerRad: value(definition.normalForceSlopePerRad),
-      centerOfPressureXM: value(definition.centerOfPressureXM),
+      evaluatedAngleOfAttackRad: angleOfAttack?.evaluatedValue ?? null,
+      evaluatedSideslipRad: sideslip?.evaluatedValue ?? null,
+      dragCoefficient: value(
+        definition.dragCoefficient,
+        definition.dragCoefficientByAngle,
+      ),
+      normalForceSlopePerRad: value(
+        definition.normalForceSlopePerRad,
+        definition.normalForceSlopePerRadByAngle,
+      ),
+      centerOfPressureXM: value(
+        definition.centerOfPressureXM,
+        definition.centerOfPressureXMByAngle,
+      ),
       dampingDerivativeBody,
       uncertainty: coefficientUncertainty,
       applicability,
@@ -438,7 +733,7 @@ export function createAerodynamicCoefficientTable(
   };
 
   return {
-    modelVersion: AERODYNAMIC_COEFFICIENT_TABLE_MODEL_VERSION,
+    modelVersion,
     validationStatus: definition.provenance.validationStatus,
     id: definition.id,
     name: definition.name,
@@ -447,11 +742,28 @@ export function createAerodynamicCoefficientTable(
       definition.reynoldsPoints[0],
       definition.reynoldsPoints.at(-1)!,
     ],
+    angleOfAttackRangeRad: hasAngularCoefficientVolume
+      ? [
+          definition.angleOfAttackPointsRad![0],
+          definition.angleOfAttackPointsRad!.at(-1)!,
+        ]
+      : null,
+    sideslipRangeRad: hasAngularCoefficientVolume
+      ? [definition.sideslipPointsRad![0], definition.sideslipPointsRad!.at(-1)!]
+      : null,
     provenance: definition.provenance,
     evaluate,
     assumptions: [
       "Coefficients vary bilinearly in Mach and log10 Reynolds number between supplied nodes",
       "Rows correspond to Reynolds points and columns correspond to Mach points",
+      ...(hasAngularCoefficientVolume
+        ? [
+            "Angular coefficient volumes are ordered sideslip, angle of attack, Reynolds, then Mach",
+            "Angle of attack and sideslip are linearly interpolated in radians; angular volumes fall back to their legacy 2D surface only when a volume is omitted",
+          ]
+        : [
+            "Angle of attack and sideslip are not axes of this legacy table; the consuming low-angle model supplies its own normal-force relation",
+          ]),
       "Absolute uncertainty uses the same interpolation rule as nominal coefficients",
       outOfRangePolicy === "reject"
         ? "Queries outside the tabulated domain are rejected"
@@ -461,6 +773,11 @@ export function createAerodynamicCoefficientTable(
       "RocketWorks validates and interpolates supplied data but does not certify its aerodynamic accuracy.",
       "Interpolation cannot reconstruct shocks, transitions, hysteresis, or discontinuities absent from the supplied grid.",
       "Coefficient reference axes, areas, lengths, signs, and moment conventions must match the consuming vehicle model.",
+      ...(hasAngularCoefficientVolume
+        ? []
+        : [
+            "Angle-of-attack and sideslip dependence is absent from this table and remains outside its interpolated coefficient source.",
+          ]),
     ],
   };
 }
