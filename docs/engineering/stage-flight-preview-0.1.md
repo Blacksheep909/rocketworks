@@ -24,7 +24,16 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.13.0`.
+`kestrel-stage-flight-preview-0.14.0`.
+
+Before integration, scheduled and state-triggered declarations pass through the
+independent mission-event allocator. Semantic priorities put rail release,
+separation, ignition, failure, recovery, and custom commands into a stable
+tie-order; optional dependency edges are checked for missing identifiers and
+cycles. Runtime root ties are added to the returned allocation telemetry, and
+the same diagnostics flow into the browser card and engineering report. The
+allocator changes ordering only; it never changes a trigger predicate or
+claims a command will occur at a prescribed time.
 
 When `recoveryDevices` is supplied, the adapter composes the independent
 recovery-load model into the retained vehicle's force and moment callback. A

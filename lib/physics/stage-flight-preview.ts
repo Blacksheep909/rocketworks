@@ -26,6 +26,10 @@ import type { VehicleComponent } from "./vehicle-components.ts";
 import type { WindLayer } from "./curves.ts";
 import type { MassProperties } from "./mass-properties.ts";
 import {
+  allocateMissionEventPlan,
+  type MissionEventAllocation,
+} from "./event-allocator.ts";
+import {
   createRecoverySystemModel,
   type RecoveryDevice,
   type RecoverySystemModel,
@@ -51,7 +55,7 @@ import {
 } from "./separated-body-flight.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.13.0";
+  "kestrel-stage-flight-preview-0.14.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -138,6 +142,8 @@ export type StageFlightEvent = Readonly<{
   attachedStageInstanceIdsBefore: readonly string[];
   attachedStageInstanceIdsAfter: readonly string[];
   detachedStageInstanceIds: readonly string[];
+  missionKind: "rail" | "separation" | "ignition" | "failure" | "recovery" | "custom";
+  priority: number;
   separationDeltaVBodyMps?: Vector3;
   separationDeltaVWorldMps?: Vector3;
 }>;
@@ -180,6 +186,7 @@ export type StageFlightPreviewResult = Readonly<{
   multiBodySeparation: MultiBodySeparationResult | null;
   separationEnvelope: SeparationEnvelopeResult | null;
   convergence: StageFlightConvergenceDiagnostic;
+  eventAllocation: MissionEventAllocation;
   warnings: readonly string[];
   assumptions: readonly string[];
 }>;
@@ -354,6 +361,8 @@ function summarizeEvent(
     attachedStageInstanceIdsBefore,
     attachedStageInstanceIdsAfter,
     detachedStageInstanceIds,
+    missionKind: event.missionKind,
+    priority: event.priority,
     separationDeltaVBodyMps: event.separationDeltaVBodyMps,
     separationDeltaVWorldMps: event.separationDeltaVBodyMps
       ? rotateBodyToWorld(event.stateBefore.orientationBodyToWorld, event.separationDeltaVBodyMps)
@@ -712,11 +721,13 @@ export function simulateStageFlightPreview(
         attachedStageInstanceIdsBefore: [...stageInstanceIdsAt(staging, event.state)],
         attachedStageInstanceIdsAfter: [...stageInstanceIdsAt(staging, event.state)],
         detachedStageInstanceIds: [],
+        missionKind: "rail",
+        priority: 0,
       })) ?? []),
       ...appliedEvents.map((event) =>
         summarizeEvent(staging, event),
       ),
-    ].sort((a, b) => a.timeS - b.timeS || a.id.localeCompare(b.id));
+    ].sort((a, b) => a.timeS - b.timeS || a.priority - b.priority || a.id.localeCompare(b.id));
     return {
       simulation,
       rail,
@@ -731,6 +742,28 @@ export function simulateStageFlightPreview(
   };
 
   const primaryRun = runAtTimeStep(input.timeStepS);
+  const eventAllocation: MissionEventAllocation =
+    primaryRun.simulation?.eventAllocation ??
+    primaryRun.rail?.freeFlight?.eventAllocation ??
+    allocateMissionEventPlan([
+      ...(input.events ?? []).map((event) => ({
+        id: event.id,
+        label: event.label,
+        kind: event.kind,
+        timeS: event.timeS,
+        priority: event.priority,
+        dependsOn: event.dependsOn,
+        mutualExclusionKey: event.mutualExclusionKey,
+      })),
+      ...(input.stateEvents ?? []).map((event) => ({
+        id: event.id,
+        label: event.label,
+        kind: event.kind,
+        priority: event.priority,
+        dependsOn: event.dependsOn,
+        mutualExclusionKey: event.mutualExclusionKey,
+      })),
+    ]).allocation;
   let refinedRun: StageFlightRun | null = null;
   let convergenceFailure: string | null = null;
   try {
@@ -932,6 +965,7 @@ export function simulateStageFlightPreview(
     ...loads.warnings,
     ...(recovery?.warnings ?? []),
     ...(primaryRun.rail?.warnings ?? primaryRun.simulation?.warnings ?? []),
+    ...eventAllocation.warnings,
     ...convergence.warnings,
     ...separatedBodyWarnings,
     ...(multiBodySeparation?.warnings ?? []),
@@ -947,6 +981,7 @@ export function simulateStageFlightPreview(
     ...(recovery?.assumptions ?? []),
     ...(primaryRun.rail?.assumptions ?? primaryRun.simulation?.assumptions ?? []),
     ...(primaryRun.rail?.freeFlight?.assumptions ?? []),
+    ...eventAllocation.assumptions,
     ...convergence.assumptions,
     `Explicit separation events spawn a separate ballistic-capable trajectory for each newly detached stage; separated bodies are represented independently; ${separatedBodies.filter((body) => body.recoveryModelVersion !== undefined).length} branch(es) carry configured recovery devices, ${separatedBodies.filter((body) => body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined).length} branch(es) use bounded isotropic point drag, and ${separatedBodies.filter((body) => body.referenceAreaM2 === undefined || body.dragCoefficient === undefined).length} branch(es) use the gravity-only fallback.`,
     "When one separation event releases multiple physical copies, the equal-and-opposite impulse uses their combined detached mass and assigns one shared detached velocity increment to each copy; individual separation-mechanism impulses are not modeled.",
@@ -988,6 +1023,7 @@ export function simulateStageFlightPreview(
     multiBodySeparation,
     separationEnvelope,
     convergence,
+    eventAllocation,
     warnings: [...new Set(warnings)],
     assumptions: [...new Set(assumptions)],
   };

@@ -5715,6 +5715,36 @@ export default function Home() {
                         </div>
                       </section>
                     )}
+                    <section className="stage-event-allocation" aria-labelledby="stage-event-allocation-title">
+                      <div className="stage-event-allocation-heading">
+                        <div>
+                          <span className="eyebrow">Mission sequencing</span>
+                          <h4 id="stage-event-allocation-title">Event allocator</h4>
+                          <p>Resolves simultaneous rail, separation, ignition, failure, and recovery transitions with explicit semantic priorities. It never changes trigger predicates or claims flight validation.</p>
+                        </div>
+                        <span className={`stage-event-allocation-status stage-event-allocation-status-${stageFlightResult.eventAllocation.status}`}>
+                          {stageFlightResult.eventAllocation.status}
+                        </span>
+                      </div>
+                      <div className="stage-event-allocation-grid">
+                        <div><span>Declared events</span><strong>{stageFlightResult.eventAllocation.orderedEventIds.length}</strong><small>stable allocation order</small></div>
+                        <div><span>Simultaneous groups</span><strong>{stageFlightResult.eventAllocation.sameTimeGroups.length}</strong><small>time-hint groups</small></div>
+                        <div><span>Dependencies</span><strong>{stageFlightResult.eventAllocation.dependencies.length}</strong><small>explicit ordering edges</small></div>
+                        <div><span>Allocator</span><strong>{publicModelVersion(stageFlightResult.eventAllocation.modelVersion)}</strong><small>{stageFlightResult.eventAllocation.validationStatus}</small></div>
+                      </div>
+                      {stageFlightResult.eventAllocation.sameTimeGroups.length > 0 && (
+                        <div className="stage-event-allocation-groups">
+                          {stageFlightResult.eventAllocation.sameTimeGroups.slice(0, 4).map((group) => (
+                            <div key={`${group.timeS}-${group.eventIds.join("|")}`}><span>{group.timeS.toFixed(3)} s</span><strong>{group.eventIds.join(" → ")}</strong></div>
+                          ))}
+                        </div>
+                      )}
+                      {stageFlightResult.eventAllocation.warnings.length > 0 && (
+                        <ul className="stage-event-allocation-warnings">
+                          {stageFlightResult.eventAllocation.warnings.slice(0, 3).map((warning) => <li key={warning}>{warning}</li>)}
+                        </ul>
+                      )}
+                    </section>
                     <section className="stage-flight-convergence" aria-labelledby="stage-flight-convergence-title">
                       <div className="stage-flight-convergence-heading">
                         <div>

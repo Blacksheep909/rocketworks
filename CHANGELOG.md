@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a deterministic mission-event allocator for coupled flight. Rail,
+  separation, ignition, failure, recovery, and custom transitions now carry
+  semantic priorities and optional dependency edges; simultaneous groups,
+  conflicting time hints, cycles, and competing commands remain explicit in
+  the run diagnostics and engineering report.
 - Added a validated altitude-dependent mean-wind editor. Users can switch
   between the deterministic synthetic profile and up to 32 strictly ordered
   local-ENU layers; custom profiles persist through autosave, history, share

@@ -172,6 +172,8 @@ export function createApogeeRecoveryDeploymentEvent(input: Readonly<{
   return {
     id: `recovery-${input.deviceId}-apogee-command`,
     label: input.label ?? `${input.deviceId} recovery command at apogee`,
+    kind: "recovery",
+    priority: 40,
     direction: "falling",
     value: (state) => state.velocityWorldMps.z,
     apply: (state) => commandRecoveryDevice(state, input.deviceId),
@@ -193,6 +195,8 @@ export function createAltitudeRecoveryDeploymentEvent(input: Readonly<{
     label:
       input.label ??
       `${input.deviceId} recovery command at ${input.altitudeAglM} m AGL`,
+    kind: "recovery",
+    priority: 40,
     direction: input.direction ?? "falling",
     value: (state) => state.positionWorldM.z - input.altitudeAglM,
     apply: (state) => commandRecoveryDevice(state, input.deviceId),
@@ -208,6 +212,8 @@ export function createScheduledRecoveryDeploymentEvent(input: Readonly<{
   return {
     id: `recovery-${input.deviceId}-scheduled-command`,
     label: input.label ?? `${input.deviceId} scheduled recovery command`,
+    kind: "recovery",
+    priority: 40,
     timeS: input.timeS,
     apply: (state) => commandRecoveryDevice(state, input.deviceId),
   };
@@ -222,6 +228,8 @@ export function createScheduledRecoveryFailureEvent(input: Readonly<{
   return {
     id: `recovery-${input.deviceId}-failure`,
     label: input.label ?? `${input.deviceId} recovery failure`,
+    kind: "failure",
+    priority: 30,
     timeS: input.timeS,
     apply: (state) => failRecoveryDevice(state, input.deviceId),
   };

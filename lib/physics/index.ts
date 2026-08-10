@@ -36,3 +36,4 @@ export * from "./landing-zone.ts";
 export * from "./structural-screen.ts";
 export * from "./fin-flutter.ts";
 export * from "./benchmark-suite.ts";
+export * from "./event-allocator.ts";

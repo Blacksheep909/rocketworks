@@ -714,6 +714,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Peak quasi-steady drag/);
   assert.match(page, /Opening shock, snatch force, lines, fabric/);
   assert.match(page, /Integration-step convergence/);
+  assert.match(page, /Event allocator/);
+  assert.match(page, /Simultaneous groups/);
+  assert.match(page, /eventAllocation/);
   assert.match(page, /formatStageFlightConvergenceStatus/);
   assert.match(page, /aria-label=\{`\$\{definition\.label\} over time/);
   assert.match(page, /attachedStageIds\.join/);
@@ -757,6 +760,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stagePreview, /launchRailMaximumSteps/);
   assert.match(stagePreview, /mathematical-regression-tests-only/);
   assert.match(stagePreview, /STAGE_FLIGHT_CONVERGENCE_RELATIVE_TOLERANCE/);
+  assert.match(stagePreview, /eventAllocation/);
+  assert.match(stagePreview, /allocateMissionEventPlan/);
   assert.match(stagePreview, /half the integration step/);
   assert.match(stagePreview, /separated bodies/);
   assert.match(stylesheet, /\.topology-stage/);
@@ -766,6 +771,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stylesheet, /\.stage-flight-profile/);
   assert.match(stylesheet, /\.stage-flight-chart/);
   assert.match(stylesheet, /\.stage-flight-convergence/);
+  assert.match(stylesheet, /\.stage-event-allocation/);
   assert.match(stylesheet, /\.recovery-opening-load-card/);
   assert.match(stylesheet, /\.recovery-opening-load-grid/);
   assert.match(stylesheet, /\.stage-flight-uncertainty/);

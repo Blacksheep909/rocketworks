@@ -65,6 +65,10 @@ research, standards, and original code.
   trajectories with optional isotropic point-drag basis and retained-versus-
   detached center-of-mass separation diagnostics, plus aggregate pairwise
   retained/detached and detached/detached path checks;
+- deterministic mission-event allocation for simultaneous rail, separation,
+  ignition, failure, recovery, and custom transitions, with explicit priority,
+  dependency, tie-group, cycle, and mutual-exclusion diagnostics carried into
+  coupled traces and engineering reports;
 - optional stage-specific detached recovery plans for upper stages and booster
   sets, with apogee command events, canopy inflation telemetry, and explicit
   recovery-load applicability warnings;

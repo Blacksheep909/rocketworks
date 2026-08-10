@@ -24,6 +24,7 @@ import {
   type SixDofSimulationResult,
   type StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
+import { inferMissionEventKind } from "./event-allocator.ts";
 
 export const LAUNCH_RAIL_MODEL_VERSION = "kestrel-launch-rail-0.2.0";
 
@@ -529,6 +530,8 @@ export function simulateRailGuidedLaunch(
         timeS: event.timeS,
         stateBefore,
         stateAfter,
+        missionKind: inferMissionEventKind(event),
+        priority: event.priority ?? 100,
       });
       scheduledEventIndex += 1;
     }
@@ -552,6 +555,8 @@ export function simulateRailGuidedLaunch(
       timeS: candidateRailState.timeS,
       stateBefore,
       stateAfter,
+      missionKind: inferMissionEventKind(event),
+      priority: event.priority ?? 100,
     };
     firedStateEventIds.add(event.id);
     appliedEvents.push(appliedEvent);

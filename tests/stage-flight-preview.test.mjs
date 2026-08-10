@@ -148,9 +148,13 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.13.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.14.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.events.length, 2);
+  assert.equal(result.eventAllocation.status, "watch");
+  assert.equal(result.eventAllocation.sameTimeGroups.length, 1);
+  assert.equal(result.events[0].missionKind, "separation");
+  assert.equal(result.events[1].missionKind, "ignition");
   assert.deepEqual(result.events[0].attachedStageIdsBefore, ["booster", "upper"]);
   assert.deepEqual(result.events[0].attachedStageIdsAfter, ["upper"]);
   assert.deepEqual(result.events[0].detachedStageIds, ["booster"]);

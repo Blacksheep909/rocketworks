@@ -545,6 +545,17 @@ test("engineering report leads with status and preserves calculations and limita
       maxAltitudeAglM: 298,
       maxSpeedMps: 49.4,
       timeToApogeeS: 6.1,
+      eventAllocation: {
+        modelVersion: "rocketworks-event-allocator-0.1.0",
+        validationStatus: "analytical-event-ordering-checks-only",
+        status: "allocated",
+        orderedEventIds: [],
+        priorityByEventId: {},
+        dependencies: [],
+        sameTimeGroups: [],
+        warnings: [],
+        assumptions: ["Fixture event allocation."],
+      },
       clusterDiagnostics: [{ stageName: "Booster", activeMotorCount: 1, motorCount: 2, failedMotorCount: 1, failedPropellantMassKg: 0.2, status: "watch" }],
       convergence: {
         status: "watch",

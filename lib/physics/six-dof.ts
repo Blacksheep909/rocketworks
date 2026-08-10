@@ -12,8 +12,14 @@ import {
   type Matrix3,
   type Vector3,
 } from "./linear-algebra.ts";
+import {
+  allocateMissionEventPlan,
+  inferMissionEventKind,
+  type MissionEventAllocation,
+  type MissionEventKind,
+} from "./event-allocator.ts";
 
-export const SIX_DOF_MODEL_VERSION = "kestrel-rigid-body-6dof-0.3.1";
+export const SIX_DOF_MODEL_VERSION = "kestrel-rigid-body-6dof-0.3.2";
 
 export type Quaternion = Readonly<{
   w: number;
@@ -65,6 +71,14 @@ export type ScheduledRigidBodyEvent = Readonly<{
   label: string;
   timeS: number;
   apply: (state: RigidBodyState) => RigidBodyState;
+  /** Optional semantic category used to resolve simultaneous events. */
+  kind?: MissionEventKind;
+  /** Lower values are allocated first when event times are equal. */
+  priority?: number;
+  /** Optional event IDs that must be allocated before this event. */
+  dependsOn?: readonly string[];
+  /** Optional command-group key for same-time mutual-exclusion diagnostics. */
+  mutualExclusionKey?: string;
   /** Optional staging annotation retained in the applied event trace. */
   separationDeltaVBodyMps?: Vector3;
 }>;
@@ -75,6 +89,14 @@ export type StateTriggeredRigidBodyEvent = Readonly<{
   id: string;
   label: string;
   value: (state: RigidBodyState) => number;
+  /** Optional semantic category used to resolve simultaneous roots. */
+  kind?: MissionEventKind;
+  /** Lower values are allocated first when event roots coincide. */
+  priority?: number;
+  /** Optional event IDs that must be allocated before this event. */
+  dependsOn?: readonly string[];
+  /** Optional command-group key for same-time mutual-exclusion diagnostics. */
+  mutualExclusionKey?: string;
   direction?: StateEventDirection;
   triggerAtStart?: boolean;
   terminal?: boolean;
@@ -92,6 +114,8 @@ export type AppliedRigidBodyEvent = Readonly<{
   timeS: number;
   stateBefore: RigidBodyState;
   stateAfter: RigidBodyState;
+  missionKind: MissionEventKind;
+  priority: number;
   /** Optional staging annotation copied from the source event. */
   separationDeltaVBodyMps?: Vector3;
 }>;
@@ -117,6 +141,7 @@ export type SixDofSimulationResult = Readonly<{
   finalState: RigidBodyState;
   events: readonly AppliedRigidBodyEvent[];
   termination: AppliedRigidBodyEvent | null;
+  eventAllocation: MissionEventAllocation;
   assumptions: readonly string[];
   warnings: readonly string[];
 }>;
@@ -498,43 +523,38 @@ export function simulateRigidBody6D(
   if (!Number.isFinite(input.timeStepS) || input.timeStepS <= 0) {
     throw new Error("time step must be a positive finite number");
   }
-  const scheduledTimes = [...(input.scheduledTimesS ?? [])];
+  const scheduledTimes = [...new Set(input.scheduledTimesS ?? [])].sort((left, right) => left - right);
   if (
     scheduledTimes.some(
-      (time, index) =>
+      (time) =>
         !Number.isFinite(time) ||
         time <= input.initialState.timeS ||
-        time >= input.initialState.timeS + input.durationS ||
-        (index > 0 && time <= scheduledTimes[index - 1]),
+        time >= input.initialState.timeS + input.durationS,
     )
   ) {
-    throw new Error("scheduled times must increase strictly within the simulation interval");
+    throw new Error("scheduled times must be finite and strictly within the simulation interval");
   }
-  const scheduledEvents = [...(input.events ?? [])];
+  const rawScheduledEvents = [...(input.events ?? [])];
   if (
-    scheduledEvents.some(
-      (event, index) =>
+    rawScheduledEvents.some(
+      (event) =>
         !event.id.trim() ||
         !event.label.trim() ||
         !Number.isFinite(event.timeS) ||
         event.timeS <= input.initialState.timeS ||
-        event.timeS > input.initialState.timeS + input.durationS ||
-        (index > 0 && event.timeS < scheduledEvents[index - 1].timeS),
+        event.timeS > input.initialState.timeS + input.durationS,
     )
   ) {
     throw new Error(
-      "events must have identifiers and labels and be ordered within the simulation interval",
+      "events must have identifiers, labels, and finite times within the simulation interval",
     );
   }
-  if (new Set(scheduledEvents.map((event) => event.id)).size !== scheduledEvents.length) {
-    throw new Error("event identifiers must be unique");
-  }
-  scheduledEvents.forEach((event) =>
+  rawScheduledEvents.forEach((event) =>
     validateEventDeltaV(event.separationDeltaVBodyMps, `event ${event.id}`),
   );
-  const stateEvents = [...(input.stateEvents ?? [])];
+  const rawStateEvents = [...(input.stateEvents ?? [])];
   if (
-    stateEvents.some(
+    rawStateEvents.some(
       (event) =>
         !event.id.trim() ||
         !event.label.trim() ||
@@ -548,15 +568,48 @@ export function simulateRigidBody6D(
     );
   }
   const allEventIds = [
-    ...scheduledEvents.map((event) => event.id),
-    ...stateEvents.map((event) => event.id),
+    ...rawScheduledEvents.map((event) => event.id),
+    ...rawStateEvents.map((event) => event.id),
   ];
   if (new Set(allEventIds).size !== allEventIds.length) {
     throw new Error("all scheduled and state event identifiers must be unique");
   }
-  stateEvents.forEach((event) =>
+  rawStateEvents.forEach((event) =>
     validateEventDeltaV(event.separationDeltaVBodyMps, `state event ${event.id}`),
   );
+  const eventPlan = allocateMissionEventPlan([
+    ...rawScheduledEvents.map((event) => ({
+      id: event.id,
+      label: event.label,
+      kind: event.kind,
+      timeS: event.timeS,
+      priority: event.priority,
+      dependsOn: event.dependsOn,
+      mutualExclusionKey: event.mutualExclusionKey,
+    })),
+    ...rawStateEvents.map((event) => ({
+      id: event.id,
+      label: event.label,
+      kind: event.kind,
+      priority: event.priority,
+      dependsOn: event.dependsOn,
+      mutualExclusionKey: event.mutualExclusionKey,
+    })),
+  ]);
+  if (eventPlan.allocation.status === "invalid") {
+    throw new Error(`event allocation failed: ${eventPlan.allocation.warnings.join(" ")}`);
+  }
+  const eventPriority = eventPlan.allocation.priorityByEventId;
+  const declarationIndex = new Map(allEventIds.map((id, index) => [id, index]));
+  const compareAllocatedEvents = (left: { id: string }, right: { id: string }) =>
+    (eventPriority[left.id] ?? Number.POSITIVE_INFINITY) -
+      (eventPriority[right.id] ?? Number.POSITIVE_INFINITY) ||
+    (declarationIndex.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+      (declarationIndex.get(right.id) ?? Number.MAX_SAFE_INTEGER);
+  const scheduledEvents = rawScheduledEvents.slice().sort(
+    (left, right) => left.timeS - right.timeS || compareAllocatedEvents(left, right),
+  );
+  const stateEvents = rawStateEvents.slice().sort(compareAllocatedEvents);
   const eventTimeToleranceS = input.eventTimeToleranceS ?? 1e-9;
   if (!Number.isFinite(eventTimeToleranceS) || eventTimeToleranceS <= 0) {
     throw new Error("event time tolerance must be a positive finite number");
@@ -580,6 +633,8 @@ export function simulateRigidBody6D(
   const trace: RigidBodyState[] = [state];
   const appliedEvents: AppliedRigidBodyEvent[] = [];
   const firedStateEventIds = new Set<string>();
+  const runtimeSameTimeGroups: Array<{ timeS: number; eventIds: readonly string[] }> = [];
+  const runtimeAllocationWarnings: string[] = [];
   let termination: AppliedRigidBodyEvent | null = null;
   let boundaryIndex = 0;
   let eventIndex = 0;
@@ -609,6 +664,8 @@ export function simulateRigidBody6D(
       timeS: state.timeS,
       stateBefore,
       stateAfter: state,
+      missionKind: inferMissionEventKind(event),
+      priority: eventPriority[event.id] ?? 100,
       separationDeltaVBodyMps: event.separationDeltaVBodyMps,
     };
     firedStateEventIds.add(event.id);
@@ -752,6 +809,16 @@ export function simulateRigidBody6D(
 
     if (rootCandidates.length > 0) {
       const firstRoot = rootCandidates[0];
+      const simultaneousRoots = rootCandidates.filter(
+        (root) => Math.abs(root.timeS - firstRoot.timeS) <= eventTimeToleranceS,
+      );
+      if (simultaneousRoots.length > 1) {
+        const eventIds = simultaneousRoots.map((root) => root.event.id);
+        runtimeSameTimeGroups.push({ timeS: firstRoot.timeS, eventIds });
+        runtimeAllocationWarnings.push(
+          `Simultaneous state-event roots at ${firstRoot.timeS.toFixed(6)} s were applied by allocated priority: ${eventIds.join(", ")}.`,
+        );
+      }
       state = { ...firstRoot.state, timeS: firstRoot.timeS };
       trace.push(state);
       for (const root of rootCandidates) {
@@ -797,6 +864,8 @@ export function simulateRigidBody6D(
           timeS: event.timeS,
           stateBefore,
           stateAfter: state,
+          missionKind: inferMissionEventKind(event),
+          priority: eventPriority[event.id] ?? 100,
           separationDeltaVBodyMps: event.separationDeltaVBodyMps,
         });
         trace.push(state);
@@ -810,6 +879,22 @@ export function simulateRigidBody6D(
     stepCount += 1;
   }
 
+  const eventAllocation: MissionEventAllocation = {
+    ...eventPlan.allocation,
+    status: eventPlan.allocation.status === "watch" || runtimeAllocationWarnings.length > 0
+      ? "watch"
+      : "allocated",
+    sameTimeGroups: [
+      ...eventPlan.allocation.sameTimeGroups,
+      ...runtimeSameTimeGroups,
+    ],
+    warnings: [
+      ...new Set([
+        ...eventPlan.allocation.warnings,
+        ...runtimeAllocationWarnings,
+      ]),
+    ],
+  };
   return {
     modelVersion: SIX_DOF_MODEL_VERSION,
     validationStatus: "mathematical-regression-tests-only",
@@ -817,6 +902,7 @@ export function simulateRigidBody6D(
     finalState: state,
     events: appliedEvents,
     termination,
+    eventAllocation,
     assumptions: [
       typeof input.body === "function"
         ? "Rigid body with prescribed state-dependent mass, inertia, and optional inertia rate"
@@ -827,12 +913,14 @@ export function simulateRigidBody6D(
       "Forces applied at the center of mass unless included in the supplied moment",
       "State-triggered events are one-shot scalar zero crossings located within accepted integration steps",
       "Discrete state is piecewise constant between explicit event resets",
+      ...eventAllocation.assumptions,
     ],
     warnings: [
       "No aerodynamic, propulsion, gravity, atmosphere, terrain, launch-rail, recovery, staging, or failure model is coupled by default.",
       "Prescribed changing mass properties do not model exhaust control-volume momentum, slosh, or internal-flow dynamics; thrust and related moments must be supplied explicitly.",
       "Quaternion normalization controls numerical drift but does not constitute physical validation.",
       "State-event root finding assumes a continuous scalar event function with at most one relevant crossing per integration step.",
+      ...eventAllocation.warnings,
       "Do not use this mathematical kernel alone for flight-safety decisions.",
     ],
   };

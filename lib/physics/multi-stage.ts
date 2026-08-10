@@ -521,6 +521,8 @@ export function createScheduledStageIgnitionEvent(input: Readonly<{
   return {
     id: `staging-${input.stageId}${input.instanceId ? `-${input.instanceId}` : ""}-ignition`,
     label: input.label ?? `${input.stageId}${input.instanceId ? ` instance ${input.instanceId}` : ""} stage ignition`,
+    kind: "ignition",
+    priority: 20,
     timeS: input.timeS,
     apply: (state) => igniteStage(state, input.stageId, input.instanceId),
   };
@@ -544,6 +546,8 @@ export function createScheduledStageSeparationEvent(input: Readonly<{
   return {
     id: `staging-${input.stageId}${input.instanceId ? `-${input.instanceId}` : ""}-separation`,
     label: input.label ?? `${input.stageId}${input.instanceId ? ` instance ${input.instanceId}` : ""} stage separation${separationLabel}`,
+    kind: "separation",
+    priority: 10,
     timeS: input.timeS,
     apply: (state) => separateStage(state, input.stageId, input.separationDeltaVBodyMps, input.instanceId),
     separationDeltaVBodyMps: input.separationDeltaVBodyMps ?? ZERO_VECTOR,
@@ -561,6 +565,8 @@ export function createScheduledStageIgnitionFailureEvent(input: Readonly<{
   return {
     id: `staging-${input.stageId}${input.instanceId ? `-${input.instanceId}` : ""}-ignition-failure`,
     label: input.label ?? `${input.stageId}${input.instanceId ? ` instance ${input.instanceId}` : ""} stage ignition failure`,
+    kind: "failure",
+    priority: 30,
     timeS: input.timeS,
     apply: (state) => failStageIgnition(state, input.stageId, input.instanceId),
   };
@@ -1061,6 +1067,8 @@ export function createMultiStageVehicleModel(input: Readonly<{
     return {
       id: `staging-${stage.id}${instanceSuffix}-burnout-separation`,
       label: eventInput.label ?? `${stage.name}${instance ? ` ${instance.name}` : ""} separation after burnout${separationLabel}`,
+      kind: "separation",
+      priority: 10,
       direction: "rising",
       value: (state) =>
         burnoutEventValue(
@@ -1111,6 +1119,8 @@ export function createMultiStageVehicleModel(input: Readonly<{
       id: `staging-${target.id}${targetSuffix}-ignition-after-${source.id}${sourceSuffix}-burnout`,
       label:
         eventInput.label ?? `${target.name}${targetInstance ? ` ${targetInstance.name}` : ""} ignition after ${source.name}${sourceInstance ? ` ${sourceInstance.name}` : ""} burnout`,
+      kind: "ignition",
+      priority: 20,
       direction: "rising",
       value: (state) =>
         burnoutEventValue(
