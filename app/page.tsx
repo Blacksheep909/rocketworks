@@ -4461,6 +4461,10 @@ export default function Home() {
             peakThrustN: previewMotor.metrics.peakThrustN,
             averageThrustN: previewMotor.metrics.averageThrustN,
             specificImpulseS: previewMotor.metrics.specificImpulseS,
+            depletionSource: previewMotor.massFlowHistoryKgS
+              ? "measured-mass-flow"
+              : "impulse-proportional",
+            measuredMassFlowKg: previewMotor.metrics.measuredMassFlowKg,
             provenance: `${previewMotor.provenance.sourceName} · ${previewMotor.provenance.licenseIdentifier} · ${previewMotor.provenance.validationStatus}`,
           },
           environment: {

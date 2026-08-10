@@ -95,6 +95,9 @@ export type EngineeringReportInput = Readonly<{
     averageThrustN: number;
     specificImpulseS: number;
     provenance: string;
+    depletionSource?: "impulse-proportional" | "measured-mass-flow";
+    /** Integrated measured outflow mass, when a history was supplied. */
+    measuredMassFlowKg?: number | null;
   }>;
   environment: Readonly<{
     siteName: string;
@@ -869,6 +872,12 @@ export function createEngineeringReportMarkdown(
     `- Peak thrust: ${formatNumber(input.motor.peakThrustN, 2)} N`,
     `- Average thrust: ${formatNumber(input.motor.averageThrustN, 2)} N`,
     `- Calculated specific impulse: ${formatNumber(input.motor.specificImpulseS, 2)} s`,
+    ...(input.motor.depletionSource === undefined
+      ? []
+      : [`- Propellant depletion source: ${input.motor.depletionSource === "measured-mass-flow" ? "measured mass-flow history" : "impulse-proportional approximation"}`]),
+    ...(input.motor.measuredMassFlowKg === undefined || input.motor.measuredMassFlowKg === null
+      ? []
+      : [`- Integrated measured outflow: ${formatNumber(input.motor.measuredMassFlowKg, 4)} kg`]),
     `- Provenance: ${markdownText(input.motor.provenance)}`,
     "",
     "## Launch environment",

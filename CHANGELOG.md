@@ -13,6 +13,9 @@ flight-readiness claims.
   The browser motor-library form now accepts a strict optional
   `time_s,mass_flow_kg_s` CSV; residual propellant and measurement limitations
   remain explicit.
+- Engineering-report exports now carry the selected propellant depletion source
+  and integrated measured outflow when available, keeping report provenance
+  aligned with the live motor model.
 - Expanded coupled stage-flight uncertainty to sample additional motor/stage
   ignition delay, annotated separation impulse, and initial launch-alignment
   perturbations. Variants wrap event updates without mutating the base project;

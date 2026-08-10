@@ -363,6 +363,8 @@ test("engineering report leads with status and preserves calculations and limita
       peakThrustN: 22,
       averageThrustN: 22,
       specificImpulseS: 61.7,
+      depletionSource: "measured-mass-flow",
+      measuredMassFlowKg: 0.02,
       provenance: "Synthetic fixture · CC0-1.0",
     },
     environment: {
@@ -518,6 +520,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Relative humidity observation: 60%/);
   assert.match(report, /## Recovery configuration/);
   assert.match(report, /Opening schedule: 25% to 100% over 2\.0 s/);
+  assert.match(report, /Propellant depletion source: measured mass-flow history/);
+  assert.match(report, /Integrated measured outflow: 0\.0200 kg/);
   assert.ok(report.indexOf("Not flight-safe or manufacturing-approved") < report.indexOf("## Vehicle summary"));
   assert.match(report, /\| Static margin \| 2\.93 calibres \|/);
   assert.match(report, /## Recovery landing footprint/);

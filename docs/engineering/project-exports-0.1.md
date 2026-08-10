@@ -32,6 +32,11 @@ Every engineering or CAD surface presents manufacturing and validation limits
 before download. The DXF, SCAD, project, and report files also embed status or
 warning text internally.
 
+The Markdown report records the motor's selected propellant depletion source
+and, when supplied, the integrated measured outflow mass. This keeps report
+provenance aligned with the live motor model without conflating measured flow
+with the independent thrust curve.
+
 ## RocketWorks project JSON
 
 The root document declares:
