@@ -1,3 +1,8 @@
+import {
+  validateVehicleTopology,
+  type LocalVehicleTopology,
+} from "./vehicle-topology.ts";
+
 export const LOCAL_PROJECT_SCHEMA_ID = "dev.kestrel-lab.local-project";
 export const LOCAL_PROJECT_SCHEMA_VERSION = 1;
 export const LOCAL_PROJECT_HISTORY_SCHEMA_ID = "dev.kestrel-lab.local-project-history";
@@ -73,6 +78,8 @@ export type LocalProjectSnapshot = Readonly<{
   revision: number;
   savedAtIso: string;
   inputs: EditableProjectInputs;
+  /** Optional in schema v1 for migration; new browser checkpoints include it. */
+  topology?: LocalVehicleTopology;
 }>;
 
 export type ProjectHistoryEntry = Readonly<{
@@ -287,6 +294,7 @@ export function createLocalProjectSnapshot(input: {
   revision: number;
   savedAtIso?: string;
   inputs: EditableProjectInputs;
+  topology?: LocalVehicleTopology;
 }): LocalProjectSnapshot {
   return {
     schema: LOCAL_PROJECT_SCHEMA_ID,
@@ -296,6 +304,7 @@ export function createLocalProjectSnapshot(input: {
     revision: integer(input.revision, "revision", 1),
     savedAtIso: isoDate(input.savedAtIso ?? new Date().toISOString(), "savedAtIso"),
     inputs: validateEditableProjectInputs(input.inputs),
+    ...(input.topology === undefined ? {} : { topology: validateVehicleTopology(input.topology) }),
   };
 }
 
@@ -309,6 +318,7 @@ function validateSnapshot(value: unknown): LocalProjectSnapshot {
     revision: integer(snapshot.revision, "revision", 1),
     savedAtIso: isoDate(snapshot.savedAtIso, "savedAtIso"),
     inputs: validateEditableProjectInputs(snapshot.inputs),
+    ...(snapshot.topology === undefined ? {} : { topology: validateVehicleTopology(snapshot.topology) }),
   });
 }
 
@@ -326,6 +336,16 @@ export function parseLocalProjectSnapshot(serialized: string): LocalProjectSnaps
 
 export function projectInputFingerprint(inputs: EditableProjectInputs): string {
   return JSON.stringify(validateEditableProjectInputs(inputs));
+}
+
+export function projectConfigurationFingerprint(input: Readonly<{
+  inputs: EditableProjectInputs;
+  topology: LocalVehicleTopology;
+}>): string {
+  return JSON.stringify({
+    inputs: validateEditableProjectInputs(input.inputs),
+    topology: validateVehicleTopology(input.topology),
+  });
 }
 
 const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
@@ -378,6 +398,21 @@ export function describeProjectInputChanges(previous: EditableProjectInputs, cur
   if (changed.length === 0) return "No input changes";
   if (changed.length <= 2) return `Changed ${changed.join(" and ")}`;
   return `Changed ${changed.slice(0, 2).join(", ")} +${changed.length - 2} more`;
+}
+
+export function describeProjectConfigurationChanges(
+  previousInputs: EditableProjectInputs,
+  currentInputs: EditableProjectInputs,
+  previousTopology: LocalVehicleTopology | undefined,
+  currentTopology: LocalVehicleTopology,
+): string {
+  const inputLabel = describeProjectInputChanges(previousInputs, currentInputs);
+  const topologyChanged = previousTopology === undefined
+    ? true
+    : JSON.stringify(validateVehicleTopology(previousTopology)) !== JSON.stringify(validateVehicleTopology(currentTopology));
+  if (!topologyChanged) return inputLabel;
+  if (inputLabel === "No input changes") return "Changed vehicle topology";
+  return `${inputLabel} + vehicle topology`;
 }
 
 export function createEmptyProjectHistory(projectId: string): LocalProjectHistory {

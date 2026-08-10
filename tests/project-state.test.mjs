@@ -8,13 +8,19 @@ import {
   appendProjectHistory,
   createEmptyProjectHistory,
   createLocalProjectSnapshot,
+  describeProjectConfigurationChanges,
   describeProjectInputChanges,
   parseLocalProjectHistory,
   parseLocalProjectSnapshot,
   projectInputFingerprint,
+  projectConfigurationFingerprint,
   serializeLocalProjectHistory,
   serializeLocalProjectSnapshot,
 } from "../lib/project/project-state.ts";
+import {
+  createDefaultVehicleTopology,
+  createStagePlan,
+} from "../lib/project/vehicle-topology.ts";
 
 const inputs = {
   lengthMm: 710,
@@ -33,13 +39,14 @@ const inputs = {
   surfaceTemperatureC: 15,
 };
 
-function snapshot(revision, overrides = {}) {
+function snapshot(revision, overrides = {}, topology) {
   return createLocalProjectSnapshot({
     projectId: "arc54",
     projectName: "ARC 54",
     revision,
     savedAtIso: new Date(Date.UTC(2026, 7, 1, 0, 0, revision)).toISOString(),
     inputs: { ...inputs, ...overrides },
+    ...(topology === undefined ? {} : { topology }),
   });
 }
 
@@ -66,6 +73,41 @@ test("local project snapshots round-trip through a strict versioned schema", () 
   assert.equal(source.inputs.surfaceTemperatureC, 15);
   assert.equal(JSON.parse(serialized).schema, LOCAL_PROJECT_SCHEMA_ID);
   assert.equal(projectInputFingerprint(source.inputs), projectInputFingerprint({ ...inputs }));
+});
+
+test("project checkpoints can carry validated vehicle topology and fingerprint it", () => {
+  const topology = {
+    ...createDefaultVehicleTopology(),
+    stages: [
+      ...createDefaultVehicleTopology().stages,
+      createStagePlan({
+        id: "upper-01",
+        name: "Upper stage 1",
+        role: "upper",
+        attachment: "serial",
+        parentStageId: "sustainer",
+        bodyLengthM: 0.42,
+        diameterM: 0.044,
+        noseLengthM: 0.12,
+      }),
+    ],
+  };
+  const source = snapshot(1, {}, topology);
+  assert.deepEqual(parseLocalProjectSnapshot(serializeLocalProjectSnapshot(source)), source);
+  assert.equal(source.topology?.stages.length, 2);
+  assert.equal(source.topology?.stages[1].bodyLengthM, 0.42);
+  assert.equal(
+    projectConfigurationFingerprint({ inputs: source.inputs, topology }),
+    projectConfigurationFingerprint({ inputs: { ...inputs }, topology }),
+  );
+  assert.match(
+    describeProjectConfigurationChanges(inputs, inputs, undefined, topology),
+    /vehicle topology/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...source, topology: { ...topology, stages: [] } }),
+    /requires 1 through/,
+  );
 });
 
 test("legacy snapshots receive explicit surface-weather defaults", () => {

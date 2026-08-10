@@ -494,6 +494,10 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(page, /LOCAL_PROJECT_HISTORY_STORAGE_KEY/);
   assert.match(page, /window\.localStorage\.setItem/);
   assert.match(page, /parseLocalProjectSnapshot/);
+  assert.match(page, /projectConfigurationFingerprint/);
+  assert.match(page, /describeProjectConfigurationChanges/);
+  assert.match(page, /topology: vehicleTopology/);
+  assert.match(page, /legacy topology retained/);
   assert.match(page, /setLaunchRailEnabled/);
   assert.match(page, /launchRailLengthM/);
   assert.match(page, /launchRailInclinationDeg/);
@@ -521,6 +525,10 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(projectState, /surfacePressureHpa/);
   assert.match(projectState, /surfaceTemperatureC/);
   assert.match(projectState, /validateEditableProjectInputs/);
+  assert.match(projectState, /validateVehicleTopology/);
+  assert.match(projectState, /topology?: LocalVehicleTopology/);
+  assert.match(projectState, /projectConfigurationFingerprint/);
+  assert.match(projectState, /Changed vehicle topology/);
   assert.match(projectState, /Unsupported local project schema version/);
   assert.match(stylesheet, /\.history-entry button:focus-visible/);
 });

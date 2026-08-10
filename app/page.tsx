@@ -108,10 +108,10 @@ import {
   appendProjectHistory,
   createEmptyProjectHistory,
   createLocalProjectSnapshot,
-  describeProjectInputChanges,
+  describeProjectConfigurationChanges,
   parseLocalProjectHistory,
   parseLocalProjectSnapshot,
-  projectInputFingerprint,
+  projectConfigurationFingerprint,
   serializeLocalProjectHistory,
   serializeLocalProjectSnapshot,
   type EditableProjectInputs,
@@ -3559,6 +3559,7 @@ export default function Home() {
   useEffect(() => {
     const hydrationTimer = window.setTimeout(() => {
       let restoredSnapshot: LocalProjectSnapshot | null = null;
+      let restoredTopology: LocalVehicleTopology | null = null;
       let restoredHistory = createEmptyProjectHistory("arc54");
       const problems: string[] = [];
       try {
@@ -3605,9 +3606,10 @@ export default function Home() {
       try {
         const serialized = window.localStorage.getItem(LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY);
         if (serialized) {
-          const restoredTopology = parseVehicleTopology(serialized);
-          topologyRef.current = restoredTopology;
-          setVehicleTopology(restoredTopology);
+          const parsedTopology = parseVehicleTopology(serialized);
+          topologyRef.current = parsedTopology;
+          setVehicleTopology(parsedTopology);
+          restoredTopology = parsedTopology;
         }
       } catch {
         problems.push("the vehicle topology");
@@ -3652,12 +3654,23 @@ export default function Home() {
         setUncertaintySampleCount(inputs.uncertaintySampleCount);
         setUncertaintySeed(inputs.uncertaintySeed);
         setUncertaintyCorrelations([...(inputs.uncertaintyCorrelations ?? [])]);
+        if (restoredSnapshot.topology) {
+          restoredTopology = restoredSnapshot.topology;
+          topologyRef.current = restoredSnapshot.topology;
+          setVehicleTopology(restoredSnapshot.topology);
+        }
         lastSavedInputsRef.current = inputs;
-        lastSavedFingerprintRef.current = projectInputFingerprint(inputs);
+        lastSavedFingerprintRef.current = projectConfigurationFingerprint({
+          inputs,
+          topology: restoredTopology ?? topologyRef.current,
+        });
         revisionRef.current = restoredSnapshot.revision;
       } else if (problems.length > 0) {
         lastSavedInputsRef.current = initialInputsRef.current;
-        lastSavedFingerprintRef.current = projectInputFingerprint(initialInputsRef.current);
+        lastSavedFingerprintRef.current = projectConfigurationFingerprint({
+          inputs: initialInputsRef.current,
+          topology: restoredTopology ?? topologyRef.current,
+        });
       }
       const latestHistoryRevision = restoredHistory.entries.at(-1)?.snapshot.revision ?? 0;
       revisionRef.current = Math.max(revisionRef.current, latestHistoryRevision);
@@ -3773,7 +3786,10 @@ export default function Home() {
 
   useEffect(() => {
     if (!storageReady) return;
-    const fingerprint = projectInputFingerprint(editableInputs);
+    const fingerprint = projectConfigurationFingerprint({
+      inputs: editableInputs,
+      topology: vehicleTopology,
+    });
     if (fingerprint === lastSavedFingerprintRef.current) {
       setSaved(true);
       return;
@@ -3782,6 +3798,7 @@ export default function Home() {
     const timer = window.setTimeout(() => {
       try {
         const previous = lastSavedInputsRef.current;
+        const previousTopology = historyRef.current.entries.at(-1)?.snapshot.topology;
         const lastTimestamp = historyRef.current.entries.at(-1)?.snapshot.savedAtIso;
         const savedAtIso = nextLocalSaveTime(lastTimestamp);
         const snapshot = createLocalProjectSnapshot({
@@ -3790,8 +3807,11 @@ export default function Home() {
           revision: revisionRef.current + 1,
           savedAtIso,
           inputs: editableInputs,
+          topology: vehicleTopology,
         });
-        const label = previous ? describeProjectInputChanges(previous, editableInputs) : "Initial local snapshot";
+        const label = previous
+          ? describeProjectConfigurationChanges(previous, editableInputs, previousTopology, vehicleTopology)
+          : "Initial local snapshot";
         const nextHistory = appendProjectHistory(historyRef.current, snapshot, label);
         window.localStorage.setItem(LOCAL_PROJECT_STORAGE_KEY, serializeLocalProjectSnapshot(snapshot));
         window.localStorage.setItem(LOCAL_PROJECT_HISTORY_STORAGE_KEY, serializeLocalProjectHistory(nextHistory));
@@ -3808,7 +3828,7 @@ export default function Home() {
       }
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [editableInputs, storageReady]);
+  }, [editableInputs, storageReady, vehicleTopology]);
 
   useEffect(() => {
     if (!exportOpen) return;
@@ -4068,6 +4088,7 @@ export default function Home() {
     inputs: EditableProjectInputs,
     label: string,
     allowDuplicate = true,
+    topology = vehicleTopology,
   ) => {
     const lastTimestamp = historyRef.current.entries.at(-1)?.snapshot.savedAtIso;
     const snapshot = createLocalProjectSnapshot({
@@ -4076,6 +4097,7 @@ export default function Home() {
       revision: revisionRef.current + 1,
       savedAtIso: nextLocalSaveTime(lastTimestamp),
       inputs,
+      topology,
     });
     const nextHistory = appendProjectHistory(historyRef.current, snapshot, label, { allowDuplicate });
     window.localStorage.setItem(LOCAL_PROJECT_STORAGE_KEY, serializeLocalProjectSnapshot(snapshot));
@@ -4084,7 +4106,7 @@ export default function Home() {
     historyRef.current = nextHistory;
     setProjectHistory(nextHistory);
     lastSavedInputsRef.current = inputs;
-    lastSavedFingerprintRef.current = projectInputFingerprint(inputs);
+    lastSavedFingerprintRef.current = projectConfigurationFingerprint({ inputs, topology });
     setSaveError("");
     setSaved(true);
     return snapshot;
@@ -4099,10 +4121,14 @@ export default function Home() {
   };
   const restoreCheckpoint = (source: LocalProjectSnapshot) => {
     try {
-      persistCheckpoint(source.inputs, `Restored revision ${source.revision}`);
+      const topology = source.topology ?? topologyRef.current;
+      if (source.topology) {
+        persistVehicleTopology(source.topology);
+      }
+      persistCheckpoint(source.inputs, `Restored revision ${source.revision}`, true, topology);
       applyEditableInputs(source.inputs);
       setHistoryOpen(false);
-      notify(`Restored revision ${source.revision}`);
+      notify(`Restored revision ${source.revision}${source.topology ? " with vehicle topology" : " (legacy topology retained)"}`);
     } catch {
       setSaveError("This browser could not restore that checkpoint. The current design was not changed.");
     }
@@ -4379,7 +4405,7 @@ export default function Home() {
         imported.selectedAerodynamicTableId,
       );
       markChanged();
-      persistCheckpoint(imported.editableInputs, `Imported project: ${imported.projectName}`);
+      persistCheckpoint(imported.editableInputs, `Imported project: ${imported.projectName}`, true, imported.topology);
       setSelected("body");
       setView("design");
       setGuideOpen(false);
@@ -6601,7 +6627,7 @@ export default function Home() {
               <div>
                 <span className="eyebrow">Device timeline</span>
                 <h2 id="history-title">Local project history</h2>
-                <p id="history-description">Autosave records validated input checkpoints in this browser. Restore any checkpoint without deleting newer entries.</p>
+                <p id="history-description">Autosave records validated inputs and vehicle topology in this browser. Restore any checkpoint without deleting newer entries.</p>
               </div>
               <button
                 ref={historyCloseRef}

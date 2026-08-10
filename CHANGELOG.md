@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Project autosave and manual history checkpoints now persist the validated
+  vehicle topology alongside editable inputs. Configuration fingerprints and
+  change labels include stage structure and geometry, and restoring a modern
+  checkpoint restores its topology without deleting later entries; legacy
+  checkpoints retain the current topology safely.
 - Added validated per-stage body length, diameter, and nose-length overrides
   to the browser topology editor. Generated stage geometry, serial placement,
   envelope checks, fin scaling, mass properties, and aerodynamic reference area
