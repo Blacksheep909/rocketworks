@@ -13,6 +13,7 @@ import {
   parseKestrelProjectJson,
   createRocketOpenScad,
   createRocketProfileDxf,
+  createRocketStl,
 } from "../lib/export/project-exports.ts";
 import { analyzeLandingFootprint, computeStructuralScreen, runUncertaintyAnalysis } from "../lib/physics/index.ts";
 
@@ -272,6 +273,18 @@ test("OpenSCAD export contains parameterized tangent-ogive, body, fins, and nozz
   assert.match(scad, /linear_extrude\(height=3,center=true/);
   assert.match(scad, /module nozzle\(\)/);
   assert.match(scad, /Verify tolerances, wall thickness, fits, and structure/);
+});
+
+test("ASCII STL export contains a triangulated reference mesh in millimetres", () => {
+  const stl = createRocketStl(geometry);
+  assert.match(stl, /^solid rocketworks_arc_54\n/);
+  assert.match(stl, /facet normal /);
+  assert.match(stl, /vertex 890\.000000/);
+  assert.match(stl, /vertex 180\.000000 27\.000000/);
+  assert.match(stl, /endsolid rocketworks_arc_54\n$/);
+  assert.ok((stl.match(/facet normal /g) ?? []).length > 500);
+  assert.equal(stl, createRocketStl(geometry));
+  assert.doesNotMatch(stl, /NaN|Infinity/);
 });
 
 test("CAD reference exports preserve the selected nose profile", () => {

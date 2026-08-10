@@ -170,6 +170,21 @@ couplers, shoulder, internal components, fin tabs, motor retention, recovery
 attachments, fasteners, clearances, shrink compensation, material process
 rules, or structural design. It must not be sent directly to manufacturing.
 
+## ASCII STL reference mesh
+
+The generated `.stl` file is an ASCII triangulation in millimetres of the
+selected nose profile, cylindrical airframe, tapered nozzle, and repeated
+external fin prisms. The mesh is generated from the same validated geometry
+envelope as the DXF and OpenSCAD outputs, so the three references share the
+same axial dimensions and fin planform inputs. It is useful for visual CAD
+inspection, fit studies, and early mesh interoperability checks.
+
+STL has no unit, material, provenance, or tolerance schema. RocketWorks
+therefore labels this output as a reference mesh rather than a slicer-ready
+part. It does not include wall thickness, internal hardware, tabs, clearances,
+shrink compensation, or load evidence; independently repair and validate any
+mesh before manufacturing.
+
 ## Engineering report
 
 The Markdown report leads with an explicit not-flight-safe and
@@ -212,6 +227,8 @@ Automated tests cover:
   rejection
 - DXF version, units, layers, dimensions, CG/CP, and EOF termination
 - OpenSCAD modules, millimetre dimensions, fin rotation, and safety comment
+- STL solid-name, facet normals, millimetre dimensions, fin repetition, and
+  deterministic termination
 - report warning order, metrics, landing section, limitations, and independence
 - rejection of invalid identifiers, empty traces, non-finite values, invalid
   geometry, and impossible fin envelopes
@@ -225,8 +242,8 @@ part.
 ## Known limitations
 
 - No project import, schema migration, merge, or conflict handling yet.
-- No ZIP package, binary DXF, STEP, IGES, STL, 3MF, OBJ, glTF, PDF, or native
-  CAD export.
+- No ZIP package, binary DXF, STEP, IGES, 3MF, OBJ, glTF, PDF, or native CAD
+  export. STL remains a reference mesh, not a manufacturing export.
 - DXF contains a two-dimensional side reference, not separate fin templates or
   internal cut geometry.
 - OpenSCAD geometry is a solid visual/reference CSG model without engineering

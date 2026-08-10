@@ -464,7 +464,10 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(page, /createEngineeringReportMarkdown/);
   assert.match(page, /stageFlight: stageFlightIsCurrent \? stageFlightResult : null/);
   assert.match(page, /createRocketProfileDxf/);
+  assert.match(page, /createRocketStl/);
   assert.match(page, /createRocketOpenScad/);
+  assert.match(page, /exportArtifact\("stl"\)/);
+  assert.match(page, /Reference mesh/);
   assert.match(page, /computeStructuralScreen/);
   assert.match(page, /flutterFlightCondition/);
   assert.match(page, /Separation impulse audit/);

@@ -756,6 +756,238 @@ export function createRocketProfileDxf(geometry: RocketCadGeometry): string {
   return `${lines.join("\r\n")}\r\n`;
 }
 
+type StlPoint = Readonly<{ x: number; y: number; z: number }>;
+type StlTriangle = Readonly<{
+  a: StlPoint;
+  b: StlPoint;
+  c: StlPoint;
+  normal: StlPoint;
+}>;
+
+function stlSubtract(a: StlPoint, b: StlPoint): StlPoint {
+  return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
+}
+
+function stlCross(a: StlPoint, b: StlPoint): StlPoint {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  };
+}
+
+function stlLength(point: StlPoint): number {
+  return Math.hypot(point.x, point.y, point.z);
+}
+
+function pushStlTriangle(
+  triangles: StlTriangle[],
+  a: StlPoint,
+  b: StlPoint,
+  c: StlPoint,
+): void {
+  const normal = stlCross(stlSubtract(b, a), stlSubtract(c, a));
+  const magnitude = stlLength(normal);
+  if (!Number.isFinite(magnitude) || magnitude <= 1e-9) return;
+  triangles.push({
+    a,
+    b,
+    c,
+    normal: {
+      x: normal.x / magnitude,
+      y: normal.y / magnitude,
+      z: normal.z / magnitude,
+    },
+  });
+}
+
+function stlFormat(value: number): string {
+  return value.toFixed(6);
+}
+
+function stlRevolvedPoint(
+  station: Readonly<{ x: number; radius: number }>,
+  angleRad: number,
+): StlPoint {
+  return {
+    x: station.x,
+    y: station.radius * Math.cos(angleRad),
+    z: station.radius * Math.sin(angleRad),
+  };
+}
+
+function addStlLatheSurface(
+  triangles: StlTriangle[],
+  stations: readonly Readonly<{ x: number; radius: number }>[],
+  segments: number,
+): void {
+  for (let stationIndex = 0; stationIndex < stations.length - 1; stationIndex += 1) {
+    const first = stations[stationIndex];
+    const second = stations[stationIndex + 1];
+    for (let segment = 0; segment < segments; segment += 1) {
+      const angle = (2 * Math.PI * segment) / segments;
+      const nextAngle = (2 * Math.PI * (segment + 1)) / segments;
+      const a = stlRevolvedPoint(first, angle);
+      const b = stlRevolvedPoint(first, nextAngle);
+      const c = stlRevolvedPoint(second, nextAngle);
+      const d = stlRevolvedPoint(second, angle);
+      pushStlTriangle(triangles, a, b, c);
+      pushStlTriangle(triangles, a, c, d);
+    }
+  }
+}
+
+function addStlDisk(
+  triangles: StlTriangle[],
+  x: number,
+  radius: number,
+  segments: number,
+  reverse = false,
+): void {
+  const center = { x, y: 0, z: 0 };
+  for (let segment = 0; segment < segments; segment += 1) {
+    const angle = (2 * Math.PI * segment) / segments;
+    const nextAngle = (2 * Math.PI * (segment + 1)) / segments;
+    const current = stlRevolvedPoint({ x, radius }, angle);
+    const next = stlRevolvedPoint({ x, radius }, nextAngle);
+    if (reverse) pushStlTriangle(triangles, center, next, current);
+    else pushStlTriangle(triangles, center, current, next);
+  }
+}
+
+function addStlFinPrism(
+  triangles: StlTriangle[],
+  geometry: RocketCadGeometry,
+  totalLengthMm: number,
+  bodyRadiusMm: number,
+  angleRad: number,
+): void {
+  const radial = { y: Math.cos(angleRad), z: Math.sin(angleRad) };
+  const tangent = { y: -Math.sin(angleRad), z: Math.cos(angleRad) };
+  const rootStartMm = totalLengthMm - geometry.finRootChordM * 1000;
+  const sweepMm = geometry.finSweepM * 1000;
+  const tipChordMm = geometry.finTipChordM * 1000;
+  const spanMm = geometry.finSpanM * 1000;
+  const halfThicknessMm = (geometry.finThicknessM * 1000) / 2;
+  const outline = [
+    { x: rootStartMm, radius: bodyRadiusMm },
+    { x: rootStartMm + sweepMm, radius: bodyRadiusMm + spanMm },
+    { x: rootStartMm + sweepMm + tipChordMm, radius: bodyRadiusMm + spanMm },
+    { x: totalLengthMm, radius: bodyRadiusMm },
+  ];
+  const point = (entry: Readonly<{ x: number; radius: number }>, tangentOffsetMm: number): StlPoint => ({
+    x: entry.x,
+    y: entry.radius * radial.y + tangentOffsetMm * tangent.y,
+    z: entry.radius * radial.z + tangentOffsetMm * tangent.z,
+  });
+  const front = outline.map((entry) => point(entry, halfThicknessMm));
+  const back = outline.map((entry) => point(entry, -halfThicknessMm));
+  pushStlTriangle(triangles, front[0], front[1], front[2]);
+  pushStlTriangle(triangles, front[0], front[2], front[3]);
+  pushStlTriangle(triangles, back[0], back[2], back[1]);
+  pushStlTriangle(triangles, back[0], back[3], back[2]);
+  for (let index = 0; index < outline.length; index += 1) {
+    const nextIndex = (index + 1) % outline.length;
+    pushStlTriangle(triangles, front[index], back[index], back[nextIndex]);
+    pushStlTriangle(triangles, front[index], back[nextIndex], front[nextIndex]);
+  }
+}
+
+/**
+ * Creates an ASCII STL reference mesh in millimetres.
+ *
+ * The mesh is intentionally generated from the same bounded geometry inputs
+ * as the DXF/OpenSCAD references. It is a triangulated design aid, not a
+ * toleranced manufacturing solid, slicer profile, or structural certification.
+ */
+export function createRocketStl(geometry: RocketCadGeometry): string {
+  validateCadGeometry(geometry);
+  const noseLengthMm = geometry.noseLengthM * 1000;
+  const bodyLengthMm = geometry.bodyLengthM * 1000;
+  const bodyRadiusMm = (geometry.diameterM * 1000) / 2;
+  const totalLengthMm = noseLengthMm + bodyLengthMm;
+  const segments = 48;
+  const triangles: StlTriangle[] = [];
+  const noseStations = Array.from({ length: 25 }, (_, index) => {
+    const x = (noseLengthMm * index) / 24;
+    return {
+      x,
+      radius: profileRadiusMm(
+        x,
+        noseLengthMm,
+        bodyRadiusMm,
+        geometry.noseProfile,
+      ),
+    };
+  });
+  addStlLatheSurface(triangles, noseStations, segments);
+  addStlLatheSurface(
+    triangles,
+    [
+      { x: noseLengthMm, radius: bodyRadiusMm },
+      { x: totalLengthMm, radius: bodyRadiusMm },
+    ],
+    segments,
+  );
+
+  const nozzleLengthMm = Math.min(45, bodyLengthMm * 0.08);
+  const nozzleBaseRadiusMm = bodyRadiusMm * 0.36;
+  const nozzleTipRadiusMm = bodyRadiusMm * 0.29;
+  addStlDisk(triangles, totalLengthMm, nozzleBaseRadiusMm, segments);
+  addStlLatheSurface(
+    triangles,
+    [
+      { x: totalLengthMm, radius: bodyRadiusMm },
+      { x: totalLengthMm, radius: nozzleBaseRadiusMm },
+    ],
+    segments,
+  );
+  addStlLatheSurface(
+    triangles,
+    [
+      { x: totalLengthMm, radius: nozzleBaseRadiusMm },
+      { x: totalLengthMm + nozzleLengthMm, radius: nozzleTipRadiusMm },
+    ],
+    segments,
+  );
+  addStlDisk(
+    triangles,
+    totalLengthMm + nozzleLengthMm,
+    nozzleTipRadiusMm,
+    segments,
+    true,
+  );
+
+  for (let fin = 0; fin < geometry.finCount; fin += 1) {
+    addStlFinPrism(
+      triangles,
+      geometry,
+      totalLengthMm,
+      bodyRadiusMm,
+      (2 * Math.PI * fin) / geometry.finCount,
+    );
+  }
+
+  const safeName = geometry.projectName
+    .trim()
+    .replace(/[^A-Za-z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "vehicle";
+  const lines = [`solid rocketworks_${safeName.toLowerCase()}`];
+  for (const triangle of triangles) {
+    lines.push(
+      `facet normal ${stlFormat(triangle.normal.x)} ${stlFormat(triangle.normal.y)} ${stlFormat(triangle.normal.z)}`,
+      " outer loop",
+      `  vertex ${stlFormat(triangle.a.x)} ${stlFormat(triangle.a.y)} ${stlFormat(triangle.a.z)}`,
+      `  vertex ${stlFormat(triangle.b.x)} ${stlFormat(triangle.b.y)} ${stlFormat(triangle.b.z)}`,
+      `  vertex ${stlFormat(triangle.c.x)} ${stlFormat(triangle.c.y)} ${stlFormat(triangle.c.z)}`,
+      " endloop",
+      "endfacet",
+    );
+  }
+  lines.push(`endsolid rocketworks_${safeName.toLowerCase()}`);
+  return `${lines.join("\n")}\n`;
+}
+
 function scadNumber(valueMm: number): string {
   return Number(valueMm.toFixed(6)).toString();
 }

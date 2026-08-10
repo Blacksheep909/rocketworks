@@ -16,6 +16,7 @@ import {
   parseKestrelProjectJson,
   createRocketOpenScad,
   createRocketProfileDxf,
+  createRocketStl,
   type JsonValue,
   type RocketCadGeometry,
 } from "../lib/export/project-exports.ts";
@@ -174,7 +175,7 @@ type ViewKey = "design" | "flight";
 type DesignViewKey = "2d" | "3d";
 type MaterialKey = "kraft" | "fiberglass" | "carbon";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
-type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "sweep-csv" | "uncertainty-csv" | "report" | "dxf" | "openscad";
+type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "sweep-csv" | "uncertainty-csv" | "report" | "dxf" | "stl" | "openscad";
 type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
@@ -4708,6 +4709,10 @@ export default function Home() {
         filename = "arc-54-side-profile.dxf";
         mediaType = "application/dxf;charset=utf-8";
         content = createRocketProfileDxf(cadGeometry);
+      } else if (format === "stl") {
+        filename = "arc-54-reference-mesh.stl";
+        mediaType = "model/stl;charset=utf-8";
+        content = createRocketStl(cadGeometry);
       } else {
         filename = "arc-54-parametric.scad";
         mediaType = "text/plain;charset=utf-8";
@@ -6824,6 +6829,11 @@ export default function Home() {
                 <span><strong>CAD side profile</strong><small>R12 millimetre airframe and fin outlines with centerline, CG, and CP layers.</small></span>
                 <em>↓</em>
               </button>
+              <button onClick={() => exportArtifact("stl")}>
+                <span className="export-extension">STL</span>
+                <span><strong>Reference mesh</strong><small>Triangulated millimetre nose, airframe, nozzle, and radial-fin mesh for CAD inspection and fit studies.</small></span>
+                <em>↓</em>
+              </button>
               <button onClick={() => exportArtifact("openscad")}>
                 <span className="export-extension">SCAD</span>
                 <span><strong>Parametric 3D reference</strong><small>Original tangent-ogive, airframe, fin-set, and nozzle CSG source in millimetres.</small></span>
@@ -6832,6 +6842,7 @@ export default function Home() {
             </div>
             <div className="export-warning">
               <span>ENGINEERING PREVIEW</span>
+              <p>STL is a triangulated reference mesh in millimetres for inspection and fit studies; it is not a toleranced solid, slicer toolpath, structural evidence, or manufacturing approval.</p>
               <p>DXF and OpenSCAD outputs are reference geometry—not drawings, toleranced solids, structural evidence, certified parts, STL toolpaths, or manufacturing approval. Verify dimensions, fits, materials, wall thicknesses, and loads independently.</p>
             </div>
           </section>
