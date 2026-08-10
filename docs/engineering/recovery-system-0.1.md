@@ -102,6 +102,31 @@ This exposes a deterministic `reefing` phase and fraction in the device
 telemetry. The schedule is an effective-area approximation; it does not infer
 reefing-line mechanics, fabric porosity, opening shock, or structural loads.
 
+## Opening-load screen
+
+The coupled stage-flight browser view includes a separate, deliberately bounded
+opening-load screen. It samples the independent stage-flight dynamic-pressure
+trace over the commanded deployment plus configured delay and inflation window.
+For constant user-supplied coefficient `Cd`, reference area `A`, and dynamic
+pressure `q`, it reports:
+
+`D_qs = q Cd A`
+
+`I_qs = integral(D_qs dt)`
+
+`R_proxy = D_qs,peak / ti`
+
+where `D_qs` is the peak quasi-steady drag, `I_qs` is a trapezoidal impulse over
+the assessed window, and `R_proxy` is a simple force-rate proxy. Trace coverage
+is labeled as assessed, partial, or unavailable; partial values are lower-bound
+diagnostics for the interval that was actually sampled.
+
+This is not an opening-shock model. No shock multiplier, snatch-force model,
+line stretch, canopy inflation geometry, fabric porosity, suspension dynamics,
+or structural qualification is inferred from the screen. The model version and
+these limits are shown next to the metrics so the result cannot be mistaken for
+a parachute load certification.
+
 ## Automated checks
 
 The regression suite verifies:
@@ -123,7 +148,8 @@ These are equation and integration checks, not canopy qualification.
 ## Known limitations
 
 - Opening shock, line stretch, snatch force, reefing hardware, packing,
-  suspension geometry, and structural loads are absent.
+  suspension geometry, and structural loads remain absent; the opening-load
+  screen is only a quasi-steady `q Cd A` component check.
 - Canopy aerodynamics use constant user-supplied `Cd` and area. Mach, Reynolds,
   porosity, angle, wake, and oscillation effects are not derived.
 - Inflation and reefing are prescribed rather than coupled to pressure, fabric,
@@ -160,8 +186,8 @@ These are equation and integration checks, not canopy qualification.
 
 ## Next work
 
-The next recovery increment should add opening-load estimates, line and canopy
-state, conditional deployment reliability, and uncertainty propagation through
-partial-inflation states. The browser UI should continue to expose deployment
-phases, applicability warnings, impact-speed ranges, and failure scenarios
-rather than one nominal answer.
+The next recovery increment should add line and canopy state, conditional
+deployment reliability, and uncertainty propagation through partial-inflation
+states. The browser UI should continue to expose deployment phases,
+applicability warnings, impact-speed ranges, and failure scenarios rather than
+one nominal answer.

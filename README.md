@@ -50,6 +50,10 @@ research, standards, and original code.
   trajectories with optional isotropic point-drag basis and retained-versus-
   detached center-of-mass separation diagnostics, plus aggregate pairwise
   retained/detached and detached/detached path checks;
+- a trace-backed recovery opening-load screen with coverage labels, peak
+  dynamic pressure, quasi-steady `q Cd A` drag, inflation impulse, and a
+  force-rate proxy; opening shock and structural response remain explicitly
+  outside the model;
 - seeded coupled 6DOF uncertainty envelopes that propagate bounded mass,
   propellant, thrust, drag, recovery-area, deployment-outcome, and wind
   assumptions through stage events and launch-rail handoff, with recovery-load

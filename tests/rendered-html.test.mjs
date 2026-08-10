@@ -624,6 +624,10 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /point\.sideslipRad/);
   assert.match(page, /Motor-state diagnostics/);
   assert.match(page, /clusterDiagnostics/);
+  assert.match(page, /estimateRecoveryOpeningLoad/);
+  assert.match(page, /Opening-load estimate/);
+  assert.match(page, /Peak quasi-steady drag/);
+  assert.match(page, /Opening shock, snatch force, lines, fabric/);
   assert.match(page, /Integration-step convergence/);
   assert.match(page, /formatStageFlightConvergenceStatus/);
   assert.match(page, /aria-label=\{`\$\{definition\.label\} over time/);
@@ -665,6 +669,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stylesheet, /\.stage-flight-profile/);
   assert.match(stylesheet, /\.stage-flight-chart/);
   assert.match(stylesheet, /\.stage-flight-convergence/);
+  assert.match(stylesheet, /\.recovery-opening-load-card/);
+  assert.match(stylesheet, /\.recovery-opening-load-grid/);
   assert.match(stylesheet, /\.stage-flight-uncertainty/);
   assert.match(stylesheet, /\.stage-flight-profile-tabs button:focus-visible/);
 });

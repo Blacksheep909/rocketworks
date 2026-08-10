@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added an independent recovery opening-load screen to the coupled stage-flight
+  view. It reports trace coverage, peak dynamic pressure, quasi-steady `q Cd A`
+  drag, trapezoidal inflation impulse, and a force-rate proxy while explicitly
+  excluding opening shock, snatch force, lines, fabric, canopy geometry, and
+  structural qualification.
 - Added a display-only exploded assembly mode to the 3D design viewport. Users
   can separate component or legacy stage display instances along the vehicle
   axis, keep stage filtering and surface selection, and toggle the view with

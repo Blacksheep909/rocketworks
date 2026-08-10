@@ -59,6 +59,7 @@ import {
   parseFlightDataCsv,
   runPhysicsBenchmarkSuite,
   computeStructuralScreen,
+  estimateRecoveryOpeningLoad,
   resolveStageAerodynamicTable,
   type DesignOptimizationResult,
   type AerodynamicCoefficientTableDefinition,
@@ -235,6 +236,8 @@ const SWEEP_PARAMETER_DEFINITIONS: readonly SweepParameterDefinition[] = [
 ];
 
 const DEFAULT_SWEEP_STEPS = 9;
+const BROWSER_RECOVERY_DRAG_COEFFICIENT = 0.75;
+const BROWSER_RECOVERY_INFLATION_TIME_S = 1.2;
 
 type UncertaintyCorrelationDefinition = Readonly<{
   key: string;
@@ -1154,10 +1157,10 @@ function createStageFlightPreviewInputs({
         {
           id: "main",
           name: "Main recovery canopy",
-          dragCoefficient: 0.75,
+          dragCoefficient: BROWSER_RECOVERY_DRAG_COEFFICIENT,
           referenceAreaM2: Math.PI * (recoveryDiameter / 2) ** 2,
           deploymentDelayS: recoveryDelay,
-          inflationTimeS: 1.2,
+          inflationTimeS: BROWSER_RECOVERY_INFLATION_TIME_S,
           reefingStages: createBrowserRecoveryReefingStages({
             recoveryReefingEnabled,
             recoveryReefingDurationS,
@@ -1291,7 +1294,7 @@ function createFlightConfig({
     recovery: {
       enabled: recoveryEnabled,
       dragAreaM2: Math.PI * Math.pow(recoveryDiameter / 2, 2),
-      dragCoefficient: 0.75,
+      dragCoefficient: BROWSER_RECOVERY_DRAG_COEFFICIENT,
       deploymentDelayAfterApogeeS: recoveryDelay,
       reefingStages: createBrowserRecoveryReefingStages({
         recoveryReefingEnabled,
@@ -1674,7 +1677,7 @@ function createLandingPrediction(
           Math.PI * Math.pow(inputs.diameter / 2000, 2),
         recovery: inputs.recoveryEnabled && values.recoveryDeploymentSuccess === 1
           ? {
-              dragCoefficient: 0.75,
+              dragCoefficient: BROWSER_RECOVERY_DRAG_COEFFICIENT,
               referenceAreaM2:
                 Math.PI * Math.pow(inputs.recoveryDiameter / 2, 2) *
                 values.recoveryAreaScale,
@@ -1682,7 +1685,7 @@ function createLandingPrediction(
                 0,
                 inputs.recoveryDelay + values.deploymentDelayOffsetS,
               ),
-              inflationTimeS: 1.2,
+              inflationTimeS: BROWSER_RECOVERY_INFLATION_TIME_S,
               reefingStages: createBrowserRecoveryReefingStages(inputs),
             }
           : undefined,
@@ -2314,6 +2317,14 @@ function formatStageFlightMetric(value: number, key: StageFlightMetricKey): stri
   if (key === "thrust") return value.toFixed(1);
   if (key === "drag") return value.toFixed(1);
   return value.toFixed(1);
+}
+
+function formatOpeningLoadValue(
+  value: number | null,
+  decimals: number,
+  unit: string,
+): string {
+  return value === null ? "Unavailable" : `${value.toFixed(decimals)} ${unit}`;
 }
 
 function formatSignedMetric(value: number, decimals = 1): string {
@@ -3134,6 +3145,25 @@ export default function Home() {
   const stageFlightIsCurrent =
     stageFlightResult !== null &&
     isSimulationFingerprintCurrent(stageFlightFingerprint, simulationFingerprint);
+  const stageRecoveryCommandEvent = stageFlightResult?.events.find(
+    (event) => event.id.includes("recovery") || event.label.toLowerCase().includes("recovery"),
+  ) ?? null;
+  const stageRecoveryOpeningLoad = useMemo(() => {
+    if (!stageFlightResult || !stageFlightIsCurrent || !recoveryEnabled || !stageRecoveryCommandEvent) {
+      return null;
+    }
+    return estimateRecoveryOpeningLoad({
+      trace: stageFlightResult.trace.map((point) => ({
+        timeS: point.timeS,
+        dynamicPressurePa: point.dynamicPressurePa,
+      })),
+      commandTimeS: stageRecoveryCommandEvent.timeS,
+      deploymentDelayS: recoveryDelay,
+      inflationTimeS: BROWSER_RECOVERY_INFLATION_TIME_S,
+      dragCoefficient: BROWSER_RECOVERY_DRAG_COEFFICIENT,
+      referenceAreaM2: Math.PI * (recoveryDiameter / 2) ** 2,
+    });
+  }, [recoveryDelay, recoveryDiameter, recoveryEnabled, stageFlightIsCurrent, stageFlightResult, stageRecoveryCommandEvent]);
   const flightDataComparisonState = useMemo<{ comparison: FlightDataComparisonResult | null; error: string }>(() => {
     if (!flightDataSeries) return { comparison: null, error: "" };
     if (flightDataTraceSource === "coupled-6dof") {
@@ -4889,6 +4919,48 @@ export default function Home() {
                         <div><span>Peak recovery drag</span><strong>{Math.max(0, ...stageFlightResult.trace.map((point) => point.recoveryDragN)).toFixed(1)} N</strong><small>retained vehicle load</small></div>
                       )}
                     </div>
+                    {stageRecoveryOpeningLoad && (
+                      <section className="recovery-opening-load-card" aria-labelledby="recovery-opening-load-title">
+                        <div className="recovery-opening-load-heading">
+                          <div>
+                            <span className="eyebrow">Recovery load screen</span>
+                            <h4 id="recovery-opening-load-title">Opening-load estimate</h4>
+                            <p>Quasi-steady envelope over the commanded inflation window. Opening shock, snatch force, lines, fabric, canopy geometry, and structural response are not modeled.</p>
+                          </div>
+                          <span className={`uncertainty-status uncertainty-status-${stageRecoveryOpeningLoad.coverage}`}>
+                            {stageRecoveryOpeningLoad.coverage === "assessed" ? "ASSESSED WINDOW" : stageRecoveryOpeningLoad.coverage === "partial" ? "PARTIAL WINDOW" : "NOT ASSESSED"}
+                          </span>
+                        </div>
+                        <div className="recovery-opening-load-grid">
+                          <div>
+                            <span>Peak q during inflation</span>
+                            <strong>{formatOpeningLoadValue(stageRecoveryOpeningLoad.peakDynamicPressurePa, 0, "Pa")}</strong>
+                            <small>{stageRecoveryOpeningLoad.peakTimeS === null ? "No overlapping trace" : `at ${stageRecoveryOpeningLoad.peakTimeS.toFixed(2)} s`}</small>
+                          </div>
+                          <div>
+                            <span>Peak quasi-steady drag</span>
+                            <strong>{formatOpeningLoadValue(stageRecoveryOpeningLoad.peakQuasiSteadyDragN, 1, "N")}</strong>
+                            <small>Cd · A screen</small>
+                          </div>
+                          <div>
+                            <span>Inflation impulse</span>
+                            <strong>{formatOpeningLoadValue(stageRecoveryOpeningLoad.inflationImpulseNs, 1, "N·s")}</strong>
+                            <small>trapezoidal q · Cd · A</small>
+                          </div>
+                          <div>
+                            <span>Load-rate proxy</span>
+                            <strong>{formatOpeningLoadValue(stageRecoveryOpeningLoad.openingLoadRateNps, 1, "N/s")}</strong>
+                            <small>peak drag / inflation time</small>
+                          </div>
+                        </div>
+                        {stageRecoveryOpeningLoad.warnings.length > 0 && (
+                          <ul className="recovery-opening-load-notes">
+                            {stageRecoveryOpeningLoad.warnings.slice(0, 2).map((warning) => <li key={warning}>{warning}</li>)}
+                          </ul>
+                        )}
+                        <small className="recovery-opening-load-model">{stageRecoveryOpeningLoad.modelVersion} · {stageRecoveryOpeningLoad.validationStatus}</small>
+                      </section>
+                    )}
                     {stageFlightResult.rail && (
                       <div className="stage-flight-rail" aria-label="Launch rail handoff">
                         <div><span>RAIL CONSTRAINT</span><strong>{stageFlightResult.rail.freeFlight ? "Released to free flight" : "No rail exit"}</strong></div>

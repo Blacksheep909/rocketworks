@@ -522,6 +522,23 @@ kbd {
 .stage-flight-metrics div { display: flex; min-height: 54px; flex-direction: column; justify-content: space-between; padding: 9px; border: 1px solid rgba(117,153,180,.18); border-radius: 3px; background: rgba(7,11,15,.48); }
 .stage-flight-metrics span { color: #718795; font-size: 8px; }
 .stage-flight-metrics strong { color: #d9ebf5; font: 700 14px var(--font-geist-mono),monospace; letter-spacing: -.04em; }
+.recovery-opening-load-card {
+  margin-top: 12px; padding: 12px; border: 1px solid rgba(244,163,64,.28); border-radius: 3px;
+  background: linear-gradient(135deg, rgba(244,163,64,.09), rgba(12,18,24,.84) 62%);
+}
+.recovery-opening-load-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.recovery-opening-load-heading h4 { margin-top: 4px; color: #fff0d8; font-size: 11px; letter-spacing: .02em; }
+.recovery-opening-load-heading p { max-width: 700px; margin-top: 4px; color: #a89480; font-size: 8px; line-height: 1.45; }
+.recovery-opening-load-heading .uncertainty-status { flex: 0 0 auto; color: #ffc477; border-color: rgba(244,163,64,.38); background: rgba(244,163,64,.08); }
+.recovery-opening-load-heading .uncertainty-status-assessed { color: #98d6b1; border-color: rgba(98,184,134,.38); background: rgba(98,184,134,.08); }
+.recovery-opening-load-heading .uncertainty-status-unavailable { color: #ffae98; border-color: rgba(255,112,67,.38); background: rgba(255,112,67,.08); }
+.recovery-opening-load-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1px; margin-top: 10px; overflow: hidden; border: 1px solid rgba(244,163,64,.2); border-radius: 3px; background: rgba(244,163,64,.2); }
+.recovery-opening-load-grid div { min-width: 0; padding: 8px; background: rgba(13,18,23,.93); }
+.recovery-opening-load-grid span { display: block; color: #a89480; font-size: 7px; }
+.recovery-opening-load-grid strong { display: block; overflow: hidden; margin-top: 4px; color: #fff0d8; font: 700 10px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.recovery-opening-load-grid small { display: block; overflow: hidden; margin-top: 3px; color: #8d7e6f; font: 7px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.recovery-opening-load-notes { display: flex; flex-direction: column; gap: 3px; margin: 9px 0 0; padding: 0 0 0 13px; color: #b89b7a; font-size: 7px; line-height: 1.45; }
+.recovery-opening-load-model { display: block; margin-top: 8px; color: #806f5f; font: 7px var(--font-geist-mono),monospace; letter-spacing: .04em; }
 .stage-flight-rail {
   display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1px;
   margin-top: 8px; overflow: hidden; border: 1px solid rgba(255,112,67,.24);
@@ -1608,6 +1625,7 @@ kbd {
   .metric-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .mission-rack > div { padding: 0 7px; }
   .stage-flight-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .recovery-opening-load-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .stage-flight-clusters-heading { flex-direction: column; }
   .stage-flight-cluster-list { grid-template-columns: 1fr; }
   .sweep-controls { grid-template-columns: minmax(150px,1.4fr) repeat(3,minmax(78px,.7fr)); }
@@ -1634,6 +1652,7 @@ kbd {
   .rocket-3d-readout small { display: none; }
   .flight-view { padding: 22px 14px 30px; }
   .stage-flight-heading { flex-direction: column; }
+  .recovery-opening-load-heading { flex-direction: column; }
   .uncertainty-sensitivity-row { grid-template-columns: minmax(88px,1.15fr) minmax(60px,1.7fr) 34px 28px; gap: 6px; }
   .stage-flight-heading .primary-button { width: 100%; }
   .stage-flight-profile-heading { flex-direction: column; }
