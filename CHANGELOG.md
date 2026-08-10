@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added validated per-stage body length, diameter, and nose-length overrides
+  to the browser topology editor. Generated stage geometry, serial placement,
+  envelope checks, fin scaling, mass properties, and aerodynamic reference area
+  now use one consistent stage envelope; older topology records retain their
+  role-based defaults.
 - Expanded the on-demand benchmark lane with deterministic rigid-body 6DOF
   constant-force translation, torque-free energy and world-angular-momentum
   conservation, and quaternion-normalization fixtures. These are mathematical

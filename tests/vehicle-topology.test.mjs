@@ -41,6 +41,15 @@ test("serial upper stages and repeated parallel boosters validate in order", () 
   assert.equal(validated.stages[2].parentStageId, "sustainer");
   assert.equal(validated.stages[1].motorId, "user.motor-01");
   assert.equal(validated.stages[1].aerodynamicTableId, "user.aero-01");
+  const geometryTopology = validateVehicleTopology({
+    ...topology,
+    stages: topology.stages.map((stage) => stage.id === "upper-01"
+      ? { ...stage, bodyLengthM: 0.9, diameterM: 0.11, noseLengthM: 0.2 }
+      : stage),
+  });
+  assert.equal(geometryTopology.stages[1].bodyLengthM, 0.9);
+  assert.equal(geometryTopology.stages[1].diameterM, 0.11);
+  assert.equal(geometryTopology.stages[1].noseLengthM, 0.2);
   assert.equal(validated.stages[2].thrustCantAngleDeg, 4.5);
   assert.equal(validated.stages[2].thrustCantAzimuthDeg, 90);
   const deltaVTopology = validateVehicleTopology({
@@ -67,6 +76,9 @@ test("topology rejects unsafe structure edits explicitly", () => {
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], id: "payload", name: "Payload", role: "payload", failedMotorInstanceIndices: [0] }] }), /cannot configure failed motors/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], motorId: "bad motor" }] }), /motorId/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], aerodynamicTableId: "bad table" }] }), /aerodynamicTableId/);
+  assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], role: "upper", bodyLengthM: 0.04 }] }), /bodyLengthM/);
+  assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], role: "upper", diameterM: 2.01 }] }), /diameterM/);
+  assert.throws(() => validateVehicleTopology({ ...base, stages: [{ ...base.stages[0], role: "upper", bodyLengthM: 0.1, noseLengthM: 0.21 }] }), /noseLengthM cannot exceed twice/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: [...base.stages, { ...base.stages[0], id: "booster", role: "booster", attachment: "parallel", parentStageId: "missing" }] }), /parent must appear earlier/);
   assert.throws(() => validateVehicleTopology({ ...base, stages: Array.from({ length: MAX_VEHICLE_STAGES + 1 }, (_, index) => ({ ...base.stages[0], id: index === 0 ? "sustainer" : `stage-${index}`, role: index === 0 ? "core" : "upper", parentStageId: index === 0 ? undefined : "sustainer" })) }), /requires 1 through/);
 });

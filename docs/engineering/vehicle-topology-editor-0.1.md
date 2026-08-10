@@ -16,6 +16,9 @@ RocketWorks now exposes a local topology editor for:
   selection fallback;
 - per-stage aerodynamic-table assignment to a saved coefficient surface, with
   a global selection fallback;
+- optional per-stage body length, outer diameter, and nose length overrides for
+  generated upper-stage, booster, and payload preview geometry, with role-based
+  proportions as the migration-safe default;
 - per-stage ignition delay, separation delay, and an explicit deterministic
   ignition-failure switch for the preview run.
 - bounded retained-body axial separation delta-v up to 30 m/s in the body-frame
@@ -26,11 +29,11 @@ RocketWorks now exposes a local topology editor for:
   with repeated radial instances so outward/inward thrust alignment remains
   inspectable.
 
-The editor produces a validated `LocalVehicleTopology` document with schema `dev.kestrel-lab.local-vehicle-topology`, version 1. It is stored under `kestrel.project.arc54.vehicle-topology.v1` and is bounded to eight stages. IDs, optional motor and aerodynamic-table assignments, stage order, parent references, attachment type, roles, repeat count, radius, bounded cant angles, separation delta-v, and per-motor failure indices are checked before persistence. Motor, aerodynamic-table, cant, failure, and separation-delta-v assignments are migration-by-default: older v1 records without an optional field continue to use the global selection, axial thrust, all-motors-available, or zero-delta-v default.
+The editor produces a validated `LocalVehicleTopology` document with schema `dev.kestrel-lab.local-vehicle-topology`, version 1. It is stored under `kestrel.project.arc54.vehicle-topology.v1` and is bounded to eight stages. IDs, optional motor and aerodynamic-table assignments, stage order, parent references, attachment type, roles, repeat count, radius, bounded geometry overrides, cant angles, separation delta-v, and per-motor failure indices are checked before persistence. Motor, aerodynamic-table, geometry, cant, failure, and separation-delta-v assignments are migration-by-default: older v1 records without an optional field continue to use the global selection, role-based geometry, axial thrust, all-motors-available, or zero-delta-v default.
 
 ## Assembly mapping
 
-The browser maps the topology into the existing original `createVehicleAssemblyModel` API. The core stage receives the editable ARC 54 components. Additional stages receive generated preview structural components scaled by role: booster, upper, or payload. Serial stages receive a topology-derived axial transform, and parallel stages use the assembly model's radial repeat transform. Assigned motor launch mass updates the analytical motor allowance; the resulting component instances, centre of gravity, total mass, inertia, and active-stage counts flow into the existing inspector and design summary.
+The browser maps the topology into the existing original `createVehicleAssemblyModel` API. The core stage receives the editable ARC 54 components. Additional stages receive generated preview structural components scaled by role: booster, upper, or payload. Serial stages receive a topology-derived axial transform based on the selected stage envelope, and parallel stages use the assembly model's radial repeat transform. A geometry override changes the generated body, nose, fin scaling, stage placement, envelope radius, mass properties, and aerodynamic reference area together; it does not create a CAD solid or certify structural joints. Assigned motor launch mass updates the analytical motor allowance; the resulting component instances, centre of gravity, total mass, inertia, and active-stage counts flow into the existing inspector and design summary.
 
 The Flight view now exposes a staged 6-DOF preview that consumes the saved event
 settings through the independent stage-flight adapter. A serial stage's ignition

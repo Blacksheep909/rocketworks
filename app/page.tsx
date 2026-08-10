@@ -668,8 +668,40 @@ function stageScaleForRole(role: VehicleStageRole): number {
   return role === "core" ? 1 : role === "booster" ? 0.72 : role === "payload" ? 0.48 : 0.62;
 }
 
-function stageEnvelopeLengthM(role: VehicleStageRole, lengthM: number, noseLengthM: number): number {
-  return noseLengthM * stageScaleForRole(role) + lengthM * stageScaleForRole(role);
+type StageGeometryContext = Readonly<{
+  lengthM: number;
+  diameterM: number;
+  noseLengthM: number;
+}>;
+
+type StagePreviewGeometry = Readonly<{
+  bodyLengthM: number;
+  diameterM: number;
+  noseLengthM: number;
+  defaultBodyLengthM: number;
+  defaultDiameterM: number;
+  defaultNoseLengthM: number;
+}>;
+
+function stagePreviewGeometry(stage: VehicleStagePlan, inputs: StageGeometryContext): StagePreviewGeometry {
+  const roleScale = stageScaleForRole(stage.role);
+  const defaultBodyLengthM = inputs.lengthM * roleScale;
+  const defaultDiameterM = inputs.diameterM * (stage.role === "core" ? 1 : stage.role === "booster" ? 0.8 : 0.72);
+  const defaultNoseLengthM = inputs.noseLengthM * roleScale;
+  const allowOverride = stage.role !== "core";
+  return {
+    bodyLengthM: allowOverride ? stage.bodyLengthM ?? defaultBodyLengthM : defaultBodyLengthM,
+    diameterM: allowOverride ? stage.diameterM ?? defaultDiameterM : defaultDiameterM,
+    noseLengthM: allowOverride ? stage.noseLengthM ?? defaultNoseLengthM : defaultNoseLengthM,
+    defaultBodyLengthM,
+    defaultDiameterM,
+    defaultNoseLengthM,
+  };
+}
+
+function stageEnvelopeLengthM(stage: VehicleStagePlan, inputs: StageGeometryContext): number {
+  const geometry = stagePreviewGeometry(stage, inputs);
+  return geometry.noseLengthM + geometry.bodyLengthM;
 }
 
 function stageMotorInstanceCount(stage: Pick<VehicleStagePlan, "attachment" | "repeatCount">): number {
@@ -707,8 +739,7 @@ type StagePlacement = Readonly<{
 
 function createStagePlacements(
   stages: readonly VehicleStagePlan[],
-  lengthM: number,
-  noseLengthM = 0.18,
+  inputs: StageGeometryContext,
 ): readonly StagePlacement[] {
   const placementById = new Map<string, StagePlacement>();
   return stages.map((stage) => {
@@ -718,7 +749,7 @@ function createStagePlacements(
     const translationXM = stage.role === "core"
         ? 0
         : stage.attachment === "serial"
-        ? parentTranslationXM - stageEnvelopeLengthM(stage.role, lengthM, noseLengthM)
+        ? parentTranslationXM - stageEnvelopeLengthM(stage, inputs)
         : parentTranslationXM;
     const placement = {
       stage,
@@ -796,7 +827,7 @@ function makePlacedStageComponents(
     motorMassKgByStageId?: Readonly<Record<string, number>>;
   }>,
 ): VehicleComponent[] {
-  return createStagePlacements(stages, inputs.lengthM, inputs.noseLengthM).flatMap((placement) => {
+  return createStagePlacements(stages, inputs).flatMap((placement) => {
     const stageComponents = makeAssemblyStageComponents(placement.stage, baseComponents, inputs);
     return Array.from({ length: placement.instanceCount }, (_, instanceIndex) =>
       stageComponents.map((component) => placeStageComponent(component, placement, instanceIndex)),
@@ -851,16 +882,18 @@ function createSeparationEnvelopeRadiusMap({
   assembly,
   stageComponents,
   lengthM,
+  diameterM,
   noseLengthM,
 }: Readonly<{
   topology: LocalVehicleTopology;
   assembly: VehicleAssemblyEvaluation;
   stageComponents: readonly VehicleComponent[];
   lengthM: number;
+  diameterM: number;
   noseLengthM: number;
 }>): Readonly<Record<string, number>> {
   const placements = new Map(
-    createStagePlacements(topology.stages, lengthM, noseLengthM).map((placement) => [placement.stage.id, placement]),
+    createStagePlacements(topology.stages, { lengthM, diameterM, noseLengthM }).map((placement) => [placement.stage.id, placement]),
   );
   const stageById = new Map(topology.stages.map((stage) => [stage.id, stage]));
   const normalizedStageComponents = stageComponents.flatMap((component) => {
@@ -957,17 +990,20 @@ function makeAssemblyStageComponents(
   }>,
 ): VehicleComponent[] {
   if (stage.role === "core") return baseComponents.map((component) => ({ ...component, stageId: stage.id }));
+  const stageGeometry = stagePreviewGeometry(stage, inputs);
+  const lengthOverrideScale = stageGeometry.bodyLengthM / Math.max(stageGeometry.defaultBodyLengthM, 1e-9);
+  const diameterOverrideScale = stageGeometry.diameterM / Math.max(stageGeometry.defaultDiameterM, 1e-9);
   const stageScale = stageScaleForRole(stage.role);
   const generated = makeDesignComponents({
-    lengthM: inputs.lengthM * stageScale,
-    diameterM: inputs.diameterM * (stage.role === "booster" ? 0.8 : 0.72),
-    noseLengthM: inputs.noseLengthM * stageScale,
+    lengthM: stageGeometry.bodyLengthM,
+    diameterM: stageGeometry.diameterM,
+    noseLengthM: stageGeometry.noseLengthM,
     noseProfile: inputs.noseProfile,
     finCount: inputs.finCount,
-    finRootChordM: inputs.finRootChordM * stageScale,
-    finTipChordM: inputs.finTipChordM * stageScale,
-    finSweepM: inputs.finSweepM * stageScale,
-    finSpanM: inputs.finSpanM * stageScale,
+    finRootChordM: inputs.finRootChordM * stageScale * lengthOverrideScale,
+    finTipChordM: inputs.finTipChordM * stageScale * lengthOverrideScale,
+    finSweepM: inputs.finSweepM * stageScale * lengthOverrideScale,
+    finSpanM: inputs.finSpanM * stageScale * Math.min(lengthOverrideScale, diameterOverrideScale),
     finThicknessM: inputs.finThicknessM,
     material: inputs.material,
     payloadMassKg: stage.role === "payload" ? inputs.payloadMassKg * 0.7 : inputs.payloadMassKg * 0.18,
@@ -1041,6 +1077,7 @@ function createStageFlightPreviewInputs({
     assembly,
     stageComponents,
     lengthM,
+    diameterM,
     noseLengthM,
   });
   const motorAssignmentAssumptions = [
@@ -3121,7 +3158,11 @@ export default function Home() {
     [diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, material, noseLength, noseProfile, payloadMass, recoveryMass, stageMotorMassKgById, vehicleComponents, vehicleTopology],
   );
   const assemblyDefinition = useMemo(() => {
-    const placements = createStagePlacements(vehicleTopology.stages, length / 1000, noseLength / 1000);
+    const placements = createStagePlacements(vehicleTopology.stages, {
+      lengthM: length / 1000,
+      diameterM: diameter / 1000,
+      noseLengthM: noseLength / 1000,
+    });
     return {
       id: "arc54-assembly",
       name: "ARC 54 assembly",
@@ -4244,6 +4285,20 @@ export default function Home() {
       setTopologyError(error instanceof Error ? error.message : "Unable to update stage");
       return false;
     }
+  };
+  const updateTopologyDimension = (
+    id: string,
+    key: "bodyLengthM" | "diameterM" | "noseLengthM",
+    value: string,
+  ): boolean => {
+    const normalized = value.trim();
+    if (normalized === "") return updateTopologyStage(id, { [key]: undefined });
+    const numericValue = Number(normalized);
+    if (!Number.isFinite(numericValue)) {
+      setTopologyError(`${key} must be a finite number or left blank for the role default.`);
+      return false;
+    }
+    return updateTopologyStage(id, { [key]: numericValue });
   };
   const updateTopologyMotorFailures = (stage: VehicleStagePlan, value: string): boolean => {
     try {
@@ -6485,6 +6540,9 @@ export default function Home() {
                     <div className="topology-stage-heading"><div><strong>{stage.name}</strong><small>{stage.role} · {stage.repeatCount > 1 ? `${stage.repeatCount} radial instances` : "single instance"}</small></div><label className="topology-enabled"><input type="checkbox" checked={stage.enabled} onChange={(event) => updateTopologyStage(stage.id, { enabled: event.target.checked })} /> Enabled</label></div>
                     <div className="topology-stage-fields">
                       <label>Stage name<input value={stage.name} onChange={(event) => updateTopologyStage(stage.id, { name: event.target.value })} /></label>
+                      <label>Body length (m)<input type="number" min="0.05" max="10" step="0.01" value={stage.bodyLengthM ?? ""} placeholder={stage.role === "core" ? "core input" : "role default"} disabled={stage.role === "core"} onChange={(event) => updateTopologyDimension(stage.id, "bodyLengthM", event.target.value)} /></label>
+                      <label>Diameter (m)<input type="number" min="0.02" max="2" step="0.001" value={stage.diameterM ?? ""} placeholder={stage.role === "core" ? "core input" : "role default"} disabled={stage.role === "core"} onChange={(event) => updateTopologyDimension(stage.id, "diameterM", event.target.value)} /></label>
+                      <label>Nose length (m)<input type="number" min="0.01" max="3" step="0.01" value={stage.noseLengthM ?? ""} placeholder={stage.role === "core" ? "core input" : "role default"} disabled={stage.role === "core"} onChange={(event) => updateTopologyDimension(stage.id, "noseLengthM", event.target.value)} /></label>
                       <label>Role<select value={stage.role} disabled={stage.role === "core"} onChange={(event) => {
                         const role = event.target.value as VehicleStageRole;
                         updateTopologyStage(stage.id, { role, attachment: role === "booster" ? "parallel" : "serial", repeatCount: role === "booster" ? Math.max(2, stage.repeatCount) : 1, repeatRadiusM: role === "booster" ? Math.max(0.09, stage.repeatRadiusM) : 0 });

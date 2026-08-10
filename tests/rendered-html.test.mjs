@@ -687,12 +687,18 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /makePlacedStageComponents/);
   assert.match(page, /stageThrustAxisBody/);
   assert.match(page, /Motor cant \(deg\)/);
+  assert.match(page, /Body length \(m\)/);
+  assert.match(page, /Diameter \(m\)/);
+  assert.match(page, /Nose length \(m\)/);
+  assert.match(page, /stagePreviewGeometry/);
   assert.match(page, /Separation dV \(\+X, m\/s\)/);
   assert.match(page, /thrustCantAngleDeg/);
   assert.match(topology, /MAX_VEHICLE_STAGES = 8/);
   assert.match(topology, /Parallel stage/);
   assert.match(topology, /parent must appear earlier/);
   assert.match(topology, /aerodynamicTableId/);
+  assert.match(topology, /bodyLengthM/);
+  assert.match(topology, /noseLengthM/);
   assert.match(topology, /failedMotorInstanceIndices/);
   assert.match(topology, /separationDeltaVBodyMps/);
   assert.match(stagePreview, /simulateStageFlightPreview/);

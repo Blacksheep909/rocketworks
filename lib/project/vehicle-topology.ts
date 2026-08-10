@@ -14,6 +14,12 @@ export type VehicleStagePlan = Readonly<{
   parentStageId?: string;
   motorId?: string;
   aerodynamicTableId?: string;
+  /** Optional body-length override for generated preview geometry, in metres. */
+  bodyLengthM?: number;
+  /** Optional outer-diameter override for generated preview geometry, in metres. */
+  diameterM?: number;
+  /** Optional nose-length override for generated preview geometry, in metres. */
+  noseLengthM?: number;
   enabled: boolean;
   repeatCount: number;
   repeatRadiusM: number;
@@ -107,6 +113,21 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
   if (stage.aerodynamicTableId !== undefined && (typeof stage.aerodynamicTableId !== "string" || !ID_PATTERN.test(stage.aerodynamicTableId))) {
     throw new Error(`Stage ${id} aerodynamicTableId is invalid.`);
   }
+  const bodyLengthM = stage.bodyLengthM;
+  if (bodyLengthM !== undefined && (typeof bodyLengthM !== "number" || !Number.isFinite(bodyLengthM) || bodyLengthM < 0.05 || bodyLengthM > 10)) {
+    throw new Error(`Stage ${id} bodyLengthM must be a finite value from 0.05 through 10 m.`);
+  }
+  const diameterM = stage.diameterM;
+  if (diameterM !== undefined && (typeof diameterM !== "number" || !Number.isFinite(diameterM) || diameterM < 0.02 || diameterM > 2)) {
+    throw new Error(`Stage ${id} diameterM must be a finite value from 0.02 through 2 m.`);
+  }
+  const noseLengthM = stage.noseLengthM;
+  if (noseLengthM !== undefined && (typeof noseLengthM !== "number" || !Number.isFinite(noseLengthM) || noseLengthM < 0.01 || noseLengthM > 3)) {
+    throw new Error(`Stage ${id} noseLengthM must be a finite value from 0.01 through 3 m.`);
+  }
+  if (bodyLengthM !== undefined && noseLengthM !== undefined && noseLengthM > bodyLengthM * 2) {
+    throw new Error(`Stage ${id} noseLengthM cannot exceed twice bodyLengthM.`);
+  }
   const ignitionDelayS = stage.ignitionDelayS ?? 0;
   if (typeof ignitionDelayS !== "number" || !Number.isFinite(ignitionDelayS) || ignitionDelayS < 0 || ignitionDelayS > 120) {
     throw new Error(`Stage ${id} ignitionDelayS must be a finite value from 0 through 120 s.`);
@@ -147,6 +168,9 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     ...(stage.parentStageId ? { parentStageId: stage.parentStageId } : {}),
     ...(stage.motorId ? { motorId: stage.motorId } : {}),
     ...(stage.aerodynamicTableId ? { aerodynamicTableId: stage.aerodynamicTableId } : {}),
+    ...(bodyLengthM === undefined ? {} : { bodyLengthM }),
+    ...(diameterM === undefined ? {} : { diameterM }),
+    ...(noseLengthM === undefined ? {} : { noseLengthM }),
     enabled: stage.enabled,
     repeatCount: stage.repeatCount as number,
     repeatRadiusM: stage.repeatRadiusM,
@@ -225,6 +249,9 @@ export function createStagePlan(input: Readonly<{
   parentStageId?: string;
   motorId?: string;
   aerodynamicTableId?: string;
+  bodyLengthM?: number;
+  diameterM?: number;
+  noseLengthM?: number;
   repeatCount?: number;
   repeatRadiusM?: number;
   thrustCantAngleDeg?: number;
