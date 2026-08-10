@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Expanded the coupled trace inspector and CSV export with aerodynamic-force,
+  static-plus-damping moment, damping-moment, coefficient-basis, and direct
+  table-application telemetry. The new series come directly from per-state
+  load diagnostics and remain engineering-preview outputs.
 - Added separate coupled-flight uncertainty scales for direct body-axis force
   and static-moment databases. The factors feed seeded dispersion runs without
   silently scaling legacy drag, relation-based normal force, or damping terms.

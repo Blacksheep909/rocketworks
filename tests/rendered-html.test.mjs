@@ -634,6 +634,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Dynamic pressure/);
   assert.match(page, /key: "angleOfAttack", label: "AoA"/);
   assert.match(page, /key: "sideslip", label: "Sideslip"/);
+  assert.match(page, /key: "aerodynamicForce", label: "Aero force"/);
+  assert.match(page, /key: "aerodynamicMoment", label: "Aero moment"/);
+  assert.match(page, /key: "aerodynamicDampingMoment", label: "Damping moment"/);
   assert.match(page, /point\.dynamicPressurePa/);
   assert.match(page, /point\.angleOfAttackRad/);
   assert.match(page, /point\.sideslipRad/);

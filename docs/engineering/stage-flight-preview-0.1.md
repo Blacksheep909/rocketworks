@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.9.0`.
+`kestrel-stage-flight-preview-0.10.0`.
 
 When `recoveryDevices` is supplied, the adapter composes the independent
 recovery-load model into the retained vehicle's force and moment callback. A
@@ -58,16 +58,18 @@ initial position, velocity, attitude, or body rate for analysis cases.
 The browser's `Stage flight profile` is a presentation layer over the returned
 trace; it does not add forces, resample the integrator, or change the model
 version. The operator can switch the plotted series between altitude, speed,
-Mach, angle of attack, signed sideslip, dynamic pressure, axial drag, mass, and
-recovery drag, effective canopy area, and thrust. The aerodynamic and recovery
-series come from the same per-state load diagnostics
+Mach, angle of attack, signed sideslip, dynamic pressure, axial drag, total
+aerodynamic force, static-plus-damping aerodynamic moment, damping-moment
+magnitude, mass, recovery drag, effective canopy area, and thrust. The
+aerodynamic and recovery series come from the same per-state load diagnostics
 used by the integrator, so table
 applicability and topology changes remain visible in the surrounding warnings.
 Rail liftoff, rail exit, staging, and failure events are drawn as time markers,
 while the hover readout reports the exact retained trace sample and attached-
 stage set. The canvas is paired with a textual summary so the profile remains
-understandable to keyboard and assistive-technology users. CSV export remains
-the authoritative portable trace for external plotting. The metric tabs accept
+understandable to keyboard and assistive-technology users. CSV export includes
+the same aerodynamic force/moment magnitudes, direct-table application flags,
+and coefficient basis for external plotting. The metric tabs accept
 Tab plus Arrow, Home, and End key navigation so changing the displayed series
 does not require a pointer.
 
@@ -127,8 +129,10 @@ distributions through this complete adapter. The browser Flight workspace uses
 wind, then reports percentile bands, sensitivity, failed samples, and
 split-sample convergence. The variant builder does not mutate the source
 topology or environment. Drag uncertainty is an explicit drag-only scale after
-the selected constant or Mach--Reynolds source; normal force, damping, and
-centre-of-pressure terms remain nominal. See
+the selected constant or Mach--Reynolds source. When a direct force/moment
+database is selected, separate direct-force and direct-moment scales feed the
+same load diagnostics; relation fallback, damping, and centre-of-pressure
+terms remain nominal. See
 `stage-flight-uncertainty-0.1.md` for the full contract and limitations.
 
 ## Separated-body analytical branch

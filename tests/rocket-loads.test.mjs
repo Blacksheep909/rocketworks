@@ -174,6 +174,16 @@ test("direct body-axis force and moment coefficients drive the 6DOF load result"
   assert.equal(evaluation.diagnostics.directForceApplied, true);
   assert.equal(evaluation.diagnostics.directMomentApplied, true);
   assert.equal(evaluation.diagnostics.coefficientBasis, "mach-reynolds-force-moment-table");
+  assert.deepEqual(evaluation.diagnostics.aerodynamicForceBodyN, {
+    x: qS,
+    y: -0.2 * qS,
+    z: 0.1 * qS,
+  });
+  assert.deepEqual(evaluation.diagnostics.aerodynamicStaticMomentBodyNm, {
+    x: 0.01 * qS * 0.1,
+    y: -0.02 * qS,
+    z: 0.03 * qS,
+  });
 });
 
 test("wind is subtracted from vehicle velocity in the ENU frame", () => {

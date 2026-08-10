@@ -157,6 +157,8 @@ export type PreliminaryRocketLoadDiagnostics = Readonly<{
   dragN: number;
   normalForceN: number;
   normalForceApplied: boolean;
+  aerodynamicForceBodyN: Vector3;
+  aerodynamicStaticMomentBodyNm: Vector3;
   aerodynamicDampingMomentBodyNm: Vector3;
   aerodynamicModelVersion: string | null;
   activeStageIds: readonly string[];
@@ -706,6 +708,8 @@ export function createPreliminaryRocketLoadModel(
         dragN,
         normalForceN,
         normalForceApplied,
+        aerodynamicForceBodyN,
+        aerodynamicStaticMomentBodyNm: aerodynamicMomentBodyNm,
         aerodynamicDampingMomentBodyNm,
         aerodynamicModelVersion: aerodynamics.modelVersion ?? null,
         activeStageIds: [...(aerodynamics.activeStageIds ?? [])],

@@ -388,6 +388,12 @@ export function createStageFlightTraceCsv(
     "sideslip_deg",
     "dynamic_pressure_pa",
     "drag_n",
+    "aerodynamic_force_n",
+    "aerodynamic_moment_nm",
+    "aerodynamic_damping_moment_nm",
+    "direct_force_applied",
+    "direct_moment_applied",
+    "coefficient_basis",
     "recovery_drag_n",
     "recovery_effective_area_m2",
     "mass_kg",
@@ -404,6 +410,9 @@ export function createStageFlightTraceCsv(
       (point.sideslipRad * 180) / Math.PI,
       point.dynamicPressurePa,
       point.dragN,
+      point.aerodynamicForceN ?? 0,
+      point.aerodynamicMomentNm ?? 0,
+      point.aerodynamicDampingMomentNm ?? 0,
       point.recoveryDragN ?? 0,
       point.recoveryEffectiveAreaM2 ?? 0,
       point.massKg,
@@ -412,7 +421,14 @@ export function createStageFlightTraceCsv(
     values.forEach((value, valueIndex) =>
       assertFinite(value, `stage-flight trace row ${index + 1} column ${headers[valueIndex]}`),
     );
-    return [...values, point.attachedStageIds.join("|")].map(csvCell).join(",");
+    return [
+      ...values.slice(0, 11),
+      point.directForceApplied ?? false,
+      point.directMomentApplied ?? false,
+      point.coefficientBasis ?? "",
+      ...values.slice(11),
+      point.attachedStageIds.join("|"),
+    ].map(csvCell).join(",");
   });
   return `${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
 }

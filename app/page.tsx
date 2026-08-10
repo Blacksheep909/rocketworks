@@ -2414,6 +2414,9 @@ type StageFlightMetricKey =
   | "sideslip"
   | "dynamicPressure"
   | "drag"
+  | "aerodynamicForce"
+  | "aerodynamicMoment"
+  | "aerodynamicDampingMoment"
   | "recoveryDrag"
   | "recoveryArea"
   | "mass"
@@ -2434,6 +2437,9 @@ const STAGE_FLIGHT_METRICS: readonly StageFlightMetricDefinition[] = [
   { key: "sideslip", label: "Sideslip", unit: "deg", color: "#86d8ff" },
   { key: "dynamicPressure", label: "Dynamic pressure", unit: "Pa", color: "#45d6b0" },
   { key: "drag", label: "Axial drag", unit: "N", color: "#e9c46a" },
+  { key: "aerodynamicForce", label: "Aero force", unit: "N", color: "#f5c76b" },
+  { key: "aerodynamicMoment", label: "Aero moment", unit: "N·m", color: "#f28f6f" },
+  { key: "aerodynamicDampingMoment", label: "Damping moment", unit: "N·m", color: "#b58cff" },
   { key: "recoveryDrag", label: "Recovery drag", unit: "N", color: "#c084fc" },
   { key: "recoveryArea", label: "Canopy area", unit: "m²", color: "#60a5fa" },
   { key: "mass", label: "Mass", unit: "kg", color: "#a5c7d8" },
@@ -2451,6 +2457,9 @@ function stageFlightMetricValue(
   if (key === "sideslip") return (point.sideslipRad * 180) / Math.PI;
   if (key === "dynamicPressure") return point.dynamicPressurePa;
   if (key === "drag") return point.dragN;
+  if (key === "aerodynamicForce") return point.aerodynamicForceN ?? 0;
+  if (key === "aerodynamicMoment") return point.aerodynamicMomentNm ?? 0;
+  if (key === "aerodynamicDampingMoment") return point.aerodynamicDampingMomentNm ?? 0;
   if (key === "recoveryDrag") return point.recoveryDragN;
   if (key === "recoveryArea") return point.recoveryEffectiveAreaM2;
   if (key === "mass") return point.massKg;
@@ -2463,6 +2472,7 @@ function formatStageFlightMetric(value: number, key: StageFlightMetricKey): stri
   if (key === "angleOfAttack" || key === "sideslip") return value.toFixed(2);
   if (key === "dynamicPressure") return value.toFixed(0);
   if (key === "recoveryArea") return value.toFixed(3);
+  if (key === "aerodynamicMoment" || key === "aerodynamicDampingMoment") return value.toFixed(3);
   if (key === "thrust") return value.toFixed(1);
   if (key === "drag") return value.toFixed(1);
   return value.toFixed(1);

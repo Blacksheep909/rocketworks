@@ -49,7 +49,7 @@ import {
 } from "./separated-body-flight.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.9.0";
+  "kestrel-stage-flight-preview-0.10.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -97,6 +97,15 @@ export type StageFlightTracePoint = Readonly<{
   sideslipRad: number;
   dynamicPressurePa: number;
   dragN: number;
+  /** Magnitude of the aerodynamic body-force vector, excluding propulsion. */
+  aerodynamicForceN?: number;
+  /** Magnitude of static plus rate-damping aerodynamic moment. */
+  aerodynamicMomentNm?: number;
+  /** Magnitude of the aerodynamic rate-damping moment component. */
+  aerodynamicDampingMomentNm?: number;
+  directForceApplied?: boolean;
+  directMomentApplied?: boolean;
+  coefficientBasis?: string | null;
   recoveryDragN: number;
   recoveryEffectiveAreaM2: number;
   massKg: number;
@@ -656,6 +665,19 @@ export function simulateStageFlightPreview(
         sideslipRad: loadEvaluation.diagnostics.sideslipRad,
         dynamicPressurePa: loadEvaluation.diagnostics.dynamicPressurePa,
         dragN: loadEvaluation.diagnostics.dragN,
+        aerodynamicForceN: magnitude(loadEvaluation.diagnostics.aerodynamicForceBodyN),
+        aerodynamicMomentNm: magnitude(
+          addVectors(
+            loadEvaluation.diagnostics.aerodynamicStaticMomentBodyNm,
+            loadEvaluation.diagnostics.aerodynamicDampingMomentBodyNm,
+          ),
+        ),
+        aerodynamicDampingMomentNm: magnitude(
+          loadEvaluation.diagnostics.aerodynamicDampingMomentBodyNm,
+        ),
+        directForceApplied: loadEvaluation.diagnostics.directForceApplied,
+        directMomentApplied: loadEvaluation.diagnostics.directMomentApplied,
+        coefficientBasis: loadEvaluation.diagnostics.coefficientBasis,
         recoveryDragN: recoveryEvaluation?.devices.reduce((sum, device) => sum + device.dragN, 0) ?? 0,
         recoveryEffectiveAreaM2: recoveryEvaluation?.devices.reduce((sum, device) => sum + device.effectiveAreaM2, 0) ?? 0,
         massKg: evaluation.massProperties.massKg,
