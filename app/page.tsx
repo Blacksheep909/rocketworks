@@ -6142,6 +6142,9 @@ export default function Home() {
                   placeholder="Search mission actions…"
                   aria-label="Search mission actions"
                   aria-controls="command-list"
+                  role="combobox"
+                  aria-expanded="true"
+                  aria-autocomplete="list"
                   aria-activedescendant={filteredCommandActions[activeCommandIndex] ? `command-${filteredCommandActions[activeCommandIndex].id}` : undefined}
                 />
               </div>

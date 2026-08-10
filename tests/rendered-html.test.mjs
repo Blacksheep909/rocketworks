@@ -393,6 +393,9 @@ test("keeps command search and experience mode reachable on narrow screens", asy
   );
   assert.match(styles, /@media \(max-width: 760px\)[\s\S]*\.command-button \{ display: inline-flex;/);
   assert.match(styles, /@media \(max-width: 760px\)[\s\S]*\.mode-switch \{ display: inline-flex;/);
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /role="combobox"/);
+  assert.match(page, /aria-controls="command-list"/);
 });
 
 test("ships a provenance-qualified recovery landing footprint", async () => {

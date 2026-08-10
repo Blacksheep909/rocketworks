@@ -20,6 +20,8 @@ flight-readiness claims.
   mass-flow CSV alongside their thrust CSV and RASP/ENG interchange file.
 - Narrow-screen layouts keep command search and beginner/expert mode controls
   reachable instead of hiding the only paths to advanced workbench actions.
+- Command search now exposes an explicit accessible combobox/listbox contract
+  for screen readers and keyboard navigation.
 - Expanded coupled stage-flight uncertainty to sample additional motor/stage
   ignition delay, annotated separation impulse, and initial launch-alignment
   perturbations. Variants wrap event updates without mutating the base project;
