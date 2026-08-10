@@ -9,8 +9,9 @@ flight-readiness claims.
 - Added an original ASCII STL reference-mesh export for the selected nose,
   airframe, nozzle, and repeated fin geometry. The export uses millimetres,
   deterministic triangulation, and an explicit preview-only manufacturing
-  warning; it does not claim toleranced solids, slicer readiness, or structural
-  validation.
+  warning. Multi-stage serial, parallel, and repeated instances now retain
+  their validated axial/radial offsets in the same mesh; it does not claim
+  toleranced solids, slicer readiness, or structural validation.
 - Project autosave and manual history checkpoints now persist the validated
   vehicle topology alongside editable inputs. Configuration fingerprints and
   change labels include stage structure and geometry, and restoring a modern

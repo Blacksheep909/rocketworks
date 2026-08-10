@@ -19,6 +19,7 @@ import {
   createRocketStl,
   type JsonValue,
   type RocketCadGeometry,
+  type RocketCadStageGeometry,
 } from "../lib/export/project-exports.ts";
 import {
   analyzeRecoveryLandingDispersion,
@@ -760,6 +761,63 @@ function createStagePlacements(
     } satisfies StagePlacement;
     placementById.set(stage.id, placement);
     return placement;
+  });
+}
+
+function createCadStageParts(
+  stages: readonly VehicleStagePlan[],
+  inputs: Readonly<{
+    lengthM: number;
+    diameterM: number;
+    noseLengthM: number;
+    noseProfile: NoseProfile;
+    finCount: number;
+    finRootChordM: number;
+    finTipChordM: number;
+    finSweepM: number;
+    finSpanM: number;
+    finThicknessM: number;
+  }>,
+): readonly RocketCadStageGeometry[] {
+  return createStagePlacements(stages, inputs).flatMap((placement) => {
+    const stageGeometry = stagePreviewGeometry(placement.stage, inputs);
+    const lengthOverrideScale = stageGeometry.bodyLengthM / Math.max(stageGeometry.defaultBodyLengthM, 1e-9);
+    const diameterOverrideScale = stageGeometry.diameterM / Math.max(stageGeometry.defaultDiameterM, 1e-9);
+    const stageScale = stageScaleForRole(placement.stage.role);
+    const finScale = placement.stage.role === "core" ? 1 : stageScale * lengthOverrideScale;
+    const spanScale = placement.stage.role === "core"
+      ? 1
+      : stageScale * Math.min(lengthOverrideScale, diameterOverrideScale);
+    return Array.from({ length: placement.instanceCount }, (_, instanceIndex) => {
+      const angle = placement.stage.attachment === "parallel"
+        ? (instanceIndex * 2 * Math.PI) / Math.max(placement.instanceCount, 1)
+        : 0;
+      return {
+        id: placement.instanceCount > 1
+          ? `${placement.stage.id}-instance-${instanceIndex + 1}`
+          : placement.stage.id,
+        name: placement.instanceCount > 1
+          ? `${placement.stage.name} ${instanceIndex + 1}`
+          : placement.stage.name,
+        axialOffsetM: placement.translationXM,
+        radialOffsetYM: placement.stage.attachment === "parallel"
+          ? placement.stage.repeatRadiusM * Math.cos(angle)
+          : 0,
+        radialOffsetZM: placement.stage.attachment === "parallel"
+          ? placement.stage.repeatRadiusM * Math.sin(angle)
+          : 0,
+        noseLengthM: stageGeometry.noseLengthM,
+        noseProfile: inputs.noseProfile,
+        bodyLengthM: stageGeometry.bodyLengthM,
+        diameterM: stageGeometry.diameterM,
+        finCount: inputs.finCount,
+        finRootChordM: inputs.finRootChordM * finScale,
+        finTipChordM: inputs.finTipChordM * finScale,
+        finSweepM: inputs.finSweepM * finScale,
+        finSpanM: inputs.finSpanM * spanScale,
+        finThicknessM: inputs.finThicknessM,
+      } satisfies RocketCadStageGeometry;
+    });
   });
 }
 
@@ -4524,6 +4582,18 @@ export default function Home() {
         finThicknessM: finThickness / 1000,
         centerOfMassXM: massProperties.centerOfMassM.x,
         centerOfPressureXM: staticStability.centerOfPressureXM,
+        stageParts: createCadStageParts(vehicleTopology.stages, {
+          lengthM: length / 1000,
+          diameterM: diameter / 1000,
+          noseLengthM: noseLength / 1000,
+          noseProfile,
+          finCount,
+          finRootChordM: finRootChord / 1000,
+          finTipChordM: finTipChord / 1000,
+          finSweepM: finSweep / 1000,
+          finSpanM: finSpan / 1000,
+          finThicknessM: finThickness / 1000,
+        }),
       };
       let filename: string;
       let mediaType: string;

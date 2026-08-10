@@ -176,8 +176,11 @@ The generated `.stl` file is an ASCII triangulation in millimetres of the
 selected nose profile, cylindrical airframe, tapered nozzle, and repeated
 external fin prisms. The mesh is generated from the same validated geometry
 envelope as the DXF and OpenSCAD outputs, so the three references share the
-same axial dimensions and fin planform inputs. It is useful for visual CAD
-inspection, fit studies, and early mesh interoperability checks.
+same axial dimensions and fin planform inputs. When the project has an enabled
+multi-stage topology, the browser adds one validated mesh part per serial,
+parallel, or repeated stage instance and applies its axial/radial placement
+offset. It is useful for visual CAD inspection, fit studies, and early mesh
+interoperability checks.
 
 STL has no unit, material, provenance, or tolerance schema. RocketWorks
 therefore labels this output as a reference mesh rather than a slicer-ready
@@ -227,8 +230,8 @@ Automated tests cover:
   rejection
 - DXF version, units, layers, dimensions, CG/CP, and EOF termination
 - OpenSCAD modules, millimetre dimensions, fin rotation, and safety comment
-- STL solid-name, facet normals, millimetre dimensions, fin repetition, and
-  deterministic termination
+- STL solid-name, facet normals, millimetre dimensions, fin repetition,
+  multi-stage axial/radial offsets, and deterministic termination
 - report warning order, metrics, landing section, limitations, and independence
 - rejection of invalid identifiers, empty traces, non-finite values, invalid
   geometry, and impossible fin envelopes

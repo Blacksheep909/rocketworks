@@ -71,6 +71,26 @@ export type RocketCadGeometry = Readonly<{
   finThicknessM: number;
   centerOfMassXM?: number;
   centerOfPressureXM?: number;
+  /** Optional complete stage/instance geometry for multi-body CAD previews. */
+  stageParts?: readonly RocketCadStageGeometry[];
+}>;
+
+export type RocketCadStageGeometry = Readonly<{
+  id: string;
+  name: string;
+  axialOffsetM: number;
+  radialOffsetYM: number;
+  radialOffsetZM: number;
+  noseLengthM: number;
+  noseProfile?: "ogive" | "conical" | "elliptical";
+  bodyLengthM: number;
+  diameterM: number;
+  finCount: number;
+  finRootChordM: number;
+  finTipChordM: number;
+  finSweepM: number;
+  finSpanM: number;
+  finThicknessM: number;
 }>;
 
 export type EngineeringReportInput = Readonly<{
@@ -601,6 +621,36 @@ function validateCadGeometry(geometry: RocketCadGeometry): void {
       throw new Error(`CAD ${label} must be finite when supplied`);
     }
   }
+  if (geometry.stageParts !== undefined) {
+    if (geometry.stageParts.length === 0 || geometry.stageParts.length > 32) {
+      throw new Error("CAD stage parts must contain between 1 and 32 entries");
+    }
+    for (const part of geometry.stageParts) {
+      if (!part.id.trim() || !part.name.trim()) {
+        throw new Error("CAD stage part identifiers and names cannot be empty");
+      }
+      for (const [label, value] of [
+        ["stage axial offset", part.axialOffsetM],
+        ["stage radial Y offset", part.radialOffsetYM],
+        ["stage radial Z offset", part.radialOffsetZM],
+      ] as const) {
+        if (!Number.isFinite(value)) throw new Error(`CAD ${label} must be finite`);
+      }
+      validateCadGeometry({
+        projectName: part.name,
+        noseLengthM: part.noseLengthM,
+        noseProfile: part.noseProfile,
+        bodyLengthM: part.bodyLengthM,
+        diameterM: part.diameterM,
+        finCount: part.finCount,
+        finRootChordM: part.finRootChordM,
+        finTipChordM: part.finTipChordM,
+        finSweepM: part.finSweepM,
+        finSpanM: part.finSpanM,
+        finThicknessM: part.finThicknessM,
+      });
+    }
+  }
 }
 
 function tangentOgiveRadiusMm(
@@ -900,7 +950,7 @@ function addStlFinPrism(
  * as the DXF/OpenSCAD references. It is a triangulated design aid, not a
  * toleranced manufacturing solid, slicer profile, or structural certification.
  */
-export function createRocketStl(geometry: RocketCadGeometry): string {
+function createStlPartTriangles(geometry: RocketCadGeometry): StlTriangle[] {
   validateCadGeometry(geometry);
   const noseLengthMm = geometry.noseLengthM * 1000;
   const bodyLengthMm = geometry.bodyLengthM * 1000;
@@ -967,6 +1017,79 @@ export function createRocketStl(geometry: RocketCadGeometry): string {
       (2 * Math.PI * fin) / geometry.finCount,
     );
   }
+
+  return triangles;
+}
+
+function translateStlPoint(point: StlPoint, offsetMm: StlPoint): StlPoint {
+  return {
+    x: point.x + offsetMm.x,
+    y: point.y + offsetMm.y,
+    z: point.z + offsetMm.z,
+  };
+}
+
+function translateStlTriangle(
+  triangle: StlTriangle,
+  offsetMm: StlPoint,
+): StlTriangle {
+  return {
+    a: translateStlPoint(triangle.a, offsetMm),
+    b: translateStlPoint(triangle.b, offsetMm),
+    c: translateStlPoint(triangle.c, offsetMm),
+    normal: triangle.normal,
+  };
+}
+
+function cadGeometryFromStagePart(
+  projectName: string,
+  part: RocketCadStageGeometry,
+): RocketCadGeometry {
+  return {
+    projectName: `${projectName} / ${part.name}`,
+    noseLengthM: part.noseLengthM,
+    noseProfile: part.noseProfile,
+    bodyLengthM: part.bodyLengthM,
+    diameterM: part.diameterM,
+    finCount: part.finCount,
+    finRootChordM: part.finRootChordM,
+    finTipChordM: part.finTipChordM,
+    finSweepM: part.finSweepM,
+    finSpanM: part.finSpanM,
+    finThicknessM: part.finThicknessM,
+  };
+}
+
+/**
+ * Creates an ASCII STL reference mesh in millimetres.
+ *
+ * When `stageParts` is supplied, every stage/instance is emitted into the
+ * same assembly mesh using its validated axial and radial offsets. The mesh
+ * remains a triangulated design aid, not a toleranced manufacturing solid,
+ * slicer profile, or structural certification.
+ */
+export function createRocketStl(geometry: RocketCadGeometry): string {
+  validateCadGeometry(geometry);
+  const partDefinitions = geometry.stageParts?.length
+    ? geometry.stageParts.map((part) => ({
+        geometry: cadGeometryFromStagePart(geometry.projectName, part),
+        offsetMm: {
+          x: part.axialOffsetM * 1000,
+          y: part.radialOffsetYM * 1000,
+          z: part.radialOffsetZM * 1000,
+        },
+      }))
+    : [
+        {
+          geometry,
+          offsetMm: { x: 0, y: 0, z: 0 },
+        },
+      ];
+  const triangles = partDefinitions.flatMap(({ geometry: part, offsetMm }) =>
+    createStlPartTriangles(part).map((triangle) =>
+      translateStlTriangle(triangle, offsetMm),
+    ),
+  );
 
   const safeName = geometry.projectName
     .trim()

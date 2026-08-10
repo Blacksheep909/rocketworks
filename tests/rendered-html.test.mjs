@@ -465,6 +465,8 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(page, /stageFlight: stageFlightIsCurrent \? stageFlightResult : null/);
   assert.match(page, /createRocketProfileDxf/);
   assert.match(page, /createRocketStl/);
+  assert.match(page, /createCadStageParts/);
+  assert.match(page, /stageParts:/);
   assert.match(page, /createRocketOpenScad/);
   assert.match(page, /exportArtifact\("stl"\)/);
   assert.match(page, /Reference mesh/);
