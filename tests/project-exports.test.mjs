@@ -333,6 +333,78 @@ test("ASCII STL export can retain serial and radial stage-instance offsets", () 
   assert.doesNotMatch(multiStage, /NaN|Infinity/);
 });
 
+test("DXF side-profile export emits topology-aware stage layers", () => {
+  const dxf = createRocketProfileDxf({
+    ...geometry,
+    stageParts: [
+      {
+        id: "core",
+        name: "Core",
+        axialOffsetM: 0,
+        radialOffsetYM: 0,
+        radialOffsetZM: 0,
+        noseLengthM: geometry.noseLengthM,
+        bodyLengthM: geometry.bodyLengthM,
+        diameterM: geometry.diameterM,
+        finCount: geometry.finCount,
+        finRootChordM: geometry.finRootChordM,
+        finTipChordM: geometry.finTipChordM,
+        finSweepM: geometry.finSweepM,
+        finSpanM: geometry.finSpanM,
+        finThicknessM: geometry.finThicknessM,
+      },
+      {
+        id: "upper-instance-1",
+        name: "Upper 1",
+        axialOffsetM: -0.89,
+        radialOffsetYM: 0.12,
+        radialOffsetZM: 0.04,
+        noseLengthM: 0.12,
+        bodyLengthM: 0.42,
+        diameterM: 0.038,
+        finCount: 3,
+        finRootChordM: 0.08,
+        finTipChordM: 0.03,
+        finSweepM: 0.02,
+        finSpanM: 0.05,
+        finThicknessM: 0.002,
+      },
+    ],
+  });
+  assert.match(dxf, /AIRFRAME_core/);
+  assert.match(dxf, /FINS_upper-instance-1/);
+  assert.match(dxf, /-890\.000000/);
+  assert.match(dxf, /radial Z offset is projected out/);
+  assert.doesNotMatch(dxf, /NaN|Infinity/);
+});
+
+test("OpenSCAD export emits uniquely named translated stage modules", () => {
+  const scad = createRocketOpenScad({
+    ...geometry,
+    stageParts: [{
+      id: "upper-instance-1",
+      name: "Upper 1",
+      axialOffsetM: -0.89,
+      radialOffsetYM: 0.12,
+      radialOffsetZM: 0.04,
+      noseLengthM: 0.12,
+      bodyLengthM: 0.42,
+      diameterM: 0.038,
+      finCount: 3,
+      finRootChordM: 0.08,
+      finTipChordM: 0.03,
+      finSweepM: 0.02,
+      finSpanM: 0.05,
+      finThicknessM: 0.002,
+    }],
+  });
+  assert.match(scad, /Multi-stage topology reference/);
+  assert.match(scad, /module stage_upper_instance_1_1_assembly\(\)/);
+  assert.match(scad, /translate\(\[-890,120,40\]\)/);
+  assert.match(scad, /stage_upper_instance_1_1_fin_set/);
+  assert.doesNotMatch(scad, /NaN|Infinity/);
+});
+
 test("CAD reference exports preserve the selected nose profile", () => {
   const conical = createRocketProfileDxf({ ...geometry, noseProfile: "conical" });
   const elliptical = createRocketOpenScad({ ...geometry, noseProfile: "elliptical" });

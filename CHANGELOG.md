@@ -12,6 +12,9 @@ flight-readiness claims.
   warning. Multi-stage serial, parallel, and repeated instances now retain
   their validated axial/radial offsets in the same mesh; it does not claim
   toleranced solids, slicer readiness, or structural validation.
+- DXF side profiles and OpenSCAD references now consume the same topology-aware
+  stage parts. DXF projects radial Z out of its 2D view with an explicit note;
+  OpenSCAD keeps full 3D radial placement in uniquely named stage modules.
 - Project autosave and manual history checkpoints now persist the validated
   vehicle topology alongside editable inputs. Configuration fingerprints and
   change labels include stage structure and geometry, and restoring a modern

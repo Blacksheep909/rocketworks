@@ -731,6 +731,59 @@ function dxfLine(
   ];
 }
 
+function dxfLayerSuffix(value: string): string {
+  const safe = value.replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+  return safe ? `_${safe.slice(0, 24)}` : "";
+}
+
+function createDxfStageEntities(
+  geometry: RocketCadGeometry,
+  axialOffsetMm: number,
+  radialOffsetMm: number,
+  layerSuffix: string,
+): string[] {
+  const noseLengthMm = geometry.noseLengthM * 1000;
+  const bodyLengthMm = geometry.bodyLengthM * 1000;
+  const radiusMm = (geometry.diameterM * 1000) / 2;
+  const totalLengthMm = noseLengthMm + bodyLengthMm;
+  const finRootChordMm = geometry.finRootChordM * 1000;
+  const finTipChordMm = geometry.finTipChordM * 1000;
+  const finSweepMm = geometry.finSweepM * 1000;
+  const finSpanMm = geometry.finSpanM * 1000;
+  const noseTop = Array.from({ length: 25 }, (_, index) => {
+    const axialMm = (noseLengthMm * index) / 24;
+    return {
+      x: axialMm + axialOffsetMm,
+      y: profileRadiusMm(axialMm, noseLengthMm, radiusMm, geometry.noseProfile) + radialOffsetMm,
+    };
+  });
+  const outline = [
+    ...noseTop,
+    { x: totalLengthMm + axialOffsetMm, y: radiusMm + radialOffsetMm },
+    { x: totalLengthMm + axialOffsetMm, y: -radiusMm + radialOffsetMm },
+    ...[...noseTop].reverse().map((point) => ({
+      x: point.x,
+      y: 2 * radialOffsetMm - point.y,
+    })),
+  ];
+  const rootStartMm = totalLengthMm - finRootChordMm;
+  const topFin = [
+    { x: rootStartMm + axialOffsetMm, y: radiusMm + radialOffsetMm },
+    { x: rootStartMm + finSweepMm + axialOffsetMm, y: radiusMm + finSpanMm + radialOffsetMm },
+    { x: rootStartMm + finSweepMm + finTipChordMm + axialOffsetMm, y: radiusMm + finSpanMm + radialOffsetMm },
+    { x: totalLengthMm + axialOffsetMm, y: radiusMm + radialOffsetMm },
+  ];
+  const bottomFin = topFin.map((point) => ({
+    x: point.x,
+    y: 2 * radialOffsetMm - point.y,
+  }));
+  return [
+    ...dxfPolyline(`AIRFRAME${layerSuffix}`, outline, true),
+    ...dxfPolyline(`FINS${layerSuffix}`, topFin, true),
+    ...dxfPolyline(`FINS${layerSuffix}`, bottomFin, true),
+  ];
+}
+
 export function createRocketProfileDxf(geometry: RocketCadGeometry): string {
   validateCadGeometry(geometry);
   const noseLengthMm = geometry.noseLengthM * 1000;
@@ -765,11 +818,27 @@ export function createRocketProfileDxf(geometry: RocketCadGeometry): string {
     { x: totalLengthMm, y: radiusMm },
   ];
   const bottomFin = topFin.map((point) => ({ x: point.x, y: -point.y }));
+  const stageEntities = geometry.stageParts?.flatMap((part) => {
+    const stageGeometry = cadGeometryFromStagePart(geometry.projectName, part);
+    return [
+      ...dxfPair(999, `Stage ${part.id}: radial Z offset is projected out of this side profile.`),
+      ...createDxfStageEntities(
+        stageGeometry,
+        part.axialOffsetM * 1000,
+        part.radialOffsetYM * 1000,
+        dxfLayerSuffix(part.id),
+      ),
+    ];
+  }) ?? [];
   const extentsMm = radiusMm + finSpanMm + 20;
   const entities = [
-    ...dxfPolyline("AIRFRAME", outline, true),
-    ...dxfPolyline("FINS", topFin, true),
-    ...dxfPolyline("FINS", bottomFin, true),
+    ...(geometry.stageParts?.length
+      ? stageEntities
+      : [
+          ...dxfPolyline("AIRFRAME", outline, true),
+          ...dxfPolyline("FINS", topFin, true),
+          ...dxfPolyline("FINS", bottomFin, true),
+        ]),
     ...dxfLine("CENTERLINE", { x: -10, y: 0 }, { x: totalLengthMm + 20, y: 0 }),
     ...(geometry.centerOfMassXM === undefined
       ? []
@@ -1115,8 +1184,119 @@ function scadNumber(valueMm: number): string {
   return Number(valueMm.toFixed(6)).toString();
 }
 
+function scadModuleIdentifier(value: string, index: number): string {
+  const safe = value.replace(/[^A-Za-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+  return `stage_${safe || "part"}_${index + 1}`;
+}
+
+function createOpenScadPartScript(
+  geometry: RocketCadGeometry,
+  modulePrefix: string,
+): string {
+  validateCadGeometry(geometry);
+  const noseLengthMm = geometry.noseLengthM * 1000;
+  const bodyLengthMm = geometry.bodyLengthM * 1000;
+  const radiusMm = (geometry.diameterM * 1000) / 2;
+  const totalLengthMm = noseLengthMm + bodyLengthMm;
+  const rootStartMm = totalLengthMm - geometry.finRootChordM * 1000;
+  const noseSurface = Array.from({ length: 33 }, (_, index) => {
+    const axialMm = (noseLengthMm * index) / 32;
+    return [
+      profileRadiusMm(axialMm, noseLengthMm, radiusMm, geometry.noseProfile),
+      axialMm,
+    ] as const;
+  });
+  const nosePolygon = [
+    [0, 0] as const,
+    ...noseSurface.slice(1),
+    [0, noseLengthMm] as const,
+  ]
+    .map(([radius, axial]) => `[${scadNumber(radius)},${scadNumber(axial)}]`)
+    .join(",");
+  const finPoints = [
+    [rootStartMm, radiusMm],
+    [totalLengthMm, radiusMm],
+    [
+      rootStartMm + (geometry.finSweepM + geometry.finTipChordM) * 1000,
+      radiusMm + geometry.finSpanM * 1000,
+    ],
+    [
+      rootStartMm + geometry.finSweepM * 1000,
+      radiusMm + geometry.finSpanM * 1000,
+    ],
+  ]
+    .map(([x, radius]) => `[${scadNumber(x)},${scadNumber(radius)}]`)
+    .join(",");
+  return `module ${modulePrefix}_nose() {
+  rotate([0,90,0])
+    rotate_extrude(convexity=10)
+      polygon(points=[${nosePolygon}]);
+}
+
+module ${modulePrefix}_airframe() {
+  translate([${scadNumber(noseLengthMm)},0,0])
+    rotate([0,90,0])
+      cylinder(h=${scadNumber(bodyLengthMm)},r=${scadNumber(radiusMm)});
+}
+
+module ${modulePrefix}_fin() {
+  linear_extrude(height=${scadNumber(geometry.finThicknessM * 1000)},center=true,convexity=10)
+    polygon(points=[${finPoints}]);
+}
+
+module ${modulePrefix}_fin_set() {
+  for (angle=[0:${scadNumber(360 / geometry.finCount)}:${scadNumber(360 - 360 / geometry.finCount)}])
+    rotate([angle,0,0]) ${modulePrefix}_fin();
+}
+
+module ${modulePrefix}_nozzle() {
+  translate([${scadNumber(totalLengthMm)},0,0])
+    rotate([0,90,0])
+      cylinder(h=${scadNumber(Math.min(45, bodyLengthMm * 0.08))},r1=${scadNumber(radiusMm * 0.36)},r2=${scadNumber(radiusMm * 0.29)});
+}
+
+module ${modulePrefix}_assembly() {
+  ${modulePrefix}_nose();
+  ${modulePrefix}_airframe();
+  ${modulePrefix}_fin_set();
+  ${modulePrefix}_nozzle();
+}`;
+}
+
 export function createRocketOpenScad(geometry: RocketCadGeometry): string {
   validateCadGeometry(geometry);
+  if (geometry.stageParts?.length) {
+    const partScripts = geometry.stageParts.map((part, index) => {
+      const modulePrefix = scadModuleIdentifier(part.id, index);
+      const stageGeometry = cadGeometryFromStagePart(geometry.projectName, part);
+      return {
+        modulePrefix,
+        script: createOpenScadPartScript(stageGeometry, modulePrefix),
+        axialOffsetMm: part.axialOffsetM * 1000,
+        radialOffsetYMm: part.radialOffsetYM * 1000,
+        radialOffsetZMm: part.radialOffsetZM * 1000,
+      };
+    });
+    const safeName = geometry.projectName.replace(/[\r\n]/g, " ").trim();
+    return `// ${safeName}
+// Generated by RocketWorks ${KESTREL_EXPORT_MODEL_VERSION}
+// Units: millimetres
+// Multi-stage topology reference; radial offsets are retained in 3D.
+// Engineering-preview reference geometry only. Verify tolerances, wall thickness, fits, and structure before manufacturing.
+
+$fn = 96;
+
+${partScripts.map((part) => part.script).join("\n\n")}
+
+union() {
+${partScripts
+  .map(
+    (part) => `  translate([${scadNumber(part.axialOffsetMm)},${scadNumber(part.radialOffsetYMm)},${scadNumber(part.radialOffsetZMm)}]) ${part.modulePrefix}_assembly();`,
+  )
+  .join("\n")}
+}
+`;
+  }
   const noseLengthMm = geometry.noseLengthM * 1000;
   const bodyLengthMm = geometry.bodyLengthM * 1000;
   const radiusMm = (geometry.diameterM * 1000) / 2;

@@ -170,6 +170,13 @@ couplers, shoulder, internal components, fin tabs, motor retention, recovery
 attachments, fasteners, clearances, shrink compensation, material process
 rules, or structural design. It must not be sent directly to manufacturing.
 
+When the project has an enabled multi-stage topology, OpenSCAD emits unique
+stage-prefixed modules and a final union that translates each serial, parallel,
+or repeated instance by its validated axial and 3D radial offset. The stage
+modules intentionally share the same bounded external shape assumptions as the
+single-stage reference; internal couplers, retention, and interference are not
+silently invented.
+
 ## ASCII STL reference mesh
 
 The generated `.stl` file is an ASCII triangulation in millimetres of the

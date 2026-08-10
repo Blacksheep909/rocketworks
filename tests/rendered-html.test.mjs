@@ -448,6 +448,7 @@ test("ships a provenance-qualified recovery landing footprint", async () => {
 
 test("ships an accessible multi-format engineering export center", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const exportSource = await readFile(new URL("../lib/export/project-exports.ts", import.meta.url), "utf8");
   const stylesheet = await readFile(
     new URL("../app/globals.css", import.meta.url),
     "utf8",
@@ -470,6 +471,8 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(page, /createRocketOpenScad/);
   assert.match(page, /exportArtifact\("stl"\)/);
   assert.match(page, /Reference mesh/);
+  assert.match(exportSource, /Multi-stage topology reference/);
+  assert.match(exportSource, /radial Z offset is projected out/);
   assert.match(page, /computeStructuralScreen/);
   assert.match(page, /flutterFlightCondition/);
   assert.match(page, /Separation impulse audit/);

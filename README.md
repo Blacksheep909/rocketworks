@@ -87,8 +87,9 @@ research, standards, and original code.
   nominal optimization, and an opt-in finite-sample robust optimization screen
   with explicit quantile and scenario-failure metrics;
 - accessible event timelines, trace charts, comparisons, engineering reports,
-  flight/stage/sweep/uncertainty CSV, DXF, multi-stage triangulated STL
-  reference meshes, OpenSCAD, and portable RocketWorks project JSON;
+  flight/stage/sweep/uncertainty CSV, topology-aware DXF, multi-stage
+  triangulated STL reference meshes, OpenSCAD, and portable RocketWorks project
+  JSON;
 - local run comparison that pins a reference estimate and exposes explicit
   metric deltas after a design or environment change;
 - measured-flight CSV comparison with strict SI parsing, vertical or coupled
