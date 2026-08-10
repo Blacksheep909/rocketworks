@@ -1,8 +1,13 @@
 import {
   impulseThrough,
+  massFlowAt,
+  massFlowThrough,
   thrustAt,
+  totalMassFlow,
   totalImpulse,
+  validateMassFlowHistory,
   validateThrustCurve,
+  type MassFlowPoint,
   type ThrustPoint,
 } from "./curves.ts";
 import {
@@ -23,13 +28,15 @@ import type {
 } from "./six-dof.ts";
 
 export const PROPELLANT_MASS_MODEL_VERSION =
-  "kestrel-impulse-propellant-mass-0.1.0";
+  "kestrel-impulse-propellant-mass-0.2.0";
 
 export type ImpulseBasedMotor = Readonly<{
   id: string;
   name: string;
   ignitionTimeS: number;
   thrustCurve: readonly ThrustPoint[];
+  /** Optional positive measured propellant outflow rate relative to ignition. */
+  massFlowHistoryKgS?: readonly MassFlowPoint[];
   dryMassProperties: MassProperties;
   initialPropellantMassProperties: MassProperties;
 }>;
@@ -46,6 +53,7 @@ export type MotorMassState = Readonly<{
   remainingFraction: number;
   propellantMassKg: number;
   propellantMassRateKgS: number;
+  depletionSource: "impulse-proportional" | "measured-mass-flow";
 }>;
 
 export type PropellantVehicleMassState = Readonly<{
@@ -144,7 +152,13 @@ export function createImpulseBasedPropellantModel(input: Readonly<{
   if (input.motors.length === 0 && input.fixedVehicleMassProperties.massKg <= 0) {
     throw new Error("vehicle mass must be positive");
   }
-  const motors = input.motors.map((motor) => {
+  type PreparedMotor = ImpulseBasedMotor & Readonly<{
+    thrustCurve: ThrustPoint[];
+    massFlowHistoryKgS?: readonly MassFlowPoint[];
+    totalImpulseNs: number;
+    totalMassFlowKg?: number;
+  }>;
+  const motors: PreparedMotor[] = input.motors.map((motor) => {
     if (!motor.id.trim() || !motor.name.trim()) {
       throw new Error("motors must have identifiers and names");
     }
@@ -163,7 +177,27 @@ export function createImpulseBasedPropellantModel(input: Readonly<{
       `motor ${motor.id} propellant`,
       true,
     );
-    return { ...motor, thrustCurve, totalImpulseNs: impulseNs };
+    const massFlowHistoryKgS = motor.massFlowHistoryKgS === undefined
+      ? undefined
+      : [...motor.massFlowHistoryKgS];
+    const totalMassFlowKg = massFlowHistoryKgS
+      ? totalMassFlow(massFlowHistoryKgS)
+      : undefined;
+    if (massFlowHistoryKgS) {
+      validateMassFlowHistory(massFlowHistoryKgS);
+      if (!(totalMassFlowKg! > 0)) {
+        throw new Error(`motor ${motor.id} mass-flow history must consume positive mass`);
+      }
+      if (totalMassFlowKg! > motor.initialPropellantMassProperties.massKg * (1 + 1e-9)) {
+        throw new Error(`motor ${motor.id} mass-flow history exceeds initial propellant mass`);
+      }
+    }
+    return {
+      ...motor,
+      thrustCurve,
+      ...(massFlowHistoryKgS ? { massFlowHistoryKgS, totalMassFlowKg } : {}),
+      totalImpulseNs: impulseNs,
+    };
   });
   if (new Set(motors.map((motor) => motor.id)).size !== motors.length) {
     throw new Error("motor identifiers must be unique");
@@ -177,6 +211,9 @@ export function createImpulseBasedPropellantModel(input: Readonly<{
           ...motor.thrustCurve.map(
             (point) => motor.ignitionTimeS + point.timeS,
           ),
+          ...(motor.massFlowHistoryKgS?.map(
+            (point) => motor.ignitionTimeS + point.timeS,
+          ) ?? []),
         ],
       ),
     ),
@@ -192,16 +229,27 @@ export function createImpulseBasedPropellantModel(input: Readonly<{
         motor.totalImpulseNs,
         Math.max(0, impulseThrough(motor.thrustCurve, localTimeS)),
       );
-      const consumedFraction = deliveredImpulseNs / motor.totalImpulseNs;
+      const measuredMassFlowKg = motor.massFlowHistoryKgS
+        ? Math.min(
+            motor.initialPropellantMassProperties.massKg,
+            Math.max(0, massFlowThrough(motor.massFlowHistoryKgS, localTimeS)),
+          )
+        : null;
+      const consumedFraction = measuredMassFlowKg === null
+        ? deliveredImpulseNs / motor.totalImpulseNs
+        : measuredMassFlowKg / motor.initialPropellantMassProperties.massKg;
       const remainingFraction = Math.max(0, 1 - consumedFraction);
       const curveThrustN = thrustAt(motor.thrustCurve, localTimeS);
       const thrustN = remainingFraction > 1e-14 ? curveThrustN : 0;
-      const propellantMassRateKgS =
-        localTimeS >= firstTimeS &&
-        localTimeS < lastTimeS &&
-        remainingFraction > 1e-14
-          ? (-motor.initialPropellantMassProperties.massKg * thrustN) /
-            motor.totalImpulseNs
+      const propellantMassRateKgS = measuredMassFlowKg === null
+        ? localTimeS >= firstTimeS &&
+          localTimeS < lastTimeS &&
+          remainingFraction > 1e-14
+            ? (-motor.initialPropellantMassProperties.massKg * thrustN) /
+              motor.totalImpulseNs
+            : 0
+        : remainingFraction > 1e-14
+          ? -massFlowAt(motor.massFlowHistoryKgS!, localTimeS)
           : 0;
       return {
         id: motor.id,
@@ -221,6 +269,9 @@ export function createImpulseBasedPropellantModel(input: Readonly<{
         propellantMassKg:
           motor.initialPropellantMassProperties.massKg * remainingFraction,
         propellantMassRateKgS,
+        depletionSource: measuredMassFlowKg === null
+          ? "impulse-proportional"
+          : "measured-mass-flow",
       };
     });
 
@@ -301,14 +352,34 @@ export function createImpulseBasedPropellantModel(input: Readonly<{
     thrustAtTimeS: (timeS) => evaluate(timeS).totalThrustN,
     assumptions: [
       "Thrust-curve time is relative to each configured ignition time",
-      "Propellant consumption is proportional to delivered impulse",
+      ...(motors.some((motor) => motor.massFlowHistoryKgS)
+        ? [
+            "When supplied, positive measured mass-flow history directly drives propellant depletion; thrust remains an independent measured curve",
+            "Measured mass-flow history is linearly interpolated and integrated between its supplied knots",
+          ]
+        : ["Propellant consumption is proportional to delivered impulse"]),
       "Remaining propellant preserves its initial normalized spatial mass distribution",
       "Dry motor and fixed vehicle mass properties remain constant",
       "The rigid-body state origin follows the instantaneous combined center of mass",
     ],
     warnings: [
       "This mass-state model has analytical component checks only and is not flight-safety validated.",
-      "Impulse-proportional depletion is an approximation unless thrust is proportional to propellant mass flow with effectively constant exhaust velocity.",
+      ...(motors.some((motor) => motor.massFlowHistoryKgS)
+        ? [
+            "Measured mass-flow history is accepted as user-supplied evidence; sensor calibration, phase lag, residual propellant, and sample uncertainty are not independently validated.",
+            ...(motors.some(
+              (motor) =>
+                motor.totalMassFlowKg! <
+                motor.initialPropellantMassProperties.massKg * (1 - 1e-9),
+            )
+              ? [
+                  "At least one measured mass-flow history integrates below its declared initial propellant mass; residual propellant remains attached after the supplied history ends.",
+                ]
+              : []),
+          ]
+        : [
+            "Impulse-proportional depletion is an approximation unless thrust is proportional to propellant mass flow with effectively constant exhaust velocity.",
+          ]),
       "Grain regression, erosive burning, residue, slosh, nozzle ablation, and moving internal hardware are not modeled.",
       "Use measured or appropriately licensed motor data and measured mass properties for real vehicles.",
     ],

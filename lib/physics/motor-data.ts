@@ -1,6 +1,9 @@
 import {
+  totalMassFlow,
   totalImpulse,
+  validateMassFlowHistory,
   validateThrustCurve,
+  type MassFlowPoint,
   type ThrustPoint,
 } from "./curves.ts";
 import {
@@ -13,7 +16,7 @@ import type { MassProperties } from "./mass-properties.ts";
 import type { MultiStageMotor } from "./multi-stage.ts";
 import type { ImpulseBasedMotor } from "./propellant-mass.ts";
 
-export const MOTOR_DATA_MODEL_VERSION = "kestrel-motor-data-0.1.0";
+export const MOTOR_DATA_MODEL_VERSION = "kestrel-motor-data-0.2.0";
 export const MOTOR_DATA_MODEL_STATUS = "engineering-preview-unvalidated";
 
 const STANDARD_GRAVITY_MPS2 = 9.80665;
@@ -44,6 +47,8 @@ export type MotorDataInput = Readonly<{
   launchMassKg: number;
   dryMassKg: number;
   thrustCurve: readonly ThrustPoint[];
+  /** Optional positive measured propellant outflow rate relative to ignition. */
+  massFlowHistoryKgS?: readonly MassFlowPoint[];
   ejectionDelaysS?: readonly number[];
   propellantGeometry?: Readonly<{
     lengthM: number;
@@ -97,6 +102,7 @@ export type MotorPerformanceMetrics = Readonly<{
   averageThrustN: number;
   peakThrustN: number;
   propellantMassKg: number;
+  measuredMassFlowKg: number | null;
   specificImpulseS: number;
   impulseClassEstimate: MotorImpulseClass;
   impulseClassUpperBoundNs: number | null;
@@ -231,6 +237,21 @@ export function createMotorDataRecord(input: MotorDataInput): MotorDataRecord {
   const burnDurationS = thrustCurve.at(-1)!.timeS;
   finitePositive(burnDurationS, "motor burn duration");
   const propellantMassKg = input.launchMassKg - input.dryMassKg;
+  const massFlowHistoryKgS = input.massFlowHistoryKgS === undefined
+    ? undefined
+    : [...input.massFlowHistoryKgS];
+  const measuredMassFlowKg = massFlowHistoryKgS
+    ? totalMassFlow(massFlowHistoryKgS)
+    : null;
+  if (massFlowHistoryKgS) {
+    validateMassFlowHistory(massFlowHistoryKgS);
+    if (!(measuredMassFlowKg! > 0)) {
+      throw new Error("motor mass-flow history must consume positive mass");
+    }
+    if (measuredMassFlowKg! > propellantMassKg * (1 + 1e-9)) {
+      throw new Error("motor mass-flow history exceeds declared propellant mass");
+    }
+  }
   const propellantGeometry = input.propellantGeometry ?? { lengthM: input.lengthM, aftInsetM: 0 };
   finitePositive(propellantGeometry.lengthM, "propellant geometry length");
   finiteNonNegative(propellantGeometry.aftInsetM, "propellant geometry aft inset");
@@ -257,6 +278,7 @@ export function createMotorDataRecord(input: MotorDataInput): MotorDataRecord {
     modelVersion: MOTOR_DATA_MODEL_VERSION,
     validationStatus: MOTOR_DATA_MODEL_STATUS,
     thrustCurve,
+    ...(massFlowHistoryKgS ? { massFlowHistoryKgS } : {}),
     ejectionDelaysS,
     metrics: {
       totalImpulseNs,
@@ -264,6 +286,7 @@ export function createMotorDataRecord(input: MotorDataInput): MotorDataRecord {
       averageThrustN: totalImpulseNs / burnDurationS,
       peakThrustN,
       propellantMassKg,
+      measuredMassFlowKg,
       specificImpulseS: totalImpulseNs / (propellantMassKg * STANDARD_GRAVITY_MPS2),
       impulseClassEstimate: impulseClass.classEstimate,
       impulseClassUpperBoundNs: impulseClass.upperBoundNs,
@@ -279,9 +302,24 @@ export function createMotorDataRecord(input: MotorDataInput): MotorDataRecord {
       "The impulse-class label is a calculated band estimate, not a certification claim.",
       "Specific impulse uses declared wet/dry mass difference as propellant mass; residuals and hardware changes can bias it.",
       "Motor data and geometry are not flight-safety validated by RocketWorks.",
+      ...(massFlowHistoryKgS
+        ? [
+            "Measured mass-flow history is user-supplied evidence; sensor calibration, phase lag, residual propellant, and sample uncertainty are not independently validated.",
+            ...(measuredMassFlowKg! < propellantMassKg * (1 - 1e-9)
+              ? [
+                  "Measured mass-flow history integrates below declared propellant mass; the remaining residual is retained by the depletion model.",
+                ]
+              : []),
+          ]
+        : []),
     ],
     assumptions: [
       "Thrust is linearly interpolated and integrated by the trapezoidal rule.",
+      ...(massFlowHistoryKgS
+        ? [
+            "Positive measured mass-flow history is linearly interpolated and integrated between its supplied knots; thrust remains an independent curve.",
+          ]
+        : []),
       "The motor local origin is the aft case/nozzle plane and +X points toward the rocket nose.",
       "Dry hardware and propellant each use a uniform solid-cylinder inertia approximation.",
       "The declared thrust curve represents net measured or published thrust under its source conditions.",
@@ -467,6 +505,9 @@ export function motorRecordToImpulseBasedMotor(
     name: placement.name ?? `${record.manufacturer} ${record.designation}`,
     ignitionTimeS: placement.ignitionTimeS,
     thrustCurve: record.thrustCurve,
+    ...(record.massFlowHistoryKgS
+      ? { massFlowHistoryKgS: record.massFlowHistoryKgS }
+      : {}),
     dryMassProperties: translated(record.dryMassPropertiesLocal, placement.originBodyM),
     initialPropellantMassProperties: translated(record.propellantMassPropertiesLocal, placement.originBodyM),
   };
@@ -495,6 +536,9 @@ export function motorRecordToMultiStageMotor(
     name: impulseMotor.name,
     ignitionDelayS,
     thrustCurve: impulseMotor.thrustCurve,
+    ...(impulseMotor.massFlowHistoryKgS
+      ? { massFlowHistoryKgS: impulseMotor.massFlowHistoryKgS }
+      : {}),
     dryMassProperties: impulseMotor.dryMassProperties,
     initialPropellantMassProperties: impulseMotor.initialPropellantMassProperties,
     thrustApplicationPointBodyM: placement.originBodyM,

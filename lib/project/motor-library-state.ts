@@ -34,6 +34,7 @@ function inputFromRecord(record: MotorDataRecord): MotorDataInput {
     launchMassKg: record.launchMassKg,
     dryMassKg: record.dryMassKg,
     thrustCurve: record.thrustCurve,
+    massFlowHistoryKgS: record.massFlowHistoryKgS,
     ejectionDelaysS: record.ejectionDelaysS,
     propellantGeometry: record.propellantGeometry,
     dryCgFromAftM: record.dryCgFromAftM,

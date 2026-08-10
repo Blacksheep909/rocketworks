@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added optional positive measured mass-flow histories to standalone and
+  multi-stage motor inputs. Histories are validated, linearly interpolated,
+  integrated into live propellant mass and inertia rate, surfaced with a
+  depletion-source label, and kept separate from the independent thrust curve;
+  residual propellant and measurement limitations remain explicit.
 - Expanded coupled stage-flight uncertainty to sample additional motor/stage
   ignition delay, annotated separation impulse, and initial launch-alignment
   perturbations. Variants wrap event updates without mutating the base project;

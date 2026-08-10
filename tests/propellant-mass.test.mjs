@@ -95,6 +95,32 @@ test("triangular curve produces analytical impulse-based depletion", () => {
   assert.equal(burnout.status, "burned-out");
 });
 
+test("measured mass-flow history drives depletion independently of thrust impulse", () => {
+  const measured = model({
+    thrustCurve: [
+      { timeS: 0, thrustN: 10 },
+      { timeS: 2, thrustN: 10 },
+      { timeS: 2.000001, thrustN: 0 },
+    ],
+    massFlowHistoryKgS: [
+      { timeS: 0, massFlowKgS: 0 },
+      { timeS: 0.5, massFlowKgS: 1 },
+      { timeS: 1, massFlowKgS: 0 },
+    ],
+  });
+  const quarter = measured.evaluate(0.25).motors[0];
+  const end = measured.evaluate(1).motors[0];
+
+  close(quarter.remainingFraction, 0.9375, 1e-15, "measured remaining fraction");
+  close(quarter.propellantMassRateKgS, -0.5, 1e-15, "measured mass rate");
+  assert.equal(quarter.depletionSource, "measured-mass-flow");
+  close(end.remainingFraction, 0.5, 1e-15, "measured residual fraction");
+  assert.equal(end.depletionSource, "measured-mass-flow");
+  assert.ok(measured.assumptions.some((assumption) => assumption.includes("measured mass-flow")));
+  assert.ok(measured.warnings.some((warning) => warning.includes("residual propellant")));
+  assert.ok(measured.scheduledTimesS.includes(0.5));
+});
+
 test("vehicle center of mass and inertia move as propellant is consumed", () => {
   const result = model();
   const initial = result.evaluate(0).massProperties;
@@ -235,5 +261,25 @@ test("zero-impulse curves and ambiguous thrust inputs fail explicitly", () => {
         centerOfPressureMinusCenterOfMassM: 0.2,
       }),
     /exactly one/,
+  );
+  assert.throws(
+    () =>
+      model({
+        massFlowHistoryKgS: [
+          { timeS: 0, massFlowKgS: 0 },
+          { timeS: 1, massFlowKgS: -1 },
+        ],
+      }),
+    /Mass-flow values must be finite and non-negative/,
+  );
+  assert.throws(
+    () =>
+      model({
+        massFlowHistoryKgS: [
+          { timeS: 0, massFlowKgS: 0 },
+          { timeS: 1, massFlowKgS: 3 },
+        ],
+      }),
+    /mass-flow history exceeds initial propellant mass/,
   );
 });

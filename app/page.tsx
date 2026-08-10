@@ -6050,6 +6050,7 @@ export default function Home() {
                   <div><span>Total impulse</span><strong>{previewMotor.metrics.totalImpulseNs.toFixed(1)} N·s</strong></div>
                   <div><span>Peak thrust</span><strong>{previewMotor.metrics.peakThrustN.toFixed(1)} N</strong></div>
                   <div><span>Calculated Isp</span><strong>{previewMotor.metrics.specificImpulseS.toFixed(1)} s</strong></div>
+                  <div><span>Depletion source</span><strong>{previewMotor.massFlowHistoryKgS ? "Measured mass flow" : "Impulse-proportional"}</strong></div>
                 </div>
                 <p className="motor-provenance">Synthetic preview curve · CC0-1.0 · unvalidated. Letter class is an impulse-band estimate, not motor certification.</p>
                 <div className="property-section-label">
@@ -6256,7 +6257,7 @@ export default function Home() {
                 <article className={selectedMotorId === record.id ? "motor-record active" : "motor-record"} key={record.id}>
                   <div className="motor-record-main">
                     <span className="motor-record-badge user">USER</span>
-                    <div><strong>{record.manufacturer} · {record.designation}</strong><small>{record.metrics.totalImpulseNs.toFixed(2)} N·s · {record.metrics.burnDurationS.toFixed(2)} s · {record.provenance.sourceName}</small></div>
+                    <div><strong>{record.manufacturer} · {record.designation}</strong><small>{record.metrics.totalImpulseNs.toFixed(2)} N·s · {record.metrics.burnDurationS.toFixed(2)} s · {record.massFlowHistoryKgS ? "measured flow · " : ""}{record.provenance.sourceName}</small></div>
                   </div>
                   <div className="motor-record-actions">
                     <span>{record.provenance.licenseIdentifier} · {record.provenance.validationStatus}</span>

@@ -1,4 +1,15 @@
-import { impulseThrough, thrustAt, totalImpulse, validateThrustCurve, type ThrustPoint } from "./curves.ts";
+import {
+  impulseThrough,
+  massFlowAt,
+  massFlowThrough,
+  thrustAt,
+  totalMassFlow,
+  totalImpulse,
+  validateMassFlowHistory,
+  validateThrustCurve,
+  type MassFlowPoint,
+  type ThrustPoint,
+} from "./curves.ts";
 import {
   ZERO_MATRIX,
   ZERO_VECTOR,
@@ -26,13 +37,15 @@ import {
   type StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
 
-export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.3.0";
+export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.4.0";
 
 export type MultiStageMotor = Readonly<{
   id: string;
   name: string;
   ignitionDelayS?: number;
   thrustCurve: readonly ThrustPoint[];
+  /** Optional positive measured propellant outflow rate relative to motor ignition. */
+  massFlowHistoryKgS?: readonly MassFlowPoint[];
   dryMassProperties: MassProperties;
   initialPropellantMassProperties: MassProperties;
   thrustApplicationPointBodyM: Vector3;
@@ -83,6 +96,7 @@ export type MultiStageMotorEvaluation = Readonly<{
   remainingPropellantFraction: number;
   propellantMassKg: number;
   propellantMassRateKgS: number;
+  depletionSource: "impulse-proportional" | "measured-mass-flow";
   forceBodyN: Vector3;
   momentBodyNm: Vector3;
 }>;
@@ -172,6 +186,8 @@ export type MultiStageVehicleModel = Readonly<{
 
 type PreparedMotor = MultiStageMotor & Readonly<{
   thrustCurve: readonly ThrustPoint[];
+  massFlowHistoryKgS?: readonly MassFlowPoint[];
+  totalMassFlowKg?: number;
   normalizedThrustAxisBody: Vector3;
   totalImpulseNs: number;
 }>;
@@ -604,6 +620,24 @@ export function createMultiStageVehicleModel(input: Readonly<{
       if (!(totalImpulseNs > 0)) {
         throw new Error(`motor ${motor.id} thrust curve must have positive total impulse`);
       }
+      const massFlowHistoryKgS = motor.massFlowHistoryKgS === undefined
+        ? undefined
+        : [...motor.massFlowHistoryKgS];
+      const totalMassFlowKg = massFlowHistoryKgS
+        ? totalMassFlow(massFlowHistoryKgS)
+        : undefined;
+      if (massFlowHistoryKgS) {
+        validateMassFlowHistory(massFlowHistoryKgS);
+        if (!(totalMassFlowKg! > 0)) {
+          throw new Error(`motor ${motor.id} mass-flow history must consume positive mass`);
+        }
+        if (
+          totalMassFlowKg! >
+          motor.initialPropellantMassProperties.massKg * (1 + 1e-9)
+        ) {
+          throw new Error(`motor ${motor.id} mass-flow history exceeds initial propellant mass`);
+        }
+      }
       validateMassProperties(motor.dryMassProperties, `motor ${motor.id} dry`);
       validateMassProperties(
         motor.initialPropellantMassProperties,
@@ -626,6 +660,7 @@ export function createMultiStageVehicleModel(input: Readonly<{
         ...motor,
         ignitionFailure,
         thrustCurve,
+        ...(massFlowHistoryKgS ? { massFlowHistoryKgS, totalMassFlowKg } : {}),
         normalizedThrustAxisBody: scaleVector(axis, 1 / axisMagnitude),
         totalImpulseNs,
       };
@@ -699,6 +734,16 @@ export function createMultiStageVehicleModel(input: Readonly<{
     if (!instance) throw new Error(`unknown stage ${stage.id} instance ${instanceId}`);
     return instance;
   };
+  const measuredMassFlowMotors = stages.flatMap((stage) => [
+    ...stage.motors,
+    ...stage.instances.flatMap((instance) => instance.motors),
+  ]).filter((motor) => motor.massFlowHistoryKgS);
+  const hasMeasuredMassFlow = measuredMassFlowMotors.length > 0;
+  const hasResidualMeasuredPropellant = measuredMassFlowMotors.some(
+    (motor) =>
+      (motor.totalMassFlowKg ?? motor.initialPropellantMassProperties.massKg) <
+      motor.initialPropellantMassProperties.massKg * (1 - 1e-9),
+  );
 
   const evaluate = (state: RigidBodyState): MultiStageVehicleEvaluation => {
     if (!Number.isFinite(state.timeS)) throw new Error("staging state time must be finite");
@@ -744,6 +789,17 @@ export function createMultiStageVehicleModel(input: Readonly<{
             motor.totalImpulseNs,
             Math.max(0, impulseThrough(motor.thrustCurve as ThrustPoint[], localTimeS)),
           );
+    const consumedFraction = (motor: PreparedMotor, localTimeS: number | null): number => {
+      if (localTimeS === null) return 0;
+      if (!motor.massFlowHistoryKgS) {
+        return deliveredImpulse(motor, localTimeS) / motor.totalImpulseNs;
+      }
+      const consumedMassKg = Math.min(
+        motor.initialPropellantMassProperties.massKg,
+        Math.max(0, massFlowThrough(motor.massFlowHistoryKgS, localTimeS)),
+      );
+      return consumedMassKg / motor.initialPropellantMassProperties.massKg;
+    };
 
     const massParts: MassProperties[] = [input.retainedMassProperties];
     for (const stageState of prepared) {
@@ -752,8 +808,11 @@ export function createMultiStageVehicleModel(input: Readonly<{
         massParts.push(instanceState.instance.structuralMassProperties);
         for (const motor of instanceState.instance.motors) {
           massParts.push(motor.dryMassProperties);
-          const deliveredImpulseNs = deliveredImpulse(motor, motorLocalTime(instanceState, motor));
-          const remainingFraction = Math.max(0, 1 - deliveredImpulseNs / motor.totalImpulseNs);
+          const localTimeS = motorLocalTime(instanceState, motor);
+          const remainingFraction = Math.max(
+            0,
+            1 - consumedFraction(motor, localTimeS),
+          );
           if (remainingFraction > 0) {
             massParts.push(scaledMassProperties(motor.initialPropellantMassProperties, remainingFraction));
           }
@@ -772,9 +831,10 @@ export function createMultiStageVehicleModel(input: Readonly<{
         (motor): MultiStageMotorEvaluation => {
           const localTimeS = motorLocalTime(item, motor);
           const deliveredImpulseNs = deliveredImpulse(motor, localTimeS);
+          const consumedFractionValue = consumedFraction(motor, localTimeS);
           const remainingPropellantFraction = Math.max(
             0,
-            1 - deliveredImpulseNs / motor.totalImpulseNs,
+            1 - consumedFractionValue,
           );
           const curveEndS = motor.thrustCurve.at(-1)!.timeS;
           const thrustN =
@@ -785,17 +845,24 @@ export function createMultiStageVehicleModel(input: Readonly<{
             remainingPropellantFraction <= 1e-14
               ? 0
               : thrustAt(motor.thrustCurve as ThrustPoint[], localTimeS);
-          const propellantMassRateKgS =
-            !item.separated &&
-            !item.ignitionFailed &&
-            !motor.ignitionFailure &&
-            localTimeS !== null &&
-            localTimeS >= motor.thrustCurve[0].timeS &&
-            localTimeS < curveEndS &&
-            remainingPropellantFraction > 1e-14
-              ? (-motor.initialPropellantMassProperties.massKg * thrustN) /
-                motor.totalImpulseNs
-              : 0;
+          const propellantMassRateKgS = motor.massFlowHistoryKgS
+            ? !item.separated &&
+              !item.ignitionFailed &&
+              !motor.ignitionFailure &&
+              localTimeS !== null &&
+              remainingPropellantFraction > 1e-14
+              ? -massFlowAt(motor.massFlowHistoryKgS, localTimeS)
+              : 0
+            : !item.separated &&
+              !item.ignitionFailed &&
+              !motor.ignitionFailure &&
+              localTimeS !== null &&
+              localTimeS >= motor.thrustCurve[0].timeS &&
+              localTimeS < curveEndS &&
+              remainingPropellantFraction > 1e-14
+                ? (-motor.initialPropellantMassProperties.massKg * thrustN) /
+                  motor.totalImpulseNs
+                : 0;
           const forceBodyN = scaleVector(motor.normalizedThrustAxisBody, thrustN);
           const momentBodyNm = cross(
             subtractVectors(motor.thrustApplicationPointBodyM, massProperties.centerOfMassM),
@@ -843,6 +910,9 @@ export function createMultiStageVehicleModel(input: Readonly<{
               ? 0
               : motor.initialPropellantMassProperties.massKg * remainingPropellantFraction,
             propellantMassRateKgS,
+            depletionSource: motor.massFlowHistoryKgS
+              ? "measured-mass-flow"
+              : "impulse-proportional",
             forceBodyN,
             momentBodyNm,
           };
@@ -1131,7 +1201,12 @@ export function createMultiStageVehicleModel(input: Readonly<{
     assumptions: [
       "Stages are rigidly attached until an explicit separation event",
       "Stage ignition commands establish motor-local time; each motor may add a deterministic delay",
-      "Propellant consumption is proportional to delivered impulse",
+      ...(hasMeasuredMassFlow
+        ? [
+            "When supplied, positive measured mass-flow history directly drives motor propellant depletion while thrust remains an independent curve",
+            "Measured mass-flow history is linearly interpolated and integrated between its supplied knots",
+          ]
+        : ["Propellant consumption is proportional to delivered impulse"]),
       "Separated stages, their motors, and remaining propellant leave the tracked vehicle immediately",
       "A configured separation delta-v is applied instantaneously to the retained body in its body-frame +X direction; a zero value preserves translational and angular velocity",
     ],
@@ -1139,7 +1214,18 @@ export function createMultiStageVehicleModel(input: Readonly<{
       "This staging model has analytical component checks only and is not flight-safety validated.",
       "Pyrotechnic mechanism, spring forces, joint constraints, plume impingement, collision risk, equal-and-opposite discarded-stage impulse, and coupled discarded-stage trajectories are not modeled; the browser adapter may expose a separate ballistic component check.",
       "Stage separation is an instantaneous topology change; use a dedicated multi-body model for separation-clearance analysis.",
-      "Impulse-proportional depletion is approximate unless thrust tracks propellant mass flow at effectively constant exhaust velocity.",
+      ...(hasMeasuredMassFlow
+        ? [
+            "Measured mass-flow history is accepted as user-supplied evidence; sensor calibration, phase lag, residual propellant, and sample uncertainty are not independently validated.",
+            ...(hasResidualMeasuredPropellant
+              ? [
+                  "At least one measured mass-flow history integrates below its declared initial propellant mass; residual propellant remains attached after the supplied history ends.",
+                ]
+              : []),
+          ]
+        : [
+            "Impulse-proportional depletion is approximate unless thrust tracks propellant mass flow at effectively constant exhaust velocity.",
+          ]),
     ],
   };
 }

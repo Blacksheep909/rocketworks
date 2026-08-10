@@ -59,6 +59,30 @@ test("motor record derives impulse, thrust, class, propellant mass, and Isp", ()
   assert.match(record.warnings[1], /not a certification claim/);
 });
 
+test("motor records preserve measured mass-flow provenance through both adapters", () => {
+  const record = createMotorDataRecord(input({
+    massFlowHistoryKgS: [
+      { timeS: 0, massFlowKgS: 0 },
+      { timeS: 1, massFlowKgS: 0.01 },
+      { timeS: 2, massFlowKgS: 0 },
+    ],
+  }));
+  assert.equal(record.metrics.measuredMassFlowKg, 0.01);
+  assert.equal(record.massFlowHistoryKgS.length, 3);
+  assert.ok(record.warnings.some((warning) => warning.includes("residual")));
+  const impulseMotor = motorRecordToImpulseBasedMotor(record, {
+    id: "measured-placed",
+    ignitionTimeS: 0,
+    originBodyM: { x: 0, y: 0, z: 0 },
+  });
+  assert.deepEqual(impulseMotor.massFlowHistoryKgS, record.massFlowHistoryKgS);
+  const stageMotor = motorRecordToMultiStageMotor(record, {
+    id: "measured-stage",
+    originBodyM: { x: 0, y: 0, z: 0 },
+  });
+  assert.deepEqual(stageMotor.massFlowHistoryKgS, record.massFlowHistoryKgS);
+});
+
 test("impulse classes cover fractional A through O without certification semantics", () => {
   const cases = [
     [0.3125, "1/8A"],

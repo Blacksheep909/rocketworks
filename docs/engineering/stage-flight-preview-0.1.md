@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.11.0`.
+`kestrel-stage-flight-preview-0.12.0`.
 
 When `recoveryDevices` is supplied, the adapter composes the independent
 recovery-load model into the retained vehicle's force and moment callback. A

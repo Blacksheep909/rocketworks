@@ -292,6 +292,8 @@ test("shows provenance-qualified derived motor metrics", async () => {
   assert.match(source, /createMotorDataRecord/);
   assert.match(source, /Motor data/);
   assert.match(source, /previewMotor\.metrics\.impulseClassEstimate/);
+  assert.match(source, /previewMotor\.massFlowHistoryKgS/);
+  assert.match(source, /Depletion source/);
   assert.match(source, /Synthetic preview curve/);
   assert.match(source, /not motor certification/);
 });

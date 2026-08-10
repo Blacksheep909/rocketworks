@@ -3,6 +3,12 @@ export type ThrustPoint = {
   thrustN: number;
 };
 
+/** Positive propellant outflow rate relative to a motor's ignition. */
+export type MassFlowPoint = {
+  timeS: number;
+  massFlowKgS: number;
+};
+
 export type WindLayer = {
   altitudeM: number;
   eastMps: number;
@@ -42,6 +48,26 @@ export function validateThrustCurve(points: ThrustPoint[]): void {
   assertStrictlyIncreasing(
     points.map((point) => point.timeS),
     "Thrust-curve time",
+  );
+}
+
+export function validateMassFlowHistory(points: readonly MassFlowPoint[]): void {
+  if (points.length < 2) {
+    throw new Error("A mass-flow history requires at least two points.");
+  }
+  for (const point of points) {
+    if (
+      !Number.isFinite(point.timeS) ||
+      !Number.isFinite(point.massFlowKgS) ||
+      point.timeS < 0 ||
+      point.massFlowKgS < 0
+    ) {
+      throw new Error("Mass-flow values must be finite and non-negative.");
+    }
+  }
+  assertStrictlyIncreasing(
+    points.map((point) => point.timeS),
+    "Mass-flow time",
   );
 }
 
@@ -93,6 +119,24 @@ export function thrustAt(points: ThrustPoint[], timeS: number): number {
   return 0;
 }
 
+export function massFlowAt(points: readonly MassFlowPoint[], timeS: number): number {
+  if (timeS < points[0].timeS || timeS > points.at(-1)!.timeS) return 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const left = points[index - 1];
+    const right = points[index];
+    if (timeS <= right.timeS) {
+      return linearInterpolate(
+        left.timeS,
+        left.massFlowKgS,
+        right.timeS,
+        right.massFlowKgS,
+        timeS,
+      );
+    }
+  }
+  return 0;
+}
+
 export function impulseThrough(
   points: ThrustPoint[],
   requestedTimeS: number,
@@ -116,6 +160,31 @@ export function impulseThrough(
 export function totalImpulse(points: ThrustPoint[]): number {
   validateThrustCurve(points);
   return impulseThrough(points, points.at(-1)!.timeS);
+}
+
+export function massFlowThrough(
+  points: readonly MassFlowPoint[],
+  requestedTimeS: number,
+): number {
+  const timeS = Math.max(0, requestedTimeS);
+  let massKg = 0;
+
+  for (let index = 1; index < points.length; index += 1) {
+    const left = points[index - 1];
+    const right = points[index];
+    if (timeS <= left.timeS) break;
+    const segmentEnd = Math.min(timeS, right.timeS);
+    const endRate = massFlowAt(points, segmentEnd);
+    massKg +=
+      0.5 * (left.massFlowKgS + endRate) * (segmentEnd - left.timeS);
+    if (timeS <= right.timeS) break;
+  }
+  return massKg;
+}
+
+export function totalMassFlow(points: readonly MassFlowPoint[]): number {
+  validateMassFlowHistory(points);
+  return massFlowThrough(points, points.at(-1)!.timeS);
 }
 
 export function propellantFractionConsumed(
@@ -184,4 +253,3 @@ export function makeConstantThrustCurve(
     { timeS: burnTimeS + 0.000001, thrustN: 0 },
   ];
 }
-

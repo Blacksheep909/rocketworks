@@ -29,7 +29,7 @@ This makes staging a topology change rather than a cosmetic event: a separated
 stage immediately stops contributing mass, inertia, propellant, or thrust to
 the retained vehicle.
 
-The current implementation is model version `kestrel-multi-stage-0.3.0`.
+The current implementation is model version `kestrel-multi-stage-0.4.0`.
 `RocketStage.instances` can describe physical copies of one logical stage.
 When present, each copy has its own structure, motors, burnout offset, and
 event state while `attachedStageIds` continues to expose the logical topology
@@ -78,6 +78,16 @@ initial propellant mass `mp0`:
 During the active curve interval:
 
 `mp_dot(t) = -mp0 T(t) / J`
+
+When a motor supplies a positive measured mass-flow history `q_m(t)`, the
+stage evaluator instead integrates that history directly:
+
+`mp_dot(t) = -q_m(t)`
+
+The history is linearly interpolated between its supplied knots. Thrust remains
+an independent curve, and any residual below the declared initial propellant
+mass remains attached after the history ends. The evaluator exposes the
+depletion source as either `impulse-proportional` or `measured-mass-flow`.
 
 Only attached motor, propellant, structural, and retained-vehicle properties
 are combined with the parallel-axis theorem. Propellant central inertia scales
@@ -159,8 +169,10 @@ flight performance.
 
 ## Known limitations
 
-- Propellant depletion is proportional to delivered impulse, not measured mass
-  flow or geometry-based grain regression.
+- Without a measured history, propellant depletion is proportional to delivered
+  impulse. A supplied positive measured history overrides that depletion path,
+  but sensor calibration, phase lag, and geometry-based grain regression remain
+  outside the model.
 - Ignition delay and stage-event delays are deterministic. Per-motor failure is
   a configured preview switch, not a misfire probability; partial ignition,
   pressure buildup, and thrust uncertainty are not included.
@@ -226,7 +238,8 @@ preview input.
 
 ## Next work
 
-Add optional measured mass-flow histories, measured separation impulses, and a
+Measured mass-flow histories now drive both standalone and multi-stage mass
+evaluators when supplied. Next add measured separation impulses and a
 time-propagated coupled multi-body branch that resolves discarded stages,
 relative-body aerodynamic databases, and momentum exchange. The current
 event-level minimum-norm impulse allocator is diagnostic telemetry only and

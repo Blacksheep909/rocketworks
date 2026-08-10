@@ -1,4 +1,4 @@
-# Impulse-based propellant mass model 0.1
+# Impulse-based propellant mass model 0.2
 
 Status: analytical component checks only. This model is not validated for
 flight-safety decisions.
@@ -17,8 +17,9 @@ integration boundary.
 
 Each configured motor contains a thrust curve relative to its ignition,
 constant dry-motor mass properties, and initial propellant mass properties in
-vehicle body coordinates. Fixed vehicle properties must exclude those motor
-masses so they are not counted twice.
+vehicle body coordinates. An optional positive measured mass-flow history can
+replace impulse-proportional depletion for that motor. Fixed vehicle properties
+must exclude those motor masses so they are not counted twice.
 
 ## Depletion equations
 
@@ -40,11 +41,12 @@ During the active curve interval:
 
 This is exact only when thrust is proportional to propellant mass flow with an
 effectively constant relationship over the burn. It is an explicit
-approximation for general measured thrust curves.
+approximation for general measured thrust curves. When a measured mass-flow
+history is supplied, the model instead integrates its positive outflow rate
+directly and keeps thrust as an independent curve.
 
-Version 0.1 uses uniform depletion: the normalized spatial mass distribution
-and center remain fixed while its central inertia tensor scales with remaining
-mass:
+The model uses uniform depletion: the normalized spatial mass distribution and
+center remain fixed while its central inertia tensor scales with remaining mass:
 
 `Ip(t) = f(t) Ip0`
 
@@ -81,6 +83,7 @@ pressure thrust. Other control-volume effects must be supplied separately.
 The regression suite verifies:
 
 - triangular-curve impulse, remaining mass, and mass-flow rate analytically
+- measured mass-flow depletion, residual propellant, and source telemetry
 - initial and burnout vehicle mass, center of mass, and pitch inertia
 - analytical tensor rate against centered finite differences
 - delayed multi-motor thrust summation and shared curve boundaries
@@ -93,7 +96,12 @@ These are mathematical implementation checks, not motor or flight validation.
 
 ## Known limitations
 
-- Depletion follows delivered impulse, not a measured mass-flow history.
+- Without a measured history, depletion follows delivered impulse and remains
+  proportional to the thrust curve.
+- A measured history is linearly interpolated between supplied knots. Sensor
+  calibration, phase lag, and sample uncertainty are not independently
+  validated; if its integrated mass is below the declared initial mass, the
+  residual remains attached after the history ends.
 - The normalized propellant distribution remains fixed. Grain regression,
   erosive burning, inhibited surfaces, residue, slosh, and cracks are absent.
 - Dry hardware remains constant. Nozzle erosion, ablation, and expelled
@@ -102,7 +110,7 @@ These are mathematical implementation checks, not motor or flight validation.
   adapter now applies individual axes, offsets, cant angles, and live-CG thrust
   moments.
 - Ignition uncertainty, failure, pressure limits, and temperature effects are
-  absent.
+  absent from this mass layer.
 - Curves and mass properties must be measured, user-supplied, or appropriately
   licensed. RocketWorks does not bundle OpenRocket motor data.
 - The resulting rigid-body inertia must remain positive definite. Collinear
@@ -125,7 +133,8 @@ These are mathematical implementation checks, not motor or flight validation.
 ## Next work
 
 Motor-specific fixed axes and offsets are now handled by the clustered
-propulsion adapter. The next propulsion increment should add explicit ignition
-and failure state, gimbal schedules, optional measured mass-flow histories, and
+propulsion adapter, and optional measured mass-flow histories now drive both
+the standalone and multi-stage mass evaluators. The next propulsion increment
+should add explicit pressure/temperature provenance, gimbal schedules, and
 geometry-based grain regression. Vehicle loads should update the CP-to-CG lever
 arm from this live mass state rather than accepting only a fixed value.

@@ -106,6 +106,28 @@ test("attached stages contribute dry and propellant mass until separation", () =
   assert.equal(separated.stages[0].phase, "separated");
 });
 
+test("multi-stage evaluation can use measured motor mass flow", () => {
+  const measuredStage = stage("measured", 2);
+  measuredStage.motors[0].massFlowHistoryKgS = [
+    { timeS: 0, massFlowKgS: 0 },
+    { timeS: 0.5, massFlowKgS: 1 },
+    { timeS: 1, massFlowKgS: 0 },
+  ];
+  const staging = createMultiStageVehicleModel({
+    retainedMassProperties: properties(1, 0),
+    stages: [measuredStage],
+  });
+  const initial = initializeMultiStageState(state(), ["measured"]);
+  const evaluation = staging.evaluate(
+    { ...initial, timeS: 0.25 },
+  );
+  const motorState = evaluation.stages[0].motors[0];
+  close(motorState.remainingPropellantFraction, 0.875, 1e-15, "stage measured remaining fraction");
+  close(motorState.propellantMassRateKgS, -0.5, 1e-15, "stage measured mass rate");
+  assert.equal(motorState.depletionSource, "measured-mass-flow");
+  assert.ok(staging.assumptions.some((assumption) => assumption.includes("measured mass-flow")));
+});
+
 test("stage mass-property lookup returns the detached body's live mass state", () => {
   const staging = model();
   const halfBurn = ignitedAtZero(1);
