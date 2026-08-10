@@ -19,6 +19,7 @@ export * from "./stage-flight-preview.ts";
 export * from "./stage-flight-uncertainty.ts";
 export * from "./separated-body-flight.ts";
 export * from "./separation-clearance.ts";
+export * from "./coupled-multi-body-flight.ts";
 export * from "./static-aerodynamics.ts";
 export * from "./vehicle-components.ts";
 export * from "./vertical-flight.ts";

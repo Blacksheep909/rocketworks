@@ -286,9 +286,12 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
   assert.match(source, /analyzeSphericalSeparationEnvelope/);
   assert.match(source, /multiBodySeparation/);
   assert.match(source, /separationEnvelope/);
+  assert.match(source, /simulateCoupledMultiBodyFlight/);
+  assert.match(source, /coupledMultiBodyFlight/);
   assert.match(stylesheet, /\.stage-separated-bodies/);
   assert.match(stylesheet, /\.stage-separated-body-grid/);
   assert.match(stylesheet, /\.stage-multi-body-separation/);
+  assert.match(stylesheet, /\.stage-coupled-multi-body-flight/);
   assert.match(stylesheet, /\.stage-separation-envelope/);
 });
 

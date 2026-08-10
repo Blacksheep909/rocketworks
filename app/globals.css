@@ -2292,6 +2292,24 @@ body {
 .stage-multi-body-separation-grid strong { display: block; overflow: hidden; margin-top: 4px; color: #e1f2ff; font: 700 9px var(--font-geist-mono), monospace; text-overflow: ellipsis; white-space: nowrap; }
 .stage-multi-body-separation-grid small { display: block; overflow: hidden; margin-top: 3px; color: #718997; font: 7px var(--font-geist-mono), monospace; text-overflow: ellipsis; white-space: nowrap; }
 .stage-multi-body-separation-warnings { display: flex; flex-direction: column; gap: 3px; margin: 8px 0 0; padding: 0 0 0 13px; color: #9bb0bd; font-size: 7px; line-height: 1.45; }
+.stage-coupled-multi-body-flight { margin-top: 10px; padding: 10px; border: 1px solid rgba(111, 213, 255, .28); border-radius: 3px; background: linear-gradient(135deg, rgba(111, 213, 255, .09), rgba(10, 16, 22, .76) 68%); }
+.stage-coupled-multi-body-flight-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.stage-coupled-multi-body-flight-heading h5 { margin-top: 4px; color: #d9f4ff; font-size: 10px; letter-spacing: .02em; }
+.stage-coupled-multi-body-flight-heading p { max-width: 720px; margin-top: 4px; color: #91b6c5; font-size: 8px; line-height: 1.45; }
+.stage-coupled-multi-body-flight-status { flex: 0 0 auto; padding: 5px 7px; border: 1px solid rgba(111, 213, 255, .38); border-radius: 2px; color: #c8efff; font: 650 7px var(--font-geist-mono), monospace; letter-spacing: .09em; text-transform: uppercase; }
+.stage-coupled-multi-body-flight-status-partial { color: #ffc477; border-color: rgba(244, 163, 64, .46); }
+.stage-coupled-multi-body-flight-status-not-assessed { color: #ffae98; border-color: rgba(255, 112, 67, .38); }
+.stage-coupled-multi-body-flight-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin-top: 9px; overflow: hidden; border: 1px solid rgba(111, 213, 255, .2); border-radius: 3px; background: rgba(111, 213, 255, .18); }
+.stage-coupled-multi-body-flight-grid div { min-width: 0; padding: 8px; background: rgba(12, 18, 24, .9); }
+.stage-coupled-multi-body-flight-grid span { display: block; color: #829eaa; font-size: 7px; }
+.stage-coupled-multi-body-flight-grid strong { display: block; overflow: hidden; margin-top: 4px; color: #e2f7ff; font: 700 9px var(--font-geist-mono), monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-coupled-multi-body-flight-grid small { display: block; overflow: hidden; margin-top: 3px; color: #7193a1; font: 7px var(--font-geist-mono), monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-coupled-multi-body-flight-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin-top: 9px; overflow: hidden; border: 1px solid rgba(111, 213, 255, .16); border-radius: 3px; background: rgba(111, 213, 255, .12); }
+.stage-coupled-multi-body-flight-list div { min-width: 0; padding: 8px; background: rgba(12, 18, 24, .8); }
+.stage-coupled-multi-body-flight-list span { display: block; overflow: hidden; color: #c9e9f3; font-size: 7px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.stage-coupled-multi-body-flight-list strong { display: block; margin-top: 4px; color: #e5f8ff; font: 700 8px var(--font-geist-mono), monospace; }
+.stage-coupled-multi-body-flight-list small { display: block; margin-top: 3px; color: #7899a4; font: 7px var(--font-geist-mono), monospace; line-height: 1.4; }
+.stage-coupled-multi-body-flight-warnings { display: flex; flex-direction: column; gap: 3px; margin: 8px 0 0; padding: 0 0 0 13px; color: #9bbbc5; font-size: 7px; line-height: 1.45; }
 .stage-separation-dynamics { margin-top: 10px; padding: 10px; border: 1px solid rgba(98, 184, 134, .26); border-radius: 3px; background: linear-gradient(135deg, rgba(98, 184, 134, .08), rgba(10, 16, 22, .74) 68%); }
 .stage-separation-dynamics-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
 .stage-separation-dynamics-heading h5 { margin-top: 4px; color: #d9f3e2; font-size: 10px; letter-spacing: .02em; }
@@ -2377,6 +2395,9 @@ body {
   .stage-separated-bodies-heading { flex-direction: column; }
   .stage-multi-body-separation-heading { flex-direction: column; }
   .stage-multi-body-separation-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stage-coupled-multi-body-flight-heading { flex-direction: column; }
+  .stage-coupled-multi-body-flight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stage-coupled-multi-body-flight-list { grid-template-columns: minmax(0, 1fr); }
   .stage-separation-dynamics-heading { flex-direction: column; }
   .stage-separation-dynamics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stage-separation-impulse-solver-heading { flex-direction: column; }

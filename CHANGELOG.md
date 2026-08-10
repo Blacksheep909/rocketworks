@@ -6,6 +6,13 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a shared-grid detached-body flight track. Released bodies now have an
+  independent fourth-order point-mass propagator that advances all branches
+  together against common gravity, atmosphere, and wind queries, carries
+  balanced event-level velocity corrections only into that explicit track,
+  and reports continuous pairwise COM diagnostics. Contact, collision,
+  aerodynamic interference, plume interaction, and flight-safety claims remain
+  outside the model.
 - Added a deterministic mission-event allocator for coupled flight. Rail,
   separation, ignition, failure, recovery, and custom transitions now carry
   semantic priorities and optional dependency edges; simultaneous groups,

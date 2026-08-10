@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.14.0`.
+`kestrel-stage-flight-preview-0.15.0`.
 
 Before integration, scheduled and state-triggered declarations pass through the
 independent mission-event allocator. Semantic priorities put rail release,
@@ -209,6 +209,26 @@ frames with residuals and a resolved-constraint count; it is not applied to the
 current trajectories. Rank-deficient release geometry remains `review` rather
 than being presented as a solved mechanism impulse.
 
+When one or more detached branches are available, the adapter also runs a
+separate shared-grid point-mass track. It initializes each released center of
+mass from the exact event handoff, applies a minimum-norm event correction only
+when the allocation is balanced, and then advances every released body on a
+common mission-time grid. Each Runge–Kutta substep queries the same launch
+environment provider for that body's position and time; altitude-dependent
+gravity and an optional constant isotropic drag basis are evaluated per body.
+The result keeps the baseline and applied release velocities visible, reports
+ground-crossing times, and feeds its synchronized traces into the continuous
+pairwise COM diagnostic.
+
+This track is intentionally distinct from the existing independent detached
+6DOF branches: it is a simultaneous shared-environment component check, not a
+full rigid-body multi-body solver. Bodies do not exchange contact forces or
+momentum after release, and the track does not model attitude, lift, plume
+interaction, stage-to-stage aerodynamic interference, structural compliance,
+or collision response. A coarsened time step is labeled `partial` when the
+requested step would exceed the explicit maximum-step budget. It remains an
+engineering preview and must not be used for range-safety or flight approval.
+
 If the retained payload/recovery allowance is made only from collinear point
 masses, the browser adapter adds a versioned compact-package shape inertia
 (`kestrel-compact-package-inertia-0.1.0`) before constructing the rigid-body
@@ -219,10 +239,9 @@ explicitly approximate; it is not a substitute for retained CAD geometry.
 
 - The retained-body staging model remains a single tracked vehicle; each
   separated-body branch is an independent 6DOF preview with optional isotropic
-  point drag and optional stage-specific recovery loads. The aggregate pairwise diagnostic and spherical-envelope screen
-  compare those paths but are not a coupled multi-body force, contact, or
-  aerodynamic solver. The impulse allocation diagnostic is event-level only
-  and does not propagate a coupled multi-body state.
+  point drag and optional stage-specific recovery loads. The adapter also
+  exposes a shared-grid detached point-mass track, but neither path is a
+  coupled multi-body force, contact, or aerodynamic-interference solver.
 - A configured separation delta-v is applied to the retained body in body-frame
   +X and is carried into the event/trajectory diagnostics in body and world
   frames. The discarded-body branch receives the mass-ratio equal-and-opposite

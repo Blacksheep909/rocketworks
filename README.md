@@ -78,6 +78,11 @@ research, standards, and original code.
 - an instantaneous separation impulse audit that checks mass-ratio linear
   momentum balance and exposes unmodeled first-order angular impulse before
   detached-body propagation;
+- a shared-grid detached-body flight track that propagates every released
+  point mass together against common gravity, atmosphere, and wind queries,
+  applies only explicitly balanced event corrections, and reports continuous
+  pairwise COM diagnostics without claiming contact, interference, or flight
+  safety;
 - a trace-backed recovery opening-load screen with coverage labels, peak
   dynamic pressure, quasi-steady `q Cd A` drag, inflation impulse, and a
   force-rate proxy; opening shock and structural response remain explicitly

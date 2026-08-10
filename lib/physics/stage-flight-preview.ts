@@ -53,9 +53,14 @@ import {
   simulateSeparatedBodyFlight,
   type SeparatedBodyTrajectory,
 } from "./separated-body-flight.ts";
+import {
+  simulateCoupledMultiBodyFlight,
+  type CoupledMultiBodyFlightBodyInput,
+  type CoupledMultiBodyFlightResult,
+} from "./coupled-multi-body-flight.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.14.0";
+  "kestrel-stage-flight-preview-0.15.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -185,6 +190,7 @@ export type StageFlightPreviewResult = Readonly<{
   separationImpulseSolutions: readonly CoupledSeparationImpulseResult[];
   multiBodySeparation: MultiBodySeparationResult | null;
   separationEnvelope: SeparationEnvelopeResult | null;
+  coupledMultiBodyFlight: CoupledMultiBodyFlightResult | null;
   convergence: StageFlightConvergenceDiagnostic;
   eventAllocation: MissionEventAllocation;
   warnings: readonly string[];
@@ -788,6 +794,7 @@ export function simulateStageFlightPreview(
   const separatedBodies: SeparatedBodyTrajectory[] = [];
   const separationDynamics: SeparationDynamicsResult[] = [];
   const separationImpulseSolutions: CoupledSeparationImpulseResult[] = [];
+  const coupledBodySeeds: CoupledMultiBodyFlightBodyInput[] = [];
   const separatedBodyWarnings: string[] = [];
   const retainedBodyTrace = primaryRun.rail?.trace ?? primaryRun.simulation?.trace ?? [];
   const stageNames = new Map(input.stages.map((stage) => [stage.id, stage.name]));
@@ -870,8 +877,7 @@ export function simulateStageFlightPreview(
       const stageDefinition = input.stages.find((stage) => stage.id === stageId);
       const detachedRecoveryDevices = stageDefinition?.recoveryDevices;
       try {
-        separatedBodies.push(
-          simulateSeparatedBodyFlight({
+        const separatedBody = simulateSeparatedBodyFlight({
             stageId,
             instanceId,
             stageName: stageInstanceNames.get(spawnKey) ?? stageNames.get(stageId) ?? stageId,
@@ -892,14 +898,71 @@ export function simulateStageFlightPreview(
             ...(detachedRecoveryDevices && detachedRecoveryDevices.length > 0
               ? { recoveryDevices: detachedRecoveryDevices }
               : {}),
-          }),
+          });
+        separatedBodies.push(separatedBody);
+        const bodyId = `${stageId}/${instanceId}`;
+        const impulseSolution = separationImpulseSolutions.find(
+          (solution) => solution.eventId === event.id,
         );
+        const solvedBody = impulseSolution?.status === "balanced"
+          ? impulseSolution.detachedBodies.find((body) => body.id === bodyId)
+          : undefined;
+        const velocityAdjustmentWorldMps = solvedBody?.solvedDeltaVWorldMps
+          ? {
+              x: solvedBody.solvedDeltaVWorldMps.x - separatedBody.detachedBodyDeltaVWorldMps.x,
+              y: solvedBody.solvedDeltaVWorldMps.y - separatedBody.detachedBodyDeltaVWorldMps.y,
+              z: solvedBody.solvedDeltaVWorldMps.z - separatedBody.detachedBodyDeltaVWorldMps.z,
+            }
+          : undefined;
+        coupledBodySeeds.push({
+          id: bodyId,
+          label: instanceId
+            ? `${separatedBody.stageName} / ${instanceId}`
+            : separatedBody.stageName,
+          massKg: massProperties.massKg,
+          releaseTimeS: separatedBody.releaseTimeS,
+          releasePositionWorldM: separatedBody.releasePositionWorldM,
+          releaseVelocityWorldMps: separatedBody.releaseVelocityWorldMps,
+          ...(velocityAdjustmentWorldMps && magnitude(velocityAdjustmentWorldMps) > 1e-12
+            ? {
+                velocityAdjustment: {
+                  deltaVWorldMps: velocityAdjustmentWorldMps,
+                  sourceEventId: event.id,
+                },
+              }
+            : {}),
+          ...(separatedBody.referenceAreaM2 !== undefined && separatedBody.dragCoefficient !== undefined
+            ? {
+                referenceAreaM2: separatedBody.referenceAreaM2,
+                dragCoefficient: separatedBody.dragCoefficient,
+              }
+            : {}),
+          ...(separatedBody.envelopeRadiusM !== undefined
+            ? { envelopeRadiusM: separatedBody.envelopeRadiusM }
+            : {}),
+        });
         spawnedStageInstances.add(spawnKey);
       } catch (error) {
         separatedBodyWarnings.push(
           `${stageId} separated-body preview unavailable: ${error instanceof Error ? error.message : "unknown error"}`,
         );
       }
+    }
+  }
+  let coupledMultiBodyFlight: CoupledMultiBodyFlightResult | null = null;
+  if (coupledBodySeeds.length > 0) {
+    try {
+      coupledMultiBodyFlight = simulateCoupledMultiBodyFlight({
+        bodies: coupledBodySeeds,
+        durationS: input.durationS,
+        timeStepS: input.timeStepS,
+        launchAltitudeM: input.launchAltitudeM,
+        environmentAt: input.environmentAt,
+      });
+    } catch (error) {
+      separatedBodyWarnings.push(
+        `Coupled multi-body flight propagation unavailable: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
     }
   }
   const multiBodySeparation: MultiBodySeparationResult | null =
@@ -969,6 +1032,7 @@ export function simulateStageFlightPreview(
     ...convergence.warnings,
     ...separatedBodyWarnings,
     ...(multiBodySeparation?.warnings ?? []),
+    ...(coupledMultiBodyFlight?.warnings ?? []),
     ...(separationEnvelope?.warnings ?? []),
     ...separationDynamics.flatMap((audit) => audit.warnings),
     ...separationImpulseSolutions.flatMap((solution) => solution.warnings),
@@ -991,7 +1055,13 @@ export function simulateStageFlightPreview(
           "Detached recovery commands are located at each branch apogee; deployment delay, inflation, and optional reefing are carried by the independent recovery-load model rather than copied from the retained vehicle.",
         ]
       : []),
+    ...(coupledMultiBodyFlight
+      ? [
+          "The shared-grid detached-body track applies event-level velocity corrections only when the associated impulse allocator is balanced; the independent detached 6DOF branches remain on their baseline release states.",
+        ]
+      : []),
     ...(multiBodySeparation?.assumptions ?? []),
+    ...(coupledMultiBodyFlight?.assumptions ?? []),
     ...(separationEnvelope?.assumptions ?? []),
     ...separationDynamics.flatMap((audit) => audit.assumptions),
     ...separationImpulseSolutions.flatMap((solution) => solution.assumptions),
@@ -1022,6 +1092,7 @@ export function simulateStageFlightPreview(
     separationImpulseSolutions,
     multiBodySeparation,
     separationEnvelope,
+    coupledMultiBodyFlight,
     convergence,
     eventAllocation,
     warnings: [...new Set(warnings)],

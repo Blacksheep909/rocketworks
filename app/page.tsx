@@ -5805,6 +5805,40 @@ export default function Home() {
                             )}
                           </div>
                         )}
+                        {stageFlightResult.coupledMultiBodyFlight && (
+                          <div className="stage-coupled-multi-body-flight">
+                            <div className="stage-coupled-multi-body-flight-heading">
+                              <div>
+                                <span className="eyebrow">Shared-grid propagation</span>
+                                <h5>Coupled detached-body flight</h5>
+                                <p>Runs every released body together on one mission-time grid with shared gravity, atmosphere, and wind queries. Balanced event-level velocity corrections are applied only to this explicit audit track; contact, plume, and aerodynamic interference remain out of scope.</p>
+                              </div>
+                              <span className={`stage-coupled-multi-body-flight-status stage-coupled-multi-body-flight-status-${stageFlightResult.coupledMultiBodyFlight.status}`}>
+                                {stageFlightResult.coupledMultiBodyFlight.status}
+                              </span>
+                            </div>
+                            <div className="stage-coupled-multi-body-flight-grid">
+                              <div><span>Propagated bodies</span><strong>{stageFlightResult.coupledMultiBodyFlight.trajectories.length}</strong><small>shared mission track</small></div>
+                              <div><span>Integration steps</span><strong>{stageFlightResult.coupledMultiBodyFlight.stepCount}</strong><small>{stageFlightResult.coupledMultiBodyFlight.timeStepS.toFixed(3)} s effective step</small></div>
+                              <div><span>Minimum COM separation</span><strong>{stageFlightResult.coupledMultiBodyFlight.minimumDistanceM === null ? "Not assessed" : `${stageFlightResult.coupledMultiBodyFlight.minimumDistanceM.toFixed(2)} m`}</strong><small>{stageFlightResult.coupledMultiBodyFlight.closestPair ? `closest at ${stageFlightResult.coupledMultiBodyFlight.closestPair.timeS.toFixed(2)} s` : "no pairwise overlap"}</small></div>
+                              <div><span>Release window</span><strong>{stageFlightResult.coupledMultiBodyFlight.startTimeS.toFixed(2)} → {stageFlightResult.coupledMultiBodyFlight.endTimeS.toFixed(2)} s</strong><small>{publicModelVersion(stageFlightResult.coupledMultiBodyFlight.modelVersion)}</small></div>
+                            </div>
+                            <div className="stage-coupled-multi-body-flight-list">
+                              {stageFlightResult.coupledMultiBodyFlight.trajectories.map((trajectory) => (
+                                <div key={trajectory.id}>
+                                  <span>{trajectory.label}</span>
+                                  <strong>{trajectory.maxAltitudeAglM.toFixed(1)} m peak · {trajectory.maxSpeedMps.toFixed(1)} m/s</strong>
+                                  <small>{trajectory.impactTimeS === null ? "No ground crossing in window" : `Ground crossing ${trajectory.impactTimeS.toFixed(2)} s`} · {Math.hypot(trajectory.velocityAdjustmentWorldMps.x, trajectory.velocityAdjustmentWorldMps.y, trajectory.velocityAdjustmentWorldMps.z) > 1e-9 ? `event correction ${Math.hypot(trajectory.velocityAdjustmentWorldMps.x, trajectory.velocityAdjustmentWorldMps.y, trajectory.velocityAdjustmentWorldMps.z).toFixed(4)} m/s` : "baseline release velocity"}</small>
+                                </div>
+                              ))}
+                            </div>
+                            {stageFlightResult.coupledMultiBodyFlight.warnings.length > 0 && (
+                              <ul className="stage-coupled-multi-body-flight-warnings">
+                                {stageFlightResult.coupledMultiBodyFlight.warnings.slice(0, 3).map((warning) => <li key={warning}>{warning}</li>)}
+                              </ul>
+                            )}
+                          </div>
+                        )}
                           {stageFlightResult.separationDynamics.length > 0 && (
                             <div className="stage-separation-dynamics">
                             <div className="stage-separation-dynamics-heading">
