@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Expanded the on-demand benchmark lane with deterministic rigid-body 6DOF
+  constant-force translation, torque-free energy and world-angular-momentum
+  conservation, and quaternion-normalization fixtures. These are mathematical
+  regression signals only and do not upgrade the coupled model to flight-safe
+  or experimentally validated status.
 - Validated measured-flight CSV imports now persist the raw log and source name
   in a bounded, versioned browser-local record. Restored logs are labeled in
   the Flight workspace; malformed or oversized records are ignored, and a

@@ -3,10 +3,19 @@ import {
   standardAtmosphere,
 } from "./atmosphere.ts";
 import { totalImpulse } from "./curves.ts";
+import {
+  IDENTITY_QUATERNION,
+  angularMomentumWorldNms,
+  quaternionFromAxisAngle,
+  quaternionMagnitude,
+  rotationalKineticEnergyJ,
+  simulateRigidBody6D,
+} from "./six-dof.ts";
+import { magnitude, subtractVectors } from "./linear-algebra.ts";
 import { computeStaticStability } from "./static-aerodynamics.ts";
 
 export const BENCHMARK_SUITE_MODEL_VERSION =
-  "kestrel-physics-benchmark-suite-0.1.0";
+  "kestrel-physics-benchmark-suite-0.2.0";
 export const BENCHMARK_SUITE_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -91,6 +100,75 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
       },
     ],
   });
+  const benchmarkBody = {
+    massKg: 2,
+    inertiaBodyKgM2: [
+      [2, 0, 0],
+      [0, 3, 0],
+      [0, 0, 4],
+    ],
+  } as const;
+  const constantForceResult = simulateRigidBody6D({
+    body: benchmarkBody,
+    initialState: {
+      timeS: 0,
+      positionWorldM: { x: 0, y: 0, z: 0 },
+      velocityWorldMps: { x: 0, y: 0, z: 0 },
+      orientationBodyToWorld: IDENTITY_QUATERNION,
+      angularVelocityBodyRadS: { x: 0, y: 0, z: 0 },
+    },
+    durationS: 2,
+    timeStepS: 0.05,
+    loads: () => ({ forceWorldN: { x: 4, y: 0, z: 0 } }),
+  });
+  const torqueFreeInitialState = {
+    timeS: 0,
+    positionWorldM: { x: 0, y: 0, z: 0 },
+    velocityWorldMps: { x: 0, y: 0, z: 0 },
+    orientationBodyToWorld: quaternionFromAxisAngle(
+      { x: 1, y: 2, z: -1 },
+      0.7,
+    ),
+    angularVelocityBodyRadS: { x: 0.3, y: 0.7, z: 1.1 },
+  } as const;
+  const torqueFreeInitialEnergy = rotationalKineticEnergyJ(
+    benchmarkBody.inertiaBodyKgM2,
+    torqueFreeInitialState.angularVelocityBodyRadS,
+  );
+  const torqueFreeInitialMomentum = angularMomentumWorldNms(
+    torqueFreeInitialState,
+    benchmarkBody.inertiaBodyKgM2,
+  );
+  const torqueFreeResult = simulateRigidBody6D({
+    body: benchmarkBody,
+    initialState: torqueFreeInitialState,
+    durationS: 2,
+    timeStepS: 0.001,
+  });
+  const torqueFreeFinalEnergy = rotationalKineticEnergyJ(
+    benchmarkBody.inertiaBodyKgM2,
+    torqueFreeResult.finalState.angularVelocityBodyRadS,
+  );
+  const torqueFreeFinalMomentum = angularMomentumWorldNms(
+    torqueFreeResult.finalState,
+    benchmarkBody.inertiaBodyKgM2,
+  );
+  const torqueFreeMomentumError = magnitude(
+    subtractVectors(torqueFreeFinalMomentum, torqueFreeInitialMomentum),
+  );
+  const torqueResult = simulateRigidBody6D({
+    body: benchmarkBody,
+    initialState: {
+      timeS: 0,
+      positionWorldM: { x: 0, y: 0, z: 0 },
+      velocityWorldMps: { x: 0, y: 0, z: 0 },
+      orientationBodyToWorld: IDENTITY_QUATERNION,
+      angularVelocityBodyRadS: { x: 0, y: 0, z: 0 },
+    },
+    durationS: 1,
+    timeStepS: 0.002,
+    loads: () => ({ momentBodyNm: { x: 2, y: 0, z: 0 } }),
+  });
 
   const cases = [
     compareCase({
@@ -142,6 +220,46 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
       expected: 0.2,
       tolerance: 1e-12,
       method: "closed-form normal-force contribution for a 0.3 m cone",
+    }),
+    compareCase({
+      id: "six-dof-constant-force-velocity",
+      label: "6DOF constant-force translation",
+      metric: "final velocity",
+      unit: "m/s",
+      observed: constantForceResult.finalState.velocityWorldMps.x,
+      expected: 4,
+      tolerance: 1e-11,
+      method: "RK4 translation with 4 N force on a 2 kg rigid body for 2 s",
+    }),
+    compareCase({
+      id: "six-dof-torque-free-energy",
+      label: "6DOF torque-free rotational energy",
+      metric: "rotational energy",
+      unit: "J",
+      observed: torqueFreeFinalEnergy,
+      expected: torqueFreeInitialEnergy,
+      tolerance: 2e-11,
+      method: "asymmetric rigid-body Euler equations with no applied moment",
+    }),
+    compareCase({
+      id: "six-dof-torque-free-angular-momentum",
+      label: "6DOF torque-free world angular momentum",
+      metric: "momentum error",
+      unit: "NÂ·mÂ·s",
+      observed: torqueFreeMomentumError,
+      expected: 0,
+      tolerance: 2e-10,
+      method: "world-frame angular-momentum conservation under torque-free rotation",
+    }),
+    compareCase({
+      id: "six-dof-quaternion-normalization",
+      label: "6DOF unit quaternion normalization",
+      metric: "quaternion norm",
+      unit: "1",
+      observed: quaternionMagnitude(torqueResult.finalState.orientationBodyToWorld),
+      expected: 1,
+      tolerance: 1e-14,
+      method: "constant principal-axis moment with normalized attitude state",
     }),
   ] as const;
   const passedCount = cases.filter((benchmark) => benchmark.passed).length;

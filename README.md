@@ -94,7 +94,8 @@ research, standards, and original code.
   normalization, deterministic residual CSV export, browser-local persistence,
   and explicit validation boundaries;
 - on-demand deterministic physics benchmarks for atmosphere, gravity,
-  thrust-curve impulse, and static-aerodynamics regression fixtures;
+  thrust-curve impulse, static aerodynamics, and rigid-body 6DOF regression
+  fixtures;
 - validated project import, device-local autosave/history, templates,
   beginner/expert modes, keyboard command search, and compact browser design
   share links.

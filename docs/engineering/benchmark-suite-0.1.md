@@ -1,4 +1,4 @@
-# Deterministic physics benchmark suite 0.1
+# Deterministic physics benchmark suite 0.2
 
 Status: `mathematical-regression-tests-only`.
 
@@ -12,12 +12,17 @@ enough to run in CI.
 - U.S. Standard Atmosphere sea-level pressure and density;
 - standard gravity at sea level;
 - trapezoidal impulse of a triangular thrust curve;
-- low-speed cone center of pressure at two-thirds of the cone length.
+- low-speed cone center of pressure at two-thirds of the cone length;
+- constant-force 6DOF translation;
+- torque-free asymmetric-rigid-body rotational energy and world angular
+  momentum conservation;
+- 6DOF attitude quaternion normalization under a constant principal-axis
+  moment.
 
 Each case reports the observed value, public-reference expected value, absolute
 and relative error, and a declared tolerance. The suite currently contains
-five cases because the atmosphere fixture checks pressure and density as
-separate metrics.
+nine cases because the atmosphere fixture checks pressure and density as
+separate metrics and the 6DOF conservation checks are reported independently.
 
 ## Interpretation
 
@@ -29,4 +34,6 @@ visible.
 
 The fixtures deliberately use no OpenRocket code, data, assets, backend, or
 simulation engine. They exercise the independent atmosphere, thrust-curve,
-gravity, and static-aerodynamics modules directly.
+gravity, static-aerodynamics, and rigid-body 6DOF modules directly. The
+conservation cases are integration-regression anchors, not experimental
+validation of a vehicle, motor, aerodynamic database, or operational profile.
