@@ -16,6 +16,8 @@ flight-readiness claims.
 - Engineering-report exports now carry the selected propellant depletion source
   and integrated measured outflow when available, keeping report provenance
   aligned with the live motor model.
+- User motor records with measured histories can now export the same strict
+  mass-flow CSV alongside their thrust CSV and RASP/ENG interchange file.
 - Expanded coupled stage-flight uncertainty to sample additional motor/stage
   ignition delay, annotated separation impulse, and initial launch-alignment
   perturbations. Variants wrap event updates without mutating the base project;

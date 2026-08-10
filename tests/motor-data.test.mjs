@@ -7,6 +7,7 @@ import {
   createMotorLibrary,
   createMultiStageVehicleModel,
   estimateMotorImpulseClass,
+  exportMotorMassFlowCsv,
   exportMotorRaspEng,
   exportMotorThrustCsv,
   importMotorRaspEng,
@@ -70,6 +71,7 @@ test("motor records preserve measured mass-flow provenance through both adapters
   }));
   assert.equal(record.metrics.measuredMassFlowKg, 0.01);
   assert.equal(record.massFlowHistoryKgS.length, 3);
+  assert.equal(exportMotorMassFlowCsv(record), "time_s,mass_flow_kg_s\n0,0\n1,0.01\n2,0");
   assert.ok(record.warnings.some((warning) => warning.includes("residual")));
   const impulseMotor = motorRecordToImpulseBasedMotor(record, {
     id: "measured-placed",

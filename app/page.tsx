@@ -37,6 +37,7 @@ import {
   failStageIgnition,
   stageFlightPreviewInitialState,
   exportMotorRaspEng,
+  exportMotorMassFlowCsv,
   exportMotorThrustCsv,
   importMotorRaspEng,
   importMotorThrustCsv,
@@ -6275,6 +6276,7 @@ export default function Home() {
                   <div className="motor-record-actions">
                     <span>{record.provenance.licenseIdentifier} · {record.provenance.validationStatus}</span>
                     <button onClick={() => downloadTextArtifact(`${record.id}.csv`, "text/csv;charset=utf-8", exportMotorThrustCsv(record))}>CSV</button>
+                    {record.massFlowHistoryKgS && <button onClick={() => downloadTextArtifact(`${record.id}-mass-flow.csv`, "text/csv;charset=utf-8", exportMotorMassFlowCsv(record))}>Flow</button>}
                     <button onClick={() => downloadTextArtifact(`${record.id}.eng`, "text/plain;charset=utf-8", exportMotorRaspEng(record))}>ENG</button>
                     <button onClick={() => selectMotor(record.id)}>{selectedMotorId === record.id ? "Selected" : "Use motor"}</button>
                     <button className="danger-button" onClick={() => removeUserMotor(record.id)}>Remove</button>

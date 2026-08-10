@@ -491,6 +491,14 @@ export function exportMotorThrustCsv(record: MotorDataRecord): string {
   return ["time_s,thrust_n", ...record.thrustCurve.map((point) => `${point.timeS},${point.thrustN}`)].join("\n");
 }
 
+export function exportMotorMassFlowCsv(record: MotorDataRecord): string {
+  if (!record.massFlowHistoryKgS) throw new Error("motor record has no measured mass-flow history");
+  return [
+    "time_s,mass_flow_kg_s",
+    ...record.massFlowHistoryKgS.map((point) => `${point.timeS},${point.massFlowKgS}`),
+  ].join("\n");
+}
+
 export function exportMotorRaspEng(record: MotorDataRecord): string {
   const delays = record.ejectionDelaysS.length > 0 ? record.ejectionDelaysS.join(",") : "P";
   const header = [
