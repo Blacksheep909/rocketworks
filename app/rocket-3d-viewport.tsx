@@ -11,6 +11,8 @@ import {
   type WheelEvent,
 } from "react";
 import {
+  createExplodedPreviewComponentInstances,
+  createExplodedPreviewStageInstances,
   createRocketPreviewMesh,
   pickProjectedRocketPart,
   projectRocketPreview,
@@ -33,6 +35,8 @@ const SURFACE_COLORS: Record<RocketPreviewSurface, readonly [number, number, num
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.max(minimum, Math.min(maximum, value));
 }
+
+type Rocket3DDisplayMode = "integrated" | "exploded";
 
 function triangleColor(triangle: ProjectedRocketTriangle) {
   const base = SURFACE_COLORS[triangle.surface];
@@ -90,6 +94,7 @@ export function Rocket3DViewport({
   const [yawRad, setYawRad] = useState(-0.42);
   const [pitchRad, setPitchRad] = useState(-0.18);
   const [zoom, setZoom] = useState(0.86);
+  const [displayMode, setDisplayMode] = useState<Rocket3DDisplayMode>("integrated");
   const [hiddenStageIds, setHiddenStageIds] = useState<readonly string[]>([]);
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const controlInstances = componentInstances ?? stageInstances;
@@ -128,6 +133,18 @@ export function Rocket3DViewport({
     const visible = componentInstances.filter((instance) => !hiddenStageIdSet.has(instance.stageId));
     return visible.length > 0 ? visible : componentInstances.slice(0, 1);
   }, [componentInstances, hiddenStageIdSet]);
+  const explodedSpacingM = useMemo(
+    () => Math.max(bodyLengthM * 0.16, bodyDiameterM * 2.6, noseLengthM * 0.45),
+    [bodyDiameterM, bodyLengthM, noseLengthM],
+  );
+  const displayStageInstances = useMemo(() => {
+    if (!visibleStageInstances || displayMode === "integrated") return visibleStageInstances;
+    return createExplodedPreviewStageInstances(visibleStageInstances, explodedSpacingM);
+  }, [displayMode, explodedSpacingM, visibleStageInstances]);
+  const displayComponentInstances = useMemo(() => {
+    if (!visibleComponentInstances || displayMode === "integrated") return visibleComponentInstances;
+    return createExplodedPreviewComponentInstances(visibleComponentInstances, explodedSpacingM);
+  }, [displayMode, explodedSpacingM, visibleComponentInstances]);
   const mesh = useMemo(
     () =>
       createRocketPreviewMesh({
@@ -141,11 +158,11 @@ export function Rocket3DViewport({
         finSweepM,
         finSpanM,
         finThicknessM,
-        ...(visibleComponentInstances
-          ? { componentInstances: visibleComponentInstances }
-          : { stageInstances: visibleStageInstances }),
+        ...(displayComponentInstances
+          ? { componentInstances: displayComponentInstances }
+          : { stageInstances: displayStageInstances }),
       }),
-    [bodyDiameterM, bodyLengthM, finCount, finRootChordM, finSpanM, finSweepM, finThicknessM, finTipChordM, noseLengthM, noseProfile, visibleComponentInstances, visibleStageInstances],
+    [bodyDiameterM, bodyLengthM, displayComponentInstances, displayStageInstances, finCount, finRootChordM, finSpanM, finSweepM, finThicknessM, finTipChordM, noseLengthM, noseProfile],
   );
 
   const draw = useCallback(() => {
@@ -165,6 +182,26 @@ export function Rocket3DViewport({
     context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     context.clearRect(0, 0, bounds.width, bounds.height);
     const markerHeightM = mesh.maximumRadiusM * 1.26;
+    const integratedMarkers = displayMode === "integrated"
+      ? [
+          {
+            id: "cg-center",
+            position: { x: centerOfMassXM, y: 0, z: 0 },
+          },
+          {
+            id: "cg-label",
+            position: { x: centerOfMassXM, y: 0, z: markerHeightM },
+          },
+          {
+            id: "cp-center",
+            position: { x: centerOfPressureXM, y: 0, z: 0 },
+          },
+          {
+            id: "cp-label",
+            position: { x: centerOfPressureXM, y: 0, z: -markerHeightM },
+          },
+        ]
+      : [];
     const projected = projectRocketPreview(
       mesh,
       { yawRad, pitchRad, zoom },
@@ -175,22 +212,7 @@ export function Rocket3DViewport({
           id: "axis-end",
           position: { x: mesh.longitudinalLengthM, y: 0, z: 0 },
         },
-        {
-          id: "cg-center",
-          position: { x: centerOfMassXM, y: 0, z: 0 },
-        },
-        {
-          id: "cg-label",
-          position: { x: centerOfMassXM, y: 0, z: markerHeightM },
-        },
-        {
-          id: "cp-center",
-          position: { x: centerOfPressureXM, y: 0, z: 0 },
-        },
-        {
-          id: "cp-label",
-          position: { x: centerOfPressureXM, y: 0, z: -markerHeightM },
-        },
+        ...integratedMarkers,
       ],
     );
     projectedRef.current = projected;
@@ -247,9 +269,11 @@ export function Rocket3DViewport({
       context.textBaseline = id === "cg" ? "bottom" : "top";
       context.fillText(label, labelPoint.x, labelPoint.y + (id === "cg" ? -4 : 4));
     };
-    drawMarker("cg", "#ffad55", "CG");
-    drawMarker("cp", "#69bfff", "CP");
-  }, [centerOfMassXM, centerOfPressureXM, highlightSurface, mesh, pitchRad, selectedStageId, yawRad, zoom]);
+    if (displayMode === "integrated") {
+      drawMarker("cg", "#ffad55", "CG");
+      drawMarker("cp", "#69bfff", "CP");
+    }
+  }, [centerOfMassXM, centerOfPressureXM, displayMode, highlightSurface, mesh, pitchRad, selectedStageId, yawRad, zoom]);
 
   useEffect(() => {
     draw();
@@ -318,7 +342,10 @@ export function Rocket3DViewport({
     setZoom((value) => clamp(value * Math.exp(-event.deltaY * 0.001), 0.4, 2.5));
   };
   const onKeyDown = (event: KeyboardEvent<HTMLCanvasElement>) => {
-    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    if (event.key.toLowerCase() === "e") {
+      event.preventDefault();
+      setDisplayMode((value) => value === "integrated" ? "exploded" : "integrated");
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
       setYawRad((value) => value + (event.key === "ArrowLeft" ? -0.12 : 0.12));
     } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
@@ -360,7 +387,7 @@ export function Rocket3DViewport({
         ref={canvasRef}
         tabIndex={0}
         role="img"
-        aria-label={`Interactive three-dimensional ARC 54 preview with ${renderedInstanceCount} rendered component instances and ${visibleStageCount} visible stages, a ${noseProfile} nose and ${finCount} fins. Click a rendered surface to select its inspector component and stage. Drag or use arrow keys to orbit, and use the mouse wheel or plus and minus keys to zoom.`}
+        aria-label={`Interactive three-dimensional ARC 54 ${displayMode} preview with ${renderedInstanceCount} rendered component instances and ${visibleStageCount} visible stages, a ${noseProfile} nose and ${finCount} fins. Click a rendered surface to select its inspector component and stage. Drag or use arrow keys to orbit, use the mouse wheel or plus and minus keys to zoom, and press E to toggle integrated or exploded assembly view.`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -392,6 +419,28 @@ export function Rocket3DViewport({
           </div>
         </div>
       )}
+      <div className="rocket-3d-display-mode" aria-label="Assembly display mode">
+        <span>ASSEMBLY VIEW</span>
+        <div role="group" aria-label="Assembly display mode choices">
+          <button
+            type="button"
+            className={displayMode === "integrated" ? "active" : ""}
+            aria-pressed={displayMode === "integrated"}
+            onClick={() => setDisplayMode("integrated")}
+          >
+            Integrated
+          </button>
+          <button
+            type="button"
+            className={displayMode === "exploded" ? "active" : ""}
+            aria-pressed={displayMode === "exploded"}
+            onClick={() => setDisplayMode("exploded")}
+            title="Separate display-only components along the vehicle axis"
+          >
+            Exploded
+          </button>
+        </div>
+      </div>
       <div className="rocket-3d-controls" aria-label="Three-dimensional view controls">
         <button type="button" onClick={() => setYawRad((value) => value - 0.2)} aria-label="Orbit left">↶</button>
         <button type="button" onClick={resetView}>Fit</button>
@@ -401,10 +450,10 @@ export function Rocket3DViewport({
         <button type="button" onClick={() => setYawRad((value) => value + 0.2)} aria-label="Orbit right">↷</button>
       </div>
       <div className="rocket-3d-readout">
-        <span>DISPLAY MODEL</span>
+        <span>DISPLAY MODEL · {displayMode === "exploded" ? "EXPLODED" : "INTEGRATED"}</span>
         <strong>{mesh.modelVersion}</strong>
         <small>{visibleStageCount}/{stageGroups.length || 1} stages visible</small>
-        <small>Click a surface to select · drag to orbit · wheel to zoom · arrows / + / − / 0</small>
+        <small>{displayMode === "exploded" ? "Integrated CG / CP markers hidden in exploded view" : "Click a surface to select · drag to orbit · wheel to zoom · arrows / + / − / 0 / E"}</small>
       </div>
       <p className="rocket-3d-disclaimer">
         Display mesh only. Engineering calculations continue to use the versioned mass and aerodynamic geometry models.

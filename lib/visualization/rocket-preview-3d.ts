@@ -9,7 +9,7 @@ import {
 import type { VehicleComponent } from "../physics/vehicle-components.ts";
 
 export const ROCKET_PREVIEW_3D_MODEL_VERSION =
-  "kestrel-rocket-preview-3d-0.5.0";
+  "kestrel-rocket-preview-3d-0.6.0";
 export const ROCKET_PREVIEW_3D_MODEL_STATUS = "display-only-unvalidated";
 
 export type PreviewVector3 = Readonly<{ x: number; y: number; z: number }>;
@@ -49,6 +49,68 @@ export type RocketPreviewComponentInstance = Readonly<{
   component: VehicleComponent;
   transform: RocketPreviewTransform;
 }>;
+
+/**
+ * Apply a deterministic axial separation to display-only component instances.
+ *
+ * This intentionally operates on the viewport's copied transform data rather
+ * than on vehicle topology or engineering state. It is useful for an
+ * exploded assembly view and must never be fed back into mass, aero, or flight
+ * calculations.
+ */
+export function createExplodedPreviewComponentInstances(
+  instances: readonly RocketPreviewComponentInstance[],
+  spacingM: number,
+): readonly RocketPreviewComponentInstance[] {
+  if (!Number.isFinite(spacingM) || spacingM <= 0) {
+    throw new Error("exploded preview spacing must be positive and finite");
+  }
+  const groupMembers = new Map<string, number[]>();
+  const groupKey = (instance: RocketPreviewComponentInstance) =>
+    `${instance.stageId}\u0000${instance.stageInstanceIndex}`;
+  instances.forEach((instance, index) => {
+    const key = groupKey(instance);
+    const members = groupMembers.get(key);
+    if (members) members.push(index);
+    else groupMembers.set(key, [index]);
+  });
+  const positions = new Map<number, number>();
+  for (const members of groupMembers.values()) {
+    const center = (members.length - 1) / 2;
+    members.forEach((index, memberIndex) => {
+      positions.set(index, (memberIndex - center) * spacingM);
+    });
+  }
+  return instances.map((instance, index) => ({
+    ...instance,
+    transform: {
+      ...instance.transform,
+      translationM: {
+        ...instance.transform.translationM,
+        x: instance.transform.translationM.x + (positions.get(index) ?? 0),
+      },
+    },
+  }));
+}
+
+/**
+ * Apply a deterministic axial separation to legacy stage display instances.
+ * Each supplied physical stage instance receives one slot around the display
+ * center. Engineering topology and stage translations remain untouched.
+ */
+export function createExplodedPreviewStageInstances(
+  instances: readonly RocketPreviewStageInstance[],
+  spacingM: number,
+): readonly RocketPreviewStageInstance[] {
+  if (!Number.isFinite(spacingM) || spacingM <= 0) {
+    throw new Error("exploded preview spacing must be positive and finite");
+  }
+  const center = (instances.length - 1) / 2;
+  return instances.map((instance, index) => ({
+    ...instance,
+    translationXM: instance.translationXM + (index - center) * spacingM,
+  }));
+}
 
 export type RocketPreviewMeshInput = Readonly<{
   noseLengthM: number;

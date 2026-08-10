@@ -360,7 +360,13 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(viewport, /Stage visibility controls/);
   assert.match(viewport, /pickProjectedRocketPart/);
   assert.match(viewport, /onStageSelect/);
-  assert.match(viewport, /Interactive three-dimensional ARC 54 preview/);
+  assert.match(viewport, /createExplodedPreviewComponentInstances/);
+  assert.match(viewport, /createExplodedPreviewStageInstances/);
+  assert.match(viewport, /Assembly display mode/);
+  assert.match(viewport, /Integrated/);
+  assert.match(viewport, /Exploded/);
+  assert.match(viewport, /press E to toggle/);
+  assert.match(viewport, /Interactive three-dimensional ARC 54/);
   assert.match(viewport, /Click a rendered surface to select/);
   assert.match(viewport, /onPointerMove/);
   assert.match(viewport, /onWheel/);
@@ -368,6 +374,7 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(viewport, /Display mesh only/);
   assert.match(stylesheet, /\.rocket-3d-viewport canvas:focus-visible/);
   assert.match(stylesheet, /touch-action: none/);
+  assert.match(stylesheet, /.rocket-3d-display-mode/);
 });
 
 test("ships a provenance-qualified recovery landing footprint", async () => {

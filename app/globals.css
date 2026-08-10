@@ -440,6 +440,28 @@ kbd {
 .rocket-3d-stage-filter button.active > i { background: #62c5ff; box-shadow: 0 0 0 2px rgba(98,197,255,.16), 0 0 8px rgba(98,197,255,.48); }
 .rocket-3d-stage-filter button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rocket-3d-stage-filter button > small { flex: 0 0 auto; color: #6e8798; font: 700 7px var(--font-geist-mono), monospace; }
+.rocket-3d-display-mode {
+  position: absolute; top: 58px; right: 16px; z-index: 2;
+  display: flex; align-items: center; gap: 7px; padding: 5px 6px;
+  border: 1px solid rgba(126,157,181,.2); border-radius: 5px;
+  background: rgba(8,13,18,.82); backdrop-filter: blur(12px);
+  box-shadow: 0 10px 28px rgba(0,0,0,.24);
+}
+.rocket-3d-display-mode > span {
+  color: #708899; font: 700 7px var(--font-geist-mono), monospace;
+  letter-spacing: .08em;
+}
+.rocket-3d-display-mode > div { display: flex; gap: 2px; }
+.rocket-3d-display-mode button {
+  min-height: 23px; padding: 3px 7px; border: 1px solid transparent; border-radius: 3px;
+  background: transparent; color: #8197a7; cursor: pointer;
+  font: 700 8px var(--font-geist-mono), monospace;
+}
+.rocket-3d-display-mode button:hover { border-color: rgba(47,159,255,.42); color: #d9efff; }
+.rocket-3d-display-mode button:focus-visible { outline: 2px solid #73c5ff; outline-offset: 2px; }
+.rocket-3d-display-mode button.active {
+  border-color: rgba(47,159,255,.48); background: rgba(47,159,255,.14); color: #cbeaff;
+}
 .rocket-3d-controls {
   position: absolute; top: 16px; right: 16px; display: flex; align-items: center;
   gap: 2px; padding: 3px; border: 1px solid rgba(126,157,181,.2);
@@ -1607,6 +1629,7 @@ kbd {
   .workspace { min-height: 650px; }
   .rocket-assembly { transform: translateY(10px) scale(.64); }
   .rocket-3d-controls { top: 12px; right: 12px; }
+  .rocket-3d-display-mode { top: 53px; right: 12px; }
   .rocket-3d-readout { top: 14px; left: 14px; }
   .rocket-3d-readout small { display: none; }
   .flight-view { padding: 22px 14px 30px; }

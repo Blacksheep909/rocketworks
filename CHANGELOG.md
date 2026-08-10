@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a display-only exploded assembly mode to the 3D design viewport. Users
+  can separate component or legacy stage display instances along the vehicle
+  axis, keep stage filtering and surface selection, and toggle the view with
+  an accessible control or the `E` key; integrated CG/CP markers are hidden in
+  exploded mode so display transforms cannot be mistaken for engineering
+  inputs.
 - Rebranded the public workbench, browser shell, exports, documentation, and
   repository metadata as RocketWorks while retaining versioned `kestrel-*`
   schema/model identifiers for existing project compatibility. Added an

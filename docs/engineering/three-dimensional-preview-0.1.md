@@ -1,4 +1,4 @@
-# Three-dimensional design preview 0.5
+# Three-dimensional design preview 0.6
 
 Status: `display-only-unvalidated`
 
@@ -48,7 +48,7 @@ The body uses triangulated cylindrical sections. Each fin is constructed as a
 thin closed trapezoidal prism oriented evenly around the body axis. The nozzle
 is a tapered cylindrical display surface.
 
-Version 0.5 renders those triangles through an original perspective projection,
+Version 0.6 renders those triangles through an original perspective projection,
 depth-sort painter, and directional intensity calculation. It expands each
 enabled topology stage into a display instance with its validated axial
 translation, radial offset, scale, and repeated-instance rotation. The browser
@@ -70,6 +70,10 @@ Canvas 2D API rather than a third-party 3D or CAD library.
 - Stage visibility controls group repeated instances by stage and always keep
   one stage visible, so isolating a booster or payload cannot produce an empty
   or invalid display mesh.
+- Integrated and exploded assembly modes are display-only transform views. The
+  exploded mode separates component instances along the vehicle axis while
+  hiding integrated CG/CP markers so spatial inspection cannot be mistaken for
+  a changed engineering configuration. The `E` key toggles the modes.
 - Clicking a stage-aware triangle retains both the surface component and stage
   identity; the browser viewport highlights that stage and can notify the
   surrounding inspector.
@@ -77,7 +81,8 @@ Canvas 2D API rather than a third-party 3D or CAD library.
   motor, or recovery inspector entry. Point masses are display markers only;
   they are not rendered as structural solids.
 - Mouse-wheel zoom and dedicated buttons adjust scale.
-- Arrow keys orbit; plus and minus zoom; zero resets the view.
+- Arrow keys orbit; plus and minus zoom; zero resets the view; `E` toggles
+  integrated and exploded assembly display.
 - The canvas is keyboard focusable and has a descriptive accessible label.
 - Focus-visible styling makes keyboard location explicit.
 - The 2D/3D mode switch remains a normal labelled button group.
@@ -117,8 +122,8 @@ flight safety.
 - The preview now maps expanded component instances supplied by the browser's
   assembly graph, but arbitrary custom group visual primitives and nested CAD
   solids still need dedicated display schemas.
-- No internal transparent solids, section cuts, exploded views, stage separation
-  animation, or material texture; point-mass markers are intentionally abstract.
+- No internal transparent solids, section cuts, stage separation animation, or
+  material texture; point-mass markers are intentionally abstract.
 - Painter-style triangle sorting can produce minor overlap artifacts for future
   deeply nested or transparent geometry.
 - Surface picking is a projected-triangle hit test, not a full 3D ray or CAD
@@ -130,5 +135,6 @@ flight safety.
   dimensional measurement.
 
 The next geometry increment should add dedicated custom-group display schemas,
-section/exploded views, and a reusable scene graph for CAD-friendly exports
-without treating the render mesh itself as authoritative engineering geometry.
+section cuts, stage separation animation, and a reusable scene graph for
+CAD-friendly exports without treating the render mesh itself as authoritative
+engineering geometry.

@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   ROCKET_PREVIEW_3D_MODEL_VERSION,
+  createExplodedPreviewComponentInstances,
+  createExplodedPreviewStageInstances,
   createRocketPreviewMesh,
   pickProjectedRocketPart,
   pickProjectedRocketSurface,
@@ -125,6 +127,44 @@ test("preview mesh expands enabled serial and radial stage instances", () => {
   });
   assert.equal(payloadOnly.triangles.some((triangle) => triangle.surface === "fin"), false);
   assert.equal(payloadOnly.triangles.some((triangle) => triangle.surface === "nozzle"), false);
+});
+
+test("exploded display transforms separate components without mutating engineering inputs", () => {
+  const transform = { translationM: { x: 0.2, y: 0, z: 0 }, rotation: [[1, 0, 0], [0, 1, 0], [0, 0, 1]] };
+  const components = [
+    {
+      id: "core:0:nose:0",
+      sourceComponentId: "nose",
+      label: "Nose cone",
+      stageId: "core",
+      stageInstanceIndex: 0,
+      component: { kind: "pointMass", id: "nose", name: "Nose", massKg: 0.1, positionM: { x: 0, y: 0, z: 0 } },
+      transform,
+    },
+    {
+      id: "core:0:body:0",
+      sourceComponentId: "body",
+      label: "Airframe",
+      stageId: "core",
+      stageInstanceIndex: 0,
+      component: { kind: "pointMass", id: "body", name: "Body", massKg: 0.2, positionM: { x: 0, y: 0, z: 0 } },
+      transform,
+    },
+  ];
+  const exploded = createExplodedPreviewComponentInstances(components, 0.12);
+  assert.equal(exploded[0].transform.translationM.x, 0.14);
+  assert.equal(exploded[1].transform.translationM.x, 0.26);
+  assert.equal(components[0].transform.translationM.x, 0.2);
+  assert.notEqual(exploded[0], components[0]);
+  assert.throws(() => createExplodedPreviewComponentInstances(components, 0), /spacing/);
+
+  const stages = createExplodedPreviewStageInstances([
+    { id: "upper", translationXM: 0 },
+    { id: "core", translationXM: 0.4 },
+    { id: "booster", translationXM: 0 },
+  ], 0.1);
+  assert.deepEqual(stages.map((stage) => stage.translationXM), [-0.1, 0.4, 0.1]);
+  assert.throws(() => createExplodedPreviewStageInstances([{ id: "core", translationXM: 0 }], -1), /spacing/);
 });
 
 test("preview mesh renders expanded assembly component instances with stage and component metadata", () => {
