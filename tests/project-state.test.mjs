@@ -92,17 +92,44 @@ test("project checkpoints can carry validated vehicle topology and fingerprint i
       }),
     ],
   };
-  const source = snapshot(1, {}, topology);
+  const source = createLocalProjectSnapshot({
+    ...snapshot(1, {}, topology),
+    selectedMotorId: "user.motor-01",
+    selectedAerodynamicTableId: "wind-tunnel-01",
+  });
   assert.deepEqual(parseLocalProjectSnapshot(serializeLocalProjectSnapshot(source)), source);
   assert.equal(source.topology?.stages.length, 2);
   assert.equal(source.topology?.stages[1].bodyLengthM, 0.42);
+  assert.equal(source.selectedMotorId, "user.motor-01");
+  assert.equal(source.selectedAerodynamicTableId, "wind-tunnel-01");
   assert.equal(
-    projectConfigurationFingerprint({ inputs: source.inputs, topology }),
-    projectConfigurationFingerprint({ inputs: { ...inputs }, topology }),
+    projectConfigurationFingerprint({
+      inputs: source.inputs,
+      topology,
+      selectedMotorId: source.selectedMotorId,
+      selectedAerodynamicTableId: source.selectedAerodynamicTableId,
+    }),
+    projectConfigurationFingerprint({
+      inputs: { ...inputs },
+      topology,
+      selectedMotorId: "user.motor-01",
+      selectedAerodynamicTableId: "wind-tunnel-01",
+    }),
   );
   assert.match(
     describeProjectConfigurationChanges(inputs, inputs, undefined, topology),
     /vehicle topology/,
+  );
+  assert.match(
+    describeProjectConfigurationChanges(
+      inputs,
+      inputs,
+      topology,
+      topology,
+      { selectedMotorId: "synthetic", selectedAerodynamicTableId: "constant" },
+      { selectedMotorId: source.selectedMotorId, selectedAerodynamicTableId: source.selectedAerodynamicTableId },
+    ),
+    /motor source \+ aerodynamic source/,
   );
   assert.throws(
     () => createLocalProjectSnapshot({ ...source, topology: { ...topology, stages: [] } }),
@@ -216,6 +243,14 @@ test("invalid, unsupported, and out-of-range snapshots fail explicitly", () => {
     () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, finSweepMm: 100, finTipChordMm: 80 } }),
     /finSweepMm plus finTipChordMm/,
   );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), selectedMotorId: "" }),
+    /selectedMotorId/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), selectedAerodynamicTableId: "" }),
+    /selectedAerodynamicTableId/,
+  );
 });
 
 test("history describes changes, suppresses autosave duplicates, and preserves manual duplicates", () => {
@@ -230,6 +265,35 @@ test("history describes changes, suppresses autosave duplicates, and preserves m
   assert.equal(describeProjectInputChanges(inputs, { ...inputs, uncertaintySampleCount: 64 }), "Changed uncertainty scenario count");
   assert.equal(JSON.parse(serializeLocalProjectHistory(history)).schema, LOCAL_PROJECT_HISTORY_SCHEMA_ID);
   assert.deepEqual(parseLocalProjectHistory(serializeLocalProjectHistory(history)), history);
+});
+
+test("history keeps topology and source-only changes instead of suppressing them as input duplicates", () => {
+  const topology = {
+    ...createDefaultVehicleTopology(),
+    stages: [
+      ...createDefaultVehicleTopology().stages,
+      createStagePlan({
+        id: "upper-01",
+        name: "Upper stage 1",
+        role: "upper",
+        attachment: "serial",
+        parentStageId: "sustainer",
+      }),
+    ],
+  };
+  let history = appendProjectHistory(createEmptyProjectHistory("arc54"), snapshot(1), "Initial");
+  history = appendProjectHistory(
+    history,
+    createLocalProjectSnapshot({ ...snapshot(2), topology }),
+    "Changed vehicle topology",
+  );
+  assert.equal(history.entries.length, 2);
+  history = appendProjectHistory(
+    history,
+    createLocalProjectSnapshot({ ...snapshot(3), selectedMotorId: "user.motor-01" }),
+    "Changed motor source",
+  );
+  assert.equal(history.entries.length, 3);
 });
 
 test("history is bounded and rejects cross-project or non-monotonic records", () => {

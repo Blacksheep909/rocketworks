@@ -13,20 +13,21 @@ Two browser `localStorage` records are used:
 - `kestrel.project.arc54.current.v1` stores the latest validated snapshot.
 - `kestrel.project.arc54.history.v1` stores up to 40 chronological checkpoints.
 
-The snapshot schema is `dev.kestrel-lab.local-project`, version 1. It contains the project identity, monotonically increasing revision, UTC save time, editable design, component geometry, motor, environment, recovery, and vertical-uncertainty settings, plus an optional validated `topology` record for new checkpoints. New component geometry, recovery-reefing, uncertainty-control, and topology fields use additive defaults so older version-1 records restore safely. Derived mass properties, simulations, uncertainty samples, landing dispersions, and rendered geometry are deliberately omitted; they are recomputed from restored inputs and topology.
+The snapshot schema is `dev.kestrel-lab.local-project`, version 1. It contains the project identity, monotonically increasing revision, UTC save time, editable design, component geometry, motor, environment, recovery, and vertical-uncertainty settings, plus optional validated `topology`, `selectedMotorId`, and `selectedAerodynamicTableId` fields for new checkpoints. New component geometry, recovery-reefing, uncertainty-control, topology, and source-selection fields use additive defaults so older version-1 records restore safely. Derived mass properties, simulations, uncertainty samples, landing dispersions, and rendered geometry are deliberately omitted; they are recomputed from restored inputs, topology, and available local data sources.
 
-The history schema is `dev.kestrel-lab.local-project-history`, version 1. Every entry has a unique identifier, human-readable change label, and complete validated snapshot. Autosave suppresses consecutive duplicate input states. Manual and restore checkpoints may intentionally duplicate a state so the user action remains visible.
+The history schema is `dev.kestrel-lab.local-project-history`, version 1. Every entry has a unique identifier, human-readable change label, and complete validated snapshot. Autosave suppresses consecutive duplicate full configuration states (inputs, topology, and source IDs). Manual and restore checkpoints may intentionally duplicate a state so the user action remains visible.
 
 ## Save and restore behavior
 
 - Existing records are read only after client hydration, avoiding server/browser state mismatch.
-- Every editable field and the complete vehicle topology participate in one canonical fingerprint.
+- Every editable field, the complete vehicle topology, and the selected motor/aerodynamic source IDs participate in one canonical fingerprint.
 - A change marks the project unsaved immediately and writes after a 600 ms debounce.
-- A restore creates a new revision from the selected inputs and topology; it does not remove later checkpoints. Legacy checkpoints without topology restore their inputs while retaining the current topology.
+- A restore creates a new revision from the selected inputs, topology, and source selections; it does not remove later checkpoints. Legacy checkpoints without topology or source IDs restore their inputs while retaining the current topology and available selections.
 - When more than 40 checkpoints exist, the oldest entries are discarded.
 - JSON, schema identity, schema version, project identity, timestamps, revisions, types, finite numbers, and UI input ranges are validated before a record is accepted.
 - An unreadable record never populates application state. The default design remains active and the interface reports that local data needs attention.
 - The separate current-topology cache remains for fast browser startup, while checkpoints carry their own topology so a restore is configuration-complete.
+- The selected motor ID is cached separately from the user motor library, and the aerodynamic source ID is cached with its library. When a checkpoint references a source that is no longer present, RocketWorks falls back explicitly to the synthetic motor or constant-drag source and reports the limitation instead of creating a dangling selection.
 
 ## Limits and privacy
 

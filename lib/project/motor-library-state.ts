@@ -8,6 +8,7 @@ import {
 export const LOCAL_MOTOR_LIBRARY_SCHEMA_ID = "dev.kestrel-lab.local-motor-library";
 export const LOCAL_MOTOR_LIBRARY_SCHEMA_VERSION = 1;
 export const LOCAL_MOTOR_LIBRARY_STORAGE_KEY = "kestrel.project.arc54.motor-library.v1";
+export const LOCAL_MOTOR_SELECTION_STORAGE_KEY = "kestrel.project.arc54.motor-selection.v1";
 export const LOCAL_MOTOR_LIBRARY_LIMIT = 24;
 
 export type LocalMotorLibraryDocument = Readonly<{

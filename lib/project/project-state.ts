@@ -70,6 +70,11 @@ export type EditableProjectInputs = Readonly<{
   uncertaintyCorrelations?: ReadonlyArray<ProjectUncertaintyCorrelation>;
 }>;
 
+export type ProjectSourceSelections = Readonly<{
+  selectedMotorId: string;
+  selectedAerodynamicTableId: string;
+}>;
+
 export type LocalProjectSnapshot = Readonly<{
   schema: typeof LOCAL_PROJECT_SCHEMA_ID;
   schemaVersion: typeof LOCAL_PROJECT_SCHEMA_VERSION;
@@ -80,6 +85,10 @@ export type LocalProjectSnapshot = Readonly<{
   inputs: EditableProjectInputs;
   /** Optional in schema v1 for migration; new browser checkpoints include it. */
   topology?: LocalVehicleTopology;
+  /** Optional in schema v1 for migration; new browser checkpoints include it. */
+  selectedMotorId?: string;
+  /** Optional in schema v1 for migration; new browser checkpoints include it. */
+  selectedAerodynamicTableId?: string;
 }>;
 
 export type ProjectHistoryEntry = Readonly<{
@@ -190,6 +199,20 @@ function nonEmptyString(value: unknown, label: string, maximumLength = 160): str
   return value;
 }
 
+function validateProjectSourceSelections(value: Readonly<{
+  selectedMotorId?: unknown;
+  selectedAerodynamicTableId?: unknown;
+}> = {}): ProjectSourceSelections {
+  return {
+    selectedMotorId: value.selectedMotorId === undefined
+      ? "synthetic"
+      : nonEmptyString(value.selectedMotorId, "selectedMotorId"),
+    selectedAerodynamicTableId: value.selectedAerodynamicTableId === undefined
+      ? "constant"
+      : nonEmptyString(value.selectedAerodynamicTableId, "selectedAerodynamicTableId"),
+  };
+}
+
 function integer(value: unknown, label: string, minimum = 0): number {
   if (!Number.isInteger(value) || (value as number) < minimum) {
     throw new Error(`${label} must be an integer greater than or equal to ${minimum}.`);
@@ -295,7 +318,12 @@ export function createLocalProjectSnapshot(input: {
   savedAtIso?: string;
   inputs: EditableProjectInputs;
   topology?: LocalVehicleTopology;
+  selectedMotorId?: string;
+  selectedAerodynamicTableId?: string;
 }): LocalProjectSnapshot {
+  const sourceSelections = input.selectedMotorId === undefined && input.selectedAerodynamicTableId === undefined
+    ? undefined
+    : validateProjectSourceSelections(input);
   return {
     schema: LOCAL_PROJECT_SCHEMA_ID,
     schemaVersion: LOCAL_PROJECT_SCHEMA_VERSION,
@@ -305,6 +333,7 @@ export function createLocalProjectSnapshot(input: {
     savedAtIso: isoDate(input.savedAtIso ?? new Date().toISOString(), "savedAtIso"),
     inputs: validateEditableProjectInputs(input.inputs),
     ...(input.topology === undefined ? {} : { topology: validateVehicleTopology(input.topology) }),
+    ...(sourceSelections === undefined ? {} : sourceSelections),
   };
 }
 
@@ -319,6 +348,9 @@ function validateSnapshot(value: unknown): LocalProjectSnapshot {
     savedAtIso: isoDate(snapshot.savedAtIso, "savedAtIso"),
     inputs: validateEditableProjectInputs(snapshot.inputs),
     ...(snapshot.topology === undefined ? {} : { topology: validateVehicleTopology(snapshot.topology) }),
+    ...(snapshot.selectedMotorId === undefined && snapshot.selectedAerodynamicTableId === undefined
+      ? {}
+      : validateProjectSourceSelections(snapshot)),
   });
 }
 
@@ -341,10 +373,14 @@ export function projectInputFingerprint(inputs: EditableProjectInputs): string {
 export function projectConfigurationFingerprint(input: Readonly<{
   inputs: EditableProjectInputs;
   topology: LocalVehicleTopology;
+  selectedMotorId?: string;
+  selectedAerodynamicTableId?: string;
 }>): string {
+  const sourceSelections = validateProjectSourceSelections(input);
   return JSON.stringify({
     inputs: validateEditableProjectInputs(input.inputs),
     topology: validateVehicleTopology(input.topology),
+    ...sourceSelections,
   });
 }
 
@@ -405,14 +441,30 @@ export function describeProjectConfigurationChanges(
   currentInputs: EditableProjectInputs,
   previousTopology: LocalVehicleTopology | undefined,
   currentTopology: LocalVehicleTopology,
+  previousSelections?: Partial<ProjectSourceSelections>,
+  currentSelections?: Partial<ProjectSourceSelections>,
 ): string {
   const inputLabel = describeProjectInputChanges(previousInputs, currentInputs);
   const topologyChanged = previousTopology === undefined
     ? true
     : JSON.stringify(validateVehicleTopology(previousTopology)) !== JSON.stringify(validateVehicleTopology(currentTopology));
-  if (!topologyChanged) return inputLabel;
-  if (inputLabel === "No input changes") return "Changed vehicle topology";
-  return `${inputLabel} + vehicle topology`;
+  const beforeSelections = validateProjectSourceSelections(previousSelections);
+  const afterSelections = validateProjectSourceSelections(currentSelections);
+  const changedSources = [
+    beforeSelections.selectedMotorId !== afterSelections.selectedMotorId ? "motor source" : "",
+    beforeSelections.selectedAerodynamicTableId !== afterSelections.selectedAerodynamicTableId ? "aerodynamic source" : "",
+  ].filter(Boolean);
+  const labels: string[] = [];
+  if (inputLabel !== "No input changes") labels.push(inputLabel);
+  if (topologyChanged) labels.push("vehicle topology");
+  labels.push(...changedSources);
+  if (labels.length === 0) return "No input changes";
+  if (labels.length === 1 && labels[0] !== "No input changes") {
+    return labels[0].startsWith("Changed ") ? labels[0] : `Changed ${labels[0]}`;
+  }
+  return labels[0].startsWith("Changed ")
+    ? `${labels[0]} + ${labels.slice(1).join(" + ")}`
+    : `Changed ${labels.join(" + ")}`;
 }
 
 export function createEmptyProjectHistory(projectId: string): LocalProjectHistory {
@@ -459,8 +511,16 @@ export function appendProjectHistory(
   const validSnapshot = validateSnapshot(snapshot);
   if (validSnapshot.projectId !== current.projectId) throw new Error("Snapshot project does not match history project.");
   const maxEntries = integer(options.maxEntries ?? DEFAULT_LOCAL_HISTORY_LIMIT, "maxEntries", 1);
-  const duplicate = current.entries.at(-1)?.snapshot.inputs;
-  if (!options.allowDuplicate && duplicate && projectInputFingerprint(duplicate) === projectInputFingerprint(validSnapshot.inputs)) return current;
+  const duplicate = current.entries.at(-1)?.snapshot;
+  if (!options.allowDuplicate && duplicate && JSON.stringify({
+    inputs: validateEditableProjectInputs(duplicate.inputs),
+    topology: duplicate.topology === undefined ? null : validateVehicleTopology(duplicate.topology),
+    ...validateProjectSourceSelections(duplicate),
+  }) === JSON.stringify({
+    inputs: validSnapshot.inputs,
+    topology: validSnapshot.topology === undefined ? null : validateVehicleTopology(validSnapshot.topology),
+    ...validateProjectSourceSelections(validSnapshot),
+  })) return current;
   const last = current.entries.at(-1)?.snapshot;
   if (last && (validSnapshot.revision <= last.revision || Date.parse(validSnapshot.savedAtIso) < Date.parse(last.savedAtIso))) {
     throw new Error("New history snapshots must have increasing revisions and timestamps.");

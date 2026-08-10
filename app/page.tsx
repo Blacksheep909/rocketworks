@@ -128,6 +128,7 @@ import {
 } from "../lib/project/templates.ts";
 import {
   LOCAL_MOTOR_LIBRARY_STORAGE_KEY,
+  LOCAL_MOTOR_SELECTION_STORAGE_KEY,
   parseLocalMotorLibrary,
   serializeLocalMotorLibrary,
   upsertLocalMotorRecord,
@@ -3561,7 +3562,12 @@ export default function Home() {
       let restoredSnapshot: LocalProjectSnapshot | null = null;
       let restoredTopology: LocalVehicleTopology | null = null;
       let restoredHistory = createEmptyProjectHistory("arc54");
+      let restoredMotorRecords: MotorDataRecord[] = [];
+      let restoredAerodynamicTables: AerodynamicCoefficientTableDefinition[] = [];
+      let restoredMotorSelection = "synthetic";
+      let restoredAerodynamicSelection = "constant";
       const problems: string[] = [];
+      const selectionWarnings: string[] = [];
       try {
         const serialized = window.localStorage.getItem(LOCAL_PROJECT_STORAGE_KEY);
         if (serialized) restoredSnapshot = parseLocalProjectSnapshot(serialized);
@@ -3576,7 +3582,10 @@ export default function Home() {
       }
       try {
         const serialized = window.localStorage.getItem(LOCAL_MOTOR_LIBRARY_STORAGE_KEY);
-        if (serialized) setUserMotorRecords(parseLocalMotorLibrary(serialized));
+        restoredMotorRecords = serialized ? parseLocalMotorLibrary(serialized) : [];
+        setUserMotorRecords(restoredMotorRecords);
+        const storedSelection = window.localStorage.getItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY);
+        if (storedSelection?.trim()) restoredMotorSelection = storedSelection;
       } catch {
         problems.push("the local motor library");
       }
@@ -3594,12 +3603,10 @@ export default function Home() {
       }
       try {
         const serialized = window.localStorage.getItem(LOCAL_AERODYNAMIC_LIBRARY_STORAGE_KEY);
-        const restoredTables = serialized ? parseLocalAerodynamicLibrary(serialized) : [];
-        setAerodynamicTableDefinitions(restoredTables);
+        restoredAerodynamicTables = serialized ? parseLocalAerodynamicLibrary(serialized) : [];
+        setAerodynamicTableDefinitions(restoredAerodynamicTables);
         const storedSelection = window.localStorage.getItem(LOCAL_AERODYNAMIC_SELECTION_STORAGE_KEY);
-        if (storedSelection === "constant" || restoredTables.some((table) => table.id === storedSelection)) {
-          setSelectedAerodynamicTableId(storedSelection ?? "constant");
-        }
+        if (storedSelection?.trim()) restoredAerodynamicSelection = storedSelection;
       } catch {
         problems.push("the local aerodynamic library");
       }
@@ -3616,6 +3623,26 @@ export default function Home() {
       }
       const storedMode = window.localStorage.getItem(EXPERIENCE_MODE_STORAGE_KEY);
       if (storedMode === "beginner" || storedMode === "expert") setExperienceMode(storedMode);
+      if (restoredSnapshot?.selectedMotorId) restoredMotorSelection = restoredSnapshot.selectedMotorId;
+      if (restoredSnapshot?.selectedAerodynamicTableId) restoredAerodynamicSelection = restoredSnapshot.selectedAerodynamicTableId;
+      const motorSelectionAvailable = restoredMotorSelection === "synthetic" || restoredMotorRecords.some((record) => record.id === restoredMotorSelection);
+      const effectiveMotorSelection = motorSelectionAvailable ? restoredMotorSelection : "synthetic";
+      if (!motorSelectionAvailable) {
+        selectionWarnings.push(`Selected motor ${restoredMotorSelection} is not available on this device; synthetic preview selected.`);
+      }
+      const aerodynamicSelectionAvailable = restoredAerodynamicSelection === "constant" || restoredAerodynamicTables.some((table) => table.id === restoredAerodynamicSelection);
+      const effectiveAerodynamicSelection = aerodynamicSelectionAvailable ? restoredAerodynamicSelection : "constant";
+      if (!aerodynamicSelectionAvailable) {
+        selectionWarnings.push(`Selected aerodynamic table ${restoredAerodynamicSelection} is not available on this device; constant drag selected.`);
+      }
+      setSelectedMotorId(effectiveMotorSelection);
+      setSelectedAerodynamicTableId(effectiveAerodynamicSelection);
+      try {
+        window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, effectiveMotorSelection);
+        window.localStorage.setItem(LOCAL_AERODYNAMIC_SELECTION_STORAGE_KEY, effectiveAerodynamicSelection);
+      } catch {
+        selectionWarnings.push("source selections could not be refreshed in local storage");
+      }
       if (restoredSnapshot?.projectId === "arc54") {
         const inputs = restoredSnapshot.inputs;
         setLength(inputs.lengthMm);
@@ -3663,6 +3690,8 @@ export default function Home() {
         lastSavedFingerprintRef.current = projectConfigurationFingerprint({
           inputs,
           topology: restoredTopology ?? topologyRef.current,
+          selectedMotorId: restoredMotorSelection,
+          selectedAerodynamicTableId: restoredAerodynamicSelection,
         });
         revisionRef.current = restoredSnapshot.revision;
       } else if (problems.length > 0) {
@@ -3670,17 +3699,22 @@ export default function Home() {
         lastSavedFingerprintRef.current = projectConfigurationFingerprint({
           inputs: initialInputsRef.current,
           topology: restoredTopology ?? topologyRef.current,
+          selectedMotorId: restoredMotorSelection,
+          selectedAerodynamicTableId: restoredAerodynamicSelection,
         });
       }
       const latestHistoryRevision = restoredHistory.entries.at(-1)?.snapshot.revision ?? 0;
       revisionRef.current = Math.max(revisionRef.current, latestHistoryRevision);
       historyRef.current = restoredHistory;
       setProjectHistory(restoredHistory);
-      if (problems.length > 0) {
-        setSaveError(`Could not read ${problems.join(" or ")}. Defaults are active; the unreadable browser record was left untouched.`);
-        setToast("Local project data needs attention");
+      if (problems.length > 0 || selectionWarnings.length > 0) {
+        const persistenceMessage = problems.length > 0
+          ? `Could not read ${problems.join(" or ")}. Defaults are active; the unreadable browser record was left untouched.`
+          : "";
+        setSaveError([persistenceMessage, ...selectionWarnings].filter(Boolean).join(" "));
+        setToast(problems.length > 0 ? "Local project data needs attention" : "Source selection updated");
       }
-      setSaved(Boolean(restoredSnapshot));
+      setSaved(Boolean(restoredSnapshot) && selectionWarnings.length === 0);
       setStorageReady(true);
     }, 0);
     return () => window.clearTimeout(hydrationTimer);
@@ -3789,6 +3823,8 @@ export default function Home() {
     const fingerprint = projectConfigurationFingerprint({
       inputs: editableInputs,
       topology: vehicleTopology,
+      selectedMotorId,
+      selectedAerodynamicTableId,
     });
     if (fingerprint === lastSavedFingerprintRef.current) {
       setSaved(true);
@@ -3799,6 +3835,7 @@ export default function Home() {
       try {
         const previous = lastSavedInputsRef.current;
         const previousTopology = historyRef.current.entries.at(-1)?.snapshot.topology;
+        const previousSnapshot = historyRef.current.entries.at(-1)?.snapshot;
         const lastTimestamp = historyRef.current.entries.at(-1)?.snapshot.savedAtIso;
         const savedAtIso = nextLocalSaveTime(lastTimestamp);
         const snapshot = createLocalProjectSnapshot({
@@ -3808,9 +3845,18 @@ export default function Home() {
           savedAtIso,
           inputs: editableInputs,
           topology: vehicleTopology,
+          selectedMotorId,
+          selectedAerodynamicTableId,
         });
         const label = previous
-          ? describeProjectConfigurationChanges(previous, editableInputs, previousTopology, vehicleTopology)
+          ? describeProjectConfigurationChanges(
+              previous,
+              editableInputs,
+              previousTopology,
+              vehicleTopology,
+              previousSnapshot,
+              { selectedMotorId, selectedAerodynamicTableId },
+            )
           : "Initial local snapshot";
         const nextHistory = appendProjectHistory(historyRef.current, snapshot, label);
         window.localStorage.setItem(LOCAL_PROJECT_STORAGE_KEY, serializeLocalProjectSnapshot(snapshot));
@@ -3828,7 +3874,7 @@ export default function Home() {
       }
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [editableInputs, storageReady, vehicleTopology]);
+  }, [editableInputs, selectedAerodynamicTableId, selectedMotorId, storageReady, vehicleTopology]);
 
   useEffect(() => {
     if (!exportOpen) return;
@@ -4089,6 +4135,7 @@ export default function Home() {
     label: string,
     allowDuplicate = true,
     topology = vehicleTopology,
+    sourceSelections = { selectedMotorId, selectedAerodynamicTableId },
   ) => {
     const lastTimestamp = historyRef.current.entries.at(-1)?.snapshot.savedAtIso;
     const snapshot = createLocalProjectSnapshot({
@@ -4098,6 +4145,7 @@ export default function Home() {
       savedAtIso: nextLocalSaveTime(lastTimestamp),
       inputs,
       topology,
+      ...sourceSelections,
     });
     const nextHistory = appendProjectHistory(historyRef.current, snapshot, label, { allowDuplicate });
     window.localStorage.setItem(LOCAL_PROJECT_STORAGE_KEY, serializeLocalProjectSnapshot(snapshot));
@@ -4106,7 +4154,7 @@ export default function Home() {
     historyRef.current = nextHistory;
     setProjectHistory(nextHistory);
     lastSavedInputsRef.current = inputs;
-    lastSavedFingerprintRef.current = projectConfigurationFingerprint({ inputs, topology });
+    lastSavedFingerprintRef.current = projectConfigurationFingerprint({ inputs, topology, ...sourceSelections });
     setSaveError("");
     setSaved(true);
     return snapshot;
@@ -4122,13 +4170,31 @@ export default function Home() {
   const restoreCheckpoint = (source: LocalProjectSnapshot) => {
     try {
       const topology = source.topology ?? topologyRef.current;
+      const sourceMotorSelection = source.selectedMotorId ?? selectedMotorId;
+      const sourceAerodynamicSelection = source.selectedAerodynamicTableId ?? selectedAerodynamicTableId;
       if (source.topology) {
         persistVehicleTopology(source.topology);
       }
-      persistCheckpoint(source.inputs, `Restored revision ${source.revision}`, true, topology);
+      const motorAvailable = sourceMotorSelection === "synthetic" || userMotorRecords.some((record) => record.id === sourceMotorSelection);
+      const aerodynamicAvailable = sourceAerodynamicSelection === "constant" || aerodynamicTableDefinitions.some((table) => table.id === sourceAerodynamicSelection);
+      const effectiveMotorSelection = motorAvailable ? sourceMotorSelection : "synthetic";
+      const effectiveAerodynamicSelection = aerodynamicAvailable ? sourceAerodynamicSelection : "constant";
+      setSelectedMotorId(effectiveMotorSelection);
+      setSelectedAerodynamicTableId(effectiveAerodynamicSelection);
+      window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, effectiveMotorSelection);
+      window.localStorage.setItem(LOCAL_AERODYNAMIC_SELECTION_STORAGE_KEY, effectiveAerodynamicSelection);
+      persistCheckpoint(
+        source.inputs,
+        `Restored revision ${source.revision}`,
+        true,
+        topology,
+        { selectedMotorId: effectiveMotorSelection, selectedAerodynamicTableId: effectiveAerodynamicSelection },
+      );
       applyEditableInputs(source.inputs);
       setHistoryOpen(false);
-      notify(`Restored revision ${source.revision}${source.topology ? " with vehicle topology" : " (legacy topology retained)"}`);
+      const sourceNote = source.topology ? " with vehicle topology" : " (legacy topology retained)";
+      const selectionNote = motorAvailable && aerodynamicAvailable ? "" : "; unavailable source selections fell back";
+      notify(`Restored revision ${source.revision}${sourceNote}${selectionNote}`);
     } catch {
       setSaveError("This browser could not restore that checkpoint. The current design was not changed.");
     }
@@ -4167,6 +4233,7 @@ export default function Home() {
   };
   const selectMotor = (id: string) => {
     setSelectedMotorId(id);
+    window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, id);
     setStageFlightResult(null);
     setStageFlightError("");
     setSweepResult(null);
@@ -4228,7 +4295,10 @@ export default function Home() {
     try {
       const nextRecords = userMotorRecords.filter((record) => record.id !== id);
       persistMotorRecords(nextRecords);
-      if (selectedMotorId === id) setSelectedMotorId("synthetic");
+      if (selectedMotorId === id) {
+        setSelectedMotorId("synthetic");
+        window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, "synthetic");
+      }
       notify("User motor removed from this device");
     } catch (error) {
       setMotorError(error instanceof Error ? error.message : "Unable to remove motor");
@@ -4405,7 +4475,13 @@ export default function Home() {
         imported.selectedAerodynamicTableId,
       );
       markChanged();
-      persistCheckpoint(imported.editableInputs, `Imported project: ${imported.projectName}`, true, imported.topology);
+      persistCheckpoint(
+        imported.editableInputs,
+        `Imported project: ${imported.projectName}`,
+        true,
+        imported.topology,
+        { selectedMotorId: imported.selectedMotorId, selectedAerodynamicTableId: imported.selectedAerodynamicTableId },
+      );
       setSelected("body");
       setView("design");
       setGuideOpen(false);

@@ -11,6 +11,10 @@ flight-readiness claims.
   change labels include stage structure and geometry, and restoring a modern
   checkpoint restores its topology without deleting later entries; legacy
   checkpoints retain the current topology safely.
+- Project history now also persists the selected motor and aerodynamic source
+  IDs. Browser startup restores those selections when the local libraries have
+  the records, while missing records fall back explicitly to synthetic motor or
+  constant drag and remain visible as a source warning.
 - Added validated per-stage body length, diameter, and nose-length overrides
   to the browser topology editor. Generated stage geometry, serial placement,
   envelope checks, fin scaling, mass properties, and aerodynamic reference area
