@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Completed the public-branding pass across the mission console: the mark and
+  mission identifier now use RocketWorks nomenclature, and visible model badges
+  translate legacy internal prefixes without changing compatibility schemas or
+  persisted project data.
 - Added a browser-native `Install RocketWorks` handoff card. It uses the
   browser-owned install prompt when available, detects standalone launches, and
   remains dismissible without implying offline simulation or native-binary

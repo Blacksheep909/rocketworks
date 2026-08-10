@@ -77,6 +77,9 @@ test("ships versioned flight results and explainable model UI", async () => {
     "utf8",
   );
   assert.match(source, /result\.modelVersion/);
+  assert.match(source, /publicModelVersion/);
+  assert.match(source, /RKW-01/);
+  assert.match(source, /brand-mark.*>R<\/span>/);
   assert.match(source, /Flight events/);
   assert.match(source, /Vertical flight profile/);
   assert.match(source, /FLIGHT_METRICS/);

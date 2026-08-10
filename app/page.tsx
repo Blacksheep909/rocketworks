@@ -192,6 +192,11 @@ type CommandAction = Readonly<{
   run: () => void;
 }>;
 
+function publicModelVersion(value: string | null | undefined): string {
+  if (!value) return "";
+  return value.replace(/^kestrel-/i, "rocketworks-");
+}
+
 type SweepParameterDefinition = Readonly<{
   key: VerticalFlightSweepParameterKey;
   label: string;
@@ -2504,7 +2509,7 @@ function PhysicsBenchmarkCard({
           <div className="benchmark-meta">
             <span className={`benchmark-status benchmark-status-${result.status}`}>{result.status === "pass" ? "All fixtures pass" : "Review failed fixtures"}</span>
             <strong>{result.passedCount}/{result.totalCount}</strong>
-            <span>{result.modelVersion}</span>
+            <span>{publicModelVersion(result.modelVersion)}</span>
           </div>
           <div className="benchmark-table" role="table" aria-label="Physics benchmark results">
             <div className="benchmark-row benchmark-row-header" role="row">
@@ -5206,7 +5211,7 @@ export default function Home() {
       />
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true">K</span>
+          <span className="brand-mark" aria-hidden="true">R</span>
           <div><strong>RocketWorks</strong><span>Aerospace workbench · Mission systems</span></div>
         </div>
         <div className="project-title">
@@ -5214,7 +5219,7 @@ export default function Home() {
           <div><strong>ARC 54 / Vehicle 01</strong><span><i className="live-dot" />{saveError ? "Review required" : saved ? "Saved locally" : "Saving changes…"}</span></div>
         </div>
         <div className="top-actions">
-          <div className="mission-chip" aria-label="Mission status"><span>MISSION</span><strong>KST-01</strong><em>PRELIMINARY · REV 01</em></div>
+          <div className="mission-chip" aria-label="Mission status"><span>MISSION</span><strong>RKW-01</strong><em>PRELIMINARY · REV 01</em></div>
           <button className="quiet-button command-button" onClick={openCommandPalette} aria-haspopup="dialog" aria-expanded={commandOpen}>
             <span>Search actions</span><kbd>⌘ K</kbd>
           </button>
@@ -5417,8 +5422,8 @@ export default function Home() {
             <div className="flight-heading">
               <div><span className="eyebrow">Preliminary estimate</span><h2>Vertical flight profile</h2></div>
               <div className="flight-heading-badges">
-                <span className="model-badge">{result.modelVersion}</span>
-                <span className="model-badge model-badge-source" title={result.aerodynamicModelVersion ?? "Explicit constant drag coefficient"}>
+                <span className="model-badge">{publicModelVersion(result.modelVersion)}</span>
+                <span className="model-badge model-badge-source" title={publicModelVersion(result.aerodynamicModelVersion) || "Explicit constant drag coefficient"}>
                   {result.aerodynamicCoefficientBasis === "mach-reynolds-angle-table"
                     ? "CD α/β TABLE"
                     : result.aerodynamicCoefficientBasis === "mach-reynolds-table"
@@ -5510,7 +5515,7 @@ export default function Home() {
                             {stageRecoveryOpeningLoad.warnings.slice(0, 2).map((warning) => <li key={warning}>{warning}</li>)}
                           </ul>
                         )}
-                        <small className="recovery-opening-load-model">{stageRecoveryOpeningLoad.modelVersion} · {stageRecoveryOpeningLoad.validationStatus}</small>
+                        <small className="recovery-opening-load-model">{publicModelVersion(stageRecoveryOpeningLoad.modelVersion)} · {stageRecoveryOpeningLoad.validationStatus}</small>
                       </section>
                     )}
                     {stageFlightResult.rail && (
@@ -5625,7 +5630,7 @@ export default function Home() {
                               <div><span>Audited events</span><strong>{stageFlightResult.separationDynamics.length}</strong><small>{stageFlightResult.separationDynamics.filter((audit) => audit.status === "balanced").length} balanced</small></div>
                               <div><span>Maximum momentum residual</span><strong>{(() => { const value = maximumNullableMetric(stageFlightResult.separationDynamics.map((audit) => audit.linearMomentumResidualMagnitudeKgMps)); return value === null ? "Not assessed" : `${value.toExponential(2)} kg·m/s`; })()}</strong><small>instantaneous audit</small></div>
                               <div><span>Maximum angular impulse</span><strong>{(() => { const value = maximumNullableMetric(stageFlightResult.separationDynamics.map((audit) => audit.angularImpulseResidualMagnitudeKgM2PerS)); return value === null ? "Not assessed" : `${value.toExponential(2)} kg·m²/s`; })()}</strong><small>unmodeled first-order term</small></div>
-                              <div><span>Model</span><strong>{stageFlightResult.separationDynamics[0].modelVersion}</strong><small>conservation audit only</small></div>
+                              <div><span>Model</span><strong>{publicModelVersion(stageFlightResult.separationDynamics[0].modelVersion)}</strong><small>conservation audit only</small></div>
                             </div>
                             {stageFlightResult.separationDynamics.some((audit) => audit.status !== "balanced") && (
                               <ul className="stage-separation-dynamics-warnings">
@@ -5650,7 +5655,7 @@ export default function Home() {
                               <div><span>Release events</span><strong>{stageFlightResult.separationImpulseSolutions.length}</strong><small>{stageFlightResult.separationImpulseSolutions.filter((solution) => solution.status === "balanced").length} balanced</small></div>
                               <div><span>Max correction</span><strong>{(() => { const value = maximumNullableMetric(stageFlightResult.separationImpulseSolutions.map((solution) => solution.maximumCorrectionMps)); return value === null ? "Not assessed" : `${value.toFixed(4)} m/s`; })()}</strong><small>minimum-norm proposal</small></div>
                               <div><span>Angular residual</span><strong>{(() => { const value = maximumNullableMetric(stageFlightResult.separationImpulseSolutions.map((solution) => solution.angularImpulseResidualMagnitudeKgM2PerS)); return value === null ? "Not assessed" : `${value.toExponential(2)} kg·m²/s`; })()}</strong><small>after proposed correction</small></div>
-                              <div><span>Model</span><strong>{stageFlightResult.separationImpulseSolutions[0].modelVersion}</strong><small>event-level only</small></div>
+                              <div><span>Model</span><strong>{publicModelVersion(stageFlightResult.separationImpulseSolutions[0].modelVersion)}</strong><small>event-level only</small></div>
                             </div>
                             {stageFlightResult.separationImpulseSolutions.some((solution) => solution.status !== "balanced") && (
                               <ul className="stage-separation-impulse-solver-warnings">
@@ -5746,7 +5751,7 @@ export default function Home() {
                     <div className="stage-flight-status">
                       <span>MODEL STATUS</span>
                       <strong>{stageFlightResult.validationStatus}</strong>
-                      <small>{stageFlightResult.stagingModelVersion} · {stageFlightResult.aerodynamicsModelVersion}{stageFlightResult.recoveryModelVersion ? ` · ${stageFlightResult.recoveryModelVersion}` : ""}{stageFlightResult.rail ? ` · ${stageFlightResult.rail.modelVersion}` : ""}</small>
+                      <small>{publicModelVersion(stageFlightResult.stagingModelVersion)} · {publicModelVersion(stageFlightResult.aerodynamicsModelVersion)}{stageFlightResult.recoveryModelVersion ? ` · ${publicModelVersion(stageFlightResult.recoveryModelVersion)}` : ""}{stageFlightResult.rail ? ` · ${publicModelVersion(stageFlightResult.rail.modelVersion)}` : ""}</small>
                     </div>
                     <div className="stage-flight-warnings" role="note">
                       <span>WARNINGS</span>
@@ -6052,7 +6057,7 @@ export default function Home() {
                       <div className="landing-ascent-drift">
                         <span>Ascent-to-apogee handoff</span>
                         <strong>Wind-drag proxy included</strong>
-                        <small>{landingPrediction.ascentDrift.modelVersion} · scenario-specific horizontal state</small>
+                        <small>{publicModelVersion(landingPrediction.ascentDrift.modelVersion)} · scenario-specific horizontal state</small>
                       </div>
                     )}
                     {landingPrediction.deploymentScenario && (
@@ -6253,7 +6258,7 @@ export default function Home() {
               <>
                 <div className="property-section-label">
                   <span>Low-speed static aerodynamics</span>
-                  <small>{staticStability.modelVersion}</small>
+                  <small>{publicModelVersion(staticStability.modelVersion)}</small>
                 </div>
                 <div className="mass-properties-card stability-properties-card">
                   <div><span>Center of pressure</span><strong>{centerOfPressureMm.toFixed(0)} mm</strong></div>
@@ -6263,7 +6268,7 @@ export default function Home() {
                 </div>
                 <div className="property-section-label">
                   <span>Assembly graph</span>
-                  <small>{assembly.modelVersion}</small>
+                  <small>{publicModelVersion(assembly.modelVersion)}</small>
                 </div>
                 <div className="mass-properties-card stability-properties-card">
                   <div><span>Active stages</span><strong>{assembly.activeStageIds.length}</strong></div>
@@ -6341,7 +6346,7 @@ export default function Home() {
               <>
                 <div className="property-section-label">
                   <span>Motor data</span>
-                  <small>{previewMotor.modelVersion}</small>
+                  <small>{publicModelVersion(previewMotor.modelVersion)}</small>
                 </div>
                 <div className="mass-properties-card stability-properties-card">
                   <div><span>Impulse band</span><strong>{previewMotor.metrics.impulseClassEstimate} · estimate</strong></div>
@@ -6353,7 +6358,7 @@ export default function Home() {
                 <p className="motor-provenance">Synthetic preview curve · CC0-1.0 · unvalidated. Letter class is an impulse-band estimate, not motor certification.</p>
                 <div className="property-section-label">
                   <span>6DOF aerodynamic source</span>
-                  <small>{selectedAerodynamicTable?.modelVersion ?? "constant-Cd"}</small>
+                  <small>{publicModelVersion(selectedAerodynamicTable?.modelVersion) || "constant-Cd"}</small>
                 </div>
                 <div className="mass-properties-card stability-properties-card">
                   <div><span>Source</span><strong>{selectedAerodynamicTable?.name ?? "Constant Cd"}</strong></div>
@@ -6366,7 +6371,7 @@ export default function Home() {
                 <p className="motor-provenance">Coefficient tables now drive both the fast vertical estimate and topology-aware 6DOF preview when selected. Out-of-range queries remain visible as warnings, and table data are never promoted to flight certification.</p>
                 <div className="property-section-label">
                   <span>Flight environment</span>
-                  <small>{previewEnvironment.modelVersion}</small>
+                  <small>{publicModelVersion(previewEnvironment.modelVersion)}</small>
                 </div>
                 <div className="mass-properties-card stability-properties-card">
                   <div><span>Altitude reference</span><strong>{environmentAt500M.altitudeAslM.toFixed(0)} m ASL at 500 m AGL</strong></div>
@@ -7087,7 +7092,7 @@ function StageFlightUncertaintyCard({
       {result ? (
         <>
           <div className="uncertainty-card-heading-meta stage-flight-uncertainty-meta">
-            <span>{result.method} · n={result.successfulSampleCount}/{result.requestedSampleCount} · {result.adapterVersion}</span>
+            <span>{result.method} · n={result.successfulSampleCount}/{result.requestedSampleCount} · {publicModelVersion(result.adapterVersion)}</span>
             <strong className={`uncertainty-status uncertainty-status-${result.convergence.status}`}>{formatConvergenceStatus(result.convergence.status)}</strong>
           </div>
           <div className="uncertainty-grid">
@@ -7303,7 +7308,7 @@ function ParameterSweepCard({
           </div>
           <div className="sweep-disclaimer">
             <span>UNVALIDATED TRADE STUDY</span>
-            <p>{result.modelVersion} · {result.result.parameterKey} varied independently · {result.warnings[2]}</p>
+            <p>{publicModelVersion(result.modelVersion)} · {result.result.parameterKey} varied independently · {result.warnings[2]}</p>
           </div>
         </>
       ) : (

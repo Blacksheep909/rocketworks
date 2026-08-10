@@ -1979,7 +1979,7 @@ body {
     linear-gradient(90deg, rgba(23, 39, 49, .035) 1px, transparent 1px);
 }
 .design-canvas::before {
-  content: "KST-01  /  ARC 54  /  GEOMETRY LOCK";
+  content: "RKW-01  /  ARC 54  /  GEOMETRY LOCK";
   position: absolute;
   top: 16px;
   left: 18px;

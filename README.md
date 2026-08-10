@@ -118,9 +118,10 @@ where legally appropriate. This repository does **not** copy, modify, link,
 bundle, translate, or directly reuse OpenRocket source code, simulation code,
 UI code, assets, databases, or backend components.
 
-The public brand is RocketWorks. Internal `kestrel-*` model identifiers and
-versioned schema names remain compatibility identifiers for existing local
-projects and exports; they are not a third-party dependency.
+The public brand is RocketWorks. The UI presents RocketWorks-prefixed model
+labels, while internal `kestrel-*` model identifiers and versioned schema names
+remain compatibility identifiers for existing local projects and exports; they
+are not a third-party dependency.
 
 ## Run locally
 
