@@ -251,6 +251,8 @@ const UNCERTAINTY_CORRELATION_DEFINITIONS: readonly UncertaintyCorrelationDefini
   { key: "dryMassScale", label: "Dry mass", scope: "vertical + coupled" },
   { key: "propellantMassScale", label: "Propellant mass", scope: "coupled" },
   { key: "dragCoefficientScale", label: "Drag coefficient", scope: "vertical + coupled" },
+  { key: "directForceCoefficientScale", label: "Direct force coefficients", scope: "coupled" },
+  { key: "directMomentCoefficientScale", label: "Direct moment coefficients", scope: "coupled" },
   { key: "thrustScale", label: "Delivered thrust", scope: "vertical + coupled" },
   { key: "windScale", label: "Wind profile", scope: "vertical + coupled + landing" },
   { key: "recoveryDragAreaScale", label: "Vertical recovery area", scope: "vertical" },
@@ -4626,6 +4628,20 @@ export default function Home() {
             label: "Drag coefficient",
             distribution: { kind: "triangular" as const, minimum: 0.9, mode: 1, maximum: 1.1 },
           },
+          ...(selectedAerodynamicTable?.forceMomentDatabaseAvailable
+            ? [
+                {
+                  key: "directForceCoefficientScale" as const,
+                  label: "Direct force coefficients",
+                  distribution: { kind: "triangular" as const, minimum: 0.9, mode: 1, maximum: 1.1 },
+                },
+                {
+                  key: "directMomentCoefficientScale" as const,
+                  label: "Direct moment coefficients",
+                  distribution: { kind: "triangular" as const, minimum: 0.9, mode: 1, maximum: 1.1 },
+                },
+              ]
+            : []),
           ...(recoveryEnabled
             ? [
                 {
@@ -5383,6 +5399,7 @@ export default function Home() {
                       error={stageUncertaintyError}
                       current={stageFlightIsCurrent}
                       resultCurrent={stageUncertaintyIsCurrent}
+                      hasDirectForceMomentDatabase={Boolean(selectedAerodynamicTable?.forceMomentDatabaseAvailable)}
                       onRun={runStageUncertainty}
                     />
                   </>
@@ -6658,6 +6675,7 @@ function StageFlightUncertaintyCard({
   error,
   current,
   resultCurrent,
+  hasDirectForceMomentDatabase,
   onRun,
 }: {
   result: StageFlightUncertaintyResult | null;
@@ -6665,6 +6683,7 @@ function StageFlightUncertaintyCard({
   error: string;
   current: boolean;
   resultCurrent: boolean;
+  hasDirectForceMomentDatabase: boolean;
   onRun: () => void;
 }) {
   const primaryThreshold = result?.convergence.thresholds[0] ?? null;
@@ -6674,7 +6693,7 @@ function StageFlightUncertaintyCard({
         <div>
           <span className="eyebrow">Coupled dispersion</span>
           <h4 id="stage-flight-uncertainty-title">6DOF uncertainty envelope</h4>
-          <p>Propagates bounded mass, thrust, drag, recovery-area, and wind assumptions through staging, launch-rail constraints, topology aerodynamics, and the coupled rigid-body run.</p>
+          <p>Propagates bounded mass, thrust, drag, recovery-area, and wind assumptions through staging, launch-rail constraints, topology aerodynamics, and the coupled rigid-body run.{hasDirectForceMomentDatabase ? " Direct force and static-moment coefficient databases receive separate bounded scales when present." : ""}</p>
         </div>
         <button className="secondary-button" type="button" onClick={onRun} disabled={running || !current}>
           {running ? "Sampling…" : result ? "Rerun dispersion" : "Run dispersion"}

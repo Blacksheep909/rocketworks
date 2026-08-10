@@ -6,6 +6,9 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added separate coupled-flight uncertainty scales for direct body-axis force
+  and static-moment databases. The factors feed seeded dispersion runs without
+  silently scaling legacy drag, relation-based normal force, or damping terms.
 - Added optional direct body-axis force and static moment coefficient volumes.
   Provenance-qualified `C_axial/C_normal/C_side` and `C_roll/C_pitch/C_yaw`
   datasets now drive the 6DOF aerodynamic load result with declared moment

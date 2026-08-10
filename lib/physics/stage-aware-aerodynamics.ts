@@ -11,7 +11,7 @@ import type {
   AerodynamicCoefficientEvaluation,
   AerodynamicCoefficientTableModel,
 } from "./aerodynamic-coefficients.ts";
-import type { Vector3 } from "./linear-algebra.ts";
+import { scaleVector, type Vector3 } from "./linear-algebra.ts";
 import {
   computeStaticStability,
   type StaticStabilityResult,
@@ -21,7 +21,7 @@ import type { RigidBodyState } from "./six-dof.ts";
 import type { VehicleComponent } from "./vehicle-components.ts";
 
 export const STAGE_AWARE_AERODYNAMICS_MODEL_VERSION =
-  "kestrel-stage-aware-aero-0.1.0";
+  "kestrel-stage-aware-aero-0.2.0";
 
 export type StageAerodynamicRegime = Readonly<{
   id: string;
@@ -155,6 +155,10 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
   separationTransitionWindowS?: number;
   /** Multiplicative drag-only uncertainty applied after the selected source is evaluated. */
   dragCoefficientScale?: number;
+  /** Multiplicative scale applied to direct body-axis force coefficients. */
+  directForceCoefficientScale?: number;
+  /** Multiplicative scale applied to direct body-axis static moment coefficients. */
+  directMomentCoefficientScale?: number;
 }>): StageAwareAerodynamicsModel {
   if (input.components.length === 0) {
     throw new Error("stage-aware aerodynamics requires vehicle components");
@@ -201,6 +205,14 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
   const dragCoefficientScale = input.dragCoefficientScale ?? 1;
   if (!Number.isFinite(dragCoefficientScale) || dragCoefficientScale <= 0) {
     throw new Error("drag coefficient scale must be positive and finite");
+  }
+  const directForceCoefficientScale = input.directForceCoefficientScale ?? 1;
+  if (!Number.isFinite(directForceCoefficientScale) || directForceCoefficientScale <= 0) {
+    throw new Error("direct force coefficient scale must be positive and finite");
+  }
+  const directMomentCoefficientScale = input.directMomentCoefficientScale ?? 1;
+  if (!Number.isFinite(directMomentCoefficientScale) || directMomentCoefficientScale <= 0) {
+    throw new Error("direct moment coefficient scale must be positive and finite");
   }
 
   const regimes = input.regimes.map((regime) => {
@@ -382,6 +394,18 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
     const centerOfPressureXM =
       coefficientEvaluation?.centerOfPressureXM ??
       staticStability.centerOfPressureXM;
+    const forceCoefficientBody = coefficientEvaluation?.forceCoefficientBody
+      ? scaleVector(
+          coefficientEvaluation.forceCoefficientBody,
+          directForceCoefficientScale,
+        )
+      : null;
+    const momentCoefficientBody = coefficientEvaluation?.momentCoefficientBody
+      ? scaleVector(
+          coefficientEvaluation.momentCoefficientBody,
+          directMomentCoefficientScale,
+        )
+      : null;
     const staticMarginCalibers =
       (centerOfPressureXM - staticStability.centerOfMassXM) /
       staticStability.referenceDiameterM;
@@ -431,9 +455,9 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       staticMarginCalibers,
       reynoldsNumber: tableQuery?.reynoldsNumber ?? null,
       coefficientEvaluation,
-      forceCoefficientBody: coefficientEvaluation?.forceCoefficientBody ?? null,
-      momentCoefficientBody: coefficientEvaluation?.momentCoefficientBody ?? null,
-      momentReferenceLengthBodyM: coefficientEvaluation?.momentCoefficientBody
+      forceCoefficientBody,
+      momentCoefficientBody,
+      momentReferenceLengthBodyM: momentCoefficientBody
         ? regime.momentReferenceLengthBodyM ?? {
             x: staticStability.referenceDiameterM,
             y: referenceLengthM,
@@ -514,6 +538,12 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       ...(dragCoefficientScale === 1
         ? []
         : [`A multiplicative drag-only scale of ${dragCoefficientScale} is applied after the selected coefficient source; normal-force and damping terms remain nominal.`]),
+      ...(directForceCoefficientScale === 1
+        ? []
+        : [`A multiplicative direct-force coefficient scale of ${directForceCoefficientScale} is applied after the selected force database; static drag and normal-force relation terms remain nominal.`]),
+      ...(directMomentCoefficientScale === 1
+        ? []
+        : [`A multiplicative direct-moment coefficient scale of ${directMomentCoefficientScale} is applied after the selected moment database; damping derivatives remain nominal.`]),
     ],
     warnings: [
       "This topology adapter has analytical component checks only and is not flight-safety validated.",

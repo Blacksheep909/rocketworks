@@ -621,6 +621,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /stage-flight-warnings/);
   assert.match(page, /analyzeStageFlightUncertainty/);
   assert.match(page, /6DOF uncertainty envelope/);
+  assert.match(page, /directForceCoefficientScale/);
+  assert.match(page, /directMomentCoefficientScale/);
+  assert.match(page, /Direct force and static-moment coefficient databases receive separate bounded scales/);
   assert.match(page, /Run dispersion/);
   assert.match(page, /stageUncertaintyIsCurrent/);
   assert.match(page, /StageFlightProfileChart/);

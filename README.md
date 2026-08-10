@@ -39,6 +39,9 @@ research, standards, and original code.
   databases for the 6DOF load path;
 - atmosphere, launch-site, wind, turbulence, launch-rail, recovery, and
   landing-dispersion previews;
+- seeded coupled-flight uncertainty runs can independently vary direct
+  body-axis force and static-moment coefficient databases when those sources
+  are present, with the selected factors and nominal fallbacks disclosed;
 - user-configurable recovery reefing schedules shared by the vertical preview,
   landing descent, 6DOF recovery loads, trace telemetry, and portable inputs;
 - optional relative-humidity coupling with explicit water-vapor, virtual-

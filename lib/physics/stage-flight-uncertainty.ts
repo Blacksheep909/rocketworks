@@ -25,13 +25,15 @@ import {
 } from "./stage-flight-preview.ts";
 
 export const STAGE_FLIGHT_UNCERTAINTY_ADAPTER_VERSION =
-  "kestrel-stage-flight-uncertainty-0.3.0";
+  "kestrel-stage-flight-uncertainty-0.4.0";
 
 export type StageFlightUncertaintyFactorKey =
   | "dryMassScale"
   | "propellantMassScale"
   | "thrustScale"
   | "dragCoefficientScale"
+  | "directForceCoefficientScale"
+  | "directMomentCoefficientScale"
   | "recoveryAreaScale"
   | "recoveryDeploymentSuccess"
   | "windScale";
@@ -175,6 +177,14 @@ export function createStageFlightVariant(
     values.dragCoefficientScale ?? 1,
     "drag coefficient scale",
   );
+  const directForceCoefficientScale = positiveScale(
+    values.directForceCoefficientScale ?? 1,
+    "direct force coefficient scale",
+  );
+  const directMomentCoefficientScale = positiveScale(
+    values.directMomentCoefficientScale ?? 1,
+    "direct moment coefficient scale",
+  );
   const recoveryAreaScale = positiveScale(
     values.recoveryAreaScale ?? 1,
     "recovery area scale",
@@ -220,6 +230,8 @@ export function createStageFlightVariant(
       ? [...(base.events ?? []), ...failureEvents].sort((left, right) => left.timeS - right.timeS || left.id.localeCompare(right.id))
       : base.events,
     dragCoefficientScale,
+    directForceCoefficientScale,
+    directMomentCoefficientScale,
   };
 }
 

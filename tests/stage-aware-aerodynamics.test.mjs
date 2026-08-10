@@ -40,6 +40,42 @@ function coefficientTable(id, drag = 0.5) {
   });
 }
 
+function directVolume(value) {
+  return { values: [[[[value, value], [value, value]]]] };
+}
+
+function directCoefficientTable(id = "direct-table") {
+  return createAerodynamicCoefficientTable({
+    id,
+    name: id,
+    machPoints: [0, 1],
+    reynoldsPoints: [1e5, 1e6],
+    angleOfAttackPointsRad: [0],
+    sideslipPointsRad: [0],
+    dragCoefficient: { values: [[0.5, 0.5], [0.5, 0.5]] },
+    normalForceSlopePerRad: { values: [[4, 4], [4, 4]] },
+    centerOfPressureXM: { values: [[0.5, 0.5], [0.5, 0.5]] },
+    forceCoefficientBodyByAngle: {
+      axial: directVolume(1),
+      normal: directVolume(-0.2),
+      side: directVolume(0.1),
+    },
+    momentCoefficientBodyByAngle: {
+      roll: directVolume(0.01),
+      pitch: directVolume(-0.02),
+      yaw: directVolume(0.03),
+    },
+    provenance: {
+      sourceName: "Direct force/moment fixture",
+      sourceKind: "user-supplied",
+      dataVersion: "fixture-1",
+      licenseIdentifier: "CC0-1.0",
+      attribution: "Original test fixture",
+      validationStatus: "user-supplied-unvalidated",
+    },
+  });
+}
+
 function properties(massKg, x, inertia = 0.02) {
   return {
     massKg,
@@ -235,6 +271,56 @@ test("drag-only uncertainty scale applies to constant topology sources", () => {
     "normal-force slope remains nominal",
   );
   assert.match(scaled.assumptions.join(" "), /drag-only scale/);
+});
+
+test("direct force and moment scales apply after topology table evaluation", () => {
+  const table = directCoefficientTable();
+  const nominal = aeroModel({
+    regimes: [
+      {
+        id: "full-stack",
+        label: "Full launch stack",
+        activeStageIds: ["booster", "upper"],
+        coefficientTable: table,
+        coefficientTableDesignPoint: { mach: 0.5, reynoldsNumber: 3e5 },
+      },
+      {
+        id: "upper-only",
+        label: "Upper stage",
+        activeStageIds: ["upper"],
+        coefficientTable: table,
+        coefficientTableDesignPoint: { mach: 0.5, reynoldsNumber: 3e5 },
+      },
+    ],
+  });
+  const scaled = aeroModel({
+    regimes: [
+      {
+        id: "full-stack",
+        label: "Full launch stack",
+        activeStageIds: ["booster", "upper"],
+        coefficientTable: table,
+        coefficientTableDesignPoint: { mach: 0.5, reynoldsNumber: 3e5 },
+      },
+      {
+        id: "upper-only",
+        label: "Upper stage",
+        activeStageIds: ["upper"],
+        coefficientTable: table,
+        coefficientTableDesignPoint: { mach: 0.5, reynoldsNumber: 3e5 },
+      },
+    ],
+    directForceCoefficientScale: 1.5,
+    directMomentCoefficientScale: 2,
+  });
+  const nominalResult = nominal.evaluate(fullStackState());
+  const scaledResult = scaled.evaluate(fullStackState());
+  assert.deepEqual(nominalResult.forceCoefficientBody, { x: 1, y: -0.2, z: 0.1 });
+  assert.deepEqual(nominalResult.momentCoefficientBody, { x: 0.01, y: -0.02, z: 0.03 });
+  assert.deepEqual(scaledResult.forceCoefficientBody, { x: 1.5, y: -0.30000000000000004, z: 0.15000000000000002 });
+  assert.deepEqual(scaledResult.momentCoefficientBody, { x: 0.02, y: -0.04, z: 0.06 });
+  assert.match(scaled.assumptions.join(" "), /direct-force coefficient scale/);
+  assert.match(scaled.assumptions.join(" "), /direct-moment coefficient scale/);
 });
 
 test("separation neighborhood is explicitly outside topology-model applicability", () => {

@@ -66,6 +66,10 @@ export type StageFlightPreviewInput = Readonly<{
   environmentAt?: LaunchEnvironmentProvider;
   /** Multiplicative drag-only uncertainty applied to the selected aero source. */
   dragCoefficientScale?: number;
+  /** Multiplicative uncertainty applied to direct body-axis force coefficients. */
+  directForceCoefficientScale?: number;
+  /** Multiplicative uncertainty applied to direct body-axis static moment coefficients. */
+  directMomentCoefficientScale?: number;
   alwaysActiveGeometryStageIds?: readonly string[];
   separationTransitionWindowS?: number;
   initialState?: Partial<Pick<
@@ -535,6 +539,8 @@ export function simulateStageFlightPreview(
     alwaysActiveGeometryStageIds: input.alwaysActiveGeometryStageIds,
     separationTransitionWindowS: input.separationTransitionWindowS,
     dragCoefficientScale: input.dragCoefficientScale,
+    directForceCoefficientScale: input.directForceCoefficientScale,
+    directMomentCoefficientScale: input.directMomentCoefficientScale,
   });
   const loads = createPreliminaryRocketLoadModel({
     body: staging.body,
