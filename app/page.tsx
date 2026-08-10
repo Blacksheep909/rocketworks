@@ -256,6 +256,9 @@ const UNCERTAINTY_CORRELATION_DEFINITIONS: readonly UncertaintyCorrelationDefini
   { key: "directMomentCoefficientScale", label: "Direct moment coefficients", scope: "coupled" },
   { key: "thrustScale", label: "Delivered thrust", scope: "vertical + coupled" },
   { key: "windScale", label: "Wind profile", scope: "vertical + coupled + landing" },
+  { key: "ignitionDelayOffsetS", label: "Ignition delay", scope: "coupled" },
+  { key: "separationImpulseScale", label: "Separation impulse", scope: "coupled" },
+  { key: "alignmentOffsetRad", label: "Launch alignment", scope: "coupled" },
   { key: "recoveryDragAreaScale", label: "Vertical recovery area", scope: "vertical" },
   { key: "recoveryAreaScale", label: "Coupled recovery area", scope: "coupled + landing" },
   { key: "recoveryDeploymentSuccess", label: "Recovery deployment", scope: "vertical + coupled + landing" },
@@ -4680,6 +4683,21 @@ export default function Home() {
             label: "Wind profile",
             distribution: { kind: "uniform" as const, minimum: 0.8, maximum: 1.2 },
           },
+          {
+            key: "ignitionDelayOffsetS" as const,
+            label: "Ignition delay",
+            distribution: { kind: "normal" as const, mean: 0, standardDeviation: 0.06, minimum: -0.12, maximum: 0.25 },
+          },
+          {
+            key: "separationImpulseScale" as const,
+            label: "Separation impulse",
+            distribution: { kind: "triangular" as const, minimum: 0.8, mode: 1, maximum: 1.2 },
+          },
+          {
+            key: "alignmentOffsetRad" as const,
+            label: "Launch alignment",
+            distribution: { kind: "normal" as const, mean: 0, standardDeviation: 0.0015, minimum: -0.005, maximum: 0.005 },
+          },
         ];
         const nextResult = analyzeStageFlightUncertainty({
           baseInput,
@@ -6737,7 +6755,7 @@ function StageFlightUncertaintyCard({
         <div>
           <span className="eyebrow">Coupled dispersion</span>
           <h4 id="stage-flight-uncertainty-title">6DOF uncertainty envelope</h4>
-          <p>Propagates bounded mass, thrust, drag, recovery-area, and wind assumptions through staging, launch-rail constraints, topology aerodynamics, and the coupled rigid-body run.{hasDirectForceMomentDatabase ? " Direct force and static-moment coefficient databases receive separate bounded scales when present." : ""}</p>
+          <p>Propagates bounded mass, thrust, drag, recovery-area, wind, ignition-delay, separation-impulse, and launch-alignment assumptions through staging, launch-rail constraints, topology aerodynamics, and the coupled rigid-body run.{hasDirectForceMomentDatabase ? " Direct force and static-moment coefficient databases receive separate bounded scales when present." : ""}</p>
         </div>
         <button className="secondary-button" type="button" onClick={onRun} disabled={running || !current}>
           {running ? "Sampling…" : result ? "Rerun dispersion" : "Run dispersion"}

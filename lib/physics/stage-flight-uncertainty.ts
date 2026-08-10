@@ -8,6 +8,7 @@ import {
 import type { LaunchEnvironmentProvider } from "./launch-environment.ts";
 import { failRecoveryDevice } from "./recovery-system.ts";
 import {
+  addVectors,
   scaleMatrix,
   scaleVector,
   magnitude,
@@ -20,12 +21,21 @@ import type {
   RocketStageInstance,
 } from "./multi-stage.ts";
 import {
+  multiplyQuaternions,
+  normalizeQuaternion,
+  quaternionFromAxisAngle,
+  rotateBodyToWorld,
+  type ScheduledRigidBodyEvent,
+  type StateTriggeredRigidBodyEvent,
+} from "./six-dof.ts";
+import { verticalLaunchOrientationBodyToEnu } from "./rocket-loads.ts";
+import {
   simulateStageFlightPreview,
   type StageFlightPreviewInput,
 } from "./stage-flight-preview.ts";
 
 export const STAGE_FLIGHT_UNCERTAINTY_ADAPTER_VERSION =
-  "kestrel-stage-flight-uncertainty-0.4.0";
+  "kestrel-stage-flight-uncertainty-0.5.0";
 
 export type StageFlightUncertaintyFactorKey =
   | "dryMassScale"
@@ -36,7 +46,10 @@ export type StageFlightUncertaintyFactorKey =
   | "directMomentCoefficientScale"
   | "recoveryAreaScale"
   | "recoveryDeploymentSuccess"
-  | "windScale";
+  | "windScale"
+  | "ignitionDelayOffsetS"
+  | "separationImpulseScale"
+  | "alignmentOffsetRad";
 
 export type StageFlightUncertaintyFactor = {
   key: StageFlightUncertaintyFactorKey;
@@ -51,6 +64,13 @@ export type StageFlightUncertaintyResult = UncertaintyAnalysisResult & {
 function positiveScale(value: number, key: string): number {
   if (!Number.isFinite(value) || value <= 0) {
     throw new Error(`${key} must be positive and finite`);
+  }
+  return value;
+}
+
+function finiteOffset(value: number, key: string): number {
+  if (!Number.isFinite(value)) {
+    throw new Error(`${key} must be finite`);
   }
   return value;
 }
@@ -71,9 +91,11 @@ function scaleMotor(
   dryMassScale: number,
   propellantMassScale: number,
   thrustScale: number,
+  ignitionDelayOffsetS: number,
 ): MultiStageMotor {
   return {
     ...motor,
+    ignitionDelayS: Math.max(0, (motor.ignitionDelayS ?? 0) + ignitionDelayOffsetS),
     dryMassProperties: scaleMassProperties(motor.dryMassProperties, dryMassScale),
     initialPropellantMassProperties: scaleMassProperties(
       motor.initialPropellantMassProperties,
@@ -91,15 +113,29 @@ function scaleStageInstance(
   dryMassScale: number,
   propellantMassScale: number,
   thrustScale: number,
+  ignitionDelayOffsetS: number,
+  separationImpulseScale: number,
 ): RocketStageInstance {
   return {
     ...instance,
+    ...(instance.separationDeltaVBodyMps !== undefined
+      ? {
+          separationDeltaVBodyMps:
+            instance.separationDeltaVBodyMps * separationImpulseScale,
+        }
+      : {}),
     structuralMassProperties: scaleMassProperties(
       instance.structuralMassProperties,
       dryMassScale,
     ),
     motors: instance.motors.map((motor) =>
-      scaleMotor(motor, dryMassScale, propellantMassScale, thrustScale),
+      scaleMotor(
+        motor,
+        dryMassScale,
+        propellantMassScale,
+        thrustScale,
+        ignitionDelayOffsetS,
+      ),
     ),
   };
 }
@@ -109,15 +145,29 @@ function scaleStage(
   dryMassScale: number,
   propellantMassScale: number,
   thrustScale: number,
+  ignitionDelayOffsetS: number,
+  separationImpulseScale: number,
 ): RocketStage {
   return {
     ...stage,
+    ...(stage.separationDeltaVBodyMps !== undefined
+      ? {
+          separationDeltaVBodyMps:
+            stage.separationDeltaVBodyMps * separationImpulseScale,
+        }
+      : {}),
     structuralMassProperties: scaleMassProperties(
       stage.structuralMassProperties,
       dryMassScale,
     ),
     motors: stage.motors.map((motor) =>
-      scaleMotor(motor, dryMassScale, propellantMassScale, thrustScale),
+      scaleMotor(
+        motor,
+        dryMassScale,
+        propellantMassScale,
+        thrustScale,
+        ignitionDelayOffsetS,
+      ),
     ),
     ...(stage.instances
       ? {
@@ -127,10 +177,77 @@ function scaleStage(
               dryMassScale,
               propellantMassScale,
               thrustScale,
+              ignitionDelayOffsetS,
+              separationImpulseScale,
             ),
           ),
         }
       : {}),
+  };
+}
+
+function scaleEventSeparationImpulse<
+  T extends ScheduledRigidBodyEvent | StateTriggeredRigidBodyEvent,
+>(event: T, scale: number): T {
+  const configuredDeltaV = event.separationDeltaVBodyMps;
+  if (scale === 1 || !configuredDeltaV) return event;
+  const scaledDeltaV = scaleVector(configuredDeltaV, scale);
+  const correctionBodyMps = scaleVector(
+    configuredDeltaV,
+    scale - 1,
+  );
+  const originalApply = event.apply;
+  return {
+    ...event,
+    separationDeltaVBodyMps: scaledDeltaV,
+    ...(originalApply
+      ? {
+          apply: (state: Parameters<NonNullable<T["apply"]>>[0]) => {
+            const after = originalApply(state);
+            return {
+              ...after,
+              velocityWorldMps: addVectors(
+                after.velocityWorldMps,
+                rotateBodyToWorld(
+                  after.orientationBodyToWorld,
+                  correctionBodyMps,
+                ),
+              ),
+            };
+          },
+        }
+      : {}),
+  } as T;
+}
+
+function offsetIgnitionTrigger(
+  event: StateTriggeredRigidBodyEvent,
+  offsetS: number,
+): StateTriggeredRigidBodyEvent {
+  if (offsetS === 0 || !event.id.includes("-ignition-after-")) return event;
+  return {
+    ...event,
+    value: (state) => event.value(state) - offsetS,
+    label: `${event.label} (sampled +${offsetS.toFixed(3)} s delay)`,
+  };
+}
+
+function perturbInitialAlignment(
+  base: StageFlightPreviewInput,
+  offsetRad: number,
+): StageFlightPreviewInput["initialState"] {
+  if (offsetRad === 0) return base.initialState;
+  const baseOrientation =
+    base.initialState?.orientationBodyToWorld ?? verticalLaunchOrientationBodyToEnu();
+  const bodyPitchOffset = quaternionFromAxisAngle(
+    { x: 0, y: 1, z: 0 },
+    offsetRad,
+  );
+  return {
+    ...base.initialState,
+    orientationBodyToWorld: normalizeQuaternion(
+      multiplyQuaternions(baseOrientation, bodyPitchOffset),
+    ),
   };
 }
 
@@ -194,6 +311,22 @@ export function createStageFlightVariant(
     throw new Error("recovery deployment success must be exactly 0 or 1");
   }
   const windScale = positiveScale(values.windScale ?? 1, "wind scale");
+  const ignitionDelayOffsetS = finiteOffset(
+    values.ignitionDelayOffsetS ?? 0,
+    "ignition delay offset",
+  );
+  const separationImpulseScale = positiveScale(
+    values.separationImpulseScale ?? 1,
+    "separation impulse scale",
+  );
+  const alignmentOffsetRad = finiteOffset(
+    values.alignmentOffsetRad ?? 0,
+    "alignment offset",
+  );
+  const hasEventFactors =
+    Object.prototype.hasOwnProperty.call(values, "ignitionDelayOffsetS") ||
+    Object.prototype.hasOwnProperty.call(values, "separationImpulseScale") ||
+    Object.prototype.hasOwnProperty.call(values, "alignmentOffsetRad");
   const initialTimeS = 0;
   const failureEvents = recoveryDeploymentSuccess === 0
     ? (base.recoveryDevices ?? []).map((device) => ({
@@ -206,12 +339,20 @@ export function createStageFlightVariant(
     : [];
   return {
     ...base,
+    initialState: perturbInitialAlignment(base, alignmentOffsetRad),
     retainedMassProperties: scaleMassProperties(
       base.retainedMassProperties,
       dryMassScale,
     ),
     stages: base.stages.map((stage) =>
-      scaleStage(stage, dryMassScale, propellantMassScale, thrustScale),
+      scaleStage(
+        stage,
+        dryMassScale,
+        propellantMassScale,
+        thrustScale,
+        ignitionDelayOffsetS,
+        separationImpulseScale,
+      ),
     ),
     windProfile: base.windProfile?.map((layer) => ({
       ...layer,
@@ -226,12 +367,49 @@ export function createStageFlightVariant(
       ...device,
       referenceAreaM2: device.referenceAreaM2 * recoveryAreaScale,
     })),
-    events: failureEvents.length > 0
-      ? [...(base.events ?? []), ...failureEvents].sort((left, right) => left.timeS - right.timeS || left.id.localeCompare(right.id))
-      : base.events,
+    events: [
+      ...(base.events ?? []),
+      ...failureEvents,
+    ]
+      .map((event) => scaleEventSeparationImpulse(event, separationImpulseScale))
+      .sort((left, right) => left.timeS - right.timeS || left.id.localeCompare(right.id)),
+    stateEvents: base.stateEvents
+      ?.map((event) =>
+        offsetIgnitionTrigger(
+          scaleEventSeparationImpulse(event, separationImpulseScale),
+          ignitionDelayOffsetS,
+        ),
+      ),
     dragCoefficientScale,
     directForceCoefficientScale,
     directMomentCoefficientScale,
+    ...(hasEventFactors
+      ? {
+          additionalWarnings: [
+            ...(base.additionalWarnings ?? []),
+            ...(ignitionDelayOffsetS !== 0
+              ? [
+                  "Sampled ignition-delay uncertainty shifts motor-local delays and ignition-after-burnout triggers; no measured timing distribution is implied.",
+                ]
+              : []),
+            ...(separationImpulseScale !== 1
+              ? [
+                  "Sampled separation-impulse uncertainty rescales annotated event velocity changes; mechanism compliance, plume interaction, and contact remain outside the model.",
+                ]
+              : []),
+            ...(alignmentOffsetRad !== 0
+              ? [
+                  "Sampled launch-alignment uncertainty is a body-frame pitch perturbation; launch-rail tolerance may reject out-of-alignment scenarios.",
+                ]
+              : []),
+          ],
+          additionalAssumptions: [
+            ...(base.additionalAssumptions ?? []),
+            "Event uncertainty factors are deterministic scenario perturbations sampled from caller-supplied distributions, not measured distributions or certification evidence.",
+            "The nominal topology, event list, and caller-owned records are not mutated; staged event closures are wrapped only inside the sampled variant.",
+          ],
+        }
+      : {}),
   };
 }
 

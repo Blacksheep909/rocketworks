@@ -275,7 +275,7 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
     sampleCount: 6,
   });
 
-  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-0.4.0");
+  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-0.5.0");
   assert.equal(first.requestedSampleCount, 6);
   assert.equal(first.successfulSampleCount, 6);
   assert.deepEqual(first.samples, second.samples);
@@ -361,6 +361,69 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
     discreteGustWindWorldMps: { x: 0.8, y: 1, z: 1.2 },
     windWorldMps: { x: 3, y: 5.4, z: 7.8 },
   });
+});
+
+test("stage-flight uncertainty perturbs event timing, separation impulse, and alignment without mutating the base", () => {
+  const separationEvent = {
+    id: "staging-booster-separation",
+    label: "sample separation",
+    timeS: 0.5,
+    separationDeltaVBodyMps: { x: 2, y: 0, z: 0 },
+    apply: (state) => ({
+      ...state,
+      velocityWorldMps: {
+        ...state.velocityWorldMps,
+        x: state.velocityWorldMps.x + 2,
+      },
+    }),
+  };
+  const ignitionEvent = {
+    id: "staging-upper-ignition-after-booster-burnout",
+    label: "sample ignition",
+    direction: "rising",
+    value: (state) => state.timeS,
+    apply: (state) => state,
+  };
+  const baseInput = {
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages,
+    regimes,
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 2.5,
+    timeStepS: 0.1,
+    launchAltitudeM: 0,
+    initialState: {
+      orientationBodyToWorld: { w: 1, x: 0, y: 0, z: 0 },
+    },
+    events: [separationEvent],
+    stateEvents: [ignitionEvent],
+  };
+  const variant = createStageFlightVariant(baseInput, {
+    ignitionDelayOffsetS: 0.15,
+    separationImpulseScale: 1.5,
+    alignmentOffsetRad: 0.01,
+  });
+
+  assert.equal(baseInput.stages[0].motors[0].ignitionDelayS, undefined);
+  assert.equal(baseInput.events[0].separationDeltaVBodyMps.x, 2);
+  assert.equal(variant.stages[0].motors[0].ignitionDelayS, 0.15);
+  assert.equal(variant.events[0].separationDeltaVBodyMps.x, 3);
+  const after = variant.events[0].apply({
+    timeS: 0,
+    positionWorldM: { x: 0, y: 0, z: 0 },
+    velocityWorldMps: { x: 0, y: 0, z: 0 },
+    orientationBodyToWorld: { w: 1, x: 0, y: 0, z: 0 },
+    angularVelocityBodyRadS: { x: 0, y: 0, z: 0 },
+  });
+  assert.equal(after.velocityWorldMps.x, 3);
+  assert.ok(Math.abs(variant.stateEvents[0].value({ timeS: 1 }) - 0.85) < 1e-12);
+  assert.notDeepEqual(
+    variant.initialState.orientationBodyToWorld,
+    baseInput.initialState.orientationBodyToWorld,
+  );
+  assert.ok(variant.additionalWarnings.some((warning) => warning.includes("launch-alignment")));
+  assert.ok(variant.additionalAssumptions.some((assumption) => assumption.includes("Event uncertainty factors")));
 });
 
 test("stage-flight adapter spawns one separated-body branch per repeated physical copy", () => {

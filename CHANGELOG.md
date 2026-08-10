@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Expanded coupled stage-flight uncertainty to sample additional motor/stage
+  ignition delay, annotated separation impulse, and initial launch-alignment
+  perturbations. Variants wrap event updates without mutating the base project;
+  rail alignment failures remain visible as failed scenarios and no sampled
+  distribution is treated as flight-safety evidence.
 - Added an event-level coupled separation impulse allocator. It distributes
   minimum-norm detached-body velocity corrections across supplied point-mass
   moment arms, reports linear/angular residuals and resolved-constraint count,

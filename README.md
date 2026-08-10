@@ -67,8 +67,9 @@ research, standards, and original code.
   outside the model;
 - seeded coupled 6DOF uncertainty envelopes that propagate bounded mass,
   propellant, thrust, drag, recovery-area, deployment-outcome, and wind
-  assumptions through stage events and launch-rail handoff, with recovery-load
-  percentile telemetry;
+  assumptions through stage events and launch-rail handoff, plus sampled
+  ignition-delay, separation-impulse, and launch-alignment factors, with
+  recovery-load percentile telemetry;
 - optional Gaussian-copula correlation pairs for uncertainty propagation,
   validated as positive-definite while preserving each declared marginal;
 - a persisted Dependence model editor that carries correlation assumptions
@@ -162,13 +163,13 @@ tests/                Deterministic physics, UI, export, and integration checks
 ## Roadmap
 
 Near-term work is stronger experimental/benchmark validation, a full coupled
-multi-body separation solver beyond the current impulse audit and mass-ratio
-branch (an event-level minimum-norm impulse allocator is now available as
-telemetry), validated structural/aeroelastic benchmarks beyond the preliminary fin
-flutter screen, and more stage-aware design review. Angular and direct
-force/moment coefficient volumes are now supported as explicit interpolation
-sources; benchmarked data packages, relative-body separation databases, and
-unsteady models remain future work.
+multi-body separation solver beyond the current impulse audit, event allocator,
+and mass-ratio branch, validated structural/aeroelastic benchmarks beyond the
+preliminary fin flutter screen, and more stage-aware design review. Angular and
+direct force/moment coefficient volumes are now supported as explicit
+interpolation sources, and seeded event-factor dispersion now covers timing,
+separation impulse, and launch alignment; benchmarked data packages,
+relative-body separation databases, and unsteady models remain future work.
 Longer-term work includes collaboration and cloud project storage plus native
 desktop/tablet packaging. Those additions
 will preserve the same provenance boundary and will never upgrade an
