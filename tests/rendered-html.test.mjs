@@ -551,6 +551,7 @@ test("ships a provenance-aware local aerodynamic table workflow", async () => {
   assert.match(page, /Aerodynamic data/);
   assert.match(page, /Mach–Reynolds coefficient surface/);
   assert.match(page, /Validate and save table/);
+  assert.match(page, /id: "user-aero-table-01"/);
   assert.match(page, /selectedAerodynamicTable/);
   assert.match(page, /AerodynamicTableInspector/);
   assert.match(page, /Mach \/ Reynolds grid/);

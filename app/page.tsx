@@ -318,7 +318,7 @@ type AerodynamicTableImportDraft = {
 const defaultAerodynamicTableImportDraft: AerodynamicTableImportDraft = {
   json: JSON.stringify(
     {
-      id: "user.aero-table-01",
+      id: "user-aero-table-01",
       name: "Example Mach-Reynolds surface",
       machPoints: [0, 0.6, 1.2, 2],
       reynoldsPoints: [100000, 1000000, 10000000],
