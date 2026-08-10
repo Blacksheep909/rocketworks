@@ -7,7 +7,7 @@ Implementations:
 - `lib/visualization/rocket-preview-3d.ts`
 - `app/rocket-3d-viewport.tsx`
 
-This is an original Kestrel Lab canvas renderer. It does not contain or derive
+This is an original RocketWorks canvas renderer. It does not contain or derive
 from OpenRocket UI code, assets, rendering code, geometry code, or backend
 components.
 

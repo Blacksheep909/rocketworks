@@ -1,14 +1,14 @@
-# Kestrel Lab
+# RocketWorks
 
 Independent rocket design, simulation, and mission-analysis tools for the
 browser.
 
-Kestrel Lab is a browser-first rocket design and flight-analysis workbench
+RocketWorks is a browser-first rocket design and flight-analysis workbench
 with a graphite mission-console interface. It is being built as an independent
 clean-room implementation from public aerospace equations, published
 research, standards, and original code.
 
-> **Engineering preview:** Kestrel Lab is not flight-safety validated,
+> **Engineering preview:** RocketWorks is not flight-safety validated,
 > manufacturing-approved, or a substitute for instrumented testing,
 > independent analysis, range procedures, or qualified engineering review.
 
@@ -33,7 +33,8 @@ research, standards, and original code.
 - bounded launch-rail inclination and ENU azimuth controls with aligned 6DOF
   handoff;
 - motor and aerodynamic coefficient libraries for user-supplied,
-  provenance-qualified data, including one-record RASP/ENG motor interchange;
+  provenance-qualified data, including one-record RASP/ENG motor interchange and
+  an accessible Mach/Reynolds coefficient-grid inspector;
 - atmosphere, launch-site, wind, turbulence, launch-rail, recovery, and
   landing-dispersion previews;
 - user-configurable recovery reefing schedules shared by the vertical preview,
@@ -66,7 +67,7 @@ research, standards, and original code.
   nominal optimization, and an opt-in finite-sample robust optimization screen
   with explicit quantile and scenario-failure metrics;
 - accessible event timelines, trace charts, comparisons, engineering reports,
-  flight/stage/sweep/uncertainty CSV, DXF, OpenSCAD, and portable Kestrel
+  flight/stage/sweep/uncertainty CSV, DXF, OpenSCAD, and portable RocketWorks
   project JSON;
 - local run comparison that pins a reference estimate and exposes explicit
   metric deltas after a design or environment change;
@@ -79,7 +80,7 @@ research, standards, and original code.
 - validated project import, device-local autosave/history, templates,
   beginner/expert modes, keyboard command search, and compact browser design
   share links.
-- an installable standards-based browser shell with original Kestrel artwork,
+- an installable standards-based browser shell with original RocketWorks artwork,
   ready for a later desktop/tablet wrapper; offline simulation is not claimed.
 
 Every calculation surface exposes its model version, validation status,
@@ -92,6 +93,10 @@ OpenRocket is used only as an external feature and compatibility reference
 where legally appropriate. This repository does **not** copy, modify, link,
 bundle, translate, or directly reuse OpenRocket source code, simulation code,
 UI code, assets, databases, or backend components.
+
+The public brand is RocketWorks. Internal `kestrel-*` model identifiers and
+versioned schema names remain compatibility identifiers for existing local
+projects and exports; they are not a third-party dependency.
 
 ## Run locally
 

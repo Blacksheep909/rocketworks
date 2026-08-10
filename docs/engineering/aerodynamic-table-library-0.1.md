@@ -2,7 +2,7 @@
 
 Status: `engineering-preview-unvalidated`.
 
-Kestrel Lab now accepts rectangular Mach–Reynolds coefficient surfaces through
+RocketWorks now accepts rectangular Mach–Reynolds coefficient surfaces through
 an explicit device-local import workflow. This is an original clean-room data
 boundary. It does not bundle OpenRocket source, coefficient data, UI, assets,
 databases, or simulation code.
@@ -19,10 +19,20 @@ Each table definition contains:
 - an out-of-range policy (`reject` or `clamp-with-warning`); and
 - source, version, licence, attribution, and validation-status metadata.
 
-Rows correspond to Reynolds points and columns correspond to Mach points. Kestrel
+Rows correspond to Reynolds points and columns correspond to Mach points. RocketWorks
 interpolates Mach linearly and Reynolds in `log10(Re)` between the supplied
 nodes. A default table limit of eight records keeps the browser-local library
 bounded and inspectable.
+
+## Browser inspection
+
+The Aerodynamic data modal includes an accessible inspector for every imported
+surface. The operator can switch between drag, normal-force, center-of-pressure,
+and optional roll/pitch/yaw damping grids, while each cell preserves the exact
+Mach/Reynolds axes and any declared absolute uncertainty. The inspector also
+shows the interpolation rule, domain, out-of-range policy, source, data version,
+and validation status before the table is selected for a run. This is a display
+and provenance aid; it does not validate the aerodynamic accuracy of the source.
 
 ## Simulation coupling
 

@@ -92,10 +92,10 @@ function objectValue(value: unknown, label: string): Record<string, unknown> {
 function validateProjectSharePayload(value: unknown): ProjectSharePayload {
   const payload = objectValue(value, "share payload");
   if (payload.schema !== PROJECT_SHARE_SCHEMA_ID) {
-    throw new Error("unsupported Kestrel share schema");
+    throw new Error("unsupported RocketWorks share schema");
   }
   if (payload.schemaVersion !== PROJECT_SHARE_SCHEMA_VERSION) {
-    throw new Error("unsupported Kestrel share schema version");
+    throw new Error("unsupported RocketWorks share schema version");
   }
   const projectName = nonEmptyString(payload.projectName, "share project name");
   const selectedMotorId = nonEmptyString(payload.selectedMotorId, "share motor selection");
@@ -135,7 +135,7 @@ export function encodeProjectShare(input: ProjectSharePayload): string {
   return `${PROJECT_SHARE_HASH_PREFIX}${token}`;
 }
 
-/** Accepts a hash, bare share token, or full URL containing the Kestrel share hash. */
+/** Accepts a hash, bare share token, or full URL containing the RocketWorks share hash. */
 export function decodeProjectShare(value: string): ProjectSharePayload {
   let candidate = value.trim();
   if (!candidate) throw new Error("share link is empty");
@@ -156,7 +156,7 @@ export function decodeProjectShare(value: string): ProjectSharePayload {
     return validateProjectSharePayload(JSON.parse(decodeBase64Url(candidate)));
   } catch (error) {
     throw new Error(
-      `Could not read Kestrel share link: ${error instanceof Error ? error.message : "invalid payload"}`,
+      `Could not read RocketWorks share link: ${error instanceof Error ? error.message : "invalid payload"}`,
     );
   }
 }

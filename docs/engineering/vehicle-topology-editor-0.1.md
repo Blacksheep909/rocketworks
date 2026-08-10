@@ -4,7 +4,7 @@ Status: implemented browser assembly workflow; engineering preview.
 
 ## Scope
 
-Kestrel Lab now exposes a local topology editor for:
+RocketWorks now exposes a local topology editor for:
 
 - one required core sustainer;
 - serial upper stages;
@@ -81,4 +81,4 @@ applicability warnings, and the retained-body/separation limitations.
 
 ## Clean-room boundary
 
-The topology schema, validation rules, UI mapping, and generated preview geometry are original Kestrel Lab implementation. No OpenRocket source, UI, asset, database, or simulation engine is bundled or reused.
+The topology schema, validation rules, UI mapping, and generated preview geometry are original RocketWorks implementation. No OpenRocket source, UI, asset, database, or simulation engine is bundled or reused.

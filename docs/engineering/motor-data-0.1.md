@@ -1,12 +1,12 @@
 # Provenance-first motor data 0.1
 
-Status: engineering preview, unvalidated. This is an original Kestrel Lab implementation from public propulsion equations and published impulse-band definitions. It does not contain or depend on OpenRocket code, motor databases, simulation logic, UI, assets, or backend components.
+Status: engineering preview, unvalidated. This is an original RocketWorks implementation from public propulsion equations and published impulse-band definitions. It does not contain or depend on OpenRocket code, motor databases, simulation logic, UI, assets, or backend components.
 
 ## Purpose
 
 The motor-data layer accepts user, manufacturer, test-lab, or synthetic thrust data only when the record carries explicit provenance. It derives performance metrics and local mass properties, supports strict CSV import/export, builds searchable in-memory libraries, and adapts one record into the existing impulse-depletion and multi-stage dynamics models.
 
-Kestrel Lab does not ship a copied third-party motor database. Users or future appropriately licensed providers must supply records and retain their license/attribution terms.
+RocketWorks does not ship a copied third-party motor database. Users or future appropriately licensed providers must supply records and retain their license/attribution terms.
 
 ## Required record
 
@@ -94,5 +94,5 @@ Regression tests cover performance metrics, every fractional/letter impulse boun
 - Ambient test pressure, temperature, sample uncertainty, and curve covariance are not yet modeled.
 - Ejection delays are catalog metadata and are not automatically wired to recovery events.
 - Cylinder mass properties are preliminary approximations.
-- Certified status is provenance metadata supplied by a trusted source; Kestrel Lab does not independently authenticate certification in version 0.1.
+- Certified status is provenance metadata supplied by a trusted source; RocketWorks does not independently authenticate certification in version 0.1.
 - Results are not flight-safety validation.

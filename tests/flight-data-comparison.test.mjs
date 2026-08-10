@@ -16,7 +16,7 @@ const trace = [
 
 test("flight-data CSV parses supported SI columns and comments", () => {
   const series = parseFlightDataCsv(
-    "# Kestrel test log\ntime_s,altitude_m,velocity_mps\n0,0,0\n1,4,9\n2,19,18\n",
+    "# RocketWorks test log\ntime_s,altitude_m,velocity_mps\n0,0,0\n1,4,9\n2,19,18\n",
     "instrumented.csv",
   );
   assert.equal(series.sourceName, "instrumented.csv");

@@ -30,7 +30,7 @@ The current world frame is a right-handed, non-rotating Cartesian frame. It has
 no implied latitude, longitude, or Earth orientation. A later local-tangent
 frame adapter will define east, north, and up for atmospheric flight.
 
-The body frame is right-handed. Kestrel's vehicle convention uses body `x` as
+The body frame is right-handed. RocketWorks' vehicle convention uses body `x` as
 the longitudinal nose-to-tail axis, with `y` and `z` transverse. Angular
 velocity and moment are expressed in body coordinates. The quaternion `qBW`
 maps a body-frame vector into the world frame:

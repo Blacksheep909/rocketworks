@@ -33,7 +33,7 @@ altitude or wind-profile inputs is rejected to avoid conflicting environments.
 
 ## Atmosphere adjustment
 
-Without an observation, the existing Kestrel standard atmosphere is evaluated
+Without an observation, the existing RocketWorks standard atmosphere is evaluated
 at geometric ASL altitude. With station pressure `ps` and station temperature
 `Ts`, version 0.2 preserves their offsets from standard conditions at the site:
 

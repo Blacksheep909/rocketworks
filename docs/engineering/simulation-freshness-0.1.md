@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Kestrel Lab keeps a deterministic browser-local identity for the configuration
+RocketWorks keeps a deterministic browser-local identity for the configuration
 used by each vertical and coupled-flight preview. The identity covers editable
 vehicle and flight inputs, the active stage topology, the selected motor ID,
 and the selected motor record. It also includes the selected aerodynamic table
@@ -37,6 +37,6 @@ trace.
 
 Freshness only answers whether the visible result matches the visible inputs.
 It does not validate equations, numerical integration, motor data, weather,
-materials, structures, launch operations, or recovery behavior. All Kestrel
+materials, structures, launch operations, or recovery behavior. All RocketWorks
 Lab previews remain engineering-preview calculations with explicit model
 versions and independent validation required before any real-world use.

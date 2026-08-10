@@ -82,7 +82,7 @@ test("project share decoder accepts a full URL and rejects tampered payloads", (
   });
   const fullUrl = `https://kestrel.example/design${hash}`;
   assert.equal(decodeProjectShare(fullUrl).projectName, "ARC 54");
-  assert.throws(() => decodeProjectShare(`${hash.slice(0, -1)}x`), /Could not read Kestrel share link|payload/);
+  assert.throws(() => decodeProjectShare(`${hash.slice(0, -1)}x`), /Could not read RocketWorks share link|payload/);
   assert.throws(() => decodeProjectShare("#kestrel-share=not-base64!"), /payload/);
 });
 

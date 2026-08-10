@@ -11,7 +11,7 @@ code, UI code, data, assets, or backend components.
 
 The launcher adapter covers the interval from the initial pad state until the
 configured vehicle reference point reaches the effective end of a straight
-rail. It then hands the exact release state to Kestrel's independent six-degree-
+rail. It then hands the exact release state to RocketWorks' independent six-degree-
 of-freedom propagator.
 
 The rail fixes the initial attitude, constrains angular velocity to zero, and
@@ -43,7 +43,7 @@ azimuth `a` measured from +east toward +north. The normalized rail direction is
 `e = (sin(i) cos(a), sin(i) sin(a), cos(i))`
 
 with angles entered in degrees and converted to radians before evaluation. The
-initial body attitude is rotated from Kestrel's vertical launch convention so
+initial body attitude is rotated from RocketWorks' vertical launch convention so
 the body nose (-X) is aligned with `e`; when the rail constraint is disabled,
 the preview retains the vertical launch attitude.
 

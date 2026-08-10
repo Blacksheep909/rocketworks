@@ -23,13 +23,13 @@ async function render() {
   );
 }
 
-test("server-renders the Kestrel Lab workbench", async () => {
+test("server-renders the RocketWorks workbench", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Kestrel Lab/);
+  assert.match(html, /<title>RocketWorks/);
   assert.match(html, /Aerospace workbench/);
   assert.match(html, /Run estimate/);
   assert.match(html, /Independent implementation/);
@@ -43,14 +43,14 @@ test("ships an installable browser shell without claiming offline simulation", a
   const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const manifest = JSON.parse(await readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"));
   assert.match(layout, /manifest\.webmanifest/);
-  assert.match(layout, /kestrel-mark\.svg/);
+  assert.match(layout, /rocketworks-mark\.svg/);
   assert.match(layout, /PwaRegistration/);
   assert.match(await readFile(new URL("../app/pwa-registration.tsx", import.meta.url), "utf8"), /serviceWorker\.register/);
   assert.match(await readFile(new URL("../public/sw.js", import.meta.url), "utf8"), /fetch\(event\.request\)/);
   assert.equal(manifest.display, "standalone");
   assert.equal(manifest.start_url, "/");
   assert.equal(manifest.theme_color, "#070a0d");
-  assert.equal(manifest.icons[0].src, "/kestrel-mark.svg");
+  assert.equal(manifest.icons[0].src, "/rocketworks-mark.svg");
   assert.equal(manifest.icons[0].purpose, "any maskable");
 });
 
@@ -101,7 +101,7 @@ test("ships a portable project import path with validated restoration warnings",
   const exportSource = await readFile(new URL("../lib/export/project-exports.ts", import.meta.url), "utf8");
   const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(source, /parseKestrelProjectJson/);
-  assert.match(source, /Import Kestrel project/);
+  assert.match(source, /Import RocketWorks project/);
   assert.match(source, /projectImportInputRef/);
   assert.match(source, /rerun estimates to refresh results/);
   assert.match(exportSource, /export function parseKestrelProjectJson/);
@@ -497,7 +497,7 @@ test("ships beginner and expert workflows with original templates and guidance",
   assert.match(page, />Beginner<\/button>/);
   assert.match(page, />Expert<\/button>/);
   assert.match(page, /Start from a template/);
-  assert.match(page, /Each template is an original Kestrel Lab configuration/);
+  assert.match(page, /Each template is an original RocketWorks configuration/);
   assert.match(page, /Build, check, then estimate/);
   assert.match(page, /How to read CG \/ CP/);
   assert.match(page, /Loaded template:/);
@@ -552,6 +552,9 @@ test("ships a provenance-aware local aerodynamic table workflow", async () => {
   assert.match(page, /Mach–Reynolds coefficient surface/);
   assert.match(page, /Validate and save table/);
   assert.match(page, /selectedAerodynamicTable/);
+  assert.match(page, /AerodynamicTableInspector/);
+  assert.match(page, /Mach \/ Reynolds grid/);
+  assert.match(page, /absolute grid supplied/);
   assert.match(page, /aerodynamicTable: selectedAerodynamicTable/);
   assert.match(verticalFlight, /mach-reynolds-table/);
   assert.match(page, /globalTable: aerodynamicTable \?\? null/);
@@ -562,6 +565,7 @@ test("ships a provenance-aware local aerodynamic table workflow", async () => {
   assert.match(stageAware, /multiple aerodynamic tables/);
   assert.match(stylesheet, /.aerodynamic-dialog/);
   assert.match(stylesheet, /.aerodynamic-record/);
+  assert.match(stylesheet, /.aerodynamic-inspector/);
 });
 
 test("ships an interactive multi-stage, booster, and radial-topology editor", async () => {

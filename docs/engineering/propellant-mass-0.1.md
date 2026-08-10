@@ -104,7 +104,7 @@ These are mathematical implementation checks, not motor or flight validation.
 - Ignition uncertainty, failure, pressure limits, and temperature effects are
   absent.
 - Curves and mass properties must be measured, user-supplied, or appropriately
-  licensed. Kestrel does not bundle OpenRocket motor data.
+  licensed. RocketWorks does not bundle OpenRocket motor data.
 - The resulting rigid-body inertia must remain positive definite. Collinear
   point-mass-only descriptions are insufficient for 6-DOF propagation.
 

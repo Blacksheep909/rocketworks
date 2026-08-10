@@ -63,6 +63,7 @@ import {
   type DesignOptimizationResult,
   type AerodynamicCoefficientTableDefinition,
   type AerodynamicCoefficientTableModel,
+  type CoefficientSurface,
   type LandingDispersionResult,
   type LandingAscentDriftSummary,
   type UncertaintyAnalysisResult,
@@ -297,7 +298,7 @@ const defaultMotorImportDraft: MotorImportDraft = {
   id: "user.motor-01",
   manufacturer: "User supplied",
   designation: "Test curve 01",
-  description: "User-supplied thrust curve imported into Kestrel Lab.",
+  description: "User-supplied thrust curve imported into RocketWorks.",
   diameterMm: "29",
   lengthMm: "95",
   launchMassKg: "0.16",
@@ -349,11 +350,11 @@ const defaultAerodynamicTableImportDraft: AerodynamicTableImportDraft = {
       },
       outOfRangePolicy: "clamp-with-warning",
       provenance: {
-        sourceName: "Kestrel Lab example surface",
+        sourceName: "RocketWorks example surface",
         sourceKind: "user-supplied",
         dataVersion: "example-1",
         licenseIdentifier: "CC0-1.0",
-        attribution: "Original Kestrel Lab example data; replace before engineering use",
+        attribution: "Original RocketWorks example data; replace before engineering use",
         validationStatus: "user-supplied-unvalidated",
       },
     },
@@ -484,7 +485,7 @@ function createPreviewEnvironment(
       sourceKind: "synthetic",
       dataVersion: PREVIEW_WIND_PROFILE_MODEL_VERSION,
       licenseIdentifier: "CC0-1.0",
-      attribution: "Original Kestrel Lab synthetic environment",
+      attribution: "Original RocketWorks synthetic environment",
       validationStatus: "synthetic-unvalidated",
     },
     meanWindProfile: createPreviewWindProfile(windSpeed, {
@@ -1325,7 +1326,7 @@ function createPreviewMotorRecord({
   const propellantMassKg = Math.min(mass * 0.14, 0.08);
   return createMotorDataRecord({
     id: "kestrel.synthetic-preview",
-    manufacturer: "Kestrel Lab",
+    manufacturer: "RocketWorks",
     designation: "Synthetic preview",
     description: "Parametric browser-preview motor; not a commercial or certified motor.",
     diameterM: 0.029,
@@ -1338,7 +1339,7 @@ function createPreviewMotorRecord({
       sourceKind: "synthetic",
       dataVersion: "preview-1",
       licenseIdentifier: "CC0-1.0",
-      attribution: "Original Kestrel Lab synthetic curve",
+      attribution: "Original RocketWorks synthetic curve",
       validationStatus: "synthetic-unvalidated",
     },
   });
@@ -2567,6 +2568,138 @@ function StageFlightProfileChart({ result }: { result: StageFlightPreviewResult 
   );
 }
 
+type AerodynamicInspectorSurfaceId =
+  | "dragCoefficient"
+  | "normalForceSlopePerRad"
+  | "centerOfPressureXM"
+  | "rollDamping"
+  | "pitchDamping"
+  | "yawDamping";
+
+type AerodynamicInspectorSurfaceDefinition = Readonly<{
+  id: AerodynamicInspectorSurfaceId;
+  label: string;
+  unit: string;
+  decimals: number;
+  read: (table: AerodynamicCoefficientTableDefinition) => CoefficientSurface | undefined;
+}>;
+
+const AERODYNAMIC_INSPECTOR_SURFACES: readonly AerodynamicInspectorSurfaceDefinition[] = [
+  {
+    id: "dragCoefficient",
+    label: "Drag coefficient (Cd)",
+    unit: "dimensionless",
+    decimals: 3,
+    read: (table) => table.dragCoefficient,
+  },
+  {
+    id: "normalForceSlopePerRad",
+    label: "Normal-force slope (Cα)",
+    unit: "1 / rad",
+    decimals: 2,
+    read: (table) => table.normalForceSlopePerRad,
+  },
+  {
+    id: "centerOfPressureXM",
+    label: "Center of pressure (xCP)",
+    unit: "m from reference",
+    decimals: 3,
+    read: (table) => table.centerOfPressureXM,
+  },
+  {
+    id: "rollDamping",
+    label: "Roll damping derivative (Clp)",
+    unit: "1 / rad",
+    decimals: 4,
+    read: (table) => table.dampingDerivativeBody?.roll,
+  },
+  {
+    id: "pitchDamping",
+    label: "Pitch damping derivative (Cmq)",
+    unit: "1 / rad",
+    decimals: 4,
+    read: (table) => table.dampingDerivativeBody?.pitch,
+  },
+  {
+    id: "yawDamping",
+    label: "Yaw damping derivative (Cnr)",
+    unit: "1 / rad",
+    decimals: 4,
+    read: (table) => table.dampingDerivativeBody?.yaw,
+  },
+];
+
+function formatAerodynamicInspectorValue(value: number, definition: AerodynamicInspectorSurfaceDefinition) {
+  return `${value.toFixed(definition.decimals)} ${definition.unit}`;
+}
+
+function AerodynamicTableInspector({ table }: { table: AerodynamicCoefficientTableDefinition }) {
+  const availableSurfaces = AERODYNAMIC_INSPECTOR_SURFACES.filter(
+    (definition) => definition.read(table) !== undefined,
+  );
+  const [surfaceId, setSurfaceId] = useState<AerodynamicInspectorSurfaceId>("dragCoefficient");
+  const selectedSurface = availableSurfaces.find((definition) => definition.id === surfaceId) ?? availableSurfaces[0];
+  if (!selectedSurface) return null;
+  const surface = selectedSurface.read(table);
+  if (!surface) return null;
+  const hasUncertainty = surface.absoluteUncertainty !== undefined;
+  return (
+    <section className="aerodynamic-inspector" aria-labelledby="aerodynamic-inspector-title">
+      <div className="aerodynamic-inspector-heading">
+        <div>
+          <span className="eyebrow">Inspectable surface</span>
+          <h3 id="aerodynamic-inspector-title">{table.name}</h3>
+          <p>Review the supplied Mach / Reynolds grid before it drives a flight estimate. Rows are Reynolds points; columns are Mach points.</p>
+        </div>
+        <span className="model-badge">{table.provenance.validationStatus}</span>
+      </div>
+      <div className="aerodynamic-inspector-controls">
+        <label htmlFor="aerodynamic-inspector-surface">Surface
+          <select id="aerodynamic-inspector-surface" value={selectedSurface.id} onChange={(event) => setSurfaceId(event.target.value as AerodynamicInspectorSurfaceId)}>
+            {availableSurfaces.map((definition) => <option key={definition.id} value={definition.id}>{definition.label}</option>)}
+          </select>
+        </label>
+        <div><span>Interpolation</span><strong>Mach linear · log10 Reynolds</strong></div>
+        <div><span>Uncertainty</span><strong>{hasUncertainty ? "absolute grid supplied" : "not supplied"}</strong></div>
+      </div>
+      <div className="aerodynamic-inspector-grid" role="region" aria-label={`${selectedSurface.label} Mach Reynolds grid`} tabIndex={0}>
+        <table>
+          <caption>{selectedSurface.label} · {selectedSurface.unit}{hasUncertainty ? " · cells include ± uncertainty" : ""}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Re \ Mach</th>
+              {table.machPoints.map((mach) => <th scope="col" key={mach}>M {mach.toFixed(2)}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {table.reynoldsPoints.map((reynolds, rowIndex) => (
+              <tr key={reynolds}>
+                <th scope="row">{reynolds.toExponential(1)}</th>
+                {surface.values[rowIndex].map((value, columnIndex) => {
+                  const uncertainty = surface.absoluteUncertainty?.[rowIndex]?.[columnIndex];
+                  return (
+                    <td key={`${reynolds}-${table.machPoints[columnIndex]}`} aria-label={`Reynolds ${reynolds}, Mach ${table.machPoints[columnIndex]}: ${formatAerodynamicInspectorValue(value, selectedSurface)}${uncertainty === undefined ? "" : ` plus or minus ${uncertainty.toFixed(selectedSurface.decimals)}`}`}>
+                      <strong>{value.toFixed(selectedSurface.decimals)}</strong>
+                      {uncertainty !== undefined && <small>±{uncertainty.toFixed(selectedSurface.decimals)}</small>}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="aerodynamic-inspector-meta">
+        <div><span>Mach domain</span><strong>{table.machPoints[0].toFixed(2)} → {table.machPoints.at(-1)?.toFixed(2)}</strong></div>
+        <div><span>Reynolds domain</span><strong>{table.reynoldsPoints[0].toExponential(1)} → {table.reynoldsPoints.at(-1)?.toExponential(1)}</strong></div>
+        <div><span>Out-of-range policy</span><strong>{table.outOfRangePolicy === "clamp-with-warning" ? "Clamp + warning" : "Reject query"}</strong></div>
+        <div><span>Source</span><strong>{table.provenance.sourceName} · {table.provenance.dataVersion}</strong></div>
+      </div>
+      <p className="aerodynamic-inspector-note">This inspector shows exactly the supplied cells and declared absolute uncertainty. Validation checks the document shape and provenance; it does not certify aerodynamic accuracy, reference conventions, or source licensing.</p>
+    </section>
+  );
+}
+
 export default function Home() {
   const [selected, setSelected] = useState<ComponentKey>("body");
   const [view, setView] = useState<ViewKey>("design");
@@ -2640,6 +2773,7 @@ export default function Home() {
   const [motorError, setMotorError] = useState("");
   const [aerodynamicLibraryOpen, setAerodynamicLibraryOpen] = useState(false);
   const aerodynamicLibraryCloseRef = useRef<HTMLButtonElement>(null);
+  const [aerodynamicInspectorId, setAerodynamicInspectorId] = useState<string | null>(null);
   const [aerodynamicTableDefinitions, setAerodynamicTableDefinitions] = useState<AerodynamicCoefficientTableDefinition[]>([]);
   const [selectedAerodynamicTableId, setSelectedAerodynamicTableId] = useState("constant");
   const [aerodynamicTableImportDraft, setAerodynamicTableImportDraft] = useState<AerodynamicTableImportDraft>(defaultAerodynamicTableImportDraft);
@@ -3303,7 +3437,7 @@ export default function Home() {
         setToast(`Shared ${shared.projectName} design loaded; rerun estimates to refresh results`);
         window.setTimeout(() => setToast(""), 2200);
       } catch (error) {
-        setSaveError(error instanceof Error ? error.message : "Unable to read Kestrel share link");
+        setSaveError(error instanceof Error ? error.message : "Unable to read RocketWorks share link");
         setToast("Shared design link could not be loaded");
         window.setTimeout(() => setToast(""), 2200);
       }
@@ -3757,6 +3891,7 @@ export default function Home() {
     try {
       const nextTables = aerodynamicTableDefinitions.filter((table) => table.id !== id);
       persistAerodynamicTables(nextTables);
+      if (aerodynamicInspectorId === id) setAerodynamicInspectorId(null);
       if (selectedAerodynamicTableId === id) selectAerodynamicTable("constant");
       notify("Aerodynamic table removed from this device");
     } catch (error) {
@@ -3868,7 +4003,7 @@ export default function Home() {
     if (!file) return;
     try {
       if (file.size > 10_000_000) {
-        throw new Error("Kestrel project files must be 10 MB or smaller.");
+        throw new Error("RocketWorks project files must be 10 MB or smaller.");
       }
       const imported = parseKestrelProjectJson(await file.text());
       applyEditableInputs(imported.editableInputs);
@@ -3895,7 +4030,7 @@ export default function Home() {
         notify(`${imported.projectName} imported; rerun estimates to refresh results`);
       }
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "Unable to import Kestrel project");
+      setSaveError(error instanceof Error ? error.message : "Unable to import RocketWorks project");
       notify("Project import failed; the current design was not changed");
     }
   };
@@ -3927,13 +4062,13 @@ export default function Home() {
       let mediaType: string;
       let content: string;
       if (format === "project") {
-        filename = "arc-54.kestrel.json";
+        filename = "arc-54.rocketworks.json";
         mediaType = "application/json;charset=utf-8";
         content = createKestrelProjectJson({
           projectId: "arc54",
           projectName: "ARC 54",
           generatedAtIso,
-          applicationVersion: "kestrel-lab-prototype-0.1.0",
+          applicationVersion: "rocketworks-browser-0.1.0",
           vehicle: {
             geometry: cadGeometry,
             material,
@@ -4451,7 +4586,7 @@ export default function Home() {
     { id: "open-history", label: "Open local project history", description: "Restore a validated device-local checkpoint", run: () => setHistoryOpen(true) },
     { id: "open-export", label: "Open artifact center", description: "Export project JSON, traces, reports, and CAD references", run: () => setExportOpen(true) },
     { id: "share-design", label: "Copy design share link", description: "Share validated inputs and stage topology without embedding local library data", run: () => { void copyProjectShare(); } },
-    { id: "import-project", label: "Import Kestrel project", description: "Restore a portable project document and its validated user libraries", run: () => setProjectImportRequested(true) },
+    { id: "import-project", label: "Import RocketWorks project", description: "Restore a portable project document and its validated user libraries", run: () => setProjectImportRequested(true) },
     { id: "toggle-mode", label: experienceMode === "beginner" ? "Switch to expert mode" : "Switch to beginner mode", description: "Change how much of the workbench is exposed", run: () => changeExperienceMode(experienceMode === "beginner" ? "expert" : "beginner") },
   ];
   const filteredCommandActions = commandActions.filter((action) =>
@@ -4488,13 +4623,13 @@ export default function Home() {
         className="sr-only"
         type="file"
         accept=".json,application/json"
-        aria-label="Import Kestrel project document"
+        aria-label="Import RocketWorks project document"
         onChange={importProjectFile}
       />
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">K</span>
-          <div><strong>Kestrel Lab</strong><span>Aerospace workbench · Mission systems</span></div>
+          <div><strong>RocketWorks</strong><span>Aerospace workbench · Mission systems</span></div>
         </div>
         <div className="project-title">
           <button className="quiet-button" aria-label="Go back to projects">‹</button>
@@ -4594,7 +4729,7 @@ export default function Home() {
             <div className="beginner-guide-copy">
               <span className="eyebrow">Guided workspace</span>
               <h2 id="beginner-guide-title">Build, check, then estimate</h2>
-              <p>Start with a template, watch the live CG/CP markers, and run a clearly qualified preview. Kestrel Lab will explain what each result means.</p>
+              <p>Start with a template, watch the live CG/CP markers, and run a clearly qualified preview. RocketWorks will explain what each result means.</p>
             </div>
             <div className="beginner-guide-actions">
               <button className="primary-button" onClick={() => setTemplatesOpen(true)}>Choose a template</button>
@@ -5631,7 +5766,7 @@ export default function Home() {
               <div>
                 <span className="eyebrow">Launch library</span>
                 <h2 id="templates-title">Start from a template</h2>
-                <p id="templates-description">Each template is an original Kestrel Lab configuration. Loading one replaces the current editable inputs and creates a recoverable local checkpoint.</p>
+                <p id="templates-description">Each template is an original RocketWorks configuration. Loading one replaces the current editable inputs and creates a recoverable local checkpoint.</p>
               </div>
               <button
                 ref={templatesCloseRef}
@@ -5703,7 +5838,7 @@ export default function Home() {
               <article className={selectedMotorId === "synthetic" ? "motor-record active" : "motor-record"}>
                 <div className="motor-record-main">
                   <span className="motor-record-badge">SYNTHETIC</span>
-                  <div><strong>Kestrel Lab · Synthetic preview</strong><small>Parametric browser curve · not a commercial motor</small></div>
+                  <div><strong>RocketWorks · Synthetic preview</strong><small>Parametric browser curve · not a commercial motor</small></div>
                 </div>
                 <div className="motor-record-actions">
                   <span>CC0-1.0 · unvalidated</span>
@@ -5751,7 +5886,7 @@ export default function Home() {
             </div>
             <div className="history-notice">
               <span>DATA BOUNDARY</span>
-              <p>Kestrel Lab stores the curve and provenance metadata locally. It does not download, bundle, or infer third-party motor databases, and it does not upgrade user-supplied data to certified status.</p>
+              <p>RocketWorks stores the curve and provenance metadata locally. It does not download, bundle, or infer third-party motor databases, and it does not upgrade user-supplied data to certified status.</p>
             </div>
           </section>
         </div>
@@ -5780,7 +5915,7 @@ export default function Home() {
                 ref={aerodynamicLibraryCloseRef}
                 className="export-close"
                 aria-label="Close aerodynamic data library"
-                onClick={() => setAerodynamicLibraryOpen(false)}
+                onClick={() => { setAerodynamicLibraryOpen(false); setAerodynamicInspectorId(null); }}
               >
                 ×
               </button>
@@ -5805,12 +5940,17 @@ export default function Home() {
                   <div className="aerodynamic-record-actions">
                     <span>{table.provenance.licenseIdentifier} · {table.provenance.validationStatus}</span>
                     <button onClick={() => downloadTextArtifact(`${table.id}.json`, "application/json;charset=utf-8", `${JSON.stringify(table, null, 2)}\n`)}>JSON</button>
+                    <button onClick={() => setAerodynamicInspectorId(table.id)} aria-controls="aerodynamic-inspector">Inspect</button>
                     <button onClick={() => selectAerodynamicTable(table.id)}>{selectedAerodynamicTableId === table.id ? "Selected" : "Use table"}</button>
                     <button className="danger-button" onClick={() => removeAerodynamicTable(table.id)}>Remove</button>
                   </div>
                 </article>
               ))}
             </div>
+            {aerodynamicInspectorId && (() => {
+              const inspectedTable = aerodynamicTableDefinitions.find((table) => table.id === aerodynamicInspectorId);
+              return inspectedTable ? <AerodynamicTableInspector table={inspectedTable} /> : null;
+            })()}
             <div className="aerodynamic-import-section">
               <div className="motor-import-heading"><div><span className="eyebrow">User-supplied data</span><h3>Import a coefficient table</h3></div><span>{aerodynamicTableDefinitions.length} / 8 saved</span></div>
               <label className="motor-csv-field">JSON table definition <small>Rows are Reynolds points; columns are Mach points. SI lengths, positive finite coefficient surfaces, and provenance are required.</small><textarea value={aerodynamicTableImportDraft.json} onChange={(event) => setAerodynamicTableImportDraft({ json: event.target.value })} spellCheck={false} /></label>
@@ -5819,7 +5959,7 @@ export default function Home() {
             </div>
             <div className="history-notice">
               <span>MODEL BOUNDARY</span>
-              <p>Tables are interpolated in Mach and log10 Reynolds number exactly as supplied, with optional boundary clamping warnings. Kestrel validates the document shape and provenance but does not certify aerodynamic accuracy or source licensing.</p>
+              <p>Tables are interpolated in Mach and log10 Reynolds number exactly as supplied, with optional boundary clamping warnings. RocketWorks validates the document shape and provenance but does not certify aerodynamic accuracy or source licensing.</p>
             </div>
           </section>
         </div>
@@ -5965,7 +6105,7 @@ export default function Home() {
             </div>
             <div className="history-notice">
               <span>LOCAL ONLY</span>
-              <p>This history stays on this device and browser profile. It is not cloud sync, collaboration, or a backup, and clearing site data can erase it. Export a Kestrel project document for portable storage.</p>
+              <p>This history stays on this device and browser profile. It is not cloud sync, collaboration, or a backup, and clearing site data can erase it. Export a RocketWorks project document for portable storage.</p>
             </div>
           </section>
         </div>
@@ -6007,12 +6147,12 @@ export default function Home() {
               </button>
               <button className="export-import-option" onClick={openProjectImport}>
                 <span className="export-extension">OPEN</span>
-                <span><strong>Import Kestrel project</strong><small>Restore editable inputs, stage topology, user motors, and aerodynamic tables from a portable JSON document.</small></span>
+                <span><strong>Import RocketWorks project</strong><small>Restore editable inputs, stage topology, user motors, and aerodynamic tables from a portable JSON document.</small></span>
                 <em>↑</em>
               </button>
               <button onClick={() => exportArtifact("project")}>
                 <span className="export-extension">JSON</span>
-                <span><strong>Kestrel project document</strong><small>Versioned geometry, models, simulation, uncertainty, landing results, and provenance.</small></span>
+                <span><strong>RocketWorks project document</strong><small>Versioned geometry, models, simulation, uncertainty, landing results, and provenance.</small></span>
                 <em>↓</em>
               </button>
               <button onClick={() => exportArtifact("flight-csv")}>
@@ -6299,7 +6439,7 @@ function UncertaintyCorrelationEditor({
         <span className="uncertainty-correlation-summary-action">Configure</span>
       </summary>
       <div className="uncertainty-correlation-body">
-        <p>Declare a pairwise relationship when two input assumptions should move together. Kestrel validates the matrix and preserves each marginal distribution; this is not measured flight-data correlation.</p>
+        <p>Declare a pairwise relationship when two input assumptions should move together. RocketWorks validates the matrix and preserves each marginal distribution; this is not measured flight-data correlation.</p>
         {correlations.length > 0 ? (
           <div className="uncertainty-correlation-list" aria-label="Declared uncertainty correlations">
             {correlations.map((correlation) => (

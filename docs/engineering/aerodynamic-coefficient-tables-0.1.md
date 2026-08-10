@@ -6,7 +6,7 @@ table does not make its data validated or flight-safe.
 This is an original clean-room implementation of public aerodynamic similarity,
 coefficient interpolation, and nondimensional damping relations. It contains
 no OpenRocket source, UI, coefficient database, assets, or backend components.
-Kestrel does not bundle third-party aerodynamic data.
+RocketWorks does not bundle third-party aerodynamic data.
 
 ## Purpose
 
@@ -54,7 +54,7 @@ Mach nodes and Reynolds nodes must be finite and strictly increasing. Surface
 rows correspond to Reynolds nodes and columns to Mach nodes. Every surface must
 have exactly the declared rectangular shape.
 
-Within the table domain, Kestrel performs bilinear interpolation in:
+Within the table domain, RocketWorks performs bilinear interpolation in:
 
 - Mach `M` linearly
 - `log10(Re)` linearly
@@ -65,7 +65,7 @@ it is still an interpolation assumption and not a physical flow solver.
 
 The default out-of-range policy rejects a query. An optional clamp policy uses
 the nearest table boundary and emits an `unsupported` issue for each exceeded
-axis. Kestrel never silently extrapolates a coefficient surface.
+axis. RocketWorks never silently extrapolates a coefficient surface.
 
 ## Provenance contract
 
@@ -81,7 +81,7 @@ Every table requires:
 - optional HTTP(S) source URL and attribution
 
 These fields are carried into flight diagnostics. They describe the supplied
-dataset; Kestrel does not independently promote its validation status.
+dataset; RocketWorks does not independently promote its validation status.
 
 ## Uncertainty
 
@@ -96,7 +96,7 @@ flight conditions is not represented yet.
 
 ## Rotational damping moments
 
-Kestrel body `x` is longitudinal; `y` and `z` are the transverse pitch and yaw
+RocketWorks body `x` is longitudinal; `y` and `z` are the transverse pitch and yaw
 axes. For axis `i`, dynamic pressure `q`, reference area `S`, rate derivative
 `Cwi`, body rate `wi`, reference length `li`, and airspeed `V`:
 
@@ -104,7 +104,7 @@ axes. For axis `i`, dynamic pressure `q`, reference area `S`, rate derivative
 
 `Mi = q S li Cmi = q S Cwi wi li^2 / (2 V)`
 
-The supplied derivative therefore owns its sign convention. Under Kestrel's
+The supplied derivative therefore owns its sign convention. Under RocketWorks'
 convention, a negative derivative opposes a positive body rate. Any positive
 derivative triggers a caution because it reinforces that rate. Roll commonly
 uses diameter while pitch and yaw use vehicle length, so the three reference

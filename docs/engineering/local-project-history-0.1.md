@@ -4,7 +4,7 @@ Status: implemented browser persistence; engineering preview.
 
 ## Purpose
 
-Kestrel Lab keeps the editable ARC 54 inputs across refreshes and exposes a recoverable checkpoint timeline. This is device-local continuity, not a shared project service.
+RocketWorks keeps the editable ARC 54 inputs across refreshes and exposes a recoverable checkpoint timeline. This is device-local continuity, not a shared project service.
 
 ## Stored records
 
@@ -31,8 +31,8 @@ The history schema is `dev.kestrel-lab.local-project-history`, version 1. Every 
 
 Browser storage is synchronous, capacity-limited, and specific to the current browser profile and origin. Private browsing, storage policies, browser cleanup, or site-data deletion can remove it. This implementation has no cloud synchronization, account identity, collaboration, multi-device merge, conflict resolution, server backup, encryption layer, or v0-to-v1 migration. Browser extensions and other software with access to the profile may be able to inspect local records.
 
-Use the versioned Kestrel project JSON export for portable or durable storage. Local history is a convenience recovery mechanism and is not engineering evidence, configuration control, certification traceability, or a flight-safety record.
+Use the versioned RocketWorks project JSON export for portable or durable storage. Local history is a convenience recovery mechanism and is not engineering evidence, configuration control, certification traceability, or a flight-safety record.
 
 ## Clean-room boundary
 
-The persistence schema and implementation are original Kestrel Lab code. They contain no OpenRocket source code, UI code, assets, databases, file formats, or simulation engine.
+The persistence schema and implementation are original RocketWorks code. They contain no OpenRocket source code, UI code, assets, databases, file formats, or simulation engine.

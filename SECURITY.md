@@ -1,6 +1,6 @@
 # Security policy
 
-Kestrel Lab is an engineering-preview application. It is not a flight-control
+RocketWorks is an engineering-preview application. It is not a flight-control
 system, a range-safety system, or a source of certified launch decisions.
 
 ## Reporting a vulnerability

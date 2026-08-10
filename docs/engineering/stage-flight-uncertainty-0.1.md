@@ -1,6 +1,6 @@
 # Coupled stage-flight uncertainty 0.2
 
-Kestrel Lab's coupled dispersion adapter is an independent wrapper around the
+RocketWorks' coupled dispersion adapter is an independent wrapper around the
 existing staging, topology-aerodynamics, launch-environment, launch-rail, and
 rigid-body models. It does not import or reuse an external rocket simulator.
 

@@ -47,7 +47,7 @@ const motor = createMotorDataRecord({
     sourceKind: "synthetic",
     dataVersion: "fixture-1",
     licenseIdentifier: "CC0-1.0",
-    attribution: "Kestrel Lab test fixture",
+    attribution: "RocketWorks test fixture",
     validationStatus: "synthetic-unvalidated",
   },
 });

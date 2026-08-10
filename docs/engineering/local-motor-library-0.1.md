@@ -41,10 +41,10 @@ Selecting a record changes the thrust curve and motor mass allowance passed to t
 This is still a preliminary integration: imported motor geometry is represented through analytical dimensions and mass properties rather than a first-class CAD solid; stage assignment falls back to the global motor with an explicit warning when a local record is unavailable; and the topology UI exposes bounded stage-level cant rather than every grain or motor-mount placement parameter. The interface keeps that boundary visible and continues to label the result as unvalidated.
 
 The RASP/ENG interchange contract is based on the public format description at
-[ThrustCurve](https://www.thrustcurve.org/info/raspformat.html). Kestrel's
+[ThrustCurve](https://www.thrustcurve.org/info/raspformat.html). RocketWorks'
 parser is original and treats the supplied file as user data; this reference
 does not grant a license to redistribute any motor file or database.
 
 ## Clean-room boundary
 
-The storage document, parser wiring, UI, and mission-control visual treatment are original Kestrel Lab work. No OpenRocket source, UI code, asset, database, or engine is copied or bundled.
+The storage document, parser wiring, UI, and mission-control visual treatment are original RocketWorks work. No OpenRocket source, UI code, asset, database, or engine is copied or bundled.

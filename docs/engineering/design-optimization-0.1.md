@@ -43,7 +43,7 @@ search inspired by the public NSGA-II method:
 7. Elitist survivor selection fills the next population by Pareto front and
    crowding distance.
 
-The crossover and mutation operators are Kestrel's own bounded implementation;
+The crossover and mutation operators are RocketWorks' own bounded implementation;
 this is therefore described as *NSGA-II-style*, not as a byte-for-byte or exact
 reference implementation of any third-party library.
 

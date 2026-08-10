@@ -1,6 +1,6 @@
 # Hierarchical vehicle assembly 0.1
 
-Status: analytical component checks only, unvalidated. This is an original Kestrel Lab implementation based on public rigid-body mechanics. It does not use OpenRocket source code, simulation logic, UI, assets, databases, or backend components.
+Status: analytical component checks only, unvalidated. This is an original RocketWorks implementation based on public rigid-body mechanics. It does not use OpenRocket source code, simulation logic, UI, assets, databases, or backend components.
 
 ## Purpose
 

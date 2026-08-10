@@ -115,7 +115,7 @@ const portableConfiguration = {
   aerodynamicLibrary: [],
 };
 
-test("versioned Kestrel project JSON is deterministic and clean-room qualified", () => {
+test("versioned RocketWorks project JSON is deterministic and clean-room qualified", () => {
   const input = {
     projectId: "arc54",
     projectName: "ARC 54",
@@ -240,7 +240,7 @@ test("uncertainty CSV preserves provenance, stable columns, null outputs, and er
   const csv = createUncertaintyCsv(analysis);
   assert.equal(csv, createUncertaintyCsv(analysis));
   const rows = csv.trim().split("\r\n");
-  assert.equal(rows[0], "# Kestrel uncertainty sample export,1");
+  assert.equal(rows[0], "# RocketWorks uncertainty sample export,1");
   assert.equal(rows[4], "# seed,csv-replay-v1");
   assert.equal(rows[10], "sample_index,scale,wind,a,z,error");
   assert.equal(rows[11], "0,0.9,4,,3,");
@@ -277,7 +277,7 @@ test("OpenSCAD export contains parameterized tangent-ogive, body, fins, and nozz
 test("CAD reference exports preserve the selected nose profile", () => {
   const conical = createRocketProfileDxf({ ...geometry, noseProfile: "conical" });
   const elliptical = createRocketOpenScad({ ...geometry, noseProfile: "elliptical" });
-  assert.match(conical, /Kestrel Lab/);
+  assert.match(conical, /RocketWorks/);
   assert.match(elliptical, /module nose\(\)/);
   assert.notEqual(conical, createRocketProfileDxf(geometry));
   assert.notEqual(elliptical, createRocketOpenScad(geometry));

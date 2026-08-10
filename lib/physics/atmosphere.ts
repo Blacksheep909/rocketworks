@@ -1,5 +1,5 @@
 /**
- * Kestrel Lab clean-room atmosphere model.
+ * RocketWorks clean-room atmosphere model.
  *
  * Equations are independently implemented from the layer definitions in the
  * U.S. Standard Atmosphere, 1976. This first increment covers geometric
@@ -201,7 +201,7 @@ export function standardAtmosphere(
   }
   if (geometricAltitudeM < -500 || geometricAltitudeM > 20_000) {
     throw new Error(
-      "Kestrel atmosphere v0.4 supports altitudes from -500 m to 20,000 m.",
+      "RocketWorks atmosphere v0.4 supports altitudes from -500 m to 20,000 m.",
     );
   }
 

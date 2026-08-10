@@ -505,7 +505,7 @@ export function createPreliminaryRocketLoadModel(
           code: "AERODYNAMIC_DAMPING_DESTABILIZING",
           severity: "caution",
           explanation:
-            "At least one supplied rotational derivative reinforces rather than damps positive body rate under Kestrel's sign convention.",
+            "At least one supplied rotational derivative reinforces rather than damps positive body rate under RocketWorks' sign convention.",
         });
       }
     } else {

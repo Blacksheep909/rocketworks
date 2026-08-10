@@ -20,7 +20,7 @@ browser import so refreshes do not repeatedly apply the design.
 The selected motor and aerodynamic table are references, not bundled data. If a
 recipient does not have the referenced record in the same browser profile, the
 UI explicitly falls back to the synthetic motor or constant drag source and
-leaves a review note. A portable Kestrel project JSON export remains the
+leaves a review note. A portable RocketWorks project JSON export remains the
 authoritative path when source libraries must travel with the design.
 
 ## Privacy and limits

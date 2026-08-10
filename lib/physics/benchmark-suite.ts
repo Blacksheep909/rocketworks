@@ -63,7 +63,7 @@ function compareCase(input: Readonly<{
 
 /**
  * Run deterministic closed-form and standards-reference checks against the
- * original Kestrel Lab calculation modules. These checks are regression and
+ * original RocketWorks calculation modules. These checks are regression and
  * evidence tooling; they do not constitute flight validation or certification.
  */
 export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {

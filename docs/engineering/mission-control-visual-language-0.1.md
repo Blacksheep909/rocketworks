@@ -1,6 +1,6 @@
 # Mission-control visual language 0.1
 
-Status: implemented UI treatment; original Kestrel Lab design system.
+Status: implemented UI treatment; original RocketWorks design system.
 
 The current pass responds to the requested SpaceX/Rocket Lab-inspired direction
 as a broad visual reference only. It does not reproduce either company’s
@@ -8,7 +8,7 @@ interface, assets, typography, branding, or source code.
 
 ## Direction
 
-Kestrel Lab now uses a restrained launch-console language inspired by contemporary aerospace operations without copying any company’s interface, assets, typography, or source code:
+RocketWorks now uses a restrained launch-console language inspired by contemporary aerospace operations without copying any company’s interface, assets, typography, or source code:
 
 - near-black graphite surfaces and sharp, low-radius controls;
 - a pale technical drawing plate for vehicle geometry, with a dark vehicle

@@ -4,7 +4,7 @@ Status: implemented browser workflow layer; engineering preview.
 
 ## Intent
 
-Kestrel Lab presents the same original calculation model at two levels of detail:
+RocketWorks presents the same original calculation model at two levels of detail:
 
 - **Beginner** keeps the inspector focused on geometry, essential flight inputs, live design checks, and the guided CG/CP explanation.
 - **Expert** reveals model versions, mass-property details, aerodynamic slopes, assembly topology, motor metrics, weather provenance, replay seeds, and optimization controls.
@@ -40,4 +40,4 @@ Mode controls use a labelled button group. The template library and local histor
 
 ## Clean-room boundary
 
-The workflow copy, template values, state mapping, and UI are original Kestrel Lab implementation. No OpenRocket source, UI code, asset, database, file format, or backend is bundled or reused.
+The workflow copy, template values, state mapping, and UI are original RocketWorks implementation. No OpenRocket source, UI code, asset, database, file format, or backend is bundled or reused.

@@ -8,7 +8,7 @@ approval or separation-clearance decisions.
 
 `stage-flight-preview.ts` provides one deterministic entry point for a browser
 stage run, including a single-stage coupled ascent baseline. It composes,
-without replacing, the independently versioned Kestrel
+without replacing, the independently versioned RocketWorks
 models for:
 
 1. attached-stage mass, propellant, inertia, and clustered thrust;

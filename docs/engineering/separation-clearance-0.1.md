@@ -2,7 +2,7 @@
 
 Status: `analytical-component-checks-only`.
 
-Kestrel Lab compares each detached-stage center-of-mass trajectory with the
+RocketWorks compares each detached-stage center-of-mass trajectory with the
 retained vehicle's propagated center-of-mass path after an explicit staging
 event. It also aggregates every retained/detached and detached/detached pair
 into one multi-body diagnostic. The diagnostics report the minimum sampled

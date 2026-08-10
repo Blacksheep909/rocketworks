@@ -6,7 +6,7 @@ Status: engineering preview; deterministic regression-tested; not validated for 
 
 The Flight workspace exposes a bounded one-variable trade study for the independent vertical-flight model. It lets a designer inspect how a declared change in delivered thrust, dry mass, drag coefficient, wind magnitude, or recovery delay moves apogee, peak dynamic pressure, impact speed, and launch success without silently changing the rest of the configuration.
 
-The browser workflow uses nine rows by default, permits up to twenty-five rows from the UI, keeps failed evaluations visible, and exports the complete table as CSV. The sweep is also included in the versioned Kestrel project document when a result is present.
+The browser workflow uses nine rows by default, permits up to twenty-five rows from the UI, keeps failed evaluations visible, and exports the complete table as CSV. The sweep is also included in the versioned RocketWorks project document when a result is present.
 
 ## Model contract
 

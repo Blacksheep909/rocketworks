@@ -1393,6 +1393,31 @@ kbd {
 .aerodynamic-record-actions button { padding: 6px 8px; border: 1px solid var(--line-strong); border-radius: 3px; background: transparent; color: #b9d0df; cursor: pointer; font-size: 8px; }
 .aerodynamic-record-actions button:hover, .aerodynamic-record-actions button:focus-visible { border-color: rgba(47,159,255,.5); color: #fff; }
 .aerodynamic-record-actions .danger-button { color: #e5a18d; }
+.aerodynamic-inspector { padding: 16px 22px 18px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg,rgba(47,159,255,.06),rgba(47,159,255,.015)); }
+.aerodynamic-inspector-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.aerodynamic-inspector-heading > div { min-width: 0; }
+.aerodynamic-inspector-heading h3 { margin: 4px 0 5px; font-size: 13px; letter-spacing: -.01em; }
+.aerodynamic-inspector-heading p { max-width: 690px; margin: 0; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.aerodynamic-inspector-controls { display: grid; grid-template-columns: minmax(220px,1.3fr) repeat(2,minmax(150px,1fr)); gap: 8px; margin-top: 14px; }
+.aerodynamic-inspector-controls label, .aerodynamic-inspector-controls > div { display: flex; min-width: 0; flex-direction: column; gap: 4px; color: #8fa4b2; font-size: 7px; text-transform: uppercase; letter-spacing: .06em; }
+.aerodynamic-inspector-controls select { min-height: 30px; padding: 0 7px; border: 1px solid var(--line-strong); border-radius: 3px; background: #0b1116; color: var(--ink); font-size: 9px; text-transform: none; letter-spacing: normal; }
+.aerodynamic-inspector-controls strong { min-height: 30px; display: flex; align-items: center; padding: 0 8px; border: 1px solid var(--line); border-radius: 3px; background: rgba(10,16,21,.68); color: #b9d0df; font: 8px var(--font-geist-mono),monospace; text-transform: none; letter-spacing: normal; }
+.aerodynamic-inspector-grid { max-width: 100%; margin-top: 14px; overflow: auto; border: 1px solid var(--line); border-radius: 4px; background: #0b1116; }
+.aerodynamic-inspector-grid:focus-visible { outline: 2px solid rgba(47,159,255,.72); outline-offset: 2px; }
+.aerodynamic-inspector-grid table { min-width: 610px; width: 100%; border-collapse: collapse; font: 8px var(--font-geist-mono),monospace; }
+.aerodynamic-inspector-grid caption { padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--muted); text-align: left; }
+.aerodynamic-inspector-grid th, .aerodynamic-inspector-grid td { padding: 7px 9px; border-right: 1px solid rgba(117,153,180,.12); border-bottom: 1px solid rgba(117,153,180,.12); text-align: right; white-space: nowrap; }
+.aerodynamic-inspector-grid thead th { color: #8fcdf2; font-weight: 650; background: rgba(47,159,255,.08); }
+.aerodynamic-inspector-grid thead th:first-child, .aerodynamic-inspector-grid tbody th { text-align: left; }
+.aerodynamic-inspector-grid tbody th { color: #aabfcd; font-weight: 550; background: rgba(255,255,255,.02); }
+.aerodynamic-inspector-grid td { color: #e7f3fa; }
+.aerodynamic-inspector-grid td strong { display: block; font-weight: 650; }
+.aerodynamic-inspector-grid td small { display: block; margin-top: 2px; color: #8bacc0; font-size: 7px; }
+.aerodynamic-inspector-meta { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 7px; margin-top: 12px; }
+.aerodynamic-inspector-meta > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 8px; border: 1px solid var(--line); border-radius: 3px; background: rgba(9,14,19,.72); }
+.aerodynamic-inspector-meta span { color: var(--muted); font-size: 7px; text-transform: uppercase; letter-spacing: .06em; }
+.aerodynamic-inspector-meta strong { overflow: hidden; color: #c5deec; font: 8px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.aerodynamic-inspector-note { margin: 12px 0 0; color: #78909e; font-size: 8px; line-height: 1.45; }
 .aerodynamic-import-section { padding: 18px 22px 20px; border-bottom: 1px solid var(--line); }
 .aerodynamic-import-section .motor-csv-field textarea { min-height: 260px; padding: 10px; font: 9px/1.45 var(--font-geist-mono),monospace; resize: vertical; }
 .topology-dialog { width: min(980px,100%); }
@@ -1488,7 +1513,7 @@ kbd {
 
 /*
  * Launch-control visual pass.
- * This is an original Kestrel Lab treatment: black/white engineering plates,
+ * This is an original RocketWorks treatment: black/white engineering plates,
  * graphite chrome, telemetry blue, and a single signal-orange action color.
  */
 .component-panel,
@@ -1625,6 +1650,10 @@ kbd {
   .aerodynamic-library-list { padding: 12px 14px; }
   .aerodynamic-record { align-items: flex-start; flex-direction: column; gap: 9px; }
   .aerodynamic-record-actions { justify-content: flex-start; }
+  .aerodynamic-inspector { padding: 14px; }
+  .aerodynamic-inspector-heading { flex-direction: column; gap: 9px; }
+  .aerodynamic-inspector-controls { grid-template-columns: 1fr; }
+  .aerodynamic-inspector-meta { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .aerodynamic-import-section { padding: 15px 14px 16px; }
   .motor-import-section { padding: 15px 14px 16px; }
   .motor-import-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
@@ -1651,7 +1680,7 @@ kbd {
 /*
  * Spacecraft operations visual pass.
  *
- * Original Kestrel Lab styling inspired by launch-operations consoles:
+ * Original RocketWorks styling inspired by launch-operations consoles:
  * graphite plates, white engineering surfaces, telemetry blue, and a single
  * signal-orange action color. No third-party brand assets or UI code are used.
  */

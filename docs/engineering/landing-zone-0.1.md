@@ -14,7 +14,7 @@ Implementations:
 - `lib/physics/landing-zone.ts`
 - `app/landing-footprint-chart.tsx`
 
-This is an original clean-room Kestrel Lab implementation based on public
+This is an original clean-room RocketWorks implementation based on public
 point-mass dynamics, drag equations, WGS84 parameters, and statistical methods.
 It contains no OpenRocket source, simulation engine, UI code, assets, database,
 or backend components.

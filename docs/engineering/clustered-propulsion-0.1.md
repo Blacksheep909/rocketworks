@@ -10,7 +10,7 @@ database, assets, or backend components.
 ## Purpose
 
 The clustered propulsion layer converts the independently timed motor thrusts
-from Kestrel's propellant mass model into one body-frame force and moment for
+from RocketWorks' propellant mass model into one body-frame force and moment for
 the rigid-body flight kernel. It supports centerline motors, pods, strap-on
 boosters, and canted multi-motor clusters using original configuration data.
 
@@ -25,7 +25,7 @@ accepted. This prevents silent omission or double application of thrust.
 
 ## Frames and equations
 
-Kestrel body `+x` runs from nose to tail. A conventional aft motor producing
+RocketWorks body `+x` runs from nose to tail. A conventional aft motor producing
 forward thrust therefore normally uses an axis near body `-x`. Body `y` and `z`
 complete the right-handed transverse frame.
 

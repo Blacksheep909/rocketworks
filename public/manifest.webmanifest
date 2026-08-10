@@ -1,6 +1,6 @@
 {
-  "name": "Kestrel Lab — Rocket Design & Flight Analysis",
-  "short_name": "Kestrel Lab",
+  "name": "RocketWorks — Rocket Design & Flight Analysis",
+  "short_name": "RocketWorks",
   "description": "An independent browser-first workbench for rocket design, flight previews, uncertainty analysis, and engineering exports.",
   "start_url": "/",
   "scope": "/",
@@ -10,7 +10,7 @@
   "theme_color": "#070a0d",
   "icons": [
     {
-      "src": "/kestrel-mark.svg",
+      "src": "/rocketworks-mark.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

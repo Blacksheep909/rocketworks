@@ -4,7 +4,7 @@ Status: `engineering-preview-unvalidated`.
 
 ## Purpose
 
-The browser Flight workspace can compare a current Kestrel vertical or coupled
+The browser Flight workspace can compare a current RocketWorks vertical or coupled
 stage/6DOF trace with an instrumented flight log supplied by the user. This is
 deliberately a diagnostic and reproducibility surface: it helps expose model
 discrepancy, timestamp coverage, and sensor-to-model drift without presenting
@@ -22,7 +22,7 @@ malformed logs fail visibly instead of being silently reinterpreted.
 
 ## Comparison method
 
-For every measured timestamp `t_m`, Kestrel linearly interpolates the selected
+For every measured timestamp `t_m`, RocketWorks linearly interpolates the selected
 simulated trace at `t_m + Δt`. The Flight card exposes `Δt` as a bounded seconds
 control; the default is zero. No automatic event alignment, sensor latency
 estimation, smoothing, bias correction, or gravity calibration is applied. For

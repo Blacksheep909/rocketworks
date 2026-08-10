@@ -3,7 +3,7 @@
 Status: `engineering-preview-unvalidated`
 
 The browser Flight workspace includes a local reference-run comparison. It is
-an original Kestrel Lab interaction layer around the existing vertical-flight
+an original RocketWorks interaction layer around the existing vertical-flight
 result; it does not copy OpenRocket UI or simulation code.
 
 ## Workflow

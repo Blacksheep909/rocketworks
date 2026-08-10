@@ -1,6 +1,6 @@
-# Contributing to Kestrel Lab
+# Contributing to RocketWorks
 
-Kestrel Lab is an independent, browser-first rocket design and flight-analysis
+RocketWorks is an independent, browser-first rocket design and flight-analysis
 project. Contributions are welcome when they improve clarity, reproducibility,
 accessibility, or engineering usefulness without weakening the project’s
 provenance boundary.

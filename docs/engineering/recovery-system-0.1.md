@@ -10,7 +10,7 @@ recovery database, assets, or backend components.
 ## Purpose
 
 The recovery layer adds discrete deployment state and wind-relative canopy
-loads to Kestrel's independent 6-DOF kernel. It supports multiple devices such
+loads to RocketWorks' independent 6-DOF kernel. It supports multiple devices such
 as drogues and main parachutes with:
 
 - root-found apogee or altitude commands

@@ -1,6 +1,6 @@
 # Seeded uncertainty analysis 0.4
 
-Status: engineering preview, unvalidated. This module is an original Kestrel Lab implementation from public statistical methods. It does not use OpenRocket code, data, assets, or simulation logic.
+Status: engineering preview, unvalidated. This module is an original RocketWorks implementation from public statistical methods. It does not use OpenRocket code, data, assets, or simulation logic.
 
 ## Purpose
 

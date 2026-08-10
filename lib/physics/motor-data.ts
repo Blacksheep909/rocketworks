@@ -278,7 +278,7 @@ export function createMotorDataRecord(input: MotorDataInput): MotorDataRecord {
         : ["The thrust curve is not marked as certified test data and requires independent verification."]),
       "The impulse-class label is a calculated band estimate, not a certification claim.",
       "Specific impulse uses declared wet/dry mass difference as propellant mass; residuals and hardware changes can bias it.",
-      "Motor data and geometry are not flight-safety validated by Kestrel Lab.",
+      "Motor data and geometry are not flight-safety validated by RocketWorks.",
     ],
     assumptions: [
       "Thrust is linearly interpolated and integrated by the trapezoidal rule.",
@@ -432,7 +432,7 @@ export function exportMotorRaspEng(record: MotorDataRecord): string {
     record.manufacturer,
   ].join(" ");
   return [
-    `; Kestrel Lab RASP/ENG export · ${record.provenance.sourceName}`,
+    `; RocketWorks RASP/ENG export · ${record.provenance.sourceName}`,
     header,
     ...record.thrustCurve.map((point) => `${point.timeS} ${point.thrustN}`),
   ].join("\n");

@@ -1,11 +1,16 @@
 # Changelog
 
-All notable Kestrel Lab changes are recorded here. The project is still an
+All notable RocketWorks changes are recorded here. The project is still an
 engineering preview, so entries describe implementation scope rather than
 flight-readiness claims.
 
 ## [Unreleased]
 
+- Rebranded the public workbench, browser shell, exports, documentation, and
+  repository metadata as RocketWorks while retaining versioned `kestrel-*`
+  schema/model identifiers for existing project compatibility. Added an
+  accessible Mach/Reynolds coefficient-grid inspector with declared uncertainty
+  and provenance readouts.
 - Fixed staged-preview failures after a core separation when the retained
   payload/recovery allowance consisted of collinear point masses with zero
   axial inertia. The browser now adds a versioned compact-package inertia
@@ -42,7 +47,7 @@ flight-readiness claims.
   detection and round-trip support through local history, share links, and
   portable project JSON.
 - Added an installable PWA manifest, standalone viewport metadata, original
-  Kestrel Lab app artwork, and a deliberately network-only service worker as
+  RocketWorks app artwork, and a deliberately network-only service worker as
   the first browser-to-desktop portability layer; offline caching and native
   wrappers remain explicitly out of scope for this increment.
 - Added a deterministic uncertainty-sample CSV export with model/method/seed
@@ -165,7 +170,7 @@ flight-readiness claims.
   behavior.
 - Added interactive vertical and staged trace inspectors, including Mach,
   dynamic pressure, axial drag, event markers, and portable CSV fields.
-- Added validated Kestrel project import/export, Markdown engineering reports,
+- Added validated RocketWorks project import/export, Markdown engineering reports,
   DXF/OpenSCAD reference exports, and separated-body ballistic component
   checks.
 - Established the clean-room boundary: no OpenRocket source, engine, UI,

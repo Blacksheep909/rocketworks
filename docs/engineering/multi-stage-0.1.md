@@ -175,7 +175,7 @@ flight performance.
   reference area, and drag by attached-stage topology. Separation proximity
   aerodynamics remain outside both models.
 - Motor and vehicle data must be measured, user supplied, or appropriately
-  licensed. Kestrel does not bundle an OpenRocket motor or component database.
+  licensed. RocketWorks does not bundle an OpenRocket motor or component database.
 
 ## Primary public references
 

@@ -150,7 +150,7 @@ test("vertical flight can consume a Mach-Reynolds drag table with explicit appli
     centerOfPressureXM: { values: [[0.4, 0.4, 0.4], [0.4, 0.4, 0.4]] },
     outOfRangePolicy: "clamp-with-warning",
     provenance: {
-      sourceName: "Kestrel fixture",
+      sourceName: "RocketWorks fixture",
       sourceKind: "user-supplied",
       dataVersion: "test-1",
       licenseIdentifier: "CC0-1.0",

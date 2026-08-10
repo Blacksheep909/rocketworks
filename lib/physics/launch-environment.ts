@@ -381,7 +381,7 @@ export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefini
         ? ["Relative humidity is coupled to water-vapor partial pressure, virtual temperature, density, and speed of sound in version 0.2; condensation and humidity-dependent viscosity are not modeled."]
         : []),
       ...(turbulence ? ["Turbulence is a finite-band deterministic Dryden-shaped spectral realization, not a measured gust history."] : []),
-      "Weather provenance and observation age must be reviewed before use; Kestrel Lab does not authenticate external weather data.",
+      "Weather provenance and observation age must be reviewed before use; RocketWorks does not authenticate external weather data.",
       "The launch-environment model is unvalidated and is not a flight-safety weather assessment.",
     ],
     assumptions: [

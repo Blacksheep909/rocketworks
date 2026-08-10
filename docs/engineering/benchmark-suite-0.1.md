@@ -3,7 +3,7 @@
 Status: `mathematical-regression-tests-only`.
 
 The benchmark suite is a small evidence lane for changes to the original
-Kestrel Lab calculation modules. It runs fixed SI anchors and closed-form
+RocketWorks calculation modules. It runs fixed SI anchors and closed-form
 fixtures that are cheap enough to execute from the browser and deterministic
 enough to run in CI.
 

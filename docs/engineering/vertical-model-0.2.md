@@ -1,4 +1,4 @@
-# Kestrel vertical-flight model 0.3
+# RocketWorks vertical-flight model 0.3
 
 Status: **engineering preview; not validated for flight-safety decisions**
 

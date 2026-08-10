@@ -7,7 +7,7 @@ Implementations:
 - `lib/export/project-exports.ts`
 - browser export center in `app/page.tsx`
 
-This is an original clean-room Kestrel Lab implementation. Exported geometry,
+This is an original clean-room RocketWorks implementation. Exported geometry,
 data, reports, and code do not contain OpenRocket source, simulation code, UI
 code, assets, databases, or backend components.
 
@@ -19,7 +19,7 @@ initiated only after the user selects a format.
 
 Version 0.9 offers eight inspectable formats plus a validated project-import path:
 
-1. Versioned Kestrel project JSON
+1. Versioned RocketWorks project JSON
 2. Flight-trace CSV
 3. Vertical uncertainty-sample CSV
 4. Staged 6DOF trace CSV
@@ -32,7 +32,7 @@ Every engineering or CAD surface presents manufacturing and validation limits
 before download. The DXF, SCAD, project, and report files also embed status or
 warning text internally.
 
-## Kestrel project JSON
+## RocketWorks project JSON
 
 The root document declares:
 

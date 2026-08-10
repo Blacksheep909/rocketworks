@@ -10,7 +10,7 @@ code, aerodynamic database, assets, or backend components.
 ## Purpose
 
 The adapter makes aerodynamic configuration follow the exact attached-stage
-topology from Kestrel's multi-stage state. At every load evaluation it:
+topology from RocketWorks' multi-stage state. At every load evaluation it:
 
 1. reads attached stages and instantaneous mass properties
 2. selects one explicit aerodynamic regime for that exact topology
@@ -104,7 +104,7 @@ validation.
 - The underlying CP method remains low-speed, small-angle, slender-body
   preliminary analysis.
 - Constant drag coefficients or externally sourced Mach/Reynolds tables are
-  supplied per topology; Kestrel does not independently predict viscous, base,
+supplied per topology; RocketWorks does not independently predict viscous, base,
   wave, or interference drag.
 - Coefficients switch instantaneously and do not describe the moving separated
   bodies.

@@ -10,7 +10,7 @@ components.
 
 ## Purpose
 
-This layer connects Kestrel's atmosphere, wind, thrust-curve, static-stability,
+This layer connects RocketWorks' atmosphere, wind, thrust-curve, static-stability,
 and rigid-body foundations without hiding their current limits. For any 6-DOF
 state it returns:
 
@@ -64,7 +64,7 @@ direction is therefore body `-x`. A supplied vertical-launch attitude maps body
 
 ## Atmosphere, wind, and gravity
 
-Atmosphere density and speed of sound come from Kestrel's independently
+Atmosphere density and speed of sound come from RocketWorks' independently
 implemented U.S. Standard Atmosphere 1976 layer model. Geometric altitude is:
 
 `hASL = launch altitude + world up position`
@@ -225,7 +225,7 @@ Do not use this model for flight-safety decisions.
   the static normal-force and center-of-pressure foundation consumed here:
   https://ntrs.nasa.gov/api/citations/20010047838/downloads/20010047838.pdf
 - U.S. Standard Atmosphere, 1976, NOAA/NASA/USAF. Supplies the atmospheric
-  layer definitions used by Kestrel's atmosphere model:
+  layer definitions used by RocketWorks' atmosphere model:
   https://ntrs.nasa.gov/api/citations/19770009539/downloads/19770009539.pdf
 
 ## Next work

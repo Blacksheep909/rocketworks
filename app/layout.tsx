@@ -7,12 +7,12 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Kestrel Lab — Rocket Design & Flight Analysis",
+  title: "RocketWorks — Rocket Design & Flight Analysis",
   description: "A clean-room, browser-first workbench for rocket design, staged flight previews, uncertainty analysis, and engineering exports.",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/kestrel-mark.svg",
-    apple: "/kestrel-mark.svg",
+    icon: "/rocketworks-mark.svg",
+    apple: "/rocketworks-mark.svg",
   },
 };
 

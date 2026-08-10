@@ -458,7 +458,7 @@ export function createAerodynamicCoefficientTable(
         : "Queries outside the tabulated domain clamp to the nearest boundary with an unsupported warning",
     ],
     warnings: [
-      "Kestrel validates and interpolates supplied data but does not certify its aerodynamic accuracy.",
+      "RocketWorks validates and interpolates supplied data but does not certify its aerodynamic accuracy.",
       "Interpolation cannot reconstruct shocks, transitions, hysteresis, or discontinuities absent from the supplied grid.",
       "Coefficient reference axes, areas, lengths, signs, and moment conventions must match the consuming vehicle model.",
     ],
