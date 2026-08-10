@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added optional direct body-axis force and static moment coefficient volumes.
+  Provenance-qualified `C_axial/C_normal/C_side` and `C_roll/C_pitch/C_yaw`
+  datasets now drive the 6DOF aerodynamic load result with declared moment
+  reference lengths, diagnostics, and explicit fallback behavior; this remains
+  a coefficient-driven engineering preview, not a CFD or flight-safety model.
 - Added optional angle-of-attack and sideslip coefficient volumes to the
   provenance-qualified aerodynamic library. Volumes interpolate in signed
   angular axes plus Mach/Reynolds, propagate into stage-aware flight loads,

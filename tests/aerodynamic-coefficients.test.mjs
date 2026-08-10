@@ -222,6 +222,38 @@ test("angular coefficient volumes interpolate alpha and sideslip with explicit b
   assert.ok(Number.isFinite(clampedResult.dragCoefficient));
 });
 
+test("direct body-axis force and moment volumes expose normalized resultants", () => {
+  const model = table({
+    angleOfAttackPointsRad: [-0.2, 0.2],
+    sideslipPointsRad: [-0.1, 0.1],
+    forceCoefficientBodyByAngle: {
+      axial: volume(0.8, 0.1, 0.2, 0.05, 0.05),
+      normal: volume(-0.2, 0.1, 0.2, 0.05, 0.05),
+      side: volume(0.1, -0.05, 0.1, 0.02, 0.01),
+    },
+    momentCoefficientBodyByAngle: {
+      roll: volume(0.01, 0.01, 0.01, 0.005, 0.005),
+      pitch: volume(-0.02, 0.01, 0.02, 0.005, 0.005),
+      yaw: volume(0.03, -0.01, 0.01, 0.005, 0.005),
+    },
+  });
+  const result = model.evaluate({
+    mach: 0.5,
+    reynoldsNumber: 1e6,
+    angleOfAttackRad: 0,
+    sideslipRad: 0,
+  });
+  assert.equal(result.modelVersion, "rocketworks-aero-force-moment-table-0.1.0");
+  assert.equal(model.forceMomentDatabaseAvailable, true);
+  close(result.forceCoefficientBody.x, 1, 1e-15, "axial coefficient");
+  close(result.forceCoefficientBody.y, -0.0, 1e-15, "normal coefficient");
+  close(result.forceCoefficientBody.z, 0.14, 1e-15, "side coefficient");
+  close(result.momentCoefficientBody.x, 0.025, 1e-15, "roll coefficient");
+  close(result.momentCoefficientBody.y, 0, 1e-15, "pitch coefficient");
+  close(result.momentCoefficientBody.z, 0.035, 1e-15, "yaw coefficient");
+  assert.ok(result.applicability.some((issue) => issue.code === "FORCE_MOMENT_DATABASE_PRESENT"));
+});
+
 test("Sutherland viscosity and Reynolds number match reference calculations", () => {
   const viscosity = dynamicViscosityAirPaS(288.15);
   close(viscosity, 1.7892976260350732e-5, 1e-17, "sea-level viscosity");

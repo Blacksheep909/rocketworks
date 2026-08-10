@@ -571,6 +571,8 @@ test("ships a provenance-aware local aerodynamic table workflow", async () => {
   assert.match(page, /Mach \/ Reynolds grid/);
   assert.match(page, /optional angle-of-attack and sideslip volumes/);
   assert.match(page, /sideslip × angle-of-attack × Reynolds × Mach/);
+  assert.match(page, /Direct body-axis force\/moment coefficients/);
+  assert.match(page, /Force \/ moment DB/);
   assert.match(page, /absolute grid supplied/);
   assert.match(page, /aerodynamicTable: selectedAerodynamicTable/);
   assert.match(verticalFlight, /mach-reynolds-table/);

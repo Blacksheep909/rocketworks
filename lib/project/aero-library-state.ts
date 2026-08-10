@@ -247,6 +247,54 @@ function definitionFromUnknown(value: unknown, index: number): AerodynamicCoeffi
           ),
         }
       : {}),
+    ...(record.forceCoefficientBodyByAngle !== undefined
+      ? (() => {
+          const forceRecord = objectValue(
+            record.forceCoefficientBodyByAngle,
+            `Aerodynamic table ${index + 1} angular force coefficients`,
+          );
+          return {
+            forceCoefficientBodyByAngle: {
+              axial: coefficientVolume(
+                forceRecord.axial,
+                `Aerodynamic table ${index + 1} axial force coefficient`,
+              ),
+              normal: coefficientVolume(
+                forceRecord.normal,
+                `Aerodynamic table ${index + 1} normal force coefficient`,
+              ),
+              side: coefficientVolume(
+                forceRecord.side,
+                `Aerodynamic table ${index + 1} side force coefficient`,
+              ),
+            },
+          };
+        })()
+      : {}),
+    ...(record.momentCoefficientBodyByAngle !== undefined
+      ? (() => {
+          const momentRecord = objectValue(
+            record.momentCoefficientBodyByAngle,
+            `Aerodynamic table ${index + 1} angular moment coefficients`,
+          );
+          return {
+            momentCoefficientBodyByAngle: {
+              roll: coefficientVolume(
+                momentRecord.roll,
+                `Aerodynamic table ${index + 1} roll moment coefficient`,
+              ),
+              pitch: coefficientVolume(
+                momentRecord.pitch,
+                `Aerodynamic table ${index + 1} pitch moment coefficient`,
+              ),
+              yaw: coefficientVolume(
+                momentRecord.yaw,
+                `Aerodynamic table ${index + 1} yaw moment coefficient`,
+              ),
+            },
+          };
+        })()
+      : {}),
     ...(damping !== undefined
       ? (() => {
           const dampingRecord = objectValue(

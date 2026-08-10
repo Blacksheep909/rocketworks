@@ -36,6 +36,7 @@ export type StageAerodynamicRegime = Readonly<{
   referenceDiameterM?: number;
   referenceLengthM?: number;
   dampingReferenceLengthBodyM?: Vector3;
+  momentReferenceLengthBodyM?: Vector3;
   maximumNormalForceMach?: number;
   maximumNormalForceAngleRad?: number;
   minimumNormalForceAirspeedMps?: number;
@@ -64,6 +65,9 @@ export type StageAwareAerodynamicEvaluation = Readonly<{
   staticMarginCalibers: number;
   reynoldsNumber: number | null;
   coefficientEvaluation: AerodynamicCoefficientEvaluation | null;
+  forceCoefficientBody: Vector3 | null;
+  momentCoefficientBody: Vector3 | null;
+  momentReferenceLengthBodyM: Vector3 | null;
   staticStability: StaticStabilityResult;
   centerOfPressureMinusCenterOfMassM: number;
   applicability: readonly RocketLoadApplicabilityIssue[];
@@ -274,6 +278,18 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
         );
       }
     }
+    if (regime.momentReferenceLengthBodyM) {
+      const lengths = regime.momentReferenceLengthBodyM;
+      if (
+        ![lengths.x, lengths.y, lengths.z].every(
+          (value) => Number.isFinite(value) && value > 0,
+        )
+      ) {
+        throw new Error(
+          `regime ${regime.id} moment reference lengths must be positive and finite`,
+        );
+      }
+    }
     if (regime.maximumNormalForceMach !== undefined) {
       assertPositive(
         regime.maximumNormalForceMach,
@@ -388,14 +404,16 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
     }
     coefficientEvaluation?.applicability.forEach((issue) => {
       applicability.push({
-        code:
-          issue.code === "COEFFICIENT_UNCERTAINTY_PRESENT"
-            ? "COEFFICIENT_UNCERTAINTY_PRESENT"
-            : issue.code.startsWith("MACH_")
-              ? "AERODYNAMIC_TABLE_MACH_RANGE"
-              : issue.code.startsWith("REYNOLDS_")
-                ? "AERODYNAMIC_TABLE_REYNOLDS_RANGE"
-                : "AERODYNAMIC_TABLE_ANGLE_RANGE",
+      code:
+        issue.code === "COEFFICIENT_UNCERTAINTY_PRESENT"
+          ? "COEFFICIENT_UNCERTAINTY_PRESENT"
+          : issue.code === "FORCE_MOMENT_DATABASE_PRESENT"
+            ? "AERODYNAMIC_FORCE_MOMENT_DATABASE"
+          : issue.code.startsWith("MACH_")
+            ? "AERODYNAMIC_TABLE_MACH_RANGE"
+            : issue.code.startsWith("REYNOLDS_")
+              ? "AERODYNAMIC_TABLE_REYNOLDS_RANGE"
+              : "AERODYNAMIC_TABLE_ANGLE_RANGE",
         severity: issue.severity,
         explanation: issue.explanation,
       });
@@ -413,6 +431,15 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       staticMarginCalibers,
       reynoldsNumber: tableQuery?.reynoldsNumber ?? null,
       coefficientEvaluation,
+      forceCoefficientBody: coefficientEvaluation?.forceCoefficientBody ?? null,
+      momentCoefficientBody: coefficientEvaluation?.momentCoefficientBody ?? null,
+      momentReferenceLengthBodyM: coefficientEvaluation?.momentCoefficientBody
+        ? regime.momentReferenceLengthBodyM ?? {
+            x: staticStability.referenceDiameterM,
+            y: referenceLengthM,
+            z: referenceLengthM,
+          }
+        : null,
       staticStability,
       centerOfPressureMinusCenterOfMassM:
         centerOfPressureXM - staticStability.centerOfMassXM,
@@ -442,9 +469,12 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       centerOfMassXM: result.staticStability.centerOfMassXM,
       staticMarginCalibers: result.staticMarginCalibers,
       coefficientBasis: result.coefficientEvaluation
-        ? result.coefficientEvaluation.evaluatedAngleOfAttackRad === null
-          ? "mach-reynolds-table"
-          : "mach-reynolds-angle-table"
+        ? result.coefficientEvaluation.forceCoefficientBody !== null ||
+          result.coefficientEvaluation.momentCoefficientBody !== null
+          ? "mach-reynolds-force-moment-table"
+          : result.coefficientEvaluation.evaluatedAngleOfAttackRad === null
+            ? "mach-reynolds-table"
+            : "mach-reynolds-angle-table"
         : "constant",
       reynoldsNumber: result.reynoldsNumber ?? undefined,
       dampingDerivativeBody:
@@ -457,6 +487,9 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
               z: regime.referenceLengthM ?? result.staticStability.vehicleLengthM,
             }
           : undefined,
+      forceCoefficientBody: result.forceCoefficientBody ?? undefined,
+      momentCoefficientBody: result.momentCoefficientBody ?? undefined,
+      momentReferenceLengthBodyM: result.momentReferenceLengthBodyM ?? undefined,
       coefficientUncertainty:
         result.coefficientEvaluation?.uncertainty,
       coefficientProvenance:

@@ -4,6 +4,8 @@ export const AERODYNAMIC_COEFFICIENT_TABLE_MODEL_VERSION =
   "kestrel-aero-coefficient-table-0.1.0";
 export const AERODYNAMIC_ANGLE_TABLE_MODEL_VERSION =
   "rocketworks-aero-angle-table-0.1.0";
+export const AERODYNAMIC_FORCE_MOMENT_TABLE_MODEL_VERSION =
+  "rocketworks-aero-force-moment-table-0.1.0";
 
 export type AerodynamicDataProvenance = Readonly<{
   sourceName: string;
@@ -61,6 +63,18 @@ export type AerodynamicCoefficientTableDefinition = Readonly<{
     pitch: CoefficientVolume;
     yaw: CoefficientVolume;
   }>;
+  /** Direct body-axis force resultants, ordered axial (+x), normal (+y), side (+z). */
+  forceCoefficientBodyByAngle?: Readonly<{
+    axial: CoefficientVolume;
+    normal: CoefficientVolume;
+    side: CoefficientVolume;
+  }>;
+  /** Direct body-axis static moment coefficients, ordered roll (+x), pitch (+y), yaw (+z). */
+  momentCoefficientBodyByAngle?: Readonly<{
+    roll: CoefficientVolume;
+    pitch: CoefficientVolume;
+    yaw: CoefficientVolume;
+  }>;
   outOfRangePolicy?: "reject" | "clamp-with-warning";
   provenance: AerodynamicDataProvenance;
 }>;
@@ -75,6 +89,7 @@ export type AerodynamicCoefficientApplicabilityIssue = Readonly<{
     | "ANGLE_OF_ATTACK_ABOVE_TABLE"
     | "SIDESLIP_BELOW_TABLE"
     | "SIDESLIP_ABOVE_TABLE"
+    | "FORCE_MOMENT_DATABASE_PRESENT"
     | "COEFFICIENT_UNCERTAINTY_PRESENT";
   severity: "info" | "caution" | "unsupported";
   explanation: string;
@@ -84,6 +99,8 @@ export type AerodynamicCoefficientUncertainty = Readonly<{
   dragCoefficient: number;
   normalForceSlopePerRad: number;
   centerOfPressureXM: number;
+  forceCoefficientBody: Vector3 | null;
+  momentCoefficientBody: Vector3 | null;
   dampingDerivativeBody: Vector3 | null;
 }>;
 
@@ -101,6 +118,8 @@ export type AerodynamicCoefficientEvaluation = Readonly<{
   dragCoefficient: number;
   normalForceSlopePerRad: number;
   centerOfPressureXM: number;
+  forceCoefficientBody: Vector3 | null;
+  momentCoefficientBody: Vector3 | null;
   dampingDerivativeBody: Vector3 | null;
   uncertainty: AerodynamicCoefficientUncertainty;
   applicability: readonly AerodynamicCoefficientApplicabilityIssue[];
@@ -116,6 +135,7 @@ export type AerodynamicCoefficientTableModel = Readonly<{
   reynoldsRange: readonly [number, number];
   angleOfAttackRangeRad: readonly [number, number] | null;
   sideslipRangeRad: readonly [number, number] | null;
+  forceMomentDatabaseAvailable: boolean;
   provenance: AerodynamicDataProvenance;
   evaluate: (input: Readonly<{
     mach: number;
@@ -457,6 +477,12 @@ export function createAerodynamicCoefficientTable(
     definition.dampingDerivativeBodyByAngle?.roll,
     definition.dampingDerivativeBodyByAngle?.pitch,
     definition.dampingDerivativeBodyByAngle?.yaw,
+    definition.forceCoefficientBodyByAngle?.axial,
+    definition.forceCoefficientBodyByAngle?.normal,
+    definition.forceCoefficientBodyByAngle?.side,
+    definition.momentCoefficientBodyByAngle?.roll,
+    definition.momentCoefficientBodyByAngle?.pitch,
+    definition.momentCoefficientBodyByAngle?.yaw,
   ].some((surface) => surface !== undefined);
   const hasAngularAxes =
     definition.angleOfAttackPointsRad !== undefined ||
@@ -494,6 +520,12 @@ export function createAerodynamicCoefficientTable(
     validateAngular(definition.dampingDerivativeBodyByAngle?.roll, "angular roll damping derivative", () => true);
     validateAngular(definition.dampingDerivativeBodyByAngle?.pitch, "angular pitch damping derivative", () => true);
     validateAngular(definition.dampingDerivativeBodyByAngle?.yaw, "angular yaw damping derivative", () => true);
+    validateAngular(definition.forceCoefficientBodyByAngle?.axial, "angular axial force coefficient", () => true);
+    validateAngular(definition.forceCoefficientBodyByAngle?.normal, "angular normal force coefficient", () => true);
+    validateAngular(definition.forceCoefficientBodyByAngle?.side, "angular side force coefficient", () => true);
+    validateAngular(definition.momentCoefficientBodyByAngle?.roll, "angular roll moment coefficient", () => true);
+    validateAngular(definition.momentCoefficientBodyByAngle?.pitch, "angular pitch moment coefficient", () => true);
+    validateAngular(definition.momentCoefficientBodyByAngle?.yaw, "angular yaw moment coefficient", () => true);
   }
   if (definition.dampingDerivativeBodyByAngle && !definition.dampingDerivativeBody) {
     throw new Error(
@@ -527,9 +559,14 @@ export function createAerodynamicCoefficientTable(
   if (!["reject", "clamp-with-warning"].includes(outOfRangePolicy)) {
     throw new Error("aerodynamic table out-of-range policy is invalid");
   }
-  const modelVersion = hasAngularCoefficientVolume
-    ? AERODYNAMIC_ANGLE_TABLE_MODEL_VERSION
-    : AERODYNAMIC_COEFFICIENT_TABLE_MODEL_VERSION;
+  const hasForceMomentDatabase =
+    definition.forceCoefficientBodyByAngle !== undefined ||
+    definition.momentCoefficientBodyByAngle !== undefined;
+  const modelVersion = hasForceMomentDatabase
+    ? AERODYNAMIC_FORCE_MOMENT_TABLE_MODEL_VERSION
+    : hasAngularCoefficientVolume
+      ? AERODYNAMIC_ANGLE_TABLE_MODEL_VERSION
+      : AERODYNAMIC_COEFFICIENT_TABLE_MODEL_VERSION;
 
   const evaluate = (input: Readonly<{
     mach: number;
@@ -639,6 +676,70 @@ export function createAerodynamicCoefficientTable(
         : surface.absoluteUncertainty
           ? interpolateGrid(surface.absoluteUncertainty, mach, reynolds)
           : 0;
+    const forceCoefficientBody = definition.forceCoefficientBodyByAngle
+      ? {
+          x: value(
+            definition.dragCoefficient,
+            definition.forceCoefficientBodyByAngle.axial,
+          ),
+          y: value(
+            definition.normalForceSlopePerRad,
+            definition.forceCoefficientBodyByAngle.normal,
+          ),
+          z: value(
+            definition.normalForceSlopePerRad,
+            definition.forceCoefficientBodyByAngle.side,
+          ),
+        }
+      : null;
+    const momentCoefficientBody = definition.momentCoefficientBodyByAngle
+      ? {
+          x: value(
+            definition.centerOfPressureXM,
+            definition.momentCoefficientBodyByAngle.roll,
+          ),
+          y: value(
+            definition.centerOfPressureXM,
+            definition.momentCoefficientBodyByAngle.pitch,
+          ),
+          z: value(
+            definition.centerOfPressureXM,
+            definition.momentCoefficientBodyByAngle.yaw,
+          ),
+        }
+      : null;
+    const forceCoefficientUncertainty = definition.forceCoefficientBodyByAngle
+      ? {
+          x: uncertainty(
+            definition.dragCoefficient,
+            definition.forceCoefficientBodyByAngle.axial,
+          ),
+          y: uncertainty(
+            definition.normalForceSlopePerRad,
+            definition.forceCoefficientBodyByAngle.normal,
+          ),
+          z: uncertainty(
+            definition.normalForceSlopePerRad,
+            definition.forceCoefficientBodyByAngle.side,
+          ),
+        }
+      : null;
+    const momentCoefficientUncertainty = definition.momentCoefficientBodyByAngle
+      ? {
+          x: uncertainty(
+            definition.centerOfPressureXM,
+            definition.momentCoefficientBodyByAngle.roll,
+          ),
+          y: uncertainty(
+            definition.centerOfPressureXM,
+            definition.momentCoefficientBodyByAngle.pitch,
+          ),
+          z: uncertainty(
+            definition.centerOfPressureXM,
+            definition.momentCoefficientBodyByAngle.yaw,
+          ),
+        }
+      : null;
     const dampingDerivativeBody = definition.dampingDerivativeBody
       ? {
           x: value(
@@ -684,12 +785,26 @@ export function createAerodynamicCoefficientTable(
         definition.centerOfPressureXM,
         definition.centerOfPressureXMByAngle,
       ),
+      forceCoefficientBody: forceCoefficientUncertainty,
+      momentCoefficientBody: momentCoefficientUncertainty,
       dampingDerivativeBody: dampingUncertainty,
     };
     if (
       coefficientUncertainty.dragCoefficient > 0 ||
       coefficientUncertainty.normalForceSlopePerRad > 0 ||
       coefficientUncertainty.centerOfPressureXM > 0 ||
+      (forceCoefficientUncertainty !== null &&
+        [
+          forceCoefficientUncertainty.x,
+          forceCoefficientUncertainty.y,
+          forceCoefficientUncertainty.z,
+        ].some((entry) => entry > 0)) ||
+      (momentCoefficientUncertainty !== null &&
+        [
+          momentCoefficientUncertainty.x,
+          momentCoefficientUncertainty.y,
+          momentCoefficientUncertainty.z,
+        ].some((entry) => entry > 0)) ||
       (dampingUncertainty !== null &&
         [dampingUncertainty.x, dampingUncertainty.y, dampingUncertainty.z].some(
           (entry) => entry > 0,
@@ -700,6 +815,14 @@ export function createAerodynamicCoefficientTable(
         severity: "info",
         explanation:
           "Interpolated absolute coefficient uncertainty is available for dispersion analysis.",
+      });
+    }
+    if (hasForceMomentDatabase) {
+      applicability.push({
+        code: "FORCE_MOMENT_DATABASE_PRESENT",
+        severity: "info",
+        explanation:
+          "Direct body-axis force and/or static moment coefficient volumes are available for the current angle query.",
       });
     }
     return {
@@ -725,6 +848,8 @@ export function createAerodynamicCoefficientTable(
         definition.centerOfPressureXM,
         definition.centerOfPressureXMByAngle,
       ),
+      forceCoefficientBody,
+      momentCoefficientBody,
       dampingDerivativeBody,
       uncertainty: coefficientUncertainty,
       applicability,
@@ -751,6 +876,7 @@ export function createAerodynamicCoefficientTable(
     sideslipRangeRad: hasAngularCoefficientVolume
       ? [definition.sideslipPointsRad![0], definition.sideslipPointsRad!.at(-1)!]
       : null,
+    forceMomentDatabaseAvailable: hasForceMomentDatabase,
     provenance: definition.provenance,
     evaluate,
     assumptions: [
@@ -764,6 +890,12 @@ export function createAerodynamicCoefficientTable(
         : [
             "Angle of attack and sideslip are not axes of this legacy table; the consuming low-angle model supplies its own normal-force relation",
           ]),
+      ...(hasForceMomentDatabase
+        ? [
+            "Direct force volumes provide body-axis coefficients in +x axial, +y normal, and +z side axes; direct moment volumes provide roll, pitch, and yaw coefficients",
+            "Direct moments are normalized by reference lengths supplied by the consuming stage-aware regime; damping derivatives, if present, remain a separate rate-dependent term",
+          ]
+        : []),
       "Absolute uncertainty uses the same interpolation rule as nominal coefficients",
       outOfRangePolicy === "reject"
         ? "Queries outside the tabulated domain are rejected"
@@ -777,6 +909,11 @@ export function createAerodynamicCoefficientTable(
         ? []
         : [
             "Angle-of-attack and sideslip dependence is absent from this table and remains outside its interpolated coefficient source.",
+          ]),
+      ...(hasForceMomentDatabase
+        ? []
+        : [
+            "No direct body-axis force/moment coefficient database is supplied; the consuming load model uses its drag, normal-force, CP, and damping relations.",
           ]),
     ],
   };

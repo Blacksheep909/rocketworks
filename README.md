@@ -35,7 +35,8 @@ research, standards, and original code.
 - motor and aerodynamic coefficient libraries for user-supplied,
   provenance-qualified data, including one-record RASP/ENG motor interchange and
   an accessible Mach/Reynolds coefficient-grid inspector with optional signed
-  angle-of-attack and sideslip volumes;
+  angle-of-attack and sideslip volumes plus direct body-axis force/moment
+  databases for the 6DOF load path;
 - atmosphere, launch-site, wind, turbulence, launch-rail, recovery, and
   landing-dispersion previews;
 - user-configurable recovery reefing schedules shared by the vertical preview,
@@ -160,9 +161,10 @@ tests/                Deterministic physics, UI, export, and integration checks
 Near-term work is stronger experimental/benchmark validation, a full coupled
 multi-body separation solver beyond the current impulse audit and mass-ratio
 branch, validated structural/aeroelastic benchmarks beyond the preliminary fin
-flutter screen, and more stage-aware design review. Angular coefficient volumes
-are now supported as an explicit interpolation source; nonlinear force/moment
-reconstruction and benchmarked data packages remain future work.
+flutter screen, and more stage-aware design review. Angular and direct
+force/moment coefficient volumes are now supported as explicit interpolation
+sources; benchmarked data packages, relative-body separation databases, and
+unsteady models remain future work.
 Longer-term work includes collaboration and cloud project storage plus native
 desktop/tablet packaging. Those additions
 will preserve the same provenance boundary and will never upgrade an

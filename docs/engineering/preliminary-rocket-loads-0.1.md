@@ -192,7 +192,8 @@ accuracy.
 - No aerodynamic damping derivatives
 - No Mach- or Reynolds-dependent drag coefficient
 - No transonic, supersonic, separated-flow, or reverse-flow normal-force model
-- No angle-of-attack-dependent CP movement
+- No angle-of-attack-dependent CP movement unless a direct coefficient database
+  supplies a static moment volume
 - No roll or fin-cant aerodynamics. A separate clustered propulsion adapter can
   supply fixed thrust misalignment and off-center thrust moments, but not
   gimbals, mount flexibility, or failure uncertainty
@@ -232,6 +233,7 @@ Do not use this model for flight-safety decisions.
 
 A physically coherent launch simulation needs a rail constraint that holds
 translation and attitude until release criteria are met, an event/root-finding
-controller, derived time-varying mass properties, and aerodynamic damping.
-Only after those pieces are coupled should this preliminary load layer replace
-the current one-dimensional estimate in the user interface.
+controller, derived time-varying mass properties, and stronger experimental
+validation of any direct force/moment database. The direct coefficient path is
+still a transparent engineering-preview load source and does not replace
+independent qualification or the remaining coupled separation work.

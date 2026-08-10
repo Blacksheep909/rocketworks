@@ -103,9 +103,10 @@ validation.
 
 - The underlying CP method remains low-speed, small-angle, slender-body
   preliminary analysis.
-- Constant drag coefficients or externally sourced Mach/Reynolds tables are
-supplied per topology; RocketWorks does not independently predict viscous, base,
-  wave, or interference drag.
+- Constant drag coefficients or externally sourced Mach/Reynolds/angular
+  tables are supplied per topology; an optional direct force/moment volume can
+  drive the 6DOF body loads, but RocketWorks does not independently predict
+  viscous, base, wave, or interference drag.
 - Coefficients switch instantaneously and do not describe the moving separated
   bodies.
 - Proximity aerodynamics, plume impingement, shock interaction, wake effects,
@@ -137,7 +138,8 @@ supplied per topology; RocketWorks does not independently predict viscous, base,
 
 ## Next work
 
-Mach/Reynolds tables, interpolation provenance, uncertainty fields, and diagonal
-body-rate damping are now available. Next add angle-of-attack and sideslip axes,
-covariance metadata, and a multi-body separation solver that queries relative-
-body aerodynamic databases rather than using this single retained-body warning.
+Mach/Reynolds tables, interpolation provenance, uncertainty fields, diagonal
+body-rate damping, angular volumes, and optional direct force/moment databases
+are now available. Next add covariance metadata and a multi-body separation
+solver that queries relative-body aerodynamic databases rather than using this
+single retained-body warning.

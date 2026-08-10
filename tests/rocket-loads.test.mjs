@@ -146,6 +146,36 @@ test("crossflow produces opposing normal force and an aft restoring moment", () 
   );
 });
 
+test("direct body-axis force and moment coefficients drive the 6DOF load result", () => {
+  const model = createPreliminaryRocketLoadModel({
+    body,
+    thrustAtTimeS: () => 0,
+    aerodynamicsAt: () => ({
+      referenceAreaM2: 0.01,
+      dragCoefficient: 0.5,
+      normalForceSlopePerRad: 2,
+      centerOfPressureMinusCenterOfMassM: 0.2,
+      coefficientBasis: "mach-reynolds-force-moment-table",
+      forceCoefficientBody: { x: 1, y: -0.2, z: 0.1 },
+      momentCoefficientBody: { x: 0.01, y: -0.02, z: 0.03 },
+      momentReferenceLengthBodyM: { x: 0.1, y: 1, z: 1 },
+    }),
+  });
+  const evaluation = model.evaluate(
+    state({ velocityWorldMps: { x: -50, y: 5, z: 0 } }),
+  );
+  const qS = evaluation.diagnostics.dynamicPressurePa * 0.01;
+  close(evaluation.loads.forceBodyN.x, qS, 1e-10, "direct axial force");
+  close(evaluation.loads.forceBodyN.y, -0.2 * qS, 1e-10, "direct normal force");
+  close(evaluation.loads.forceBodyN.z, 0.1 * qS, 1e-10, "direct side force");
+  close(evaluation.loads.momentBodyNm.x, 0.01 * qS * 0.1, 1e-12, "direct roll moment");
+  close(evaluation.loads.momentBodyNm.y, -0.02 * qS, 1e-12, "direct pitch moment");
+  close(evaluation.loads.momentBodyNm.z, 0.03 * qS, 1e-12, "direct yaw moment");
+  assert.equal(evaluation.diagnostics.directForceApplied, true);
+  assert.equal(evaluation.diagnostics.directMomentApplied, true);
+  assert.equal(evaluation.diagnostics.coefficientBasis, "mach-reynolds-force-moment-table");
+});
+
 test("wind is subtracted from vehicle velocity in the ENU frame", () => {
   const evaluation = loadModel({
     windProfile: [

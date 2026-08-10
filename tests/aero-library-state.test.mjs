@@ -59,6 +59,16 @@ test("aerodynamic library preserves optional angle and sideslip volumes", () => 
     dragCoefficientByAngle: angularVolume(0.5),
     normalForceSlopePerRadByAngle: angularVolume(4),
     centerOfPressureXMByAngle: angularVolume(0.4),
+    forceCoefficientBodyByAngle: {
+      axial: angularVolume(0.8),
+      normal: angularVolume(-0.1),
+      side: angularVolume(0.05),
+    },
+    momentCoefficientBodyByAngle: {
+      roll: angularVolume(0.01),
+      pitch: angularVolume(-0.02),
+      yaw: angularVolume(0.03),
+    },
   });
   const parsed = parseLocalAerodynamicLibrary(
     serializeLocalAerodynamicLibrary([angular]),

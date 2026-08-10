@@ -24,6 +24,7 @@ import {
   ZERO_VECTOR,
   addVectors,
   cross,
+  dot,
   magnitude,
   scaleVector,
   subtractVectors,
@@ -54,6 +55,7 @@ export type RocketLoadApplicabilityCode =
   | "AERODYNAMIC_TABLE_MACH_RANGE"
   | "AERODYNAMIC_TABLE_REYNOLDS_RANGE"
   | "AERODYNAMIC_TABLE_ANGLE_RANGE"
+  | "AERODYNAMIC_FORCE_MOMENT_DATABASE"
   | "COEFFICIENT_UNCERTAINTY_PRESENT";
 
 export type RocketLoadApplicabilityIssue = Readonly<{
@@ -78,10 +80,14 @@ export type PreliminaryAerodynamicState = Readonly<{
   coefficientBasis?:
     | "constant"
     | "mach-reynolds-table"
-    | "mach-reynolds-angle-table";
+    | "mach-reynolds-angle-table"
+    | "mach-reynolds-force-moment-table";
   reynoldsNumber?: number;
   dampingDerivativeBody?: Vector3;
   dampingReferenceLengthBodyM?: Vector3;
+  forceCoefficientBody?: Vector3;
+  momentCoefficientBody?: Vector3;
+  momentReferenceLengthBodyM?: Vector3;
   coefficientUncertainty?: AerodynamicCoefficientUncertainty;
   coefficientProvenance?: AerodynamicDataProvenance;
   applicability?: readonly RocketLoadApplicabilityIssue[];
@@ -161,10 +167,19 @@ export type PreliminaryRocketLoadDiagnostics = Readonly<{
   centerOfPressureXM: number | null;
   centerOfMassXM: number | null;
   staticMarginCalibers: number | null;
-  coefficientBasis: "constant" | "mach-reynolds-table" | "mach-reynolds-angle-table" | null;
+  coefficientBasis:
+    | "constant"
+    | "mach-reynolds-table"
+    | "mach-reynolds-angle-table"
+    | "mach-reynolds-force-moment-table"
+    | null;
   reynoldsNumber: number | null;
   dampingDerivativeBody: Vector3 | null;
   dampingReferenceLengthBodyM: Vector3 | null;
+  directForceCoefficientBody: Vector3 | null;
+  directMomentCoefficientBody: Vector3 | null;
+  directForceApplied: boolean;
+  directMomentApplied: boolean;
   coefficientUncertainty: AerodynamicCoefficientUncertainty | null;
   coefficientProvenance: AerodynamicDataProvenance | null;
   applicability: readonly RocketLoadApplicabilityIssue[];
@@ -375,6 +390,7 @@ export function createPreliminaryRocketLoadModel(
     const applicability: RocketLoadApplicabilityIssue[] = [
       ...(aerodynamics.applicability ?? []),
     ];
+    const hasDirectForceCoefficients = aerodynamics.forceCoefficientBody !== undefined;
     if ((aerodynamics.coefficientBasis ?? "constant") === "constant") {
       applicability.push({
         code: "FIXED_DRAG_COEFFICIENT",
@@ -398,7 +414,7 @@ export function createPreliminaryRocketLoadModel(
           "The low-angle normal-force relation is disabled when flow is not nose-first.",
       });
     }
-    if (angleOfAttackRad > maximumNormalForceAngleRad) {
+    if (!hasDirectForceCoefficients && angleOfAttackRad > maximumNormalForceAngleRad) {
       applicability.push({
         code: "ANGLE_OF_ATTACK_LIMIT",
         severity: "unsupported",
@@ -406,7 +422,7 @@ export function createPreliminaryRocketLoadModel(
           "Angle of attack exceeds the configured small-angle limit; normal force is bounded at that limit.",
       });
     }
-    if (mach > maximumNormalForceMach) {
+    if (!hasDirectForceCoefficients && mach > maximumNormalForceMach) {
       applicability.push({
         code: "MACH_LIMIT",
         severity: "unsupported",
@@ -415,48 +431,142 @@ export function createPreliminaryRocketLoadModel(
       });
     }
 
-    const dragN =
-      dynamicPressurePa *
-      aerodynamics.dragCoefficient *
-      aerodynamics.referenceAreaM2;
-    const dragBodyN =
-      airspeedMps > 1e-12
-        ? scaleVector(airRelativeVelocityBodyMps, -dragN / airspeedMps)
-        : ZERO_VECTOR;
-    const normalForceApplied =
+    const directForceCoefficientBody = aerodynamics.forceCoefficientBody;
+    const directMomentCoefficientBody = aerodynamics.momentCoefficientBody;
+    if (
+      directForceCoefficientBody &&
+      ![
+        directForceCoefficientBody.x,
+        directForceCoefficientBody.y,
+        directForceCoefficientBody.z,
+      ].every(Number.isFinite)
+    ) {
+      throw new Error("direct aerodynamic force coefficients must be finite");
+    }
+    if (
+      directMomentCoefficientBody &&
+      ![
+        directMomentCoefficientBody.x,
+        directMomentCoefficientBody.y,
+        directMomentCoefficientBody.z,
+      ].every(Number.isFinite)
+    ) {
+      throw new Error("direct aerodynamic moment coefficients must be finite");
+    }
+    const momentReferenceLengthBodyM = aerodynamics.momentReferenceLengthBodyM;
+    if (directMomentCoefficientBody && !momentReferenceLengthBodyM) {
+      throw new Error(
+        "direct aerodynamic moment coefficients require reference lengths",
+      );
+    }
+    if (
+      momentReferenceLengthBodyM &&
+      ![
+        momentReferenceLengthBodyM.x,
+        momentReferenceLengthBodyM.y,
+        momentReferenceLengthBodyM.z,
+      ].every((value) => Number.isFinite(value) && value > 0)
+    ) {
+      throw new Error(
+        "direct aerodynamic moment reference lengths must be positive and finite",
+      );
+    }
+    const directForceApplied =
+      directForceCoefficientBody !== undefined &&
       airspeedMps >= minimumNormalForceAirspeedMps &&
-      forwardAirspeedBodyMps > 0 &&
-      mach <= maximumNormalForceMach;
-    const boundedAngleRad = Math.min(
-      angleOfAttackRad,
-      maximumNormalForceAngleRad,
-    );
-    const normalForceN = normalForceApplied
-      ? dynamicPressurePa *
-        aerodynamics.referenceAreaM2 *
-        aerodynamics.normalForceSlopePerRad *
-        boundedAngleRad
-      : 0;
-    const normalBodyN =
-      normalForceN > 0 && transverseAirspeedMps > 1e-12
-        ? {
-            x: 0,
-            y:
-              (-normalForceN * airRelativeVelocityBodyMps.y) /
-              transverseAirspeedMps,
-            z:
-              (-normalForceN * airRelativeVelocityBodyMps.z) /
-              transverseAirspeedMps,
-          }
-        : ZERO_VECTOR;
-    const aerodynamicMomentBodyNm = cross(
-      {
-        x: aerodynamics.centerOfPressureMinusCenterOfMassM,
-        y: 0,
-        z: 0,
-      },
-      normalBodyN,
-    );
+      forwardAirspeedBodyMps > 0;
+    const directMomentApplied =
+      directMomentCoefficientBody !== undefined &&
+      airspeedMps >= minimumNormalForceAirspeedMps &&
+      forwardAirspeedBodyMps > 0;
+    let dragN: number;
+    let dragBodyN: Vector3;
+    let normalForceApplied: boolean;
+    let normalForceN: number;
+    let normalBodyN: Vector3;
+    let aerodynamicForceBodyN: Vector3;
+    if (directForceApplied) {
+      const directForceBodyN = scaleVector(
+        directForceCoefficientBody!,
+        dynamicPressurePa * aerodynamics.referenceAreaM2,
+      );
+      const airRelativeUnitBody = scaleVector(
+        airRelativeVelocityBodyMps,
+        1 / airspeedMps,
+      );
+      const axialForceN = dot(directForceBodyN, airRelativeUnitBody);
+      dragN = Math.max(0, -axialForceN);
+      dragBodyN = scaleVector(airRelativeUnitBody, -dragN);
+      normalBodyN = subtractVectors(
+        directForceBodyN,
+        scaleVector(airRelativeUnitBody, axialForceN),
+      );
+      normalForceN = magnitude(normalBodyN);
+      normalForceApplied = true;
+      aerodynamicForceBodyN = directForceBodyN;
+    } else {
+      dragN =
+        dynamicPressurePa *
+        aerodynamics.dragCoefficient *
+        aerodynamics.referenceAreaM2;
+      dragBodyN =
+        airspeedMps > 1e-12
+          ? scaleVector(airRelativeVelocityBodyMps, -dragN / airspeedMps)
+          : ZERO_VECTOR;
+      normalForceApplied =
+        airspeedMps >= minimumNormalForceAirspeedMps &&
+        forwardAirspeedBodyMps > 0 &&
+        mach <= maximumNormalForceMach;
+      const boundedAngleRad = Math.min(
+        angleOfAttackRad,
+        maximumNormalForceAngleRad,
+      );
+      normalForceN = normalForceApplied
+        ? dynamicPressurePa *
+          aerodynamics.referenceAreaM2 *
+          aerodynamics.normalForceSlopePerRad *
+          boundedAngleRad
+        : 0;
+      normalBodyN =
+        normalForceN > 0 && transverseAirspeedMps > 1e-12
+          ? {
+              x: 0,
+              y:
+                (-normalForceN * airRelativeVelocityBodyMps.y) /
+                transverseAirspeedMps,
+              z:
+                (-normalForceN * airRelativeVelocityBodyMps.z) /
+                transverseAirspeedMps,
+            }
+          : ZERO_VECTOR;
+      aerodynamicForceBodyN = addVectors(dragBodyN, normalBodyN);
+    }
+    const aerodynamicMomentBodyNm = directMomentApplied
+      ? {
+          x:
+            dynamicPressurePa *
+            aerodynamics.referenceAreaM2 *
+            directMomentCoefficientBody!.x *
+            momentReferenceLengthBodyM!.x,
+          y:
+            dynamicPressurePa *
+            aerodynamics.referenceAreaM2 *
+            directMomentCoefficientBody!.y *
+            momentReferenceLengthBodyM!.y,
+          z:
+            dynamicPressurePa *
+            aerodynamics.referenceAreaM2 *
+            directMomentCoefficientBody!.z *
+            momentReferenceLengthBodyM!.z,
+        }
+      : cross(
+          {
+            x: aerodynamics.centerOfPressureMinusCenterOfMassM,
+            y: 0,
+            z: 0,
+          },
+          normalBodyN,
+        );
     const hasDampingDerivatives =
       aerodynamics.dampingDerivativeBody !== undefined;
     const hasDampingLengths =
@@ -561,7 +671,7 @@ export function createPreliminaryRocketLoadModel(
         forceWorldN: { x: 0, y: 0, z: -gravityN },
         forceBodyN: addVectors(
           propulsion.netThrustForceBodyN,
-          addVectors(dragBodyN, normalBodyN),
+          aerodynamicForceBodyN,
         ),
         momentBodyNm: addVectors(
           addVectors(aerodynamicMomentBodyNm, aerodynamicDampingMomentBodyNm),
@@ -612,6 +722,10 @@ export function createPreliminaryRocketLoadModel(
         dampingDerivativeBody: aerodynamics.dampingDerivativeBody ?? null,
         dampingReferenceLengthBodyM:
           aerodynamics.dampingReferenceLengthBodyM ?? null,
+        directForceCoefficientBody: directForceCoefficientBody ?? null,
+        directMomentCoefficientBody: directMomentCoefficientBody ?? null,
+        directForceApplied,
+        directMomentApplied,
         coefficientUncertainty: aerodynamics.coefficientUncertainty ?? null,
         coefficientProvenance: aerodynamics.coefficientProvenance ?? null,
         applicability,
