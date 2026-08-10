@@ -4285,6 +4285,7 @@ export default function Home() {
       const nextRecords = upsertLocalMotorRecord(userMotorRecords, record);
       persistMotorRecords(nextRecords);
       setSelectedMotorId(record.id);
+      window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, record.id);
       setMotorError("");
       notify(`${record.manufacturer} ${record.designation} imported; rerun the estimate`);
     } catch (error) {
@@ -4470,6 +4471,7 @@ export default function Home() {
       persistAerodynamicTables([...imported.aerodynamicLibrary]);
       setSelectedMotorId(imported.selectedMotorId);
       setSelectedAerodynamicTableId(imported.selectedAerodynamicTableId);
+      window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, imported.selectedMotorId);
       window.localStorage.setItem(
         LOCAL_AERODYNAMIC_SELECTION_STORAGE_KEY,
         imported.selectedAerodynamicTableId,
@@ -6703,7 +6705,7 @@ export default function Home() {
               <div>
                 <span className="eyebrow">Device timeline</span>
                 <h2 id="history-title">Local project history</h2>
-                <p id="history-description">Autosave records validated inputs and vehicle topology in this browser. Restore any checkpoint without deleting newer entries.</p>
+                <p id="history-description">Autosave records validated inputs, vehicle topology, and source selections in this browser. Restore any checkpoint without deleting newer entries.</p>
               </div>
               <button
                 ref={historyCloseRef}
