@@ -83,6 +83,9 @@ test("structural screen matches the closed-form shell and Euler proxies", () => 
     totalMassKg: 1.2,
     peakThrustN: 25,
     maxDynamicPressurePa: 4_000,
+    maxAirspeedMps: 100,
+    flutterAtmosphere: standardAtmosphere(0),
+    flutterSafetyFactor: 1.25,
     staticMarginCalibers: 1.4,
     material,
   });
@@ -100,6 +103,8 @@ test("structural screen matches the closed-form shell and Euler proxies", () => 
   assert.equal(result.checks.axialStress.status, "pass");
   assert.equal(result.checks.eulerBuckling.status, "pass");
   assert.equal(result.checks.finBending.status, "pass");
+  assert.equal(result.checks.finFlutter.status, "pass");
+  assert.ok(result.finFlutter?.safeAirspeedMps !== null);
   assert.equal(result.overallStatus, "pass");
   assert.match(result.warnings[0], /not structural certification/);
 });

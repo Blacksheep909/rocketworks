@@ -444,7 +444,9 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(page, /createRocketProfileDxf/);
   assert.match(page, /createRocketOpenScad/);
   assert.match(page, /computeStructuralScreen/);
+  assert.match(page, /flutterFlightCondition/);
   assert.match(page, /STRUCTURAL SCREEN/);
+  assert.match(page, /Flutter-safe speed/);
   assert.match(page, /Analytical component checks only/);
   assert.match(page, /URL\.createObjectURL/);
   assert.match(page, /Run the vertical estimate again before exporting simulation results/);

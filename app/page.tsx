@@ -408,6 +408,7 @@ const materialModels: Record<
     densityKgM3: 850,
     wallThicknessM: 0.0012,
     youngsModulusPa: 3.0e9,
+    poissonRatio: 0.30,
     allowableCompressionPa: 20e6,
     allowableBendingPa: 20e6,
     allowableShearPa: 8e6,
@@ -417,6 +418,7 @@ const materialModels: Record<
     densityKgM3: 1850,
     wallThicknessM: 0.001,
     youngsModulusPa: 20e9,
+    poissonRatio: 0.30,
     allowableCompressionPa: 80e6,
     allowableBendingPa: 80e6,
     allowableShearPa: 35e6,
@@ -426,6 +428,7 @@ const materialModels: Record<
     densityKgM3: 1550,
     wallThicknessM: 0.0008,
     youngsModulusPa: 45e9,
+    poissonRatio: 0.27,
     allowableCompressionPa: 180e6,
     allowableBendingPa: 180e6,
     allowableShearPa: 70e6,
@@ -3332,6 +3335,21 @@ export default function Home() {
     (component): component is Extract<VehicleComponent, { kind: "finSet" }> =>
       component.kind === "finSet" && component.id === "fins",
   ) ?? null;
+  const flutterFlightCondition = useMemo(() => {
+    if (!resultIsCurrent || result.maxSpeedMps <= 0 || result.trace.length === 0) {
+      return { maxAirspeedMps: null, atmosphere: null };
+    }
+    const maxSpeedPoint = result.trace.reduce((peak, point) =>
+      Math.abs(point.velocityMps) > Math.abs(peak.velocityMps) ? point : peak,
+    );
+    return {
+      maxAirspeedMps: result.maxSpeedMps,
+      atmosphere: previewEnvironment.at({
+        timeS: maxSpeedPoint.timeS,
+        positionWorldM: { x: 0, y: 0, z: maxSpeedPoint.altitudeAglM },
+      }).atmosphere,
+    };
+  }, [previewEnvironment, result, resultIsCurrent]);
   const structuralScreen = useMemo<StructuralScreenResult | null>(() => {
     if (!structuralBody) return null;
     return computeStructuralScreen({
@@ -3340,11 +3358,14 @@ export default function Home() {
       totalMassKg: mass,
       peakThrustN: previewMotor.metrics.peakThrustN,
       maxDynamicPressurePa: result.maxDynamicPressurePa,
+      maxAirspeedMps: flutterFlightCondition.maxAirspeedMps,
+      flutterAtmosphere: flutterFlightCondition.atmosphere,
+      flutterSafetyFactor: 1.25,
       staticMarginCalibers: staticStability.staticMarginCalibers,
       material: materialModels[material],
       flightResultCurrent: resultIsCurrent,
     });
-  }, [mass, material, previewMotor, result.maxDynamicPressurePa, resultIsCurrent, staticStability.staticMarginCalibers, structuralBody, structuralFins]);
+  }, [flutterFlightCondition, mass, material, previewMotor, result.maxDynamicPressurePa, resultIsCurrent, staticStability.staticMarginCalibers, structuralBody, structuralFins]);
 
   const selectedComponent = components.find((component) => component.id === selected)!;
   const componentDetails: Readonly<Record<ComponentKey, string>> = {
@@ -5776,6 +5797,7 @@ export default function Home() {
                   <div><span>Axial demand</span><strong>{structuralScreen.loads.axialCompressionN.toFixed(1)} N</strong></div>
                   <div><span>Euler reserve</span><strong>{structuralScreen.checks.eulerBuckling.factorOfSafety === null ? "—" : `${structuralScreen.checks.eulerBuckling.factorOfSafety.toFixed(1)}×`}</strong></div>
                   <div><span>Fin-root reserve</span><strong>{structuralScreen.checks.finBending.factorOfSafety === null ? "—" : `${structuralScreen.checks.finBending.factorOfSafety.toFixed(1)}×`}</strong></div>
+                  <div><span>Flutter-safe speed</span><strong>{structuralScreen.finFlutter?.safeAirspeedMps === null || structuralScreen.finFlutter?.safeAirspeedMps === undefined ? "—" : `${structuralScreen.finFlutter.safeAirspeedMps.toFixed(1)} m/s`}</strong></div>
                   <div><span>Static margin</span><strong>{staticStability.staticMarginCalibers.toFixed(2)} cal</strong></div>
                 </div>
                 <div className="structural-screen-checks">
@@ -5786,7 +5808,7 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
-                <p className="structural-screen-note">Analytical component checks only. Representative material allowables, joints, local buckling, flutter, vibration, and manufacturing effects are not modeled{resultIsCurrent ? "." : "; rerun the flight estimate before using dynamic-pressure trends."}</p>
+                <p className="structural-screen-note">Analytical component checks only. The NACA-TN-4197-style fin flutter screen is preliminary; body-fin coupling, transonic effects, joints, local buckling, vibration, and manufacturing effects are not modeled{resultIsCurrent ? "." : "; rerun the flight estimate before using dynamic-pressure and flutter trends."}</p>
               </div>
             )}
             {experienceMode === "expert" ? (

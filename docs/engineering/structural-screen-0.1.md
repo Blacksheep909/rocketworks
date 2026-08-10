@@ -69,6 +69,10 @@ screen assumptions so a future project can replace them with reviewed data.
 
 The default review target is a factor of safety of `1.5`. A `pass` means only
 that the simplified demand/capacity ratio clears that threshold. `review`
-includes ratios below target and any unavailable fin or stability check. The
-overall status must never be promoted to flight-safe or manufacturing-approved
-without independent analysis, test evidence, and operational review.
+includes ratios below target and any unavailable fin or stability check. When
+a current maximum airspeed and local atmosphere are available, the structural
+screen also includes the optional [preliminary fin flutter
+screen](fin-flutter-0.1.md). Its default `1.25` speed margin and Mach 0.8
+review guard are separate from the structural `1.5` target. The overall status
+must never be promoted to flight-safe or manufacturing-approved without
+independent analysis, test evidence, and operational review.

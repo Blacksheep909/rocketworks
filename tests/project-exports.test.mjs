@@ -497,6 +497,7 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /## Recovery landing footprint/);
   assert.match(report, /## Preliminary structural screen/);
   assert.match(report, /Euler column buckling/);
+  assert.match(report, /Fin flutter margin/);
   assert.match(report, /## Uncertainty analysis/);
   assert.match(report, /## Coupled 6DOF uncertainty/);
   assert.match(report, /kestrel-stage-flight-uncertainty-0.3.0/);

@@ -2,6 +2,11 @@ import type {
   AxisymmetricComponent,
   FinSetComponent,
 } from "./vehicle-components.ts";
+import type { AtmosphereState } from "./atmosphere.ts";
+import {
+  computeFinFlutterScreen,
+  type FinFlutterResult,
+} from "./fin-flutter.ts";
 
 export const STRUCTURAL_SCREEN_MODEL_VERSION = "kestrel-structural-screen-0.1.0";
 export const STRUCTURAL_SCREEN_VALIDATION_STATUS =
@@ -12,6 +17,7 @@ export type StructuralCheckStatus = "pass" | "review" | "unavailable";
 export type StructuralMaterialModel = Readonly<{
   label: string;
   youngsModulusPa: number;
+  poissonRatio?: number;
   allowableCompressionPa: number;
   allowableBendingPa: number;
   allowableShearPa: number;
@@ -34,6 +40,9 @@ export type StructuralScreenInput = Readonly<{
   totalMassKg: number;
   peakThrustN: number;
   maxDynamicPressurePa?: number | null;
+  maxAirspeedMps?: number | null;
+  flutterAtmosphere?: Pick<AtmosphereState, "pressurePa" | "speedOfSoundMps"> | null;
+  flutterSafetyFactor?: number;
   staticMarginCalibers?: number | null;
   material: StructuralMaterialModel;
   flightResultCurrent?: boolean;
@@ -65,11 +74,13 @@ export type StructuralScreenResult = Readonly<{
     designNormalForceCoefficient: number;
     requiredFactorOfSafety: number;
   }>;
+  finFlutter: FinFlutterResult | null;
   checks: Readonly<{
     axialStress: StructuralCheck;
     eulerBuckling: StructuralCheck;
     finBending: StructuralCheck;
     finShear: StructuralCheck;
+    finFlutter: StructuralCheck;
     staticMargin: StructuralCheck;
   }>;
   assumptions: readonly string[];
@@ -259,6 +270,14 @@ export function computeStructuralScreen(
     assertFinite(dynamicPressurePa, "maximum dynamic pressure");
     if (dynamicPressurePa < 0) throw new Error("maximum dynamic pressure cannot be negative");
   }
+  const maxAirspeedMps =
+    input.maxAirspeedMps === null || input.maxAirspeedMps === undefined
+      ? null
+      : input.maxAirspeedMps;
+  if (maxAirspeedMps !== null) {
+    assertFinite(maxAirspeedMps, "maximum airspeed");
+    if (maxAirspeedMps < 0) throw new Error("maximum airspeed cannot be negative");
+  }
 
   const finPlanformAreaM2 = input.fins
     ? 0.5 * (input.fins.rootChordM + input.fins.tipChordM) * input.fins.spanM
@@ -275,10 +294,12 @@ export function computeStructuralScreen(
   }
   let finBending: StructuralCheck;
   let finShear: StructuralCheck;
+  let finFlutter: StructuralCheck;
+  let finFlutterResult: FinFlutterResult | null = null;
   const warnings: string[] = [
     "This is an analytical component screen, not structural certification or flight-safety evidence.",
     "Airframe buckling uses the weakest modeled circular shell section, pinned end conditions, and the selected material's representative allowables.",
-    "Fin loads use an equal-load, uniform-span proxy at the supplied peak dynamic pressure; attachment, adhesive, flutter, skin, vibration, and manufacturing effects are omitted.",
+    "Fin loads use an equal-load, uniform-span proxy at the supplied peak dynamic pressure; attachment, adhesive, body-fin coupling, skin, vibration, and manufacturing effects are omitted.",
   ];
 
   if (!input.fins) {
@@ -292,6 +313,12 @@ export function computeStructuralScreen(
       "fin-shear",
       "Fin-root shear",
       "Pa",
+      "No fin-set component is available for this configuration.",
+    );
+    finFlutter = unavailableCheck(
+      "fin-flutter",
+      "Fin flutter margin",
+      "m/s",
       "No fin-set component is available for this configuration.",
     );
     warnings.push("Fin-root checks are unavailable until a fin-set component is supplied.");
@@ -308,6 +335,23 @@ export function computeStructuralScreen(
       "Pa",
       "Run the vertical estimate to provide a positive peak dynamic pressure.",
     );
+    finFlutterResult = computeFinFlutterScreen({
+      fins: input.fins,
+      material: input.material,
+      maxAirspeedMps,
+      atmosphere: input.flutterAtmosphere,
+      safetyFactor: input.flutterSafetyFactor,
+    });
+    finFlutter = {
+      id: "fin-flutter",
+      label: "Fin flutter margin",
+      status: finFlutterResult.status,
+      demand: finFlutterResult.conditions.maxAirspeedMps,
+      capacity: finFlutterResult.predictedFlutterSpeedMps,
+      factorOfSafety: finFlutterResult.factorOfSafety,
+      unit: "m/s",
+      detail: finFlutterResult.warnings[0] ?? "Preliminary flutter screen.",
+    };
     warnings.push("Fin-root checks are unavailable because no positive peak dynamic pressure is loaded.");
   } else {
     const forcePerFinN =
@@ -340,6 +384,27 @@ export function computeStructuralScreen(
     if (input.flightResultCurrent === false) {
       warnings.push("Peak dynamic pressure comes from a stale flight result; rerun the estimate before relying on fin-load trends.");
     }
+    finFlutterResult = computeFinFlutterScreen({
+      fins: input.fins,
+      material: input.material,
+      maxAirspeedMps,
+      atmosphere: input.flutterAtmosphere,
+      safetyFactor: input.flutterSafetyFactor,
+    });
+    finFlutter = {
+      id: "fin-flutter",
+      label: "Fin flutter margin",
+      status: finFlutterResult.status,
+      demand: finFlutterResult.conditions.maxAirspeedMps,
+      capacity: finFlutterResult.predictedFlutterSpeedMps,
+      factorOfSafety: finFlutterResult.factorOfSafety,
+      unit: "m/s",
+      detail: finFlutterResult.warnings[0] ?? "Preliminary flutter screen.",
+    };
+  }
+
+  if (finFlutterResult) {
+    warnings.push(...finFlutterResult.warnings.map((warning) => `Fin flutter: ${warning}`));
   }
 
   const staticMargin =
@@ -363,7 +428,13 @@ export function computeStructuralScreen(
     warnings.push("Static margin is below the 1.0-calibre review threshold in the low-speed model.");
   }
 
-  const requiredChecks = [axialStress, eulerBuckling, finBending, finShear];
+  const requiredChecks = [
+    axialStress,
+    eulerBuckling,
+    finBending,
+    finShear,
+    ...(maxAirspeedMps !== null ? [finFlutter] : []),
+  ];
   const overallStatus: StructuralCheckStatus =
     requiredChecks.some((check) => check.status === "unavailable")
       ? "review"
@@ -396,12 +467,14 @@ export function computeStructuralScreen(
       designNormalForceCoefficient,
       requiredFactorOfSafety,
     },
-    checks: { axialStress, eulerBuckling, finBending, finShear, staticMargin },
+    finFlutter: finFlutterResult,
+    checks: { axialStress, eulerBuckling, finBending, finShear, finFlutter, staticMargin },
     assumptions: [
       "Axial compression demand is peak thrust plus full-vehicle weight, with no thrust eccentricity or transient amplification.",
       `Euler buckling uses effective length factor K=${effectiveLengthFactor.toFixed(2)} and the weakest station section.`,
       `Fin loads use a representative normal-force coefficient of ${designNormalForceCoefficient.toFixed(2)} and equal sharing across the fin count.`,
       `A factor of safety of ${requiredFactorOfSafety.toFixed(2)} is the screen review target, not a project requirement or material certification value.`,
+      ...(finFlutterResult?.assumptions ?? []),
     ],
     warnings,
   };

@@ -179,8 +179,9 @@ not-manufacturing-approved warning, then records:
   shifts, and threshold-rate diagnostics when an uncertainty result is supplied
 - optional recovery landing footprint, ascent handoff proxy, uncertainty seed,
   and deployment success/failure interval
-- optional preliminary structural screen with axial, Euler, fin-root, and
-  static-margin checks, model status, assumptions, and warnings
+- optional preliminary structural screen with axial, Euler, fin-root,
+  static-margin, and conditionally available fin-flutter checks, model status,
+  assumptions, and warnings
 - simulation freshness status for vertical and coupled traces (`current`,
   `stale`, or `not-run`) in project JSON; trace and report exports require a
   current matching run

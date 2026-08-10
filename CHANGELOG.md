@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a preliminary, independent fin-flutter screen to the structural review.
+  The browser and engineering reports now show the NACA-TN-4197-style
+  thin-plate flutter speed, safety margin, local atmosphere, and explicit
+  unavailable/review states; body-fin coupling, transonic effects, damping,
+  joints, and qualification evidence remain out of scope.
 - Added an independent recovery opening-load screen to the coupled stage-flight
   view. It reports trace coverage, peak dynamic pressure, quasi-steady `q Cd A`
   drag, trapezoidal inflation impulse, and a force-rate proxy while explicitly
