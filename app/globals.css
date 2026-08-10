@@ -713,6 +713,12 @@ kbd {
 .flight-data-import-button input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
 .flight-data-actions .flight-data-clear { border-color: rgba(117,153,180,.28); background: rgba(117,153,180,.06); color: #9aabb4; }
 .flight-data-error { margin-top: 10px; padding: 9px 10px; border: 1px solid rgba(255,112,67,.4); border-radius: 3px; background: rgba(255,112,67,.08); color: #ffc0ab; font: 8px/1.45 var(--font-geist-mono), monospace; }
+.flight-data-persistence { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 5px 8px; border: 1px solid rgba(47,159,255,.24); border-radius: 3px; background: rgba(47,159,255,.06); color: #8fc8e8; font: 7px var(--font-geist-mono), monospace; letter-spacing: .06em; text-transform: uppercase; }
+.flight-data-persistence::before { width: 5px; height: 5px; border-radius: 50%; background: #2f9fff; content: ""; }
+.flight-data-persistence-restored { border-color: rgba(105,198,157,.3); background: rgba(105,198,157,.07); color: #9edbbd; }
+.flight-data-persistence-restored::before { background: #69c69d; }
+.flight-data-persistence-session-only { border-color: rgba(244,163,64,.34); background: rgba(244,163,64,.07); color: #efbf7b; }
+.flight-data-persistence-session-only::before { background: #f4a340; }
 .flight-data-empty { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 11px; padding: 11px 12px; border: 1px dashed rgba(47,159,255,.28); border-radius: 3px; background: rgba(47,159,255,.035); }
 .flight-data-empty strong { color: #c4e4d5; font-size: 9px; }
 .flight-data-empty span { color: #7d929e; font: 7px/1.45 var(--font-geist-mono), monospace; text-align: right; }

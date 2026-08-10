@@ -152,6 +152,12 @@ import {
   upsertLocalAerodynamicTable,
 } from "../lib/project/aero-library-state.ts";
 import {
+  LOCAL_FLIGHT_DATA_STORAGE_KEY,
+  createLocalFlightDataSnapshot,
+  parseLocalFlightDataSnapshot,
+  serializeLocalFlightDataSnapshot,
+} from "../lib/project/flight-data-state.ts";
+import {
   decodeProjectShare,
   encodeProjectShare,
   PROJECT_SHARE_HASH_PREFIX,
@@ -166,6 +172,7 @@ type ComponentKey = "nose" | "body" | "fins" | "mount" | "recovery";
 type ViewKey = "design" | "flight";
 type DesignViewKey = "2d" | "3d";
 type MaterialKey = "kraft" | "fiberglass" | "carbon";
+type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
 type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "sweep-csv" | "uncertainty-csv" | "report" | "dxf" | "openscad";
 type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
@@ -2260,6 +2267,7 @@ function FlightDataComparisonCard({
   series,
   comparison,
   error,
+  persistenceState,
   resultIsCurrent,
   traceSource,
   coupledTraceAvailable,
@@ -2273,6 +2281,7 @@ function FlightDataComparisonCard({
   series: FlightDataSeries | null;
   comparison: FlightDataComparisonResult | null;
   error: string;
+  persistenceState: FlightDataPersistenceState;
   resultIsCurrent: boolean;
   traceSource: FlightDataTraceSource;
   coupledTraceAvailable: boolean;
@@ -2289,7 +2298,7 @@ function FlightDataComparisonCard({
         <div>
           <span className="eyebrow">Measured-data check</span>
           <h4 id="flight-data-title">Compare an instrumented flight</h4>
-          <p>Load a simple SI CSV log to inspect model residuals against measured altitude, velocity, or acceleration. Choose the vertical or coupled 6DOF trace; the file stays in this browser session.</p>
+          <p>Load a simple SI CSV log to inspect model residuals against measured altitude, velocity, or acceleration. Choose the vertical or coupled 6DOF trace; a validated log is kept locally in this browser.</p>
         </div>
         <div className="flight-data-actions">
           <label className="flight-data-import-button">
@@ -2301,6 +2310,15 @@ function FlightDataComparisonCard({
         </div>
       </div>
       {error && <div className="flight-data-error" role="alert">{error}</div>}
+      {series && persistenceState !== "none" && (
+        <div className={`flight-data-persistence flight-data-persistence-${persistenceState}`} role="status">
+          {persistenceState === "restored"
+            ? "Restored from this browser"
+            : persistenceState === "saved"
+              ? "Saved locally in this browser"
+              : "Session-only · local browser storage is unavailable"}
+        </div>
+      )}
       {!series && !error && (
         <div className="flight-data-empty">
           <strong>Bring your own telemetry</strong>
@@ -3279,6 +3297,7 @@ export default function Home() {
   const [comparisonReferenceFingerprint, setComparisonReferenceFingerprint] = useState<string | null>(null);
   const [flightDataSeries, setFlightDataSeries] = useState<FlightDataSeries | null>(null);
   const [flightDataError, setFlightDataError] = useState("");
+  const [flightDataPersistenceState, setFlightDataPersistenceState] = useState<FlightDataPersistenceState>("none");
   const [flightDataTimeOffsetS, setFlightDataTimeOffsetS] = useState(0);
   const [flightDataTraceSource, setFlightDataTraceSource] = useState<FlightDataTraceSource>("vertical-1d");
   const [stageFlightResult, setStageFlightResult] =
@@ -3518,6 +3537,18 @@ export default function Home() {
         if (serialized) setUserMotorRecords(parseLocalMotorLibrary(serialized));
       } catch {
         problems.push("the local motor library");
+      }
+      try {
+        const serialized = window.localStorage.getItem(LOCAL_FLIGHT_DATA_STORAGE_KEY);
+        if (serialized) {
+          const snapshot = parseLocalFlightDataSnapshot(serialized);
+          const restoredSeries = parseFlightDataCsv(snapshot.csv, snapshot.sourceName);
+          setFlightDataSeries(restoredSeries);
+          setFlightDataPersistenceState("restored");
+          setFlightDataError("");
+        }
+      } catch {
+        problems.push("the measured flight data");
       }
       try {
         const serialized = window.localStorage.getItem(LOCAL_AERODYNAMIC_LIBRARY_STORAGE_KEY);
@@ -3868,19 +3899,35 @@ export default function Home() {
     event.currentTarget.value = "";
     if (!file) return;
     try {
-      const series = parseFlightDataCsv(await file.text(), file.name);
+      const csv = await file.text();
+      const series = parseFlightDataCsv(csv, file.name);
+      let persistenceState: FlightDataPersistenceState = "saved";
+      try {
+        const snapshot = createLocalFlightDataSnapshot({ sourceName: file.name, csv });
+        window.localStorage.setItem(LOCAL_FLIGHT_DATA_STORAGE_KEY, serializeLocalFlightDataSnapshot(snapshot));
+      } catch {
+        persistenceState = "session-only";
+      }
       setFlightDataSeries(series);
       setFlightDataError("");
-      notify(`Loaded ${series.samples.length} measured samples`);
+      setFlightDataPersistenceState(persistenceState);
+      notify(persistenceState === "saved"
+        ? `Loaded ${series.samples.length} measured samples · saved locally`
+        : `Loaded ${series.samples.length} measured samples for this session`);
     } catch (error) {
-      setFlightDataSeries(null);
       setFlightDataError(error instanceof Error ? error.message : "Unable to import flight data CSV.");
     }
   };
   const clearFlightData = () => {
     setFlightDataSeries(null);
     setFlightDataError("");
+    setFlightDataPersistenceState("none");
     setFlightDataTimeOffsetS(0);
+    try {
+      window.localStorage.removeItem(LOCAL_FLIGHT_DATA_STORAGE_KEY);
+    } catch {
+      setFlightDataError("Measured flight data cleared for this session, but the browser could not update local storage.");
+    }
     notify("Measured flight data cleared");
   };
   const exportFlightDataComparison = () => {
@@ -5511,6 +5558,7 @@ export default function Home() {
               series={flightDataSeries}
               comparison={flightDataComparisonState.comparison}
               error={flightDataError || flightDataComparisonState.error}
+              persistenceState={flightDataPersistenceState}
               resultIsCurrent={resultIsCurrent}
               traceSource={flightDataTraceSource}
               coupledTraceAvailable={stageFlightResult !== null && stageFlightIsCurrent}

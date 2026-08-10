@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Validated measured-flight CSV imports now persist the raw log and source name
+  in a bounded, versioned browser-local record. Restored logs are labeled in
+  the Flight workspace; malformed or oversized records are ignored, and a
+  replacement parse failure no longer erases the previous valid log.
 - Added optional positive measured mass-flow histories to standalone and
   multi-stage motor inputs. Histories are validated, linearly interpolated,
   integrated into live propellant mass and inertia rate, surfaced with a

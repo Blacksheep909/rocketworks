@@ -47,15 +47,19 @@ acceleration channel with centered finite differences (forward/backward at the
 endpoints). That acceleration is diagnostic, not a new sensor or 6DOF
 truth-model. Coordinate-frame transformations, barometric altitude bias, GNSS
 filtering, event-time synchronization, and covariance-weighted residuals remain
-future work. Imported logs stay in in-memory browser state and are not written
-to local project snapshots or share links. A residual CSV export contains only
-the matched rows plus model/version/source metadata, including the selected
+future work. After a successful strict parse, the raw CSV and source filename
+are stored under the versioned `kestrel.project.arc54.flight-data.v1` browser
+key. This is device-local convenience storage, not a project snapshot, cloud
+record, or share-link payload; malformed, oversized, or unsupported stored
+records are ignored without being rewritten. A residual CSV export contains
+only the matched rows plus model/version/source metadata, including the selected
 trace source, so the comparison can be reviewed or attached to an engineering
-note without changing the project state.
+note without changing the project inputs.
 
 ## Verification
 
 Regression tests cover comment/header parsing, supported metric aliases,
 strictly increasing timestamps, linear interpolation, residual sign, time
 offsets, coverage warnings, coupled event-timestamp normalization, diagnostic
-finite-difference acceleration, and malformed or metric-free logs.
+finite-difference acceleration, malformed or metric-free logs, and the local
+snapshot schema/size guardrails.

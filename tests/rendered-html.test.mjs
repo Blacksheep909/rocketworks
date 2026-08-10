@@ -217,6 +217,9 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(source, /Measured time offset/);
   assert.match(source, /Simulation time = measured time \+ offset/);
   assert.match(source, /Export residuals/);
+  assert.match(source, /LOCAL_FLIGHT_DATA_STORAGE_KEY/);
+  assert.match(source, /parseLocalFlightDataSnapshot/);
+  assert.match(source, /Restored from this browser/);
   assert.match(source, /PhysicsBenchmarkCard/);
   assert.match(source, /runPhysicsBenchmarkSuite/);
   assert.match(source, /Deterministic physics benchmarks/);
@@ -239,6 +242,7 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(stylesheet, /\.flight-data-table/);
   assert.match(stylesheet, /\.flight-data-controls/);
   assert.match(stylesheet, /\.flight-data-controls select/);
+  assert.match(stylesheet, /\.flight-data-persistence/);
   assert.match(stylesheet, /\.benchmark-card/);
   assert.match(stylesheet, /\.benchmark-table/);
   assert.match(stylesheet, /rgba\(47,159,255/);

@@ -91,8 +91,8 @@ research, standards, and original code.
   metric deltas after a design or environment change;
 - measured-flight CSV comparison with strict SI parsing, vertical or coupled
   6DOF trace selection, interpolation-based residuals, event-timestamp
-  normalization, deterministic residual CSV export, and explicit validation
-  boundaries;
+  normalization, deterministic residual CSV export, browser-local persistence,
+  and explicit validation boundaries;
 - on-demand deterministic physics benchmarks for atmosphere, gravity,
   thrust-curve impulse, and static-aerodynamics regression fixtures;
 - validated project import, device-local autosave/history, templates,
