@@ -4648,6 +4648,8 @@ export default function Home() {
         content = createEngineeringReportMarkdown({
           projectName: "ARC 54",
           generatedAtIso,
+          selectedMotorId,
+          selectedAerodynamicTableId,
           vehicle: {
              lengthM: (length + noseLength) / 1000,
             diameterM: diameter / 1000,

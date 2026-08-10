@@ -15,6 +15,8 @@ flight-readiness claims.
   IDs. Browser startup restores those selections when the local libraries have
   the records, while missing records fall back explicitly to synthetic motor or
   constant drag and remain visible as a source warning.
+- Engineering Markdown reports now include the selected motor and aerodynamic
+  source IDs alongside their existing provenance and depletion-source fields.
 - Added validated per-stage body length, diameter, and nose-length overrides
   to the browser topology editor. Generated stage geometry, serial placement,
   envelope checks, fin scaling, mass properties, and aerodynamic reference area

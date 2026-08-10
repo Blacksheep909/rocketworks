@@ -76,6 +76,9 @@ export type RocketCadGeometry = Readonly<{
 export type EngineeringReportInput = Readonly<{
   projectName: string;
   generatedAtIso: string;
+  /** Stable local source identifiers, when the report was generated from a browser project. */
+  selectedMotorId?: string;
+  selectedAerodynamicTableId?: string;
   vehicle: Readonly<{
     lengthM: number;
     diameterM: number;
@@ -826,6 +829,12 @@ export function createEngineeringReportMarkdown(
 ): string {
   if (!input.projectName.trim()) throw new Error("report project name cannot be empty");
   assertIsoDate(input.generatedAtIso, "report timestamp");
+  for (const [label, value] of [
+    ["selected motor source ID", input.selectedMotorId],
+    ["selected aerodynamic source ID", input.selectedAerodynamicTableId],
+  ] as const) {
+    if (value !== undefined && !value.trim()) throw new Error(`${label} cannot be empty`);
+  }
   if (input.environment.windAzimuthDeg !== undefined) {
     assertFinite(input.environment.windAzimuthDeg, "report wind azimuth");
     if (input.environment.windAzimuthDeg < -180 || input.environment.windAzimuthDeg > 180) {
@@ -867,6 +876,8 @@ export function createEngineeringReportMarkdown(
     "",
     "## Motor data",
     "",
+    ...(input.selectedMotorId === undefined ? [] : [`- Selected motor source ID: \`${markdownText(input.selectedMotorId)}\``]),
+    ...(input.selectedAerodynamicTableId === undefined ? [] : [`- Selected aerodynamic source ID: \`${markdownText(input.selectedAerodynamicTableId)}\``]),
     `- Designation: ${markdownText(input.motor.designation)}`,
     `- Total impulse: ${formatNumber(input.motor.totalImpulseNs, 2)} N·s`,
     `- Peak thrust: ${formatNumber(input.motor.peakThrustN, 2)} N`,

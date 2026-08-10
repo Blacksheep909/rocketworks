@@ -345,6 +345,8 @@ test("engineering report leads with status and preserves calculations and limita
   const report = createEngineeringReportMarkdown({
     projectName: "ARC 54",
     generatedAtIso: "2026-08-01T00:00:00.000Z",
+    selectedMotorId: "synthetic",
+    selectedAerodynamicTableId: "constant",
     vehicle: {
       lengthM: 0.89,
       diameterM: 0.054,
@@ -522,6 +524,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Opening schedule: 25% to 100% over 2\.0 s/);
   assert.match(report, /Propellant depletion source: measured mass-flow history/);
   assert.match(report, /Integrated measured outflow: 0\.0200 kg/);
+  assert.match(report, /Selected motor source ID: `synthetic`/);
+  assert.match(report, /Selected aerodynamic source ID: `constant`/);
   assert.ok(report.indexOf("Not flight-safe or manufacturing-approved") < report.indexOf("## Vehicle summary"));
   assert.match(report, /\| Static margin \| 2\.93 calibres \|/);
   assert.match(report, /## Recovery landing footprint/);
