@@ -37,7 +37,8 @@ research, standards, and original code.
   an accessible Mach/Reynolds coefficient-grid inspector with optional signed
   angle-of-attack and sideslip volumes plus direct body-axis force/moment
   databases for the 6DOF load path; optional positive measured mass-flow
-  histories can now drive live motor depletion and inertia-rate telemetry;
+  histories can now drive live motor depletion and inertia-rate telemetry, with
+  a strict optional CSV field in the browser motor library;
 - atmosphere, launch-site, wind, turbulence, launch-rail, recovery, and
   landing-dispersion previews;
 - seeded coupled-flight uncertainty runs can independently vary direct

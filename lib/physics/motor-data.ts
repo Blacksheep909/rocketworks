@@ -83,6 +83,8 @@ export type RaspEngImportMetadata = Readonly<{
   /** Stable local identifier chosen by the importing project. */
   id: string;
   description?: string;
+  /** Optional positive measured propellant outflow rate relative to ignition. */
+  massFlowHistoryKgS?: readonly MassFlowPoint[];
   provenance: MotorDataProvenance;
 }>;
 
@@ -354,6 +356,34 @@ export function importMotorThrustCsv(
   return createMotorDataRecord({ ...metadata, thrustCurve });
 }
 
+/** Parse an optional measured propellant outflow history without coupling it to thrust. */
+export function parseMotorMassFlowCsv(csv: string): readonly MassFlowPoint[] {
+  if (new TextEncoder().encode(csv).byteLength > MAX_CSV_BYTES) {
+    throw new Error("motor mass-flow CSV exceeds the 2 MB import limit");
+  }
+  const rows = csv
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .map((line, index) => ({ line: line.trim(), lineNumber: index + 1 }))
+    .filter((row) => row.line && !row.line.startsWith("#") && !row.line.startsWith(";"));
+  if (rows.length < 3) throw new Error("motor mass-flow CSV requires a header and at least two data rows");
+  const header = rows.shift()!;
+  if (header.line.toLowerCase().replace(/\s/g, "") !== "time_s,mass_flow_kg_s") {
+    throw new Error(`motor mass-flow CSV line ${header.lineNumber} must be the header time_s,mass_flow_kg_s`);
+  }
+  if (rows.length > MAX_CURVE_POINTS) throw new Error(`motor mass-flow histories may contain at most ${MAX_CURVE_POINTS} points`);
+  const history = rows.map((row): MassFlowPoint => {
+    if (row.line.includes('"')) throw new Error(`motor mass-flow CSV line ${row.lineNumber} must not contain quoted fields`);
+    const fields = row.line.split(",").map((field) => field.trim());
+    if (fields.length !== 2 || !fields.every((field) => NUMBER_PATTERN.test(field))) {
+      throw new Error(`motor mass-flow CSV line ${row.lineNumber} must contain exactly two decimal numbers`);
+    }
+    return { timeS: Number(fields[0]), massFlowKgS: Number(fields[1]) };
+  });
+  validateMassFlowHistory(history);
+  return history;
+}
+
 function raspRows(text: string): Array<{ line: string; lineNumber: number }> {
   if (new TextEncoder().encode(text).byteLength > MAX_CSV_BYTES) {
     throw new Error("RASP motor file exceeds the 2 MB import limit");
@@ -449,6 +479,9 @@ export function importMotorRaspEng(
     launchMassKg: parsed.header.launchMassG / 1000,
     dryMassKg: (parsed.header.launchMassG - parsed.header.propellantMassG) / 1000,
     thrustCurve: parsed.thrustCurve,
+    ...(metadata.massFlowHistoryKgS
+      ? { massFlowHistoryKgS: metadata.massFlowHistoryKgS }
+      : {}),
     ejectionDelaysS: parsed.header.ejectionDelaysS,
     provenance: metadata.provenance,
   });

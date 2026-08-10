@@ -13,6 +13,7 @@ import {
   importMotorThrustCsv,
   motorRecordToImpulseBasedMotor,
   motorRecordToMultiStageMotor,
+  parseMotorMassFlowCsv,
 } from "../lib/physics/index.ts";
 
 const provenance = {
@@ -112,6 +113,17 @@ test("strict CSV import accepts comments and round-trips curve values", () => {
   );
   assert.equal(record.metrics.totalImpulseNs, 20);
   assert.equal(exportMotorThrustCsv(record), "time_s,thrust_n\n0,0\n1,20\n2,0");
+});
+
+test("measured mass-flow CSV parses independently from thrust", () => {
+  const history = parseMotorMassFlowCsv(
+    "# sensor export\ntime_s, mass_flow_kg_s\n0,0\n0.5,1.2e-2\n1,0\n",
+  );
+  assert.deepEqual(history, [
+    { timeS: 0, massFlowKgS: 0 },
+    { timeS: 0.5, massFlowKgS: 0.012 },
+    { timeS: 1, massFlowKgS: 0 },
+  ]);
 });
 
 test("RASP/ENG import derives SI metadata and round-trips a local record", () => {
@@ -230,6 +242,8 @@ test("invalid metadata, curves, CSV, masses, and geometry fail explicitly", () =
   assert.throws(() => importMotorThrustCsv("time,thrust\n0,0\n1,0", metadata), /header/);
   assert.throws(() => importMotorThrustCsv("time_s,thrust_n\n0,0\n\"1\",2\n2,0", metadata), /quoted fields/);
   assert.throws(() => importMotorThrustCsv("time_s,thrust_n\n0,0\n1,comma\n2,0", metadata), /two decimal numbers/);
+  assert.throws(() => parseMotorMassFlowCsv("time_s,mass_flow_kg_s\n0,0\n1,-1\n2,0"), /non-negative/);
+  assert.throws(() => parseMotorMassFlowCsv("time_s,mass_flow_kg_s\n0,0\n1,comma\n2,0"), /two decimal numbers/);
   assert.throws(() => importMotorRaspEng("C6 18 70 0 12 10 Estes\n0 0\n1 0", { id: "bad", provenance }), /greater than positive propellant/);
   assert.throws(() => importMotorRaspEng("C6 18 70 0,3,3 12 24 Estes\n0 0\n1 0", { id: "bad", provenance }), /delays must be unique/);
   assert.throws(() => importMotorRaspEng("C6 18 70 0 12 24 Estes\n0 nope\n1 0", { id: "bad", provenance }), /decimal number/);

@@ -1416,6 +1416,7 @@ kbd {
 .motor-csv-field { margin-top: 10px; }
 .motor-csv-field small { margin-left: 4px; color: #748692; font: 8px var(--font-geist-mono),monospace; }
 .motor-csv-field textarea { min-height: 116px; padding: 9px; resize: vertical; font: 9px/1.5 var(--font-geist-mono),monospace; }
+.motor-mass-flow-field textarea { min-height: 82px; }
 .motor-import-error { margin-top: 10px; padding: 9px 10px; border: 1px solid rgba(219,128,94,.3); border-radius: 3px; background: rgba(219,128,94,.07); color: #efb09a; font-size: 9px; line-height: 1.45; }
 .motor-import-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
 .motor-import-actions span { color: var(--muted); font: 8px var(--font-geist-mono),monospace; }

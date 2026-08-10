@@ -45,6 +45,10 @@ approximation for general measured thrust curves. When a measured mass-flow
 history is supplied, the model instead integrates its positive outflow rate
 directly and keeps thrust as an independent curve.
 
+The browser motor-library importer accepts this history as an optional strict
+CSV with header `time_s,mass_flow_kg_s`. Values are positive propellant outflow
+in kg/s and remain explicitly user-supplied, unvalidated evidence.
+
 The model uses uniform depletion: the normalized spatial mass distribution and
 center remain fixed while its central inertia tensor scales with remaining mass:
 

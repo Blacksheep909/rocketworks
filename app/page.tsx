@@ -40,6 +40,7 @@ import {
   exportMotorThrustCsv,
   importMotorRaspEng,
   importMotorThrustCsv,
+  parseMotorMassFlowCsv,
   combineMassProperties,
   determinant,
   transformMassProperties,
@@ -303,6 +304,7 @@ type MotorImportDraft = {
   attribution: string;
   sourceUrl: string;
   csv: string;
+  massFlowCsv: string;
 };
 
 const defaultMotorImportDraft: MotorImportDraft = {
@@ -320,6 +322,7 @@ const defaultMotorImportDraft: MotorImportDraft = {
   attribution: "Provided by the project owner",
   sourceUrl: "",
   csv: "time_s,thrust_n\n0,0\n0.10,18\n0.80,18\n1.00,0",
+  massFlowCsv: "",
 };
 
 type AerodynamicTableImportDraft = {
@@ -4069,6 +4072,10 @@ export default function Home() {
         sourceUrl: draft.sourceUrl.trim() || undefined,
         validationStatus: "user-supplied-unvalidated" as const,
       };
+      const massFlowHistoryKgS = draft.massFlowCsv.trim()
+        ? parseMotorMassFlowCsv(draft.massFlowCsv)
+        : undefined;
+      const measuredMassFlow = massFlowHistoryKgS ? { massFlowHistoryKgS } : {};
       const firstContentLine = draft.csv
         .replace(/^\uFEFF/, "")
         .split(/\r?\n/)
@@ -4084,11 +4091,13 @@ export default function Home() {
             lengthM: Number(draft.lengthMm) / 1000,
             launchMassKg: Number(draft.launchMassKg),
             dryMassKg: Number(draft.dryMassKg),
+            ...measuredMassFlow,
             provenance,
           })
         : importMotorRaspEng(draft.csv, {
             id: draft.id.trim(),
             description: draft.description.trim() || undefined,
+            ...measuredMassFlow,
             provenance,
           });
       const nextRecords = upsertLocalMotorRecord(userMotorRecords, record);
@@ -6289,6 +6298,7 @@ export default function Home() {
               </div>
               <label className="motor-description-field">Description (optional)<input value={motorImportDraft.description} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, description: event.target.value }))} /></label>
               <label className="motor-csv-field">Thrust curve CSV or RASP .eng <small>CSV Required header: time_s,thrust_n · RASP header: designation diameter_mm length_mm delays propellant_g total_g manufacturer · SI thrust rows</small><textarea value={motorImportDraft.csv} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, csv: event.target.value }))} spellCheck={false} /></label>
+              <label className="motor-csv-field motor-mass-flow-field">Measured mass-flow CSV (optional) <small>Header: time_s,mass_flow_kg_s · positive propellant outflow in kg/s · independent from thrust</small><textarea value={motorImportDraft.massFlowCsv} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, massFlowCsv: event.target.value }))} spellCheck={false} placeholder="time_s,mass_flow_kg_s\n0,0\n0.50,0.12\n1.00,0" /></label>
               {motorError && <p className="motor-import-error" role="alert">{motorError}</p>}
               <div className="motor-import-actions"><button className="primary-button" onClick={importUserMotor}>Validate and save motor</button><span>Strict parser · max 2 MB · user-supplied-unvalidated</span></div>
             </div>
