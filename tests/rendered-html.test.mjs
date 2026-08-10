@@ -46,6 +46,9 @@ test("ships an installable browser shell without claiming offline simulation", a
   assert.match(layout, /rocketworks-mark\.svg/);
   assert.match(layout, /PwaRegistration/);
   assert.match(await readFile(new URL("../app/pwa-registration.tsx", import.meta.url), "utf8"), /serviceWorker\.register/);
+  assert.match(await readFile(new URL("../app/pwa-registration.tsx", import.meta.url), "utf8"), /beforeinstallprompt/);
+  assert.match(await readFile(new URL("../app/pwa-registration.tsx", import.meta.url), "utf8"), /pwa-install-card/);
+  assert.match(await readFile(new URL("../app/pwa-registration.tsx", import.meta.url), "utf8"), /appinstalled/);
   assert.match(await readFile(new URL("../public/sw.js", import.meta.url), "utf8"), /fetch\(event\.request\)/);
   assert.equal(manifest.display, "standalone");
   assert.equal(manifest.start_url, "/");

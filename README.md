@@ -104,7 +104,8 @@ research, standards, and original code.
   beginner/expert modes, keyboard command search, and compact browser design
   share links.
 - an installable standards-based browser shell with original RocketWorks artwork,
-  ready for a later desktop/tablet wrapper; offline simulation is not claimed.
+  a native browser install affordance, and an honest later desktop/tablet
+  wrapper path; offline simulation is not claimed.
 
 Every calculation surface exposes its model version, validation status,
 warnings, assumptions, and scope limits. User data retains its source,

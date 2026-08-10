@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a browser-native `Install RocketWorks` handoff card. It uses the
+  browser-owned install prompt when available, detects standalone launches, and
+  remains dismissible without implying offline simulation or native-binary
+  support.
 - Added an original ASCII STL reference-mesh export for the selected nose,
   airframe, nozzle, and repeated fin geometry. The export uses millimetres,
   deterministic triangulation, and an explicit preview-only manufacturing
