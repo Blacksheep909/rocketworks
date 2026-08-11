@@ -558,6 +558,37 @@ kbd {
 .stage-flight-metrics div { display: flex; min-height: 54px; flex-direction: column; justify-content: space-between; padding: 9px; border: 1px solid rgba(117,153,180,.18); border-radius: 3px; background: rgba(7,11,15,.48); }
 .stage-flight-metrics span { color: #718795; font-size: 8px; }
 .stage-flight-metrics strong { color: #d9ebf5; font: 700 14px var(--font-geist-mono),monospace; letter-spacing: -.04em; }
+.stage-mass-ratio-card {
+  margin-top: 12px; padding: 12px; border: 1px solid rgba(112,199,167,.28); border-radius: 3px;
+  background: linear-gradient(135deg, rgba(112,199,167,.08), rgba(12,18,24,.86) 64%);
+}
+.stage-mass-ratio-review { border-color: rgba(244,163,64,.34); background: linear-gradient(135deg, rgba(244,163,64,.09), rgba(12,18,24,.86) 64%); }
+.stage-mass-ratio-not-assessed { border-color: rgba(198,212,221,.25); background: linear-gradient(135deg, rgba(198,212,221,.06), rgba(12,18,24,.86) 64%); }
+.stage-mass-ratio-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.stage-mass-ratio-heading h4 { margin-top: 4px; color: #eaf8f2; font-size: 11px; letter-spacing: .02em; }
+.stage-mass-ratio-heading p { max-width: 720px; margin-top: 4px; color: #8fa9a0; font-size: 8px; line-height: 1.45; }
+.stage-mass-ratio-review .stage-mass-ratio-heading h4 { color: #fff0d8; }
+.stage-mass-ratio-heading .uncertainty-status { flex: 0 0 auto; color: #98d6b1; border-color: rgba(98,184,134,.38); background: rgba(98,184,134,.08); }
+.stage-mass-ratio-review .stage-mass-ratio-heading .uncertainty-status { color: #ffc477; border-color: rgba(244,163,64,.38); background: rgba(244,163,64,.08); }
+.stage-mass-ratio-not-assessed .stage-mass-ratio-heading .uncertainty-status { color: #a5b5bd; border-color: rgba(198,212,221,.3); background: rgba(198,212,221,.06); }
+.stage-mass-ratio-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1px; margin-top: 10px; overflow: hidden; border: 1px solid rgba(112,199,167,.2); border-radius: 3px; background: rgba(112,199,167,.2); }
+.stage-mass-ratio-grid div { min-width: 0; padding: 8px; background: rgba(13,18,23,.93); }
+.stage-mass-ratio-grid span { display: block; color: #81a195; font-size: 7px; }
+.stage-mass-ratio-grid strong { display: block; overflow: hidden; margin-top: 4px; color: #d9f5e7; font: 700 10px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-mass-ratio-grid small { display: block; overflow: hidden; margin-top: 3px; color: #739087; font: 7px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-mass-ratio-list { display: grid; gap: 1px; margin-top: 10px; }
+.stage-mass-ratio-row { display: grid; grid-template-columns: minmax(0,1fr) 80px 120px; gap: 8px; align-items: center; padding: 8px; border-left: 2px solid rgba(112,199,167,.55); background: rgba(112,199,167,.045); }
+.stage-mass-ratio-row > div { min-width: 0; }
+.stage-mass-ratio-row strong { display: block; overflow: hidden; color: #d7efe3; font: 700 9px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-mass-ratio-row small { display: block; overflow: hidden; margin-top: 3px; color: #7f9a90; font: 7px/1.4 var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-mass-ratio-row span { display: block; color: #81a195; font-size: 7px; }
+.stage-mass-ratio-row-review { border-left-color: rgba(244,163,64,.72); background: rgba(244,163,64,.065); }
+.stage-mass-ratio-row-review strong { color: #fff0d8; }
+.stage-mass-ratio-row-review small, .stage-mass-ratio-row-review span { color: #b89b7a; }
+.stage-mass-ratio-row-unavailable { border-left-color: rgba(198,212,221,.26); background: rgba(198,212,221,.04); }
+.stage-mass-ratio-row-unavailable strong { color: #c6d2d9; }
+.stage-mass-ratio-row-unavailable small, .stage-mass-ratio-row-unavailable span { color: #8797a0; }
+.stage-mass-ratio-note { margin: 9px 1px 0; color: #829990; font: 7px/1.5 var(--font-geist-mono),monospace; }
 .recovery-opening-load-card {
   margin-top: 12px; padding: 12px; border: 1px solid rgba(244,163,64,.28); border-radius: 3px;
   background: linear-gradient(135deg, rgba(244,163,64,.09), rgba(12,18,24,.84) 62%);
@@ -1696,6 +1727,10 @@ kbd {
   .flight-view { padding: 22px 14px 30px; }
   .stage-flight-heading { flex-direction: column; }
   .stage-flight-model-options { grid-template-columns: 1fr; }
+  .stage-mass-ratio-heading { flex-direction: column; }
+  .stage-mass-ratio-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .stage-mass-ratio-row { grid-template-columns: minmax(0,1fr) minmax(70px,auto); }
+  .stage-mass-ratio-row > div:last-child { grid-column: 2; }
   .recovery-opening-load-heading { flex-direction: column; }
   .uncertainty-sensitivity-row { grid-template-columns: minmax(88px,1.15fr) minmax(60px,1.7fr) 34px 28px; gap: 6px; }
   .stage-flight-heading .primary-button { width: 100%; }

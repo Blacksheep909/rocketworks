@@ -3,6 +3,7 @@ import type {
   StructuralScreenResult,
 } from "./structural-screen.ts";
 import type { StageStructuralReviewResult } from "./stage-structural-review.ts";
+import type { StageMassRatioResult } from "./stage-mass-ratio.ts";
 
 export const ENGINEERING_DESIGN_REVIEW_MODEL_VERSION =
   "rocketworks-engineering-design-review-0.1.0";
@@ -32,6 +33,7 @@ export type EngineeringDesignReviewInput = Readonly<{
   staticAerodynamicsModelVersion?: string | null;
   structural?: StructuralScreenResult | null;
   stageStructural?: StageStructuralReviewResult | null;
+  stageMassRatio?: StageMassRatioResult | null;
   verticalFlightCurrent?: boolean | null;
   verticalFlightModelVersion?: string | null;
   stageFlightConfigured?: boolean;
@@ -289,6 +291,45 @@ export function createEngineeringDesignReview(
         threshold: 0,
         unit: "stage rows needing review",
         modelVersion: stageStructural.modelVersion,
+      }),
+    );
+  }
+
+  if (input.stageMassRatio) {
+    const stageMassRatio = input.stageMassRatio;
+    const unassessedStageCount =
+      stageMassRatio.stages.length - stageMassRatio.assessedStageCount;
+    const status: EngineeringReviewFindingStatus =
+      stageMassRatio.overallStatus === "assessed"
+        ? "pass"
+        : stageMassRatio.overallStatus === "not-assessed"
+          ? "unavailable"
+          : "review";
+    findings.push(
+      makeFinding({
+        id: "staging-mass-ratio",
+        category: "staging",
+        label: "Stage mass-ratio diagnostic",
+        status,
+        severity: status === "pass" ? "info" : "warning",
+        summary:
+          stageMassRatio.overallStatus === "assessed"
+            ? `${stageMassRatio.assessedStageCount} stage${stageMassRatio.assessedStageCount === 1 ? "" : "s"} have positive ideal mass-ratio evidence.`
+            : stageMassRatio.overallStatus === "not-assessed"
+              ? "Stage mass-ratio evidence is not available."
+              : `${unassessedStageCount} stage row${unassessedStageCount === 1 ? "" : "s"} lack a complete ideal mass-ratio proxy.`,
+        detail:
+          "The branch uses supplied stage-only masses and thrust impulse with the ideal rocket equation; it is not a mission delta-v budget or trajectory validation.",
+        action:
+          status === "pass"
+            ? "No mass-ratio action from this analytical proxy."
+            : status === "unavailable"
+              ? "Run the coupled stage preview with positive motor impulse and propellant mass evidence."
+              : "Inspect the incomplete stage mass or impulse inputs before comparing stage-only delta-v trends.",
+        value: unassessedStageCount,
+        threshold: 0,
+        unit: "stage rows not assessed",
+        modelVersion: stageMassRatio.modelVersion,
       }),
     );
   }

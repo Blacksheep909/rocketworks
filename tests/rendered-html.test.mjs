@@ -541,9 +541,12 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(exportSource, /Multi-stage topology reference/);
   assert.match(exportSource, /radial Z offset is projected out/);
   assert.match(page, /computeStructuralScreen/);
+  assert.match(page, /stageFlightResult\.massRatio/);
+  assert.match(page, /Stage mass-ratio diagnostic/);
   assert.match(page, /createStageStructuralReview/);
   assert.match(page, /STAGE-AWARE STRUCTURAL REVIEW/);
   assert.match(exportSource, /Stage-aware structural review/);
+  assert.match(exportSource, /Stage mass-ratio diagnostic/);
   assert.match(page, /flutterFlightCondition/);
   assert.match(page, /Separation impulse audit/);
   assert.match(page, /STRUCTURAL SCREEN/);
@@ -558,6 +561,7 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(stylesheet, /\.structural-screen-card/);
   assert.match(stylesheet, /\.stage-structural-review-card/);
   assert.match(stylesheet, /\.stage-structural-review-row-review/);
+  assert.match(stylesheet, /\.stage-mass-ratio-card/);
   assert.match(stylesheet, /\.structural-check-review/);
   assert.match(stylesheet, /\.engineering-review-card/);
   assert.match(stylesheet, /\.engineering-review-finding-review/);

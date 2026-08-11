@@ -1569,6 +1569,29 @@ export function createEngineeringReportMarkdown(
           `| Apogee timing difference | ${input.stageFlight.convergence.apogeeTimeDifferenceS === null ? "not available" : `${formatNumber(input.stageFlight.convergence.apogeeTimeDifferenceS, 4)} s`} |`,
           `| Event timing difference | ${input.stageFlight.convergence.maximumEventTimeDifferenceS === null ? "not available" : `${formatNumber(input.stageFlight.convergence.maximumEventTimeDifferenceS, 4)} s`} |`,
           "",
+          ...(input.stageFlight.massRatio
+            ? [
+                "### Stage mass-ratio diagnostic",
+                "",
+                `| Overall status | ${markdownText(input.stageFlight.massRatio.overallStatus)} |`,
+                `| Stages assessed | ${input.stageFlight.massRatio.assessedStageCount} / ${input.stageFlight.massRatio.stages.length} |`,
+                `| Ideal delta-v sum | ${input.stageFlight.massRatio.totalIdealDeltaVMps === null ? "not assessed" : `${formatNumber(input.stageFlight.massRatio.totalIdealDeltaVMps, 2)} m/s`} |`,
+                `| Model | \`${markdownText(input.stageFlight.massRatio.modelVersion)}\` |`,
+                "",
+                "| Stage | Instances | Full mass | Burnout mass | Mass ratio | Effective Isp | Ideal delta-v | Status |",
+                "|---|---:|---:|---:|---:|---:|---:|---|",
+                ...input.stageFlight.massRatio.stages.map(
+                  (stage) =>
+                    `| ${markdownText(stage.stageName)} | ${stage.instanceCount} | ${formatNumber(stage.fullStageMassKg, 3)} kg | ${formatNumber(stage.burnoutStageMassKg, 3)} kg | ${stage.massRatio === null ? "not assessed" : formatNumber(stage.massRatio, 3)} | ${stage.effectiveSpecificImpulseS === null ? "not assessed" : `${formatNumber(stage.effectiveSpecificImpulseS, 2)} s`} | ${stage.idealDeltaVMps === null ? "not assessed" : `${formatNumber(stage.idealDeltaVMps, 2)} m/s`} | ${markdownText(stage.status)} |`,
+                ),
+                "",
+                ...input.stageFlight.massRatio.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+                ...input.stageFlight.massRatio.warnings.map((warning) => `- **Mass-ratio warning:** ${markdownText(warning)}`),
+                "",
+                "> The mass-ratio branch is a stage-only ideal rocket-equation proxy. It is not a mission delta-v budget, trajectory result, certification, or flight-safety assessment.",
+                "",
+              ]
+            : []),
           "### Staged event telemetry",
           "",
           "| Event | Time | Detached stages | Retained dV body (+X) | Retained dV world magnitude |",

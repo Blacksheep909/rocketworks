@@ -112,6 +112,9 @@ research, standards, and original code.
 - a stage-aware structural review that preserves independent stage rows,
   repeated-instance counts, weakest factors, and missing evidence without
   pretending to solve stage interfaces or load transfer;
+- an inspectable stage mass-ratio branch using supplied impulse and propellant
+  mass to expose stage-only ideal rocket-equation delta-v trends with explicit
+  downstream-payload and loss-model limits;
 - deterministic structural and aeroelastic benchmark anchors for thin-wall
   section area, axial stress, Euler critical load, fin-root bending, and the
   preliminary fin-flutter equation, kept separate from experimental validation;
@@ -205,8 +208,8 @@ tests/                Deterministic physics, UI, export, and integration checks
 
 Near-term work is stronger experimental/benchmark validation, a full coupled
 multi-body separation solver beyond the current point-mass gravity and impulse
-branches, event allocator,
-and mass-ratio branch, validated structural/aeroelastic benchmarks beyond the
+branches, validated stage-interface/load-transfer and mission-level mass-ratio
+loss models, and validated structural/aeroelastic benchmarks beyond the
 preliminary fin flutter screen, and a stage-interface/load-transfer solver.
 Angular and
 direct force/moment coefficient volumes are now supported as explicit

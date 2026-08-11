@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.16.0`.
+`kestrel-stage-flight-preview-0.17.0`.
 
 Before integration, scheduled and state-triggered declarations pass through the
 independent mission-event allocator. Semantic priorities put rail release,
@@ -145,6 +145,21 @@ database is selected, separate direct-force and direct-moment scales feed the
 same load diagnostics; relation fallback, damping, and centre-of-pressure
 terms remain nominal. See
 `stage-flight-uncertainty-0.1.md` for the full contract and limitations.
+
+## Stage mass-ratio diagnostic
+
+The adapter also returns `massRatio` telemetry from
+`stage-mass-ratio.ts`. Each logical propulsive stage records structural mass,
+motor dry mass, initial propellant mass, full and burnout mass, mass ratio,
+effective specific impulse, and an ideal rocket-equation delta-v proxy. The
+browser card and report keep this branch separate from the integrated trajectory
+and show its model version and validation status.
+
+This branch is intentionally stage-only: it does not add downstream payload or
+upper-stage mass, gravity/drag loss, steering, residual propellant, finite
+staging transients, or motor validation. A summed ideal delta-v is therefore a
+composition trend, not a mission budget, flight-performance claim, or safety
+decision. See `stage-mass-ratio-0.1.md` for equations and public references.
 
 ## Separated-body analytical branch
 

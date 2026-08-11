@@ -6,6 +6,7 @@ import {
   createScheduledRecoveryDeploymentEvent,
   createScheduledStageIgnitionEvent,
   createScheduledStageSeparationEvent,
+  computeStageMassRatio,
   createStageFlightVariant,
   simulateStageFlightPreview,
 } from "../lib/physics/index.ts";
@@ -148,8 +149,12 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.16.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.17.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
+  assert.equal(result.massRatio.overallStatus, "assessed");
+  assert.equal(result.massRatio.stages.length, 2);
+  assert.ok(result.massRatio.totalIdealDeltaVMps > 0);
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("Tsiolkovsky")));
   assert.equal(result.events.length, 2);
   assert.equal(result.eventAllocation.status, "watch");
   assert.equal(result.eventAllocation.sameTimeGroups.length, 1);
@@ -205,6 +210,38 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.ok(result.separatedBodies[0].warnings.some((warning) => warning.includes("equal-and-opposite")));
   assert.ok(result.separatedBodies[0].warnings.some((warning) => warning.includes("ballistic")));
   assert.deepEqual(result.clusterDiagnostics, []);
+});
+
+test("stage mass-ratio branch exposes ideal rocket-equation diagnostics", () => {
+  const result = computeStageMassRatio({ stages });
+  assert.equal(result.overallStatus, "assessed");
+  assert.equal(result.stages.length, 2);
+  assert.equal(result.stages[0].fullStageMassKg, 0.8);
+  assert.equal(result.stages[0].burnoutStageMassKg, 0.6);
+  assert.ok(Math.abs(result.stages[0].massRatio - (0.8 / 0.6)) < 1e-12);
+  assert.ok(result.stages[0].effectiveSpecificImpulseS > 0);
+  assert.ok(result.stages[0].idealDeltaVMps > 0);
+  assert.ok(result.totalIdealDeltaVMps > result.stages[0].idealDeltaVMps);
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("Tsiolkovsky")));
+});
+
+test("stage mass-ratio branch keeps missing propellant evidence unavailable", () => {
+  const result = computeStageMassRatio({
+    stages: [{
+      ...stages[0],
+      id: "dry-stage",
+      name: "Dry stage",
+      motors: [{
+        ...stages[0].motors[0],
+        id: "dry-motor",
+        initialPropellantMassProperties: properties(0, 1.3),
+      }],
+    }],
+  });
+  assert.equal(result.overallStatus, "review");
+  assert.equal(result.stages[0].status, "unavailable");
+  assert.equal(result.stages[0].massRatio, null);
+  assert.ok(result.warnings.some((warning) => warning.includes("No positive initial propellant")));
 });
 
 test("stage-flight adapter couples retained recovery loads and apogee command telemetry", () => {

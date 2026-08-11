@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a stage mass-ratio diagnostic to the coupled preview. Each logical
+  propulsive stage now exposes structural, motor-dry, propellant, full, and
+  burnout masses, mass ratio, effective specific impulse, and a stage-only
+  ideal rocket-equation delta-v proxy in the browser card and engineering
+  report. Downstream payload, gravity, drag, steering, residual, and staging
+  losses remain explicitly outside scope.
 - Added an independent stage-aware structural review aggregate. Enabled upper,
   booster, and payload rows now retain their own component-screen status,
   repeated-instance count, check totals, weakest factor-of-safety trend, and

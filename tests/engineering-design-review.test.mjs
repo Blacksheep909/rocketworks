@@ -228,3 +228,22 @@ test("engineering design review surfaces stage structural aggregate as a finding
   assert.equal(finding.status, "review");
   assert.match(finding.detail, /stage interfaces/);
 });
+
+test("engineering design review keeps incomplete mass-ratio evidence visible", () => {
+  const result = createEngineeringDesignReview({
+    stageMassRatio: {
+      modelVersion: "rocketworks-stage-mass-ratio-0.1.0",
+      validationStatus: "analytical-ideal-rocket-equation",
+      overallStatus: "review",
+      stages: [{ status: "unavailable" }],
+      assessedStageCount: 0,
+      totalIdealDeltaVMps: null,
+      assumptions: [],
+      warnings: [],
+    },
+  });
+  const finding = result.findings.find((candidate) => candidate.id === "staging-mass-ratio");
+  assert.ok(finding);
+  assert.equal(finding.status, "review");
+  assert.match(finding.action, /incomplete stage mass/);
+});

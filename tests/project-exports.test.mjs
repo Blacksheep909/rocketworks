@@ -583,6 +583,32 @@ test("engineering report leads with status and preserves calculations and limita
       maxAltitudeAglM: 298,
       maxSpeedMps: 49.4,
       timeToApogeeS: 6.1,
+      massRatio: {
+        modelVersion: "rocketworks-stage-mass-ratio-0.1.0",
+        validationStatus: "analytical-ideal-rocket-equation",
+        overallStatus: "review",
+        assessedStageCount: 1,
+        totalIdealDeltaVMps: 120,
+        stages: [{
+          stageId: "booster",
+          stageName: "Booster",
+          instanceCount: 2,
+          status: "assessed",
+          structuralMassKg: 0.5,
+          motorDryMassKg: 0.1,
+          propellantMassKg: 0.2,
+          fullStageMassKg: 0.8,
+          burnoutStageMassKg: 0.6,
+          massRatio: 1.333,
+          propellantMassFraction: 0.25,
+          totalImpulseNs: 30,
+          effectiveSpecificImpulseS: 15.3,
+          idealDeltaVMps: 120,
+          note: "Fixture stage-only proxy.",
+        }],
+        assumptions: ["Fixture mass-ratio assumption."],
+        warnings: ["Fixture mass-ratio warning."],
+      },
       eventAllocation: {
         modelVersion: "rocketworks-event-allocator-0.1.0",
         validationStatus: "analytical-event-ordering-checks-only",
@@ -731,6 +757,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /## Coupled 6DOF uncertainty/);
   assert.match(report, /kestrel-stage-flight-uncertainty-0.5.0/);
   assert.match(report, /## Coupled 6DOF preview/);
+  assert.match(report, /### Stage mass-ratio diagnostic/);
+  assert.match(report, /Fixture mass-ratio warning/);
   assert.match(report, /### Vertical integration-step convergence/);
   assert.match(report, /Heuristic status \| converged/);
   assert.match(report, /Step convergence \| watch/);

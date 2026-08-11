@@ -3766,6 +3766,9 @@ export default function Home() {
       staticAerodynamicsModelVersion: staticStability.modelVersion,
       structural: structuralScreen,
       stageStructural: stageFlightConfigured ? stageStructuralReview : null,
+      stageMassRatio: stageFlightConfigured && stageFlightIsCurrent
+        ? stageFlightResult?.massRatio ?? null
+        : null,
       verticalFlightCurrent: resultIsCurrent,
       verticalFlightModelVersion: result.modelVersion,
       stageFlightConfigured,
@@ -5928,6 +5931,36 @@ export default function Home() {
                         <div><span>Peak recovery drag</span><strong>{Math.max(0, ...stageFlightResult.trace.map((point) => point.recoveryDragN)).toFixed(1)} N</strong><small>retained vehicle load</small></div>
                       )}
                     </div>
+                    <section className={`stage-mass-ratio-card stage-mass-ratio-${stageFlightResult.massRatio.overallStatus}`} aria-labelledby="stage-mass-ratio-title">
+                      <div className="stage-mass-ratio-heading">
+                        <div>
+                          <span className="eyebrow">Staging performance</span>
+                          <h4 id="stage-mass-ratio-title">Stage mass-ratio diagnostic</h4>
+                          <p>Uses supplied stage mass properties and thrust-curve impulse for an ideal rocket-equation proxy. Downstream payload, gravity, drag, steering, residuals, and staging losses are excluded.</p>
+                        </div>
+                        <span className={`uncertainty-status uncertainty-status-${stageFlightResult.massRatio.overallStatus}`}>
+                          {stageFlightResult.massRatio.overallStatus === "assessed" ? "ASSESSED PROXY" : stageFlightResult.massRatio.overallStatus === "review" ? "REVIEW" : "NOT ASSESSED"}
+                        </span>
+                      </div>
+                      <div className="stage-mass-ratio-grid">
+                        <div><span>Stages assessed</span><strong>{stageFlightResult.massRatio.assessedStageCount} / {stageFlightResult.massRatio.stages.length}</strong><small>logical stage rows</small></div>
+                        <div><span>Ideal Δv sum</span><strong>{stageFlightResult.massRatio.totalIdealDeltaVMps === null ? "Not assessed" : `${stageFlightResult.massRatio.totalIdealDeltaVMps.toFixed(1)} m/s`}</strong><small>stage-only proxy</small></div>
+                        <div><span>Model</span><strong>{publicModelVersion(stageFlightResult.massRatio.modelVersion)}</strong><small>{stageFlightResult.massRatio.validationStatus}</small></div>
+                      </div>
+                      <div className="stage-mass-ratio-list">
+                        {stageFlightResult.massRatio.stages.map((stage) => (
+                          <div className={`stage-mass-ratio-row stage-mass-ratio-row-${stage.status}`} key={stage.stageId}>
+                            <div>
+                              <strong>{stage.stageName}</strong>
+                              <small>{stage.instanceCount} instance{stage.instanceCount === 1 ? "" : "s"} · full {stage.fullStageMassKg.toFixed(3)} kg · burnout {stage.burnoutStageMassKg.toFixed(3)} kg</small>
+                            </div>
+                            <div><span>R</span><strong>{stage.massRatio === null ? "—" : stage.massRatio.toFixed(2)}</strong></div>
+                            <div><span>Ideal Δv</span><strong>{stage.idealDeltaVMps === null ? "—" : `${stage.idealDeltaVMps.toFixed(1)} m/s`}</strong></div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="stage-mass-ratio-note">{stageFlightResult.massRatio.warnings[0] ?? "Analytical ideal-rocket-equation diagnostic only; do not interpret as flight-safe performance."}</p>
+                    </section>
                     {stageRecoveryOpeningLoad && (
                       <section className="recovery-opening-load-card" aria-labelledby="recovery-opening-load-title">
                         <div className="recovery-opening-load-heading">

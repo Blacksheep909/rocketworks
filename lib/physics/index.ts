@@ -41,4 +41,5 @@ export * from "./fin-flutter.ts";
 export * from "./benchmark-suite.ts";
 export * from "./engineering-design-review.ts";
 export * from "./stage-structural-review.ts";
+export * from "./stage-mass-ratio.ts";
 export * from "./event-allocator.ts";
