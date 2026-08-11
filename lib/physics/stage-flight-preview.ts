@@ -18,6 +18,7 @@ import {
   type RigidBodyLoads,
   type RigidBodyState,
   type ScheduledRigidBodyEvent,
+  type SixDofIntegrationOptions,
   type SixDofSimulationResult,
   type StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
@@ -91,6 +92,8 @@ export type StageFlightPreviewInput = Readonly<{
   initiallyIgnitedStageIds: readonly string[];
   durationS: number;
   timeStepS: number;
+  /** Optional six-degree-of-freedom integration method; fixed RK4 remains the default. */
+  integration?: SixDofIntegrationOptions;
   launchAltitudeM?: number;
   windProfile?: readonly WindLayer[];
   environmentAt?: LaunchEnvironmentProvider;
@@ -685,6 +688,7 @@ export function simulateStageFlightPreview(
           events: input.events,
           stateEvents: input.stateEvents,
           maximumRailSteps: input.launchRailMaximumSteps,
+          integration: input.integration,
         })
       : null;
     const simulation = rail?.freeFlight ?? (input.launchRail
@@ -698,6 +702,7 @@ export function simulateStageFlightPreview(
           events: input.events,
           stateEvents: input.stateEvents,
           scheduledTimesS,
+          integration: input.integration,
         }));
     const simulationTrace = rail?.trace ?? simulation?.trace ?? [];
     const trace = simulationTrace.map((state): StageFlightTracePoint => {

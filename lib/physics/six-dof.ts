@@ -19,7 +19,7 @@ import {
   type MissionEventKind,
 } from "./event-allocator.ts";
 
-export const SIX_DOF_MODEL_VERSION = "kestrel-rigid-body-6dof-0.3.2";
+export const SIX_DOF_MODEL_VERSION = "kestrel-rigid-body-6dof-0.4.0";
 
 export type Quaternion = Readonly<{
   w: number;
@@ -65,6 +65,47 @@ export type RigidBodyPropertyProvider = (
 ) => RigidBodyProperties;
 
 export type RigidBodyModel = RigidBodyDefinition | RigidBodyPropertyProvider;
+
+export type RigidBodyIntegrationMethod =
+  | "fixed-rk4"
+  | "adaptive-rk4-step-doubling";
+
+export type AdaptiveRigidBodyIntegrationOptions = Readonly<{
+  /** Relative tolerance used by the dimensionless step-doubling error norm. */
+  relativeTolerance?: number;
+  /** Absolute tolerance used by the dimensionless step-doubling error norm. */
+  absoluteTolerance?: number;
+  /** Smallest internal step accepted before the solver reports a tolerance failure. */
+  minimumStepS?: number;
+  /** Largest internal step. Defaults to the requested output interval. */
+  maximumStepS?: number;
+  /** Conservative multiplier applied when growing or shrinking an internal step. */
+  safetyFactor?: number;
+}>;
+
+export type SixDofIntegrationOptions = Readonly<{
+  /** Fixed RK4 remains the default for backwards-compatible previews. */
+  method?: RigidBodyIntegrationMethod;
+  adaptive?: AdaptiveRigidBodyIntegrationOptions;
+}>;
+
+export type RigidBodyAdaptiveStepResult = Readonly<{
+  state: RigidBodyState;
+  acceptedStepCount: number;
+  rejectedStepCount: number;
+  maximumNormalizedError: number;
+  minimumAcceptedStepS: number;
+  maximumAcceptedStepS: number;
+}>;
+
+export type SixDofIntegrationDiagnostics = Readonly<{
+  method: RigidBodyIntegrationMethod;
+  acceptedStepCount: number;
+  rejectedStepCount: number;
+  maximumNormalizedError: number | null;
+  minimumAcceptedStepS: number | null;
+  maximumAcceptedStepS: number | null;
+}>;
 
 export type ScheduledRigidBodyEvent = Readonly<{
   id: string;
@@ -132,6 +173,7 @@ export type SixDofSimulationInput = Readonly<{
   eventTimeToleranceS?: number;
   maximumEventIterations?: number;
   maximumSteps?: number;
+  integration?: SixDofIntegrationOptions;
 }>;
 
 export type SixDofSimulationResult = Readonly<{
@@ -139,6 +181,7 @@ export type SixDofSimulationResult = Readonly<{
   validationStatus: "mathematical-regression-tests-only";
   trace: readonly RigidBodyState[];
   finalState: RigidBodyState;
+  integration: SixDofIntegrationDiagnostics;
   events: readonly AppliedRigidBodyEvent[];
   termination: AppliedRigidBodyEvent | null;
   eventAllocation: MissionEventAllocation;
@@ -512,6 +555,203 @@ export function stepRigidBodyRk4(
   );
 }
 
+const DEFAULT_ADAPTIVE_RELATIVE_TOLERANCE = 1e-7;
+const DEFAULT_ADAPTIVE_ABSOLUTE_TOLERANCE = 1e-9;
+const DEFAULT_ADAPTIVE_MINIMUM_STEP_S = 1e-8;
+const DEFAULT_ADAPTIVE_SAFETY_FACTOR = 0.9;
+
+function validateAdaptiveOptions(
+  durationS: number,
+  options: AdaptiveRigidBodyIntegrationOptions,
+): Required<AdaptiveRigidBodyIntegrationOptions> {
+  const relativeTolerance =
+    options.relativeTolerance ?? DEFAULT_ADAPTIVE_RELATIVE_TOLERANCE;
+  const absoluteTolerance =
+    options.absoluteTolerance ?? DEFAULT_ADAPTIVE_ABSOLUTE_TOLERANCE;
+  const minimumStepS =
+    options.minimumStepS ?? Math.min(DEFAULT_ADAPTIVE_MINIMUM_STEP_S, durationS);
+  const maximumStepS = options.maximumStepS ?? durationS;
+  const safetyFactor = options.safetyFactor ?? DEFAULT_ADAPTIVE_SAFETY_FACTOR;
+  if (!Number.isFinite(relativeTolerance) || relativeTolerance <= 0) {
+    throw new Error("adaptive relative tolerance must be positive and finite");
+  }
+  if (!Number.isFinite(absoluteTolerance) || absoluteTolerance <= 0) {
+    throw new Error("adaptive absolute tolerance must be positive and finite");
+  }
+  if (!Number.isFinite(minimumStepS) || minimumStepS <= 0) {
+    throw new Error("adaptive minimum step must be positive and finite");
+  }
+  if (!Number.isFinite(maximumStepS) || maximumStepS <= 0) {
+    throw new Error("adaptive maximum step must be positive and finite");
+  }
+  if (minimumStepS > maximumStepS) {
+    throw new Error("adaptive minimum step cannot exceed maximum step");
+  }
+  if (!Number.isFinite(safetyFactor) || safetyFactor < 0.1 || safetyFactor > 1) {
+    throw new Error("adaptive safety factor must be finite and between 0.1 and 1");
+  }
+  return {
+    relativeTolerance,
+    absoluteTolerance,
+    minimumStepS,
+    maximumStepS,
+    safetyFactor,
+  };
+}
+
+function adaptiveStateErrorNorm(
+  fullStep: RigidBodyState,
+  refinedStep: RigidBodyState,
+  relativeTolerance: number,
+  absoluteTolerance: number,
+): number {
+  const fullValues = [
+    fullStep.positionWorldM.x,
+    fullStep.positionWorldM.y,
+    fullStep.positionWorldM.z,
+    fullStep.velocityWorldMps.x,
+    fullStep.velocityWorldMps.y,
+    fullStep.velocityWorldMps.z,
+    fullStep.orientationBodyToWorld.w,
+    fullStep.orientationBodyToWorld.x,
+    fullStep.orientationBodyToWorld.y,
+    fullStep.orientationBodyToWorld.z,
+    fullStep.angularVelocityBodyRadS.x,
+    fullStep.angularVelocityBodyRadS.y,
+    fullStep.angularVelocityBodyRadS.z,
+  ];
+  const refinedValues = [
+    refinedStep.positionWorldM.x,
+    refinedStep.positionWorldM.y,
+    refinedStep.positionWorldM.z,
+    refinedStep.velocityWorldMps.x,
+    refinedStep.velocityWorldMps.y,
+    refinedStep.velocityWorldMps.z,
+    refinedStep.orientationBodyToWorld.w,
+    refinedStep.orientationBodyToWorld.x,
+    refinedStep.orientationBodyToWorld.y,
+    refinedStep.orientationBodyToWorld.z,
+    refinedStep.angularVelocityBodyRadS.x,
+    refinedStep.angularVelocityBodyRadS.y,
+    refinedStep.angularVelocityBodyRadS.z,
+  ];
+  let maximumError = 0;
+  for (let index = 0; index < fullValues.length; index += 1) {
+    const fullValue = fullValues[index];
+    const refinedValue = refinedValues[index];
+    const scale =
+      absoluteTolerance +
+      relativeTolerance * Math.max(Math.abs(fullValue), Math.abs(refinedValue));
+    const error = Math.abs(refinedValue - fullValue) / 15 / scale;
+    if (!Number.isFinite(error)) {
+      throw new Error("adaptive rigid-body error estimate is non-finite");
+    }
+    maximumError = Math.max(maximumError, error);
+  }
+  return maximumError;
+}
+
+/**
+ * Advance a rigid body over one requested output interval with deterministic
+ * RK4 step-doubling. The refined half-step state is accepted when the scaled
+ * difference from one full step is inside the configured tolerance. This is a
+ * numerical truncation estimate only; it does not validate the supplied loads.
+ */
+export function stepRigidBodyAdaptive(
+  state: RigidBodyState,
+  body: RigidBodyModel,
+  durationS: number,
+  loads: (state: RigidBodyState) => RigidBodyLoads = () => ({}),
+  options: AdaptiveRigidBodyIntegrationOptions = {},
+): RigidBodyAdaptiveStepResult {
+  validateState(state);
+  rigidBodyPropertiesAt(body, state);
+  if (!Number.isFinite(durationS) || durationS <= 0) {
+    throw new Error("adaptive integration duration must be positive and finite");
+  }
+  const validated = validateAdaptiveOptions(durationS, options);
+  const maximumStepS = Math.min(validated.maximumStepS, durationS);
+  if (validated.minimumStepS > maximumStepS) {
+    throw new Error("adaptive minimum step cannot exceed the requested duration");
+  }
+  const timeTolerance = Number.EPSILON * Math.max(1, Math.abs(durationS)) * 16;
+  let current: RigidBodyState = {
+    ...state,
+    orientationBodyToWorld: normalizeQuaternion(state.orientationBodyToWorld),
+  };
+  let elapsedS = 0;
+  let stepS = maximumStepS;
+  let acceptedStepCount = 0;
+  let rejectedStepCount = 0;
+  let maximumNormalizedError = 0;
+  let minimumAcceptedStepS = Number.POSITIVE_INFINITY;
+  let maximumAcceptedStepS = 0;
+  const maximumInternalAttempts = 1_000_000;
+  let attempts = 0;
+
+  while (elapsedS < durationS - timeTolerance) {
+    attempts += 1;
+    if (attempts > maximumInternalAttempts) {
+      throw new Error("adaptive integration exceeded the internal step-attempt limit");
+    }
+    const remainingS = durationS - elapsedS;
+    const candidateStepS = Math.min(stepS, remainingS);
+    const fullStep = stepRigidBodyRk4(current, body, candidateStepS, loads);
+    const halfStep = stepRigidBodyRk4(current, body, candidateStepS / 2, loads);
+    const refinedStep = stepRigidBodyRk4(
+      halfStep,
+      body,
+      candidateStepS / 2,
+      loads,
+    );
+    const normalizedError = adaptiveStateErrorNorm(
+      fullStep,
+      refinedStep,
+      validated.relativeTolerance,
+      validated.absoluteTolerance,
+    );
+    const minimumStepBoundary =
+      validated.minimumStepS * (1 + Number.EPSILON * 32);
+    if (normalizedError <= 1) {
+      maximumNormalizedError = Math.max(maximumNormalizedError, normalizedError);
+      current = { ...refinedStep, timeS: state.timeS + elapsedS + candidateStepS };
+      elapsedS += candidateStepS;
+      acceptedStepCount += 1;
+      minimumAcceptedStepS = Math.min(minimumAcceptedStepS, candidateStepS);
+      maximumAcceptedStepS = Math.max(maximumAcceptedStepS, candidateStepS);
+      const growth =
+        normalizedError === 0
+          ? 2.5
+          : Math.min(2.5, Math.max(0.2, validated.safetyFactor * normalizedError ** -0.2));
+      stepS = Math.min(
+        maximumStepS,
+        Math.max(validated.minimumStepS, candidateStepS * growth),
+      );
+      continue;
+    }
+    if (candidateStepS <= minimumStepBoundary) {
+      throw new Error(
+        `adaptive integration reached its minimum step (${validated.minimumStepS} s) before meeting the requested tolerance`,
+      );
+    }
+    rejectedStepCount += 1;
+    const reduction = Math.min(
+      0.5,
+      Math.max(0.1, validated.safetyFactor * normalizedError ** -0.2),
+    );
+    stepS = Math.max(validated.minimumStepS, candidateStepS * reduction);
+  }
+
+  return {
+    state: { ...current, timeS: state.timeS + durationS },
+    acceptedStepCount,
+    rejectedStepCount,
+    maximumNormalizedError,
+    minimumAcceptedStepS,
+    maximumAcceptedStepS,
+  };
+}
+
 export function simulateRigidBody6D(
   input: SixDofSimulationInput,
 ): SixDofSimulationResult {
@@ -625,6 +865,24 @@ export function simulateRigidBody6D(
   if (!Number.isInteger(maximumSteps) || maximumSteps <= 0) {
     throw new Error("maximum steps must be a positive integer");
   }
+  const integrationMethod = input.integration?.method ?? "fixed-rk4";
+  if (
+    integrationMethod !== "fixed-rk4" &&
+    integrationMethod !== "adaptive-rk4-step-doubling"
+  ) {
+    throw new Error("integration method must be fixed-rk4 or adaptive-rk4-step-doubling");
+  }
+  const adaptiveIntegrationOptions =
+    integrationMethod === "adaptive-rk4-step-doubling"
+      ? {
+          ...(input.integration?.adaptive ?? {}),
+          maximumStepS:
+            input.integration?.adaptive?.maximumStepS ?? input.timeStepS,
+        }
+      : undefined;
+  if (adaptiveIntegrationOptions) {
+    validateAdaptiveOptions(input.timeStepS, adaptiveIntegrationOptions);
+  }
   const finalTimeS = input.initialState.timeS + input.durationS;
   let state: RigidBodyState = {
     ...input.initialState,
@@ -639,6 +897,11 @@ export function simulateRigidBody6D(
   let boundaryIndex = 0;
   let eventIndex = 0;
   let stepCount = 0;
+  let integrationAcceptedStepCount = 0;
+  let integrationRejectedStepCount = 0;
+  let integrationMaximumNormalizedError = 0;
+  let integrationMinimumAcceptedStepS = Number.POSITIVE_INFINITY;
+  let integrationMaximumAcceptedStepS = 0;
   const applyStateTriggeredEvent = (
     event: StateTriggeredRigidBodyEvent,
   ): void => {
@@ -740,13 +1003,63 @@ export function simulateRigidBody6D(
               });
             }
             return inputBodyProvider(evaluationState);
-          }
+        }
         : input.body;
-    const candidateState = stepRigidBodyRk4(
+    const integrateInterval = (
+      startState: RigidBodyState,
+      durationS: number,
+      recordDiagnostics: boolean,
+    ): RigidBodyState => {
+      if (durationS <= 0) return startState;
+      if (integrationMethod === "fixed-rk4") {
+        const fixedStep = stepRigidBodyRk4(
+          startState,
+          bodyModel,
+          durationS,
+          loadProvider,
+        );
+        if (recordDiagnostics) {
+          integrationAcceptedStepCount += 1;
+          integrationMinimumAcceptedStepS = Math.min(
+            integrationMinimumAcceptedStepS,
+            durationS,
+          );
+          integrationMaximumAcceptedStepS = Math.max(
+            integrationMaximumAcceptedStepS,
+            durationS,
+          );
+        }
+        return fixedStep;
+      }
+      const adaptiveStep = stepRigidBodyAdaptive(
+        startState,
+        bodyModel,
+        durationS,
+        loadProvider,
+        adaptiveIntegrationOptions,
+      );
+      if (recordDiagnostics) {
+        integrationAcceptedStepCount += adaptiveStep.acceptedStepCount;
+        integrationRejectedStepCount += adaptiveStep.rejectedStepCount;
+        integrationMaximumNormalizedError = Math.max(
+          integrationMaximumNormalizedError,
+          adaptiveStep.maximumNormalizedError,
+        );
+        integrationMinimumAcceptedStepS = Math.min(
+          integrationMinimumAcceptedStepS,
+          adaptiveStep.minimumAcceptedStepS,
+        );
+        integrationMaximumAcceptedStepS = Math.max(
+          integrationMaximumAcceptedStepS,
+          adaptiveStep.maximumAcceptedStepS,
+        );
+      }
+      return adaptiveStep.state;
+    };
+    const candidateState = integrateInterval(
       state,
-      bodyModel,
       targetTime - state.timeS,
-      loadProvider,
+      true,
     );
 
     const rootCandidates = stateEvents
@@ -765,11 +1078,10 @@ export function simulateRigidBody6D(
           iteration += 1
         ) {
           const middleOffsetS = (lowerOffsetS + upperOffsetS) / 2;
-          const middleState = stepRigidBodyRk4(
+          const middleState = integrateInterval(
             state,
-            bodyModel,
             middleOffsetS,
-            loadProvider,
+            false,
           );
           const middleValue = stateEventValue(event, middleState);
           const tolerance = event.valueTolerance ?? 1e-10;
@@ -793,11 +1105,10 @@ export function simulateRigidBody6D(
           event,
           declarationIndex,
           timeS: state.timeS + rootOffsetS,
-          state: stepRigidBodyRk4(
+          state: integrateInterval(
             state,
-            bodyModel,
             rootOffsetS,
-            loadProvider,
+            false,
           ),
         };
       })
@@ -895,11 +1206,29 @@ export function simulateRigidBody6D(
       ]),
     ],
   };
+  const integration: SixDofIntegrationDiagnostics = {
+    method: integrationMethod,
+    acceptedStepCount: integrationAcceptedStepCount,
+    rejectedStepCount: integrationRejectedStepCount,
+    maximumNormalizedError:
+      integrationMethod === "adaptive-rk4-step-doubling"
+        ? integrationMaximumNormalizedError
+        : null,
+    minimumAcceptedStepS:
+      Number.isFinite(integrationMinimumAcceptedStepS)
+        ? integrationMinimumAcceptedStepS
+        : null,
+    maximumAcceptedStepS:
+      integrationMaximumAcceptedStepS > 0
+        ? integrationMaximumAcceptedStepS
+        : null,
+  };
   return {
     modelVersion: SIX_DOF_MODEL_VERSION,
     validationStatus: "mathematical-regression-tests-only",
     trace,
     finalState: state,
+    integration,
     events: appliedEvents,
     termination,
     eventAllocation,
@@ -913,6 +1242,9 @@ export function simulateRigidBody6D(
       "Forces applied at the center of mass unless included in the supplied moment",
       "State-triggered events are one-shot scalar zero crossings located within accepted integration steps",
       "Discrete state is piecewise constant between explicit event resets",
+      integrationMethod === "fixed-rk4"
+        ? "Fixed-step classical fourth-order Runge-Kutta with the requested output interval"
+        : "Adaptive RK4 step-doubling with a component-wise scaled local truncation estimate; trace samples remain at requested event/output boundaries",
       ...eventAllocation.assumptions,
     ],
     warnings: [
@@ -920,6 +1252,11 @@ export function simulateRigidBody6D(
       "Prescribed changing mass properties do not model exhaust control-volume momentum, slosh, or internal-flow dynamics; thrust and related moments must be supplied explicitly.",
       "Quaternion normalization controls numerical drift but does not constitute physical validation.",
       "State-event root finding assumes a continuous scalar event function with at most one relevant crossing per integration step.",
+      ...(integrationMethod === "adaptive-rk4-step-doubling"
+        ? [
+            "Adaptive error control estimates numerical truncation only; it does not detect inaccurate loads, discontinuities omitted from the event schedule, or model-form error.",
+          ]
+        : []),
       ...eventAllocation.warnings,
       "Do not use this mathematical kernel alone for flight-safety decisions.",
     ],

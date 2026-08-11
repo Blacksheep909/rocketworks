@@ -101,6 +101,7 @@ import {
   type StageFlightPreviewResult,
   type StageFlightUncertaintyResult,
   type CoupledMultiBodyGravityOptions,
+  type RigidBodyIntegrationMethod,
   type VerticalFlightSweepParameterKey,
   type VerticalFlightSweepResult,
   type RocketStage,
@@ -1343,6 +1344,7 @@ function createStageFlightPreviewInputs({
   recoveryReefingEnabled,
   recoveryReefingDurationS,
   recoveryReefingStartAreaFraction,
+  sixDofIntegrationMethod,
   aerodynamicTable,
   aerodynamicTableModels,
 }: {
@@ -1371,6 +1373,7 @@ function createStageFlightPreviewInputs({
   recoveryReefingEnabled: boolean;
   recoveryReefingDurationS: number;
   recoveryReefingStartAreaFraction: number;
+  sixDofIntegrationMethod: RigidBodyIntegrationMethod;
   aerodynamicTable?: AerodynamicCoefficientTableModel | null;
   aerodynamicTableModels?: Readonly<Record<string, AerodynamicCoefficientTableModel>>;
 }): Parameters<typeof simulateStageFlightPreview>[0] {
@@ -1723,6 +1726,7 @@ function createStageFlightPreviewInputs({
     initiallyIgnitedStageIds,
     durationS: Math.max(12, maximumMotorBurnDurationS * (stages.length + 2) + 8),
     timeStepS: 0.02,
+    integration: { method: sixDofIntegrationMethod },
     environmentAt,
     alwaysActiveGeometryStageIds: [...geometryStageIds],
     separationTransitionWindowS: 0.2,
@@ -3543,6 +3547,7 @@ export default function Home() {
   const [launchRailAzimuthDeg, setLaunchRailAzimuthDeg] = useState(0);
   const [coupledMutualGravityEnabled, setCoupledMutualGravityEnabled] = useState(false);
   const [coupledGravitySofteningRadiusM, setCoupledGravitySofteningRadiusM] = useState(0.02);
+  const [sixDofIntegrationMethod, setSixDofIntegrationMethod] = useState<RigidBodyIntegrationMethod>("fixed-rk4");
   const [recoveryEnabled, setRecoveryEnabled] = useState(true);
   const [recoveryDelay, setRecoveryDelay] = useState(0);
   const [recoveryDeploymentTrigger, setRecoveryDeploymentTrigger] = useState<RecoveryDeploymentTrigger>("apogee");
@@ -3862,9 +3867,10 @@ export default function Home() {
             enabled: coupledMutualGravityEnabled,
             softeningRadiusM: coupledGravitySofteningRadiusM,
           },
+          sixDofIntegrationMethod,
         },
       }),
-    [coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, editableInputs, previewMotor, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, vehicleTopology],
+    [coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, editableInputs, previewMotor, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, sixDofIntegrationMethod, vehicleTopology],
   );
   const previewEnvironment = useMemo(
     () => createPreviewEnvironment(launchAltitude, windSpeed, { siteName: launchSiteName, latitudeDeg: launchLatitudeDeg, longitudeDeg: launchLongitudeDeg, windAzimuthDeg, windProfileLayers, turbulenceScale, seed: weatherSeed, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
@@ -6191,6 +6197,7 @@ export default function Home() {
             recoveryReefingEnabled,
             recoveryReefingDurationS,
             recoveryReefingStartAreaFraction,
+            sixDofIntegrationMethod,
             aerodynamicTable: selectedAerodynamicTable,
             aerodynamicTableModels,
           }),
@@ -6244,6 +6251,7 @@ export default function Home() {
           recoveryReefingEnabled,
           recoveryReefingDurationS,
           recoveryReefingStartAreaFraction,
+          sixDofIntegrationMethod,
           aerodynamicTable: selectedAerodynamicTable,
           aerodynamicTableModels,
         });
@@ -7194,6 +7202,26 @@ export default function Home() {
                         </ul>
                       )}
                     </section>
+                    {stageFlightResult.simulation?.integration && (
+                      <section className="stage-flight-convergence" aria-labelledby="stage-flight-integrator-title">
+                        <div className="stage-flight-convergence-heading">
+                          <div>
+                            <span className="eyebrow">Numerical method</span>
+                            <h4 id="stage-flight-integrator-title">6DOF integrator diagnostics</h4>
+                            <p>Reports the actual free-flight integrator used for this run. Adaptive error is a numerical truncation estimate only; it does not validate the loads or flight model.</p>
+                          </div>
+                          <span className="uncertainty-status uncertainty-status-assessed">
+                            {stageFlightResult.simulation.integration.method === "adaptive-rk4-step-doubling" ? "ADAPTIVE" : "FIXED RK4"}
+                          </span>
+                        </div>
+                        <div className="stage-flight-convergence-grid">
+                          <div><span>Accepted internal steps</span><strong>{stageFlightResult.simulation.integration.acceptedStepCount}</strong><small>free-flight propagation</small></div>
+                          <div><span>Rejected steps</span><strong>{stageFlightResult.simulation.integration.rejectedStepCount}</strong><small>tolerance retries</small></div>
+                          <div><span>Accepted step range</span><strong>{stageFlightResult.simulation.integration.minimumAcceptedStepS === null ? "—" : `${stageFlightResult.simulation.integration.minimumAcceptedStepS.toExponential(2)} → ${stageFlightResult.simulation.integration.maximumAcceptedStepS!.toExponential(2)} s`}</strong><small>internal span</small></div>
+                          <div><span>Max normalized error</span><strong>{stageFlightResult.simulation.integration.maximumNormalizedError === null ? "Not estimated" : stageFlightResult.simulation.integration.maximumNormalizedError.toFixed(3)}</strong><small>{stageFlightResult.simulation.integration.method === "adaptive-rk4-step-doubling" ? "accepted-step estimate" : "fixed-step mode"}</small></div>
+                        </div>
+                      </section>
+                    )}
                     {stageFlightResult.separatedBodies.length > 0 && (
                       <section className="stage-separated-bodies" aria-labelledby="stage-separated-bodies-title">
                         <div className="stage-separated-bodies-heading">
@@ -8177,6 +8205,14 @@ export default function Home() {
                   <div><span>Validation</span><strong>{selectedAerodynamicTable?.validationStatus ?? "analytical preview"}</strong></div>
                 </div>
                 <p className="motor-provenance">Coefficient tables now drive both the fast vertical estimate and topology-aware 6DOF preview when selected. Out-of-range queries remain visible as warnings, and table data are never promoted to flight certification.</p>
+                <div className="field-group">
+                  <label htmlFor="six-dof-integration-method">6DOF integration method</label>
+                  <select id="six-dof-integration-method" value={sixDofIntegrationMethod} onChange={(event) => setSixDofIntegrationMethod(event.target.value as RigidBodyIntegrationMethod)}>
+                    <option value="fixed-rk4">Fixed RK4 · compatibility default</option>
+                    <option value="adaptive-rk4-step-doubling">Adaptive RK4 · step-doubling error estimate</option>
+                  </select>
+                </div>
+                <p className="field-help">Adaptive mode controls numerical truncation error with internal step refinement and keeps event boundaries exact. It does not detect inaccurate loads, omitted discontinuities, or model-form error; rerun the preview after changing this setting.</p>
                 <div className="property-section-label">
                   <span>Flight environment</span>
                   <small>{publicModelVersion(previewEnvironment.modelVersion)}</small>

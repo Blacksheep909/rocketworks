@@ -21,6 +21,7 @@ import {
   type RigidBodyState,
   type Quaternion,
   type ScheduledRigidBodyEvent,
+  type SixDofIntegrationOptions,
   type SixDofSimulationResult,
   type StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
@@ -92,6 +93,8 @@ export type RailGuidedLaunchInput = Readonly<{
   rail: LaunchRailConfig;
   durationS: number;
   timeStepS: number;
+  /** Optional free-flight six-degree-of-freedom integration method. */
+  integration?: SixDofIntegrationOptions;
   scheduledTimesS?: readonly number[];
   events?: readonly ScheduledRigidBodyEvent[];
   stateEvents?: readonly StateTriggeredRigidBodyEvent[];
@@ -850,6 +853,7 @@ export function simulateRailGuidedLaunch(
           stateEvents: remainingStateEvents,
           eventTimeToleranceS,
           maximumEventIterations,
+          integration: input.integration,
         })
       : null;
   const railStates = railTrace.map((point) => point.state);

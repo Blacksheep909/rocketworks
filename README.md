@@ -89,7 +89,9 @@ research, standards, and original code.
   failure events, retained-vehicle recovery loads, and bounded separated-body
   trajectories with optional isotropic point-drag basis and retained-versus-
   detached center-of-mass separation diagnostics, plus aggregate pairwise
-  retained/detached and detached/detached path checks;
+  retained/detached and detached/detached path checks; the independent 6DOF
+  kernel also offers opt-in adaptive RK4 step-doubling with explicit numerical
+  error diagnostics while retaining fixed-step compatibility;
 - half-step numerical convergence diagnostics for the fast vertical estimate,
   with explicit metric/event thresholds and stale-result handling;
 - deterministic mission-event allocation for simultaneous rail, separation,

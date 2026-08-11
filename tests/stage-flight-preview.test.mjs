@@ -177,6 +177,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     initiallyIgnitedStageIds: ["booster"],
     durationS: 2.5,
     timeStepS: 0.05,
+    integration: { method: "adaptive-rk4-step-doubling" },
     launchAltitudeM: 0,
     events: [
       createScheduledStageSeparationEvent({
@@ -190,6 +191,8 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
 
   assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.19.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
+  assert.equal(result.simulation?.integration.method, "adaptive-rk4-step-doubling");
+  assert.ok((result.simulation?.integration.acceptedStepCount ?? 0) > 0);
   assert.equal(result.massRatio.overallStatus, "assessed");
   assert.equal(result.massRatio.stages.length, 2);
   assert.ok(result.massRatio.totalIdealDeltaVMps > 0);

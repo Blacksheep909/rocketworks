@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added an opt-in adaptive RK4 step-doubling path to the independent six-degree-
+  of-freedom kernel. It preserves exact scheduled/state-event boundaries,
+  reports accepted/rejected internal steps and normalized truncation error, and
+  keeps fixed-step RK4 as the backwards-compatible default. This is numerical
+  error control only and does not upgrade the model to flight validation.
 - Added optional bounded principal local inertia (`Ixx`, `Iyy`, `Izz`) for
   authored equipment point masses. Values persist through topology and
   component-library records, rotate with azimuth and repeated instances, and

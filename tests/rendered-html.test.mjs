@@ -864,6 +864,10 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Peak quasi-steady drag/);
   assert.match(page, /Opening shock, snatch force, lines, fabric/);
   assert.match(page, /Integration-step convergence/);
+  assert.match(page, /6DOF integration method/);
+  assert.match(page, /adaptive-rk4-step-doubling/);
+  assert.match(page, /6DOF integrator diagnostics/);
+  assert.match(page, /sixDofIntegrationMethod/);
   assert.match(page, /Event allocator/);
   assert.match(page, /Simultaneous groups/);
   assert.match(page, /eventAllocation/);

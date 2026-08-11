@@ -1,4 +1,4 @@
-# Rigid-body six-degree-of-freedom kernel 0.3
+# Rigid-body six-degree-of-freedom kernel 0.4
 
 Status: mathematical regression tests only. This kernel is not a validated
 rocket flight simulation.
@@ -10,8 +10,9 @@ components.
 
 ## Purpose
 
-Version 0.3 establishes the numerical state, integration, root-found event, and
-discrete-mode layer needed for a coupled rocket simulation. It propagates:
+Version 0.4 establishes the numerical state, fixed and adaptive integration,
+root-found event, and discrete-mode layer needed for a coupled rocket
+simulation. It propagates:
 
 - three world-frame position coordinates
 - three world-frame velocity coordinates
@@ -68,7 +69,19 @@ from mass loss. Their force and moment effects must be modeled explicitly.
 ## Numerical propagation
 
 A fixed-step classical fourth-order Runge-Kutta method advances the complete
-state. The final step is shortened to finish at the requested time exactly.
+state by default. The final step is shortened to finish at the requested time
+exactly. Callers may opt into `adaptive-rk4-step-doubling`; this compares one
+full RK4 step with two half steps, scales the component-wise difference by the
+configured absolute and relative tolerances, rejects an over-tolerance step,
+and grows or shrinks the next internal step with a conservative fifth-order
+error exponent. The refined half-step state is retained. The requested
+`timeStepS` remains the maximum internal step and trace/output interval, while
+scheduled and state-triggered event boundaries are still landed on exactly.
+
+Adaptive diagnostics report accepted and rejected internal steps, the smallest
+and largest accepted step, and the largest normalized error among accepted
+steps. These are numerical truncation diagnostics, not a measure of load-model
+accuracy or experimental agreement.
 
 Callers may supply strictly increasing scheduled times for ignition, burnout,
 stage separation, deployment, or other discontinuities. The integrator splits a
@@ -89,12 +102,13 @@ continuous scalar function `g(state)` and an optional crossing direction:
 - `falling`: positive to zero or negative
 - `any`: either crossing direction
 
-After an RK4 trial step brackets a permitted crossing, the integrator bisects
-the time interval and repeatedly propagates from the accepted step origin until
-the configured time tolerance is met. The root-found state may be recorded,
-reset and continued, or marked terminal. Terminal events end the requested
-simulation early and are exposed separately in the result. State events are
-one-shot and same-time state events execute in declaration order. A
+After a trial step brackets a permitted crossing, the integrator bisects the
+time interval and repeatedly propagates from the accepted step origin until the
+configured time tolerance is met. The fixed or adaptive integration method is
+used consistently for each trial. The root-found state may be recorded, reset
+and continued, or marked terminal. Terminal events end the requested simulation
+early and are exposed separately in the result. State events are one-shot and
+same-time state events execute in declaration order. A
 `triggerAtStart` option explicitly allows a surface that is already zero at an
 accepted boundary to fire; this is off by default so a rocket beginning at
 ground altitude does not immediately report impact.
@@ -146,6 +160,9 @@ The regression suite currently checks:
 - rejection of non-finite event functions and time-changing event resets
 - persistence of discrete mode state through RK4 propagation
 - rejection of non-finite or unsupported discrete-state values
+- adaptive RK4 step-doubling convergence against a refined reference
+- adaptive tolerance and minimum/maximum step validation
+- adaptive landing on scheduled event boundaries with integration diagnostics
 
 These are mathematical implementation checks. They do not validate coupled
 rocket behavior.
@@ -168,16 +185,19 @@ rocket behavior.
   scalar event function with at most one relevant crossing per integration
   step. Tangential contact without a sign change and multiple crossings inside
   one step can be missed.
-- Event-time bisection controls time localization but does not provide an
-  embedded state-integration error estimate; convergence with smaller time
-  steps remains necessary.
+- Event-time bisection controls time localization. Adaptive step-doubling adds
+  a local numerical truncation estimate, but convergence with tighter tolerances
+  or independent time-step studies remains necessary.
 - State events are one-shot. Repeated or hysteretic contact requires an
   explicit future event-state machine.
 - Discrete state is a flat primitive-value map. Nested objects, arrays, and
   continuously changing auxiliary dynamics are intentionally excluded.
 - State resets and impulses are supported, but a reset does not automatically
   construct or propagate multiple separated bodies.
-- Fixed-step RK4 has no embedded local-error estimate or adaptive step control.
+- The adaptive mode is still an RK4 step-doubling estimate rather than an
+  embedded method; it can miss error caused by discontinuous or inaccurate load
+  providers, and omitted event boundaries can invalidate its smoothness
+  assumption.
 - Quaternion normalization limits numerical drift but does not prove physical
   correctness.
 
