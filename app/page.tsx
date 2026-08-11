@@ -6011,6 +6011,38 @@ export default function Home() {
                       </div>
                       <p className="stage-mass-ratio-note">{stageFlightResult.massRatio.warnings[0] ?? "Analytical ideal-rocket-equation diagnostic only; do not interpret as flight-safe performance."}</p>
                     </section>
+                    <section className={`stage-force-budget-card stage-force-budget-${stageFlightResult.forceBudget.status}`} aria-labelledby="stage-force-budget-title">
+                      <div className="stage-force-budget-heading">
+                        <div>
+                          <span className="eyebrow">Trace accounting</span>
+                          <h4 id="stage-force-budget-title">Force impulse budget</h4>
+                          <p>Integrates the recorded scalar thrust, aerodynamic drag, recovery drag, and aerodynamic-force magnitudes so the force story is visible alongside the trajectory.</p>
+                        </div>
+                        <span className={`uncertainty-status uncertainty-status-${stageFlightResult.forceBudget.status}`}>
+                          {stageFlightResult.forceBudget.status === "assessed" ? "ASSESSED TRACE" : "NOT ASSESSED"}
+                        </span>
+                      </div>
+                      <div className="stage-force-budget-grid">
+                        <div><span>Thrust impulse</span><strong>{stageFlightResult.forceBudget.thrustImpulseNs === null ? "Not assessed" : `${stageFlightResult.forceBudget.thrustImpulseNs.toFixed(1)} N·s`}</strong><small>trapezoidal trace integral</small></div>
+                        <div><span>Combined drag impulse</span><strong>{stageFlightResult.forceBudget.combinedDragImpulseNs === null ? "Not assessed" : `${stageFlightResult.forceBudget.combinedDragImpulseNs.toFixed(1)} N·s`}</strong><small>aero + recovery</small></div>
+                        <div><span>Drag / thrust equivalent</span><strong>{stageFlightResult.forceBudget.dragToThrustVelocityEquivalentRatio === null ? "Not assessed" : `${(stageFlightResult.forceBudget.dragToThrustVelocityEquivalentRatio * 100).toFixed(1)}%`}</strong><small>force/mass scalar ratio</small></div>
+                        <div><span>Peak dynamic pressure</span><strong>{stageFlightResult.forceBudget.peakDynamicPressurePa === null ? "Not assessed" : `${stageFlightResult.forceBudget.peakDynamicPressurePa.toFixed(0)} Pa`}</strong><small>recorded trace maximum</small></div>
+                      </div>
+                      {stageFlightResult.forceBudget.stages.length > 0 && (
+                        <div className="stage-force-budget-list">
+                          {stageFlightResult.forceBudget.stages.map((stage) => (
+                            <div className="stage-force-budget-row" key={stage.stageId}>
+                              <div><strong>{stage.stageName}</strong><small>{stage.activeDurationS.toFixed(2)} s active · peak {stage.peakThrustN.toFixed(1)} N</small></div>
+                              <div><span>Thrust</span><strong>{stage.thrustImpulseNs.toFixed(1)} N·s</strong></div>
+                              <div><span>Drag</span><strong>{stage.combinedDragImpulseNs.toFixed(1)} N·s</strong></div>
+                              <div><span>Peak q</span><strong>{stage.peakDynamicPressurePa === null ? "—" : `${stage.peakDynamicPressurePa.toFixed(0)} Pa`}</strong></div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <p className="stage-force-budget-note">{stageFlightResult.forceBudget.warnings[0] ?? "Scalar trace accounting only; velocity-equivalent values are not vector delta-v or mission loss terms."}</p>
+                      <small className="stage-force-budget-model">{publicModelVersion(stageFlightResult.forceBudget.modelVersion)} · {stageFlightResult.forceBudget.validationStatus}</small>
+                    </section>
                     {stageRecoveryOpeningLoad && (
                       <section className="recovery-opening-load-card" aria-labelledby="recovery-opening-load-title">
                         <div className="recovery-opening-load-heading">

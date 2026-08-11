@@ -1594,6 +1594,37 @@ export function createEngineeringReportMarkdown(
                 "",
               ]
             : []),
+          ...(input.stageFlight.forceBudget
+            ? [
+                "### Force impulse budget",
+                "",
+                `| Status | ${markdownText(input.stageFlight.forceBudget.status)} |`,
+                `| Trace samples | ${input.stageFlight.forceBudget.sampleCount} |`,
+                `| Time span | ${formatNumber(input.stageFlight.forceBudget.timeSpanS, 3)} s |`,
+                `| Thrust impulse | ${input.stageFlight.forceBudget.thrustImpulseNs === null ? "not assessed" : `${formatNumber(input.stageFlight.forceBudget.thrustImpulseNs, 2)} N·s`} |`,
+                `| Combined drag impulse | ${input.stageFlight.forceBudget.combinedDragImpulseNs === null ? "not assessed" : `${formatNumber(input.stageFlight.forceBudget.combinedDragImpulseNs, 2)} N·s`} |`,
+                `| Drag / thrust velocity-equivalent ratio | ${input.stageFlight.forceBudget.dragToThrustVelocityEquivalentRatio === null ? "not assessed" : `${formatNumber(input.stageFlight.forceBudget.dragToThrustVelocityEquivalentRatio * 100, 2)}%`} |`,
+                `| Peak dynamic pressure | ${input.stageFlight.forceBudget.peakDynamicPressurePa === null ? "not assessed" : `${formatNumber(input.stageFlight.forceBudget.peakDynamicPressurePa, 1)} Pa`} |`,
+                `| Model | \`${markdownText(input.stageFlight.forceBudget.modelVersion)}\` |`,
+                "",
+                ...(input.stageFlight.forceBudget.stages.length > 0
+                  ? [
+                      "| Stage | Active time | Thrust impulse | Combined drag impulse | Peak q |",
+                      "|---|---:|---:|---:|---:|",
+                      ...input.stageFlight.forceBudget.stages.map(
+                        (stage) =>
+                          `| ${markdownText(stage.stageName)} | ${formatNumber(stage.activeDurationS, 3)} s | ${formatNumber(stage.thrustImpulseNs, 2)} N·s | ${formatNumber(stage.combinedDragImpulseNs, 2)} N·s | ${stage.peakDynamicPressurePa === null ? "not assessed" : `${formatNumber(stage.peakDynamicPressurePa, 1)} Pa`} |`,
+                      ),
+                      "",
+                    ]
+                  : []),
+                ...input.stageFlight.forceBudget.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+                ...input.stageFlight.forceBudget.warnings.map((warning) => `- **Force-budget warning:** ${markdownText(warning)}`),
+                "",
+                "> This is scalar trace accounting. Velocity-equivalent values are not vector delta-v, gravity loss, steering loss, a mission-performance budget, or flight-safety evidence.",
+                "",
+              ]
+            : []),
           "### Staged event telemetry",
           "",
           "| Event | Time | Detached stages | Retained dV body (+X) | Retained dV world magnitude |",

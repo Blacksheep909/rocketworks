@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.17.0`.
+`kestrel-stage-flight-preview-0.18.0`.
 
 Before integration, scheduled and state-triggered declarations pass through the
 independent mission-event allocator. Semantic priorities put rail release,
@@ -160,6 +160,24 @@ upper-stage mass, gravity/drag loss, steering, residual propellant, finite
 staging transients, or motor validation. A summed ideal delta-v is therefore a
 composition trend, not a mission budget, flight-performance claim, or safety
 decision. See `stage-mass-ratio-0.1.md` for equations and public references.
+
+## Force impulse budget
+
+The adapter also returns `forceBudget` from
+`stage-flight-force-budget.ts`. It applies trapezoidal integration to the
+recorded scalar trace magnitudes for thrust, aerodynamic drag, recovery drag,
+and total aerodynamic force. It reports total impulse, force/mass
+velocity-equivalents, peak dynamic pressure, and per-stage active-window
+accounting. A stage interval uses the left sample's attached-stage topology;
+zero-duration event boundaries do not contribute an interval twice.
+
+The velocity-equivalent values are useful for seeing how much scalar force was
+recorded relative to the changing mass, but they are not vector delta-v. The
+budget cannot separate gravity, steering, plume, staging, or aerodynamic-vector
+losses because the trace does not expose a complete force-vector and
+propulsive-efficiency history. It is a trace-accounting diagnostic, not a
+mission-performance budget, validation result, or flight-safety gate. See
+`stage-flight-force-budget.ts` for the contract and limits.
 
 ## Separated-body analytical branch
 

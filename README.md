@@ -118,6 +118,9 @@ research, standards, and original code.
 - a bounded stage-interface axial load-path review that transfers downstream
   mass across serial topology edges, compares supplied parent/child section
   proxies, and keeps parallel/radial interfaces visibly unavailable;
+- a trace-level force impulse budget that integrates recorded thrust,
+  aerodynamic drag, recovery drag, and force/mass velocity-equivalent signals
+  by stage without mislabeling scalar accounting as vector delta-v;
 - deterministic structural and aeroelastic benchmark anchors for thin-wall
   section area, axial stress, Euler critical load, fin-root bending, and the
   preliminary fin-flutter equation, kept separate from experimental validation;

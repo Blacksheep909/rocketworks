@@ -717,6 +717,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   const topology = await readFile(new URL("../lib/project/vehicle-topology.ts", import.meta.url), "utf8");
   const stagePreview = await readFile(new URL("../lib/physics/stage-flight-preview.ts", import.meta.url), "utf8");
   const stageInterfaceLoads = await readFile(new URL("../lib/physics/stage-interface-loads.ts", import.meta.url), "utf8");
+  const stageForceBudget = await readFile(new URL("../lib/physics/stage-flight-force-budget.ts", import.meta.url), "utf8");
   const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(page, /Stages, boosters & clusters/);
   assert.match(page, /\+ Upper stage/);
@@ -765,6 +766,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /createStageInterfaceLoadReview/);
   assert.match(page, /STAGE-INTERFACE AXIAL LOAD PATH/);
   assert.match(page, /stageInterfaceLoadReview/);
+  assert.match(page, /Force impulse budget/);
+  assert.match(page, /stageFlightResult\.forceBudget/);
   assert.match(page, /Dynamic pressure/);
   assert.match(page, /key: "angleOfAttack", label: "AoA"/);
   assert.match(page, /key: "sideslip", label: "Sideslip"/);
@@ -835,6 +838,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stageInterfaceLoads, /analytical-axial-load-path-proxy/);
   assert.match(stageInterfaceLoads, /Parallel\/radial interface solver/);
   assert.match(stageInterfaceLoads, /downstream mass/);
+  assert.match(stageForceBudget, /analytical-trace-integral-only/);
+  assert.match(stageForceBudget, /velocity-equivalent accounting/);
   assert.match(stylesheet, /\.stage-flight-model-options/);
   assert.match(stylesheet, /\.topology-stage/);
   assert.match(stylesheet, /\.topology-stage-events/);
@@ -853,6 +858,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stylesheet, /\.stage-separation-envelope/);
   assert.match(stylesheet, /\.stage-interface-load-card/);
   assert.match(stylesheet, /\.stage-interface-load-row-unavailable/);
+  assert.match(stylesheet, /\.stage-force-budget-card/);
+  assert.match(stylesheet, /\.stage-force-budget-row/);
 });
 
 test("ships a bounded parameter-sweep workflow with inspectable exports", async () => {

@@ -63,9 +63,13 @@ import {
   computeStageMassRatio,
   type StageMassRatioResult,
 } from "./stage-mass-ratio.ts";
+import {
+  computeStageFlightForceBudget,
+  type StageFlightForceBudgetResult,
+} from "./stage-flight-force-budget.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.17.0";
+  "kestrel-stage-flight-preview-0.18.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -193,6 +197,7 @@ export type StageFlightPreviewResult = Readonly<{
   timeToApogeeS: number;
   clusterDiagnostics: readonly StageFlightClusterDiagnostic[];
   massRatio: StageMassRatioResult;
+  forceBudget: StageFlightForceBudgetResult;
   separatedBodies: readonly SeparatedBodyTrajectory[];
   separationDynamics: readonly SeparationDynamicsResult[];
   separationImpulseSolutions: readonly CoupledSeparationImpulseResult[];
@@ -757,6 +762,9 @@ export function simulateStageFlightPreview(
   };
 
   const primaryRun = runAtTimeStep(input.timeStepS);
+  const forceBudget = computeStageFlightForceBudget(primaryRun.trace, {
+    stageLabels: Object.fromEntries(input.stages.map((stage) => [stage.id, stage.name])),
+  });
   const eventAllocation: MissionEventAllocation =
     primaryRun.simulation?.eventAllocation ??
     primaryRun.rail?.freeFlight?.eventAllocation ??
@@ -1047,6 +1055,7 @@ export function simulateStageFlightPreview(
     ...separationDynamics.flatMap((audit) => audit.warnings),
     ...separationImpulseSolutions.flatMap((solution) => solution.warnings),
     ...massRatio.warnings,
+    ...forceBudget.warnings,
   ];
   const assumptions = [
     ...(input.additionalAssumptions ?? []),
@@ -1077,6 +1086,7 @@ export function simulateStageFlightPreview(
     ...separationDynamics.flatMap((audit) => audit.assumptions),
     ...separationImpulseSolutions.flatMap((solution) => solution.assumptions),
     ...massRatio.assumptions,
+    ...forceBudget.assumptions,
     ...(recovery
       ? [
           `Retained-vehicle recovery devices are coupled as body loads through ${recovery.modelVersion}; deployment commands, inflation, and reefing remain deterministic effective-area approximations.`,
@@ -1100,6 +1110,7 @@ export function simulateStageFlightPreview(
     timeToApogeeS: primaryRun.timeToApogeeS,
     clusterDiagnostics,
     massRatio,
+    forceBudget,
     separatedBodies,
     separationDynamics,
     separationImpulseSolutions,

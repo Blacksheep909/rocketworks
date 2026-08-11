@@ -15,7 +15,7 @@ import {
   createRocketProfileDxf,
   createRocketStl,
 } from "../lib/export/project-exports.ts";
-import { analyzeLandingFootprint, computeStructuralScreen, createEngineeringDesignReview, createStageInterfaceLoadReview, createStageStructuralReview, runUncertaintyAnalysis } from "../lib/physics/index.ts";
+import { analyzeLandingFootprint, computeStageFlightForceBudget, computeStructuralScreen, createEngineeringDesignReview, createStageInterfaceLoadReview, createStageStructuralReview, runUncertaintyAnalysis } from "../lib/physics/index.ts";
 
 const trace = [
   {
@@ -498,6 +498,10 @@ test("engineering report leads with status and preserves calculations and limita
       { id: "booster", label: "Booster pair", parentStageId: "core", attachment: "serial", stageMassKg: 0.2, peakThrustN: 10, sectionAreaM2: 0.0005, allowableCompressionPa: 20e6 },
     ],
   });
+  const forceBudget = computeStageFlightForceBudget([
+    { timeS: 0, massKg: 0.58, thrustN: 22, dragN: 1, recoveryDragN: 0, dynamicPressurePa: 0, speedMps: 0, attachedStageIds: ["booster"] },
+    { timeS: 1, massKg: 0.56, thrustN: 18, dragN: 2, recoveryDragN: 0.2, dynamicPressurePa: 900, speedMps: 40, attachedStageIds: ["booster"] },
+  ], { stageLabels: { booster: "Booster" } });
   const report = createEngineeringReportMarkdown({
     projectName: "ARC 54",
     generatedAtIso: "2026-08-01T00:00:00.000Z",
@@ -616,6 +620,7 @@ test("engineering report leads with status and preserves calculations and limita
         assumptions: ["Fixture mass-ratio assumption."],
         warnings: ["Fixture mass-ratio warning."],
       },
+      forceBudget,
       eventAllocation: {
         modelVersion: "rocketworks-event-allocator-0.1.0",
         validationStatus: "analytical-event-ordering-checks-only",
@@ -770,6 +775,9 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /## Coupled 6DOF preview/);
   assert.match(report, /### Stage mass-ratio diagnostic/);
   assert.match(report, /Fixture mass-ratio warning/);
+  assert.match(report, /### Force impulse budget/);
+  assert.match(report, /rocketworks-stage-flight-force-budget-0.1.0/);
+  assert.match(report, /Drag \/ thrust velocity-equivalent ratio/);
   assert.match(report, /### Vertical integration-step convergence/);
   assert.match(report, /Heuristic status \| converged/);
   assert.match(report, /Step convergence \| watch/);

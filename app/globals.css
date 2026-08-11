@@ -589,6 +589,26 @@ kbd {
 .stage-mass-ratio-row-unavailable strong { color: #c6d2d9; }
 .stage-mass-ratio-row-unavailable small, .stage-mass-ratio-row-unavailable span { color: #8797a0; }
 .stage-mass-ratio-note { margin: 9px 1px 0; color: #829990; font: 7px/1.5 var(--font-geist-mono),monospace; }
+.stage-force-budget-card { margin-top: 12px; padding: 12px; border: 1px solid rgba(47,159,255,.24); border-radius: 3px; background: linear-gradient(135deg, rgba(47,159,255,.07), rgba(13,19,24,.72) 62%); }
+.stage-force-budget-not-assessed { border-color: rgba(198,212,221,.24); background: linear-gradient(135deg, rgba(198,212,221,.06), rgba(13,19,24,.72) 62%); }
+.stage-force-budget-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.stage-force-budget-heading h4 { margin-top: 4px; color: #eaf2f6; font-size: 11px; letter-spacing: .02em; }
+.stage-force-budget-heading p { max-width: 720px; margin-top: 4px; color: #879aa6; font-size: 8px; line-height: 1.45; }
+.stage-force-budget-heading .uncertainty-status { flex: 0 0 auto; color: #9edcff; border-color: rgba(47,159,255,.38); background: rgba(47,159,255,.08); }
+.stage-force-budget-not-assessed .stage-force-budget-heading .uncertainty-status { color: #a5b5bd; border-color: rgba(198,212,221,.3); background: rgba(198,212,221,.06); }
+.stage-force-budget-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1px; margin-top: 10px; overflow: hidden; border: 1px solid rgba(47,159,255,.18); border-radius: 3px; background: rgba(47,159,255,.18); }
+.stage-force-budget-grid div { min-width: 0; padding: 9px; background: rgba(12,18,24,.88); }
+.stage-force-budget-grid span { display: block; color: #8296a1; font-size: 8px; }
+.stage-force-budget-grid strong { display: block; overflow: hidden; margin-top: 5px; color: #d8efff; font: 700 11px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-force-budget-grid small { display: block; overflow: hidden; margin-top: 4px; color: #738995; font: 7px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-force-budget-list { display: grid; gap: 1px; margin-top: 10px; }
+.stage-force-budget-row { display: grid; grid-template-columns: minmax(0,1.35fr) repeat(3,minmax(84px,.75fr)); gap: 8px; align-items: center; padding: 8px; border-left: 2px solid rgba(47,159,255,.5); background: rgba(47,159,255,.045); }
+.stage-force-budget-row > div { min-width: 0; }
+.stage-force-budget-row strong { display: block; overflow: hidden; color: #d5e8f0; font: 700 8px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-force-budget-row small { display: block; overflow: hidden; margin-top: 3px; color: #7f96a3; font: 7px/1.4 var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-force-budget-row span { display: block; color: #8296a1; font-size: 7px; }
+.stage-force-budget-note { margin: 9px 1px 0; color: #8498a4; font: 7px/1.5 var(--font-geist-mono),monospace; }
+.stage-force-budget-model { display: block; margin-top: 6px; color: #708691; font: 7px var(--font-geist-mono),monospace; }
 .recovery-opening-load-card {
   margin-top: 12px; padding: 12px; border: 1px solid rgba(244,163,64,.28); border-radius: 3px;
   background: linear-gradient(135deg, rgba(244,163,64,.09), rgba(12,18,24,.84) 62%);
@@ -1731,6 +1751,10 @@ kbd {
   .stage-mass-ratio-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .stage-mass-ratio-row { grid-template-columns: minmax(0,1fr) minmax(70px,auto); }
   .stage-mass-ratio-row > div:last-child { grid-column: 2; }
+  .stage-force-budget-heading { flex-direction: column; }
+  .stage-force-budget-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .stage-force-budget-row { grid-template-columns: minmax(0,1fr) minmax(76px,auto); }
+  .stage-force-budget-row > div:nth-child(3), .stage-force-budget-row > div:nth-child(4) { grid-column: 2; }
   .recovery-opening-load-heading { flex-direction: column; }
   .uncertainty-sensitivity-row { grid-template-columns: minmax(88px,1.15fr) minmax(60px,1.7fr) 34px 28px; gap: 6px; }
   .stage-flight-heading .primary-button { width: 100%; }

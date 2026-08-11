@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a trace-level force impulse budget to the coupled preview. The browser,
+  project report, and export surface now expose trapezoidal thrust, aerodynamic
+  drag, recovery drag, force/mass velocity-equivalent, peak-q, and per-stage
+  active-window accounting. Scalar values remain explicitly diagnostic and are
+  not presented as vector delta-v, mission loss, or flight-safety evidence.
 - Added a bounded stage-interface axial load-path review. Serial topology
   edges now expose downstream mass, common-acceleration demand, parent/child
   section capacity proxies, and factor-of-safety status in the browser,

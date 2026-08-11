@@ -7,6 +7,7 @@ import {
   createScheduledStageIgnitionEvent,
   createScheduledStageSeparationEvent,
   computeStageMassRatio,
+  computeStageFlightForceBudget,
   createStageFlightVariant,
   simulateStageFlightPreview,
 } from "../lib/physics/index.ts";
@@ -129,6 +130,44 @@ const regimes = [
   },
 ];
 
+test("stage-flight force budget integrates scalar trace magnitudes and stage windows", () => {
+  const result = computeStageFlightForceBudget([
+    { timeS: 0, massKg: 2, thrustN: 10, dragN: 1, recoveryDragN: 0, aerodynamicForceN: 2, dynamicPressurePa: 0, speedMps: 0, attachedStageIds: ["booster"] },
+    { timeS: 1, massKg: 2, thrustN: 20, dragN: 3, recoveryDragN: 1, aerodynamicForceN: 4, dynamicPressurePa: 100, speedMps: 10, attachedStageIds: ["booster"] },
+    { timeS: 2, massKg: 1, thrustN: 0, dragN: 1, recoveryDragN: 0, aerodynamicForceN: 1, dynamicPressurePa: 50, speedMps: 4, attachedStageIds: [] },
+  ], { stageLabels: { booster: "Booster" } });
+
+  assert.equal(result.status, "assessed");
+  assert.equal(result.timeSpanS, 2);
+  assert.equal(result.thrustImpulseNs, 25);
+  assert.equal(result.aerodynamicDragImpulseNs, 4);
+  assert.equal(result.recoveryDragImpulseNs, 1);
+  assert.equal(result.combinedDragImpulseNs, 5);
+  assert.equal(result.aerodynamicForceImpulseNs, 5.5);
+  assert.equal(result.peakDynamicPressurePa, 100);
+  assert.equal(result.peakSpeedMps, 10);
+  assert.equal(result.stages[0].stageName, "Booster");
+  assert.equal(result.stages[0].activeDurationS, 2);
+  assert.match(result.warnings.join(" "), /scalar magnitudes/);
+});
+
+test("stage-flight force budget rejects malformed traces and keeps insufficient coverage explicit", () => {
+  assert.equal(computeStageFlightForceBudget([]).status, "not-assessed");
+  assert.throws(
+    () => computeStageFlightForceBudget([
+      { timeS: 1, massKg: 1, thrustN: 0, dragN: 0, recoveryDragN: 0 },
+      { timeS: 0, massKg: 1, thrustN: 0, dragN: 0, recoveryDragN: 0 },
+    ]),
+    /non-decreasing/,
+  );
+  assert.throws(
+    () => computeStageFlightForceBudget([
+      { timeS: 0, massKg: 0, thrustN: 0, dragN: 0, recoveryDragN: 0 },
+    ]),
+    /mass must be positive/,
+  );
+});
+
 test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF events", () => {
   const result = simulateStageFlightPreview({
     retainedMassProperties: properties(0.4, 0.2),
@@ -149,11 +188,17 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.17.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.18.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.massRatio.overallStatus, "assessed");
   assert.equal(result.massRatio.stages.length, 2);
   assert.ok(result.massRatio.totalIdealDeltaVMps > 0);
+  assert.equal(result.forceBudget.status, "assessed");
+  assert.equal(result.forceBudget.sampleCount, result.trace.length);
+  assert.ok((result.forceBudget.thrustImpulseNs ?? 0) > 0);
+  assert.ok((result.forceBudget.thrustVelocityEquivalentMps ?? 0) > 0);
+  assert.ok(result.forceBudget.stages.some((stage) => stage.stageId === "booster"));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("velocity-equivalent accounting")));
   assert.ok(result.assumptions.some((assumption) => assumption.includes("Tsiolkovsky")));
   assert.equal(result.events.length, 2);
   assert.equal(result.eventAllocation.status, "watch");
