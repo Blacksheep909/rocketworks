@@ -18,6 +18,9 @@ vehicle. It currently visualizes:
 
 - an editable ogive, conical, or elliptical display nose
 - cylindrical airframe
+- topology-aware 2D side profiles for enabled serial stages and repeated radial
+  instances, with authored component markers and the same azimuth presentation
+  control used by the design workbench
 - telemetry-blue body band
 - the current fin count and editable trapezoidal planform
 - rear closure and motor nozzle
@@ -90,7 +93,9 @@ Canvas 2D API rather than a third-party 3D or CAD library.
 - The 2D/3D mode switch remains a normal labelled button group.
 - The design workbench exposes three presentation states: an orthographic 2D
   side profile, a low-ink 3D skeleton, and the shaded 3D final display. These
-  are display choices only and all consume the same independent preview mesh.
+  are display choices only. The 2D profile consumes topology stage geometry and
+  authored component placement markers; the two 3D states consume the expanded
+  independent preview mesh.
 - In 2D, the vertical azimuth rail applies a bounded CSS perspective rotation
   to the side-profile presentation and announces the current 0–359° view angle
   through an output readout. It is a view-orientation aid, not a new geometry
@@ -141,6 +146,10 @@ flight safety.
   assembly graph, including the bounded topology component primitives. Arbitrary
   custom group visual primitives and nested CAD solids still need dedicated
   display schemas.
+- The 2D profile is an orthographic projection: radial `Z` depth is collapsed
+  into the side view and does not claim a full 3D measurement or clearance
+  result. Clickable stage/component shapes open the topology editor rather than
+  changing engineering inputs directly.
 - No internal transparent solids, section cuts, stage separation animation, or
   material texture; point-mass markers are intentionally abstract.
 - Painter-style triangle sorting can produce minor overlap artifacts for future

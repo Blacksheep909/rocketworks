@@ -17,6 +17,9 @@ research, standards, and original code.
 - component-aware 2D geometry and an interactive 3D vehicle view driven by
   expanded assembly components, with clickable surface/stage/component
   selection, grouped stage visibility, plus enabled serial and radial previews;
+- the 2D profile now projects enabled serial stages, repeated radial instances,
+  and authored equipment/pod markers while preserving the explicit azimuth and
+  display-only boundary;
 - mass, centre-of-gravity, inertia, static stability, and centre-of-pressure
   calculations with model versions and assumptions;
 - serial, parallel, radial, clustered, and multi-stage vehicle topology;

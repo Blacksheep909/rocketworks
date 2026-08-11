@@ -15,6 +15,10 @@ flight-readiness claims.
   stage settings and copies authored component plans; removing a non-core stage
   now rehomes its components and reparents direct children to the core through
   a validated transactional helper.
+- Extended the 2D design profile to consume enabled topology stage geometry and
+  authored component placement markers. Serial and radial instances remain
+  clickable display-only projections, with radial depth and aerodynamic
+  clearance intentionally outside the 2D measurement claim.
 
 - Extended the original RASP/ENG interchange parser to validate multi-record
   files. Batch imports receive deterministic local ID suffixes, preserve the

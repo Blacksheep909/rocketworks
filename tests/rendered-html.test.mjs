@@ -897,6 +897,10 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /duplicateTopologyStage/);
   assert.match(page, /Duplicate/);
   assert.match(page, /rehomed to core/);
+  assert.match(page, /topologyStageParts/);
+  assert.match(page, /topologyComponentMarkers/);
+  assert.match(page, /TOPOLOGY PROFILE/);
+  assert.match(page, /stage profiles/);
   assert.match(page, /Radial offset \(m\)/);
   assert.match(page, /Wall thickness \(m\)/);
   assert.match(page, /radial placement rotates with repeated booster instances/);
@@ -946,6 +950,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stylesheet, /\.topology-components/);
   assert.match(stylesheet, /\.topology-component-card/);
   assert.match(stylesheet, /\.topology-stage-actions/);
+  assert.match(stylesheet, /\.topology-stage-profile/);
+  assert.match(stylesheet, /\.topology-component-marker/);
   assert.match(stylesheet, /\.stage-flight-profile/);
   assert.match(stylesheet, /\.stage-flight-chart/);
   assert.match(stylesheet, /\.stage-flight-convergence/);

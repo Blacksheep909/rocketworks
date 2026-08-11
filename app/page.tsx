@@ -4233,6 +4233,48 @@ export default function Home() {
   ]);
 
   const selectedComponent = components.find((component) => component.id === selected)!;
+  const topologyStageParts = useMemo(
+    () => createCadStageParts(vehicleTopology.stages, {
+      lengthM: length / 1000,
+      diameterM: diameter / 1000,
+      noseLengthM: noseLength / 1000,
+      noseProfile,
+      finCount,
+      finRootChordM: finRootChord / 1000,
+      finTipChordM: finTipChord / 1000,
+      finSweepM: finSweep / 1000,
+      finSpanM: finSpan / 1000,
+      finThicknessM: finThickness / 1000,
+    }),
+    [diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, noseLength, noseProfile, vehicleTopology.stages],
+  );
+  const topologyComponentMarkers = useMemo(() => {
+    const placements = createStagePlacements(vehicleTopology.stages, {
+      lengthM: length / 1000,
+      diameterM: diameter / 1000,
+      noseLengthM: noseLength / 1000,
+    });
+    const placementByStageId = new Map(placements.map((placement) => [placement.stage.id, placement]));
+    return vehicleTopology.components.flatMap((component) => {
+      if (!component.enabled) return [];
+      const placement = placementByStageId.get(component.stageId);
+      if (!placement || !placement.stage.enabled) return [];
+      return Array.from({ length: placement.instanceCount }, (_, instanceIndex) => {
+        const instanceAngle = placement.stage.attachment === "parallel"
+          ? (instanceIndex * 2 * Math.PI) / Math.max(placement.instanceCount, 1)
+          : 0;
+        const componentAzimuthRad = (component.azimuthDeg * Math.PI) / 180 + instanceAngle;
+        return {
+          id: `${component.id}-instance-${instanceIndex + 1}`,
+          name: placement.instanceCount > 1 ? `${component.name} ${instanceIndex + 1}` : component.name,
+          kind: component.kind,
+          stageId: component.stageId,
+          axialPositionM: placement.translationXM + component.axialPositionM,
+          radialPositionM: (placement.stage.attachment === "parallel" ? placement.stage.repeatRadiusM * Math.cos(instanceAngle) : 0) + component.radialOffsetM * Math.cos(componentAzimuthRad),
+        };
+      });
+    });
+  }, [diameter, length, noseLength, vehicleTopology.components, vehicleTopology.stages]);
   const componentDetails: Readonly<Record<ComponentKey, string>> = {
     nose: `${noseProfile} · ${noseLength} mm`,
     body: `${diameter} × ${length} mm`,
@@ -4251,6 +4293,12 @@ export default function Home() {
     96,
     Math.max(4, (centerOfPressureMm / designLength) * 100),
   );
+  const twoDCoreNosePx = Math.max(72, Math.min(160, noseLength * 0.66));
+  const twoDCoreBodyPx = Math.min(520, 280 + length / 4);
+  const twoDCoreLengthM = Math.max((noseLength + length) / 1000, 1e-6);
+  const twoDPxPerM = (twoDCoreNosePx + twoDCoreBodyPx) / twoDCoreLengthM;
+  const twoDCoreDiameterM = Math.max(diameter / 1000, 1e-6);
+  const twoDCoreStageId = vehicleTopology.stages[0]?.id;
   const modelWarning =
     result.warnings.find((item) => item.severity !== "info") ??
     result.warnings[0];
@@ -6488,6 +6536,10 @@ export default function Home() {
           designView === "2d" ? (
             <div className="design-canvas design-canvas-2d">
               <div className="canvas-grid" />
+              <div className="viewport-mode-badge topology-2d-mode-badge" aria-live="polite">
+                <span>TOPOLOGY PROFILE</span>
+                <strong>{activeStageCount} STAGE{activeStageCount === 1 ? "" : "S"}</strong>
+              </div>
               <aside className="view-azimuth-rail" aria-label="2D viewing angle">
                 <span className="view-azimuth-kicker">{uiCopy.twoDView}</span>
                 <input
@@ -6508,8 +6560,58 @@ export default function Home() {
               <div className="dimension dimension-top"><span /><strong>{designLength} mm</strong><span /></div>
               <div className="rocket-assembly-orbit" style={{ transform: `perspective(960px) rotateY(${designAzimuthDeg}deg)` }}>
                <div className="rocket-assembly" aria-label={`${uiCopy.sideProfile} of the ${projectName} rocket at ${designAzimuthDeg} degrees ${uiCopy.azimuth.toLowerCase()}`}>
-                  <div className={`rocket-nose rocket-nose-${noseProfile}`} style={{ width: `${Math.max(72, Math.min(160, noseLength * 0.66))}px` }} />
-                  <div className="rocket-body" style={{ width: `${Math.min(520, 280 + length / 4)}px` }}>
+                  {topologyStageParts.map((part) => {
+                    const stageId = part.id.replace(/-instance-\d+$/, "");
+                    const stage = vehicleTopology.stages.find((candidate) => candidate.id === stageId);
+                    if (!stage || stage.id === twoDCoreStageId || !stage.enabled) return null;
+                    const noseWidthPx = Math.max(20, part.noseLengthM * twoDPxPerM);
+                    const bodyWidthPx = Math.max(28, part.bodyLengthM * twoDPxPerM);
+                    const bodyHeightPx = Math.max(20, Math.min(54, 58 * part.diameterM / twoDCoreDiameterM));
+                    const finExtraPx = Math.min(18, part.finSpanM * twoDPxPerM * 0.28);
+                    const profileHeightPx = bodyHeightPx + finExtraPx * 2;
+                    return (
+                      <button
+                        className="topology-stage-profile"
+                        key={part.id}
+                        type="button"
+                        style={{
+                          left: `${twoDCoreNosePx + part.axialOffsetM * twoDPxPerM}px`,
+                          top: `calc(50% + ${part.radialOffsetYM * twoDPxPerM - profileHeightPx / 2}px)`,
+                          width: `${noseWidthPx + bodyWidthPx + 24}px`,
+                          height: `${profileHeightPx}px`,
+                        }}
+                        aria-label={`${part.name} stage profile`}
+                        onClick={() => { setTopologyOpen(true); notify(`${part.name} selected in vehicle topology`); }}
+                      >
+                        <span className={`topology-stage-profile-nose topology-stage-profile-nose-${part.noseProfile ?? "ogive"}`} style={{ width: `${noseWidthPx}px`, height: `${bodyHeightPx}px` }} />
+                        <span className="topology-stage-profile-body" style={{ width: `${bodyWidthPx}px`, height: `${bodyHeightPx}px` }}><span>{part.name}</span></span>
+                        <span className="topology-stage-profile-tail" style={{ height: `${bodyHeightPx}px` }} />
+                        <i className="topology-stage-profile-fin topology-stage-profile-fin-top" style={{ bottom: `calc(50% + ${bodyHeightPx / 2 - 1}px)`, height: `${Math.max(8, finExtraPx)}px` }} />
+                        <i className="topology-stage-profile-fin topology-stage-profile-fin-bottom" style={{ top: `calc(50% + ${bodyHeightPx / 2 - 1}px)`, height: `${Math.max(8, finExtraPx)}px` }} />
+                      </button>
+                    );
+                  })}
+                  {topologyComponentMarkers.map((marker) => {
+                    const markerSizePx = marker.kind === "cylindricalPod" ? 10 : 7;
+                    return (
+                      <button
+                        className={`topology-component-marker topology-component-marker-${marker.kind}`}
+                        key={marker.id}
+                        type="button"
+                        style={{
+                          left: `${twoDCoreNosePx + marker.axialPositionM * twoDPxPerM - markerSizePx / 2}px`,
+                          top: `calc(50% + ${marker.radialPositionM * twoDPxPerM - markerSizePx / 2}px)`,
+                          width: `${markerSizePx}px`,
+                          height: `${markerSizePx}px`,
+                        }}
+                        aria-label={`${marker.name} custom component`}
+                        title={`${marker.name} · open vehicle topology`}
+                        onClick={() => { setTopologyOpen(true); notify(`${marker.name} selected in vehicle topology`); }}
+                      />
+                    );
+                  })}
+                  <div className={`rocket-nose rocket-nose-${noseProfile}`} style={{ width: `${twoDCoreNosePx}px` }} />
+                  <div className="rocket-body" style={{ width: `${twoDCoreBodyPx}px` }}>
                     <div className="body-label">{projectName}</div><div className="body-band" /><div className="body-seam" />
                   </div>
                   <div className="rocket-tail">
@@ -6524,7 +6626,7 @@ export default function Home() {
                 </div>
               </div>
               <div className="centerline" />
-               <div className="canvas-caption"><span>{uiCopy.sideProfile}</span><span>{designAzimuthDeg}° {uiCopy.azimuth.toLowerCase()}</span><span>{uiCopy.dimensionsMillimetres}</span></div>
+               <div className="canvas-caption"><span>{uiCopy.sideProfile}</span><span>{designAzimuthDeg}° {uiCopy.azimuth.toLowerCase()}</span><span>{activeStageCount > 1 ? `${activeStageCount} stage profiles` : "Core profile"}</span><span>{uiCopy.dimensionsMillimetres}</span></div>
             </div>
           ) : (
             <div className="design-canvas design-canvas-3d">
