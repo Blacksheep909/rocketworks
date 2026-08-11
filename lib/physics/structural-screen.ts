@@ -7,8 +7,14 @@ import {
   computeFinFlutterScreen,
   type FinFlutterResult,
 } from "./fin-flutter.ts";
+import {
+  computeStructuralBendingMode,
+  type StructuralBeamBoundaryCondition,
+  type StructuralBendingModeResult,
+} from "./structural-dynamics.ts";
+import { componentMassProperties } from "./vehicle-components.ts";
 
-export const STRUCTURAL_SCREEN_MODEL_VERSION = "kestrel-structural-screen-0.1.0";
+export const STRUCTURAL_SCREEN_MODEL_VERSION = "kestrel-structural-screen-0.2.0";
 export const STRUCTURAL_SCREEN_VALIDATION_STATUS =
   "analytical-component-checks-only" as const;
 
@@ -50,6 +56,7 @@ export type StructuralScreenInput = Readonly<{
   effectiveLengthFactor?: number;
   designNormalForceCoefficient?: number;
   requiredFactorOfSafety?: number;
+  bendingBoundaryCondition?: StructuralBeamBoundaryCondition;
 }>;
 
 export type StructuralScreenResult = Readonly<{
@@ -63,6 +70,8 @@ export type StructuralScreenResult = Readonly<{
     wallThicknessM: number;
     minimumSectionAreaM2: number;
     minimumSecondMomentM4: number;
+    structuralMassKg: number;
+    bendingStiffnessNm2: number;
     slendernessRatio: number;
     finPlanformAreaM2: number | null;
   }>;
@@ -74,6 +83,7 @@ export type StructuralScreenResult = Readonly<{
     designNormalForceCoefficient: number;
     requiredFactorOfSafety: number;
   }>;
+  bendingMode: StructuralBendingModeResult;
   finFlutter: FinFlutterResult | null;
   checks: Readonly<{
     axialStress: StructuralCheck;
@@ -231,6 +241,15 @@ export function computeStructuralScreen(
   const bodyLengthM =
     body.stations[body.stations.length - 1].xM - body.stations[0].xM;
   assertPositive(bodyLengthM, "body structural length");
+  const structuralMassKg = componentMassProperties(body).massKg;
+  const bendingStiffnessNm2 =
+    input.material.youngsModulusPa * minimumSecondMoment.secondMomentM4;
+  const bendingMode = computeStructuralBendingMode({
+    lengthM: bodyLengthM,
+    bendingStiffnessNm2,
+    distributedMassKgPerM: structuralMassKg / bodyLengthM,
+    boundaryCondition: input.bendingBoundaryCondition,
+  });
 
   const weightN = input.totalMassKg * gravityMps2;
   const axialCompressionN = input.peakThrustN + weightN;
@@ -300,6 +319,7 @@ export function computeStructuralScreen(
     "This is an analytical component screen, not structural certification or flight-safety evidence.",
     "Airframe buckling uses the weakest modeled circular shell section, pinned end conditions, and the selected material's representative allowables.",
     "Fin loads use an equal-load, uniform-span proxy at the supplied peak dynamic pressure; attachment, adhesive, body-fin coupling, skin, vibration, and manufacturing effects are omitted.",
+    ...bendingMode.warnings,
   ];
 
   if (!input.fins) {
@@ -456,6 +476,8 @@ export function computeStructuralScreen(
       wallThicknessM,
       minimumSectionAreaM2: minimumSection.areaM2,
       minimumSecondMomentM4: minimumSecondMoment.secondMomentM4,
+      structuralMassKg,
+      bendingStiffnessNm2,
       slendernessRatio,
       finPlanformAreaM2,
     },
@@ -468,12 +490,14 @@ export function computeStructuralScreen(
       requiredFactorOfSafety,
     },
     finFlutter: finFlutterResult,
+    bendingMode,
     checks: { axialStress, eulerBuckling, finBending, finShear, finFlutter, staticMargin },
     assumptions: [
       "Axial compression demand is peak thrust plus full-vehicle weight, with no thrust eccentricity or transient amplification.",
       `Euler buckling uses effective length factor K=${effectiveLengthFactor.toFixed(2)} and the weakest station section.`,
       `Fin loads use a representative normal-force coefficient of ${designNormalForceCoefficient.toFixed(2)} and equal sharing across the fin count.`,
       `A factor of safety of ${requiredFactorOfSafety.toFixed(2)} is the screen review target, not a project requirement or material certification value.`,
+      ...bendingMode.assumptions,
       ...(finFlutterResult?.assumptions ?? []),
     ],
     warnings,

@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a preliminary airframe first-bending-mode screen using an independent
+  Euler-Bernoulli equivalent-beam equation. The structural card and report now
+  expose frequency, period, boundary assumption, modeled shell stiffness, and
+  mass limits; this is a trend with no pass/fail or flight-safety meaning.
 - Corrected literal encoding artifacts in the Flight convergence card, launch
   environment metrics, engineering-report residual units, and benchmark unit
   labels so arrows, middle dots, and SI exponents render as intended. Added a

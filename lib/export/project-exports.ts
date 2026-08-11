@@ -1826,6 +1826,7 @@ export function createEngineeringReportMarkdown(
           "",
           `- Axial demand: ${formatNumber(input.structural.loads.axialCompressionN, 2)} N (${formatNumber(input.structural.loads.peakThrustN, 2)} N peak thrust + ${formatNumber(input.structural.loads.weightN, 2)} N weight).`,
           `- Modeled body: ${formatNumber(input.structural.geometry.bodyLengthM * 1000, 0)} mm long, ${formatNumber(input.structural.geometry.minimumOuterDiameterM * 1000, 1)} mm minimum diameter, ${formatNumber(input.structural.geometry.wallThicknessM * 1000, 2)} mm wall; slenderness ${formatNumber(input.structural.geometry.slendernessRatio, 1)}.`,
+          `- First equivalent bending mode: ${formatNumber(input.structural.bendingMode.frequencyHz, 3)} Hz (${formatNumber(input.structural.bendingMode.periodS, 4)} s period; ${markdownText(input.structural.bendingMode.boundaryCondition)} boundary).`,
           ...input.structural.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
           ...input.structural.warnings.map((warning) => `- **Structural screen warning:** ${markdownText(warning)}`),
           "",

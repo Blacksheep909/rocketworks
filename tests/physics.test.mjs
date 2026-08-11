@@ -10,6 +10,7 @@ import {
   simulateVerticalFlight,
   standardAtmosphere,
   geopotentialToGeometricAltitude,
+  computeStructuralBendingMode,
   atmosphereFromSurfaceObservation,
   applyRelativeHumidityToAtmosphere,
   saturationVaporPressurePa,
@@ -115,9 +116,36 @@ test("structural screen matches the closed-form shell and Euler proxies", () => 
   assert.equal(result.checks.eulerBuckling.status, "pass");
   assert.equal(result.checks.finBending.status, "pass");
   assert.equal(result.checks.finFlutter.status, "pass");
+  const shellMassPerLength = result.geometry.structuralMassKg / result.geometry.bodyLengthM;
+  const expectedFrequency =
+    result.bendingMode.betaL ** 2 / (2 * Math.PI) * Math.sqrt(
+      result.geometry.bendingStiffnessNm2 /
+        (shellMassPerLength * result.geometry.bodyLengthM ** 4),
+    );
+  closeTo(result.bendingMode.frequencyHz, expectedFrequency, 1e-12, "first bending frequency");
+  assert.equal(result.bendingMode.boundaryCondition, "cantilever");
   assert.ok(result.finFlutter?.safeAirspeedMps !== null);
   assert.equal(result.overallStatus, "pass");
   assert.match(result.warnings[0], /not structural certification/);
+});
+
+test("structural bending mode supports explicit simply-supported roots and rejects unsafe inputs", () => {
+  const cantilever = computeStructuralBendingMode({
+    lengthM: 1,
+    bendingStiffnessNm2: 12,
+    distributedMassKgPerM: 3,
+  });
+  const simplySupported = computeStructuralBendingMode({
+    lengthM: 1,
+    bendingStiffnessNm2: 12,
+    distributedMassKgPerM: 3,
+    boundaryCondition: "simply-supported",
+  });
+  closeTo(cantilever.frequencyHz, (1.875104068711961 ** 2 / (2 * Math.PI)) * 2, 1e-12, "cantilever frequency");
+  closeTo(simplySupported.frequencyHz, (Math.PI ** 2 / (2 * Math.PI)) * 2, 1e-12, "simply-supported frequency");
+  assert.ok(simplySupported.frequencyHz > cantilever.frequencyHz);
+  assert.throws(() => computeStructuralBendingMode({ lengthM: 0, bendingStiffnessNm2: 1, distributedMassKgPerM: 1 }), /length/);
+  assert.throws(() => computeStructuralBendingMode({ lengthM: 1, bendingStiffnessNm2: 1, distributedMassKgPerM: 1, boundaryCondition: "free-free" }), /unsupported/);
 });
 
 test("structural screen keeps dynamic-pressure checks visibly unavailable", () => {

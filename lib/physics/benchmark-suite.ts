@@ -20,7 +20,7 @@ import {
 } from "./structural-screen.ts";
 
 export const BENCHMARK_SUITE_MODEL_VERSION =
-  "kestrel-physics-benchmark-suite-0.3.0";
+  "kestrel-physics-benchmark-suite-0.4.0";
 export const BENCHMARK_SUITE_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -279,6 +279,15 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
   const finRootSectionModulusM3 =
     (structuralFins.rootChordM * structuralFins.thicknessM ** 2) / 6;
   const finRootBendingStressPa = finRootMomentNm / finRootSectionModulusM3;
+  const structuralBodyMassKg = structuralScreen.geometry.structuralMassKg;
+  const structuralBendingFrequencyHz =
+    structuralScreen.bendingMode.frequencyHz;
+  const structuralBendingExpectedHz =
+    structuralScreen.bendingMode.betaL ** 2 / (2 * Math.PI) * Math.sqrt(
+      (structuralMaterial.youngsModulusPa * shellSecondMomentM4) /
+        ((structuralBodyMassKg / structuralBody.stations[1].xM) *
+          structuralBody.stations[1].xM ** 4),
+    );
 
   const cases = [
     compareCase({
@@ -420,6 +429,16 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
       expected: structuralEulerLoadN,
       tolerance: 1e-6,
       method: "pi^2 E I / (K L)^2 with K=1 and the circular shell second moment",
+    }),
+    compareCase({
+      id: "structural-first-bending-frequency",
+      label: "Equivalent airframe first bending frequency",
+      metric: "frequency",
+      unit: "Hz",
+      observed: structuralBendingFrequencyHz,
+      expected: structuralBendingExpectedHz,
+      tolerance: 1e-12,
+      method: "Euler–Bernoulli cantilever first root with weakest EI and modeled shell distributed mass",
     }),
     compareCase({
       id: "fin-root-bending-stress",

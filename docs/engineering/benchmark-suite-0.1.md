@@ -1,4 +1,4 @@
-# Deterministic physics benchmark suite 0.3
+# Deterministic physics benchmark suite 0.4
 
 Status: `mathematical-regression-tests-only`.
 
@@ -21,13 +21,15 @@ enough to run in CI.
   moment;
 - thin-wall circular-shell area, axial compression stress, and pinned-column
   Euler critical load;
+- equivalent airframe first bending frequency from the Euler-Bernoulli
+  cantilever root, weakest shell stiffness, and modeled shell mass;
 - equal-load fin-root bending stress;
 - a preliminary NACA-TN-4197-style fin flutter-speed equation anchor using the
   local standard-atmosphere pressure and sound speed.
 
 Each case reports the observed value, public-reference expected value, absolute
 and relative error, and a declared tolerance. The suite currently contains
-sixteen cases because the atmosphere fixture checks pressure and density as
+seventeen cases because the atmosphere fixture checks pressure and density as
 separate metrics, the 6DOF conservation checks are reported independently,
 and the structural/aeroelastic equations are checked against independent
 closed-form recomputations.

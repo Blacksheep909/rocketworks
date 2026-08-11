@@ -4,6 +4,11 @@ Status: `analytical-component-checks-only`
 
 Implementation: `lib/physics/structural-screen.ts`
 
+The screen also exposes a separate preliminary first airframe bending-mode
+trend from the equivalent-beam model in
+[`structural-dynamics-0.1.md`](structural-dynamics-0.1.md). That frequency has
+no pass/fail threshold and does not upgrade the structural screen's status.
+
 This module is an independent, explainable design-readiness screen. It is
 deliberately not a finite-element model, material certificate, manufacturing
 release, flight-safety assessment, or substitute for qualified structural

@@ -36,6 +36,7 @@ export * from "./design-optimization.ts";
 export * from "./vertical-flight-optimization.ts";
 export * from "./landing-zone.ts";
 export * from "./structural-screen.ts";
+export * from "./structural-dynamics.ts";
 export * from "./fin-flutter.ts";
 export * from "./benchmark-suite.ts";
 export * from "./engineering-design-review.ts";

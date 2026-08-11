@@ -127,6 +127,8 @@ test("ships versioned flight results and explainable model UI", async () => {
   assert.match(source, /launchLongitudeDeg/);
   assert.match(atmosphereSource, /84_852/);
   assert.match(atmosphereSource, /ATMOSPHERE_MAX_GEOMETRIC_ALTITUDE_M/);
+  assert.match(source, /1st bending mode/);
+  assert.match(source, /equivalent-beam/);
   assert.doesNotMatch(source, /(?:Â|Ã|â†)/, "Flight UI source must not contain mojibake labels");
   assert.doesNotMatch(
     await readFile(new URL("../lib/export/project-exports.ts", import.meta.url), "utf8"),

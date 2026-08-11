@@ -6614,6 +6614,7 @@ export default function Home() {
                   <div><span>Euler reserve</span><strong>{structuralScreen.checks.eulerBuckling.factorOfSafety === null ? "—" : `${structuralScreen.checks.eulerBuckling.factorOfSafety.toFixed(1)}×`}</strong></div>
                   <div><span>Fin-root reserve</span><strong>{structuralScreen.checks.finBending.factorOfSafety === null ? "—" : `${structuralScreen.checks.finBending.factorOfSafety.toFixed(1)}×`}</strong></div>
                   <div><span>Flutter-safe speed</span><strong>{structuralScreen.finFlutter?.safeAirspeedMps === null || structuralScreen.finFlutter?.safeAirspeedMps === undefined ? "—" : `${structuralScreen.finFlutter.safeAirspeedMps.toFixed(1)} m/s`}</strong></div>
+                  <div><span>1st bending mode</span><strong>{structuralScreen.bendingMode.frequencyHz.toFixed(1)} Hz</strong><small>{structuralScreen.bendingMode.boundaryCondition === "cantilever" ? "cantilever equivalent" : "simply-supported equivalent"}</small></div>
                   <div><span>Static margin</span><strong>{staticStability.staticMarginCalibers.toFixed(2)} cal</strong></div>
                 </div>
                 <div className="structural-screen-checks">
@@ -6624,7 +6625,7 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
-                <p className="structural-screen-note">Analytical component checks only. The NACA-TN-4197-style fin flutter screen is preliminary; body-fin coupling, transonic effects, joints, local buckling, vibration, and manufacturing effects are not modeled{resultIsCurrent ? "." : "; rerun the flight estimate before using dynamic-pressure and flutter trends."}</p>
+                <p className="structural-screen-note">Analytical component checks only. The first bending mode is a uniform Euler–Bernoulli equivalent-beam trend, and the NACA-TN-4197-style fin flutter screen is preliminary; body-fin coupling, transonic effects, joints, local buckling, axial-load softening, damping, and manufacturing effects are not modeled{resultIsCurrent ? "." : "; rerun the flight estimate before using dynamic-pressure and flutter trends."}</p>
               </div>
             )}
             <div className={`engineering-review-card engineering-review-${engineeringReview.overallStatus}`}>

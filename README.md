@@ -104,6 +104,8 @@ research, standards, and original code.
   topology readouts;
 - preliminary structural-readiness screen for axial stress, Euler buckling,
   fin-root bending/shear, and static-margin review with explicit assumptions;
+- a preliminary equivalent-beam first bending-mode frequency trend with
+  explicit boundary-condition, shell-stiffness, mass, and dynamic-model limits;
 - deterministic structural and aeroelastic benchmark anchors for thin-wall
   section area, axial stress, Euler critical load, fin-root bending, and the
   preliminary fin-flutter equation, kept separate from experimental validation;
