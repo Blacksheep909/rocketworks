@@ -831,6 +831,7 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /### Multi-body center-of-mass separation/);
   assert.match(report, /\| Minimum COM separation \| 0\.400 m \|/);
   assert.match(report, /Closest pair \| retained-vehicle \/ booster\/logical-1 at 4\.20 s/);
+  assert.match(report, /Closing speed at closest pair \| not estimated/);
   assert.match(report, /Pairwise fixture warning/);
   assert.match(report, /### Coupled separation impulse allocation/);
   assert.match(report, /Impulse allocator fixture warning/);

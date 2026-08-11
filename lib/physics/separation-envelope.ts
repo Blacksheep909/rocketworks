@@ -45,6 +45,8 @@ export type SeparationEnvelopePair = Readonly<{
   envelopeRadiusSumM: number | null;
   minimumEnvelopeClearanceM: number | null;
   minimumEnvelopeClearanceTimeS: number | null;
+  relativeSpeedAtClosestApproachMps: number | null;
+  closingSpeedAtClosestApproachMps: number | null;
   potentialOverlap: boolean | null;
   status: "assessed" | "not-assessed";
 }>;
@@ -69,6 +71,8 @@ export type SeparationEnvelopeResult = Readonly<{
     timeS: number;
     clearanceM: number;
     radiusSumM: number;
+    relativeSpeedMps: number | null;
+    closingSpeedMps: number | null;
   }> | null;
   status: MultiBodySeparationResult["status"];
   envelopeStatus: "assessed" | "partial" | "not-assessed";
@@ -221,6 +225,8 @@ export function analyzeSphericalSeparationEnvelope(
         minimumEnvelopeClearanceM === null
           ? null
           : pair.minimumDistanceTimeS,
+      relativeSpeedAtClosestApproachMps: pair.relativeSpeedAtMinimumMps,
+      closingSpeedAtClosestApproachMps: pair.closingSpeedAtMinimumMps,
       potentialOverlap:
         minimumEnvelopeClearanceM === null
           ? null
@@ -253,6 +259,8 @@ export function analyzeSphericalSeparationEnvelope(
           timeS: pair.minimumEnvelopeClearanceTimeS,
           clearanceM: pair.minimumEnvelopeClearanceM,
           radiusSumM: pair.envelopeRadiusSumM,
+          relativeSpeedMps: pair.relativeSpeedAtClosestApproachMps,
+          closingSpeedMps: pair.closingSpeedAtClosestApproachMps,
         };
       }
       return closest;
@@ -290,6 +298,7 @@ export function analyzeSphericalSeparationEnvelope(
       "Each body is represented by a fixed sphere centered at its simulated center of mass.",
       "Envelope radii are conservative bounds from supplied component geometry and do not vary with attitude, flex, propellant slosh, or contact response.",
       "Envelope clearance subtracts the two radii from the existing sampled center-of-mass minimum; it does not reconstruct intermediate contact events.",
+      "Relative and closing speeds at the closest approach are kinematic telemetry from the underlying traces; they are not impact loads or contact-response predictions.",
       "A non-positive clearance is a potential overlap diagnostic, not proof of physical contact or a flight-safety result.",
       ...centerOfMass.assumptions,
     ],

@@ -109,7 +109,8 @@ research, standards, and original code.
   inflation telemetry, and explicit recovery-load applicability warnings;
 - a conservative spherical-envelope separation screen derived from supplied
   component geometry, with explicit potential-overlap and missing-geometry
-  states; it remains outside contact and range-safety analysis;
+  states plus relative and inward-closing speed telemetry at closest approach;
+  it remains outside contact and range-safety analysis;
 - an instantaneous separation impulse audit that checks mass-ratio linear
   momentum balance and exposes unmodeled first-order angular impulse before
   detached-body propagation;

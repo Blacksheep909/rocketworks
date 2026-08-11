@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extended separated-body clearance and spherical-envelope diagnostics with
+  closest-approach relative speed and inward closing speed telemetry. These
+  kinematic values are disclosed in the browser and engineering report but do
+  not represent contact loads or flight-safety evidence.
 - Added an opt-in adaptive RK4 step-doubling mode to the shared released-body
   grid. Point and rigid released bodies retain exact output/release boundaries,
   while accepted/rejected internal steps and scaled truncation diagnostics are

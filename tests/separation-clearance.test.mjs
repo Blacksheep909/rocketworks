@@ -18,7 +18,7 @@ test("separation clearance interpolates the retained path and preserves the clos
     detachedTrace: [point(1, 2, 0), point(1.5, 2.5, 0), point(2, 3, 0), point(3, 5, 0)],
   });
 
-  assert.equal(result.modelVersion, "kestrel-separation-clearance-0.2.0");
+  assert.equal(result.modelVersion, "kestrel-separation-clearance-0.3.0");
   assert.equal(result.validationStatus, "analytical-component-checks-only");
   assert.equal(result.status, "assessed");
   assert.equal(result.sampleCount, 4);
@@ -28,6 +28,9 @@ test("separation clearance interpolates the retained path and preserves the clos
   assert.equal(result.minimumDistanceTimeS, 1);
   assert.equal(result.finalDistanceM, 2);
   assert.equal(result.relativeVelocityAtReleaseMps, 1);
+  assert.equal(result.closingSpeedAtReleaseMps, 1);
+  assert.equal(result.relativeSpeedAtMinimumMps, 1);
+  assert.equal(result.closingSpeedAtMinimumMps, 1);
   assert.ok(result.warnings.some((warning) => warning.toLowerCase().includes("center-of-mass")));
 });
 
@@ -55,7 +58,28 @@ test("separation clearance catches a closest approach between integration sample
   assert.equal(result.minimumDistanceM, 0);
   assert.equal(result.minimumDistanceTimeS, 1);
   assert.equal(result.releaseDistanceM, 2);
+  assert.equal(result.relativeSpeedAtMinimumMps, 2);
+  assert.equal(result.closingSpeedAtMinimumMps, 2);
   assert.ok(result.assumptions.some((assumption) => assumption.includes("continuous closest approach")));
+});
+
+test("separation clearance derives closest-approach speed from position-only traces", () => {
+  const result = analyzeSeparationClearance({
+    releaseTimeS: 0,
+    retainedTrace: [
+      { timeS: 0, positionWorldM: { x: -1, y: 0, z: 0 } },
+      { timeS: 2, positionWorldM: { x: 1, y: 0, z: 0 } },
+    ],
+    detachedTrace: [
+      { timeS: 0, positionWorldM: { x: 1, y: 0, z: 0 } },
+      { timeS: 2, positionWorldM: { x: -1, y: 0, z: 0 } },
+    ],
+  });
+
+  assert.equal(result.relativeVelocityAtReleaseMps, null);
+  assert.equal(result.closingSpeedAtReleaseMps, null);
+  assert.equal(result.relativeSpeedAtMinimumMps, 2);
+  assert.equal(result.closingSpeedAtMinimumMps, 2);
 });
 
 test("separation clearance rejects malformed trajectories and non-finite release time", () => {
@@ -101,7 +125,7 @@ test("multi-body separation checks every pair and reports the closest path", () 
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-multi-body-separation-0.2.0");
+  assert.equal(result.modelVersion, "kestrel-multi-body-separation-0.3.0");
   assert.equal(result.validationStatus, "analytical-component-checks-only");
   assert.equal(result.status, "assessed");
   assert.equal(result.bodies.length, 3);
@@ -112,6 +136,8 @@ test("multi-body separation checks every pair and reports the closest path", () 
     secondBodyId: "booster-b",
     timeS: 1.5,
     distanceM: 0.5,
+    relativeSpeedMps: 0,
+    closingSpeedMps: 0,
   });
   assert.ok(result.assumptions.some((assumption) => assumption.includes("later of its two release times")));
 });

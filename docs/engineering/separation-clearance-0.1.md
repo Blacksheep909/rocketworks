@@ -1,4 +1,4 @@
-# Separation-clearance diagnostics 0.2
+# Separation-clearance diagnostics 0.3
 
 Status: `analytical-component-checks-only`.
 
@@ -7,7 +7,8 @@ retained vehicle's propagated center-of-mass path after an explicit staging
 event. It also aggregates every retained/detached and detached/detached pair
 into one multi-body diagnostic. The diagnostics report the minimum assessed
 separation, the time of that minimum, release separation, final separation, and
-relative speed at release where the traces provide it.
+relative speed at release where the traces provide it, plus relative speed and
+inward radial closing speed at the continuous closest approach.
 
 ## Method
 
@@ -26,8 +27,11 @@ d(t) = \lVert \mathbf r_{detached}(t) - \mathbf r_{retained}(t) \rVert_2
 \]
 
 Velocity separation at release uses the same world-frame subtraction when both
-traces provide velocity. No time extrapolation is performed; samples outside
-the retained trace are reported as unmatched and produce a `partial` result.
+traces provide velocity. At the closest approach, the result reports the
+relative speed and the inward radial component (clipped at zero). If a trace
+does not carry velocity, the piecewise-linear position slope is used only as
+kinematic telemetry. No time extrapolation is performed; samples outside the
+retained trace are reported as unmatched and produce a `partial` result.
 
 ## Multi-body aggregation
 
@@ -40,8 +44,8 @@ closest assessed pair, the minimum distance across all matched pairs, and an
 aggregate `assessed`, `partial`, or `not-assessed` status.
 
 The aggregate model is versioned independently as
-`kestrel-multi-body-separation-0.2.0`; the single-pair result is
-`kestrel-separation-clearance-0.2.0`. The `kestrel-*` prefix is retained for
+`kestrel-multi-body-separation-0.3.0`; the single-pair result is
+`kestrel-separation-clearance-0.3.0`. The `kestrel-*` prefix is retained for
 serialized project compatibility even though the public product is branded
 RocketWorks.
 
@@ -62,8 +66,9 @@ separated-body branch.
 
 - Unit tests cover interpolation, continuous minimum-distance selection,
   between-sample crossings, release relative
-  speed, partial time overlap, malformed trajectories, pairwise aggregation,
-  duplicate identifiers, and insufficient body inputs.
+  speed, closest-approach relative/closing speed, partial time overlap,
+  malformed trajectories, pairwise aggregation, duplicate identifiers, and
+  insufficient body inputs.
 - Stage-flight previews pass their exact retained world-frame trace into each
   detached branch, so the browser telemetry uses the same state history rather
   than a separately reconstructed path. The aggregate then compares those

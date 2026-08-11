@@ -73,6 +73,10 @@ test("spherical envelope clearance subtracts both bounds and labels potential ov
   assert.ok(Math.abs((result.closestEnvelopePair?.clearanceM ?? 0) + 0.2) < 1e-12);
   assert.equal(result.closestEnvelopePair?.radiusSumM, 1.2);
   assert.equal(result.pairs[0].potentialOverlap, true);
+  assert.equal(result.pairs[0].relativeSpeedAtClosestApproachMps, 0);
+  assert.equal(result.pairs[0].closingSpeedAtClosestApproachMps, 0);
+  assert.equal(result.closestEnvelopePair?.relativeSpeedMps, 0);
+  assert.equal(result.closestEnvelopePair?.closingSpeedMps, 0);
   assert.ok(result.warnings.some((warning) => warning.includes("Potential spherical-envelope overlap")));
 });
 

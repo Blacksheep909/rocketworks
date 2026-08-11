@@ -39,6 +39,12 @@ minus the radius sum. A non-positive value is labeled `potential overlap`; it
 does not prove that physical surfaces touch because the bound is spherical and
 geometry-free.
 
+When both traces carry velocity, the pair also reports relative speed and
+inward radial closing speed at that closest approach. If velocities are
+missing, the clearance module derives a piecewise-linear position slope for
+kinematic telemetry. These values are not impact loads, contact impulses, or a
+structural qualification result.
+
 Pairs without both geometry radii, or without overlapping post-release traces,
 remain `not-assessed`. The browser preserves those missing-data states instead
 of borrowing a vehicle diameter or silently extrapolating a path.
@@ -56,6 +62,7 @@ separation event.
 - Component-bound fixtures verify finite, deterministic radii for axisymmetric,
   fin, and point-mass geometry.
 - Pair fixtures verify radius subtraction, potential-overlap labeling, partial
-  geometry coverage, and invalid-radius rejection.
+  geometry coverage, closest-approach kinematic telemetry, and invalid-radius
+  rejection.
 - Stage-flight integration keeps the spherical screen separate from the
   center-of-mass diagnostic and exposes both model versions in the result.

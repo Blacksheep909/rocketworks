@@ -8,11 +8,11 @@ import {
 } from "./linear-algebra.ts";
 
 export const SEPARATION_CLEARANCE_MODEL_VERSION =
-  "kestrel-separation-clearance-0.2.0";
+  "kestrel-separation-clearance-0.3.0";
 export const SEPARATION_CLEARANCE_STATUS =
   "analytical-component-checks-only" as const;
 export const MULTI_BODY_SEPARATION_MODEL_VERSION =
-  "kestrel-multi-body-separation-0.2.0";
+  "kestrel-multi-body-separation-0.3.0";
 
 export type SeparationClearanceTracePoint = Readonly<{
   timeS: number;
@@ -31,6 +31,9 @@ export type SeparationClearanceResult = Readonly<{
   releaseDistanceM: number | null;
   finalDistanceM: number | null;
   relativeVelocityAtReleaseMps: number | null;
+  closingSpeedAtReleaseMps: number | null;
+  relativeSpeedAtMinimumMps: number | null;
+  closingSpeedAtMinimumMps: number | null;
   status: "assessed" | "partial" | "not-assessed";
   warnings: readonly string[];
   assumptions: readonly string[];
@@ -75,6 +78,8 @@ export type MultiBodySeparationResult = Readonly<{
     secondBodyId: string;
     timeS: number;
     distanceM: number;
+    relativeSpeedMps: number | null;
+    closingSpeedMps: number | null;
   }> | null;
   status: "assessed" | "partial" | "not-assessed";
   warnings: readonly string[];
@@ -163,7 +168,24 @@ function interpolatePoint(
 type RelativeClosestApproach = Readonly<{
   timeS: number;
   distanceM: number;
+  relativeSpeedMps: number | null;
+  closingSpeedMps: number | null;
 }>;
+
+type RelativeSample = Readonly<{
+  timeS: number;
+  relativePositionM: Vector3;
+  relativeVelocityMps: Vector3 | null;
+}>;
+
+function closingSpeedMps(
+  relativePositionM: Vector3,
+  relativeVelocityMps: Vector3,
+): number {
+  const distanceM = magnitude(relativePositionM);
+  if (distanceM <= 1e-12) return magnitude(relativeVelocityMps);
+  return Math.max(0, -dot(relativePositionM, relativeVelocityMps) / distanceM);
+}
 
 /**
  * Finds the closest relative position over a piecewise-linear interval. Both
@@ -206,11 +228,17 @@ function continuousClosestApproach(
       }
       return times;
     }, []);
-  const samples = candidateTimes.flatMap((timeS) => {
+  const samples: RelativeSample[] = candidateTimes.flatMap((timeS) => {
     const retained = interpolatePoint(retainedTrace, timeS);
     const detached = interpolatePoint(detachedTrace, timeS);
     if (!retained || !detached) return [];
-    return [{ timeS, relativePositionM: subtractVectors(detached.positionWorldM, retained.positionWorldM) }];
+    return [{
+      timeS,
+      relativePositionM: subtractVectors(detached.positionWorldM, retained.positionWorldM),
+      relativeVelocityMps: detached.velocityWorldMps && retained.velocityWorldMps
+        ? subtractVectors(detached.velocityWorldMps, retained.velocityWorldMps)
+        : null,
+    }];
   });
   if (samples.length === 0) return null;
 
@@ -218,9 +246,19 @@ function continuousClosestApproach(
   const consider = (candidate: RelativeClosestApproach): void => {
     if (!closest || candidate.distanceM < closest.distanceM) closest = candidate;
   };
-  samples.forEach((sample) =>
-    consider({ timeS: sample.timeS, distanceM: magnitude(sample.relativePositionM) }),
-  );
+  samples.forEach((sample) => {
+    const relativeSpeedMps = sample.relativeVelocityMps === null
+      ? null
+      : magnitude(sample.relativeVelocityMps);
+    consider({
+      timeS: sample.timeS,
+      distanceM: magnitude(sample.relativePositionM),
+      relativeSpeedMps,
+      closingSpeedMps: sample.relativeVelocityMps === null
+        ? null
+        : closingSpeedMps(sample.relativePositionM, sample.relativeVelocityMps),
+    });
+  });
   for (let index = 0; index < samples.length - 1; index += 1) {
     const before = samples[index]!;
     const after = samples[index + 1]!;
@@ -245,9 +283,12 @@ function continuousClosestApproach(
       relativeDeltaM,
       fraction,
     );
+    const relativeVelocityMps = scaleVector(relativeDeltaM, 1 / durationS);
     consider({
       timeS: before.timeS + fraction * durationS,
       distanceM: magnitude(closestPositionM),
+      relativeSpeedMps: magnitude(relativeVelocityMps),
+      closingSpeedMps: closingSpeedMps(closestPositionM, relativeVelocityMps),
     });
   }
   return closest;
@@ -306,15 +347,23 @@ export function analyzeSeparationClearance(
     (sample) => Math.abs(sample.timeS - input.releaseTimeS) <= TIME_TOLERANCE_S,
   ) ?? matched[0];
   const finalSample = matched.at(-1);
-  const releasePoint = input.detachedTrace.find(
-    (point) => Math.abs(point.timeS - input.releaseTimeS) <= TIME_TOLERANCE_S,
-  ) ?? input.detachedTrace[0];
+  const releasePoint = interpolatePoint(detachedTrace, input.releaseTimeS)
+    ?? input.detachedTrace.find(
+      (point) => Math.abs(point.timeS - input.releaseTimeS) <= TIME_TOLERANCE_S,
+    )
+    ?? input.detachedTrace[0];
   const releaseRetainedPoint = releasePoint
     ? interpolatePoint(retainedTrace, releasePoint.timeS)
     : null;
   const relativeVelocityAtReleaseMps = releasePoint?.velocityWorldMps && releaseRetainedPoint?.velocityWorldMps
     ? magnitude(subtractVectors(releasePoint.velocityWorldMps, releaseRetainedPoint.velocityWorldMps))
     : releaseSample?.relativeVelocityMps ?? null;
+  const closingSpeedAtReleaseMps = releasePoint?.velocityWorldMps && releaseRetainedPoint?.velocityWorldMps
+    ? closingSpeedMps(
+        subtractVectors(releasePoint.positionWorldM, releaseRetainedPoint.positionWorldM),
+        subtractVectors(releasePoint.velocityWorldMps, releaseRetainedPoint.velocityWorldMps),
+      )
+    : null;
   const status: SeparationClearanceResult["status"] =
     matched.length === 0
       ? "not-assessed"
@@ -344,12 +393,17 @@ export function analyzeSeparationClearance(
     releaseDistanceM: releaseSample?.distanceM ?? null,
     finalDistanceM: finalSample?.distanceM ?? null,
     relativeVelocityAtReleaseMps,
+    closingSpeedAtReleaseMps,
+    relativeSpeedAtMinimumMps: minimum?.relativeSpeedMps ?? null,
+    closingSpeedAtMinimumMps: minimum?.closingSpeedMps ?? null,
     status,
     warnings,
     assumptions: [
       "Retained and detached positions are compared in the shared world frame.",
       "Retained positions are linearly interpolated at detached-body sample times.",
       "Minimum separation uses continuous closest approach over piecewise-linear relative position between the union of both traces' sample times; it is not a contact solve.",
+      "Relative speed at closest approach uses supplied trace velocities when available; otherwise the piecewise-linear position slope is used only for kinematic telemetry.",
+      "Closing speed is the inward radial component of relative velocity, clipped at zero; at zero center separation it reports relative speed because radial direction is undefined.",
       "The detached body is represented by its center of mass; no body envelope or attitude-dependent geometry is applied.",
       "A partial result reports only the overlapping time interval and must not be extrapolated.",
     ],
@@ -426,6 +480,8 @@ export function analyzeMultiBodySeparation(
           secondBodyId: pair.secondBodyId,
           timeS: pair.minimumDistanceTimeS,
           distanceM: pair.minimumDistanceM,
+          relativeSpeedMps: pair.relativeSpeedAtMinimumMps,
+          closingSpeedMps: pair.closingSpeedAtMinimumMps,
         };
       }
       return closest;

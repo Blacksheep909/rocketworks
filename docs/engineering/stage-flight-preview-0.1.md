@@ -248,7 +248,10 @@ separate spherical-envelope result. The COM diagnostic compares every
 retained/detached and detached/detached trace pair from the later release time
 and reports the closest assessed pair. The envelope result subtracts fixed
 component-derived radii and labels non-positive values as potential overlap;
-neither result models contact, aerodynamic clearance, or range safety.
+neither result models contact, aerodynamic clearance, or range safety. Both
+results now carry relative speed and inward radial closing speed at the
+closest assessed approach when the trace data support it; those values are
+kinematic telemetry only, not impact loads or contact-response predictions.
 
 The adapter also returns a coupled separation impulse allocation diagnostic for
 each event that releases one or more bodies. It starts from the configured
