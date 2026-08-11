@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a versioned device-local display-preferences record for the selected
+  2D / 3D presentation mode and 2D azimuth. These preferences restore the
+  user's workspace without entering the engineering project snapshot,
+  configuration fingerprint, share link, or exported report. Invalid browser
+  records fall back to the documented defaults and remain visible as a
+  persistence warning.
 - Added a focused vehicle presentation layer to the design workbench. The mode
   selector now distinguishes 2D, 3D skeleton, and 3D final display states; the
   skeleton is an intentionally low-ink rendering of the same independent

@@ -96,6 +96,11 @@ Canvas 2D API rather than a third-party 3D or CAD library.
 - Geometry fields in the design inspector may expose a paired range slider and
   exact number input. Both controls update the same React state and preserve
   the existing component validation and stale-result behavior.
+- The selected display mode and 2D azimuth are stored in a separate,
+  versioned device-local preferences record. They intentionally do not enter
+  the engineering project snapshot, configuration fingerprint, share-link
+  payload, or report inputs; a malformed record is rejected and replaced by
+  the explicit default view (`2d`, `0°`).
 - Rendering has no continuous animation, so reduced-motion users are not
   exposed to automatic camera movement.
 

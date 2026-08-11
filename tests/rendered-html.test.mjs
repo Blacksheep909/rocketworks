@@ -397,6 +397,8 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(page, /view-azimuth-rail/);
   assert.match(page, /designAzimuthDeg/);
   assert.match(page, /className="field-slider"/);
+  assert.match(page, /UI_PREFERENCES_STORAGE_KEY/);
+  assert.match(page, /serializeUiPreferences/);
   assert.match(viewport, /createRocketPreviewMesh/);
   assert.match(viewport, /RocketPreviewStageInstance/);
   assert.match(viewport, /Stage visibility controls/);

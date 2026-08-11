@@ -175,10 +175,17 @@ import {
   isSimulationFingerprintCurrent,
   SIMULATION_FRESHNESS_MODEL_VERSION,
 } from "../lib/project/simulation-freshness.ts";
+import {
+  createDefaultUiPreferences,
+  parseUiPreferences,
+  serializeUiPreferences,
+  UI_PREFERENCES_STORAGE_KEY,
+  type UiDesignView,
+} from "../lib/project/ui-preferences.ts";
 
 type ComponentKey = "nose" | "body" | "fins" | "mount" | "recovery";
 type ViewKey = "design" | "flight";
-type DesignViewKey = "2d" | "3d-skeleton" | "3d-final";
+type DesignViewKey = UiDesignView;
 type MaterialKey = "kraft" | "fiberglass" | "carbon";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
 type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "sweep-csv" | "uncertainty-csv" | "report" | "dxf" | "stl" | "openscad";
@@ -3095,8 +3102,8 @@ function AerodynamicTableInspector({ table }: { table: AerodynamicCoefficientTab
 export default function Home() {
   const [selected, setSelected] = useState<ComponentKey>("body");
   const [view, setView] = useState<ViewKey>("design");
-  const [designView, setDesignView] = useState<DesignViewKey>("2d");
-  const [designAzimuthDeg, setDesignAzimuthDeg] = useState(0);
+  const [designView, setDesignView] = useState<DesignViewKey>(() => createDefaultUiPreferences().designView);
+  const [designAzimuthDeg, setDesignAzimuthDeg] = useState(() => createDefaultUiPreferences().designAzimuthDeg);
   const [length, setLength] = useState(710);
   const [diameter, setDiameter] = useState(54);
   const [noseLength, setNoseLength] = useState(180);
@@ -3193,10 +3200,15 @@ export default function Home() {
   const lastSavedInputsRef = useRef<EditableProjectInputs | null>(null);
   const lastSavedFingerprintRef = useRef("");
   const shareHydratedRef = useRef(false);
+  const uiPreferenceWriteFailedRef = useRef(false);
   const [storageReady, setStorageReady] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saved, setSaved] = useState(false);
   const [toast, setToast] = useState("");
+  const notify = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 2200);
+  };
   const editableInputs = useMemo<EditableProjectInputs>(
     () => ({
       lengthMm: length,
@@ -3717,6 +3729,7 @@ export default function Home() {
       let restoredAerodynamicTables: AerodynamicCoefficientTableDefinition[] = [];
       let restoredMotorSelection = "synthetic";
       let restoredAerodynamicSelection = "constant";
+      let restoredUiPreferences = createDefaultUiPreferences();
       const problems: string[] = [];
       const selectionWarnings: string[] = [];
       try {
@@ -3772,8 +3785,16 @@ export default function Home() {
       } catch {
         problems.push("the vehicle topology");
       }
+      try {
+        const serialized = window.localStorage.getItem(UI_PREFERENCES_STORAGE_KEY);
+        if (serialized) restoredUiPreferences = parseUiPreferences(serialized);
+      } catch {
+        problems.push("the display preferences");
+      }
       const storedMode = window.localStorage.getItem(EXPERIENCE_MODE_STORAGE_KEY);
       if (storedMode === "beginner" || storedMode === "expert") setExperienceMode(storedMode);
+      setDesignView(restoredUiPreferences.designView);
+      setDesignAzimuthDeg(restoredUiPreferences.designAzimuthDeg);
       if (restoredSnapshot?.selectedMotorId) restoredMotorSelection = restoredSnapshot.selectedMotorId;
       if (restoredSnapshot?.selectedAerodynamicTableId) restoredAerodynamicSelection = restoredSnapshot.selectedAerodynamicTableId;
       const motorSelectionAvailable = restoredMotorSelection === "synthetic" || restoredMotorRecords.some((record) => record.id === restoredMotorSelection);
@@ -3874,6 +3895,25 @@ export default function Home() {
     }, 0);
     return () => window.clearTimeout(hydrationTimer);
   }, []);
+
+  useEffect(() => {
+    if (!storageReady) return;
+    try {
+      window.localStorage.setItem(
+        UI_PREFERENCES_STORAGE_KEY,
+        serializeUiPreferences({
+          ...createDefaultUiPreferences(),
+          designView,
+          designAzimuthDeg,
+        }),
+      );
+    } catch {
+      if (!uiPreferenceWriteFailedRef.current) {
+        uiPreferenceWriteFailedRef.current = true;
+        notify("Display preferences are session-only");
+      }
+    }
+  }, [designAzimuthDeg, designView, storageReady]);
 
   useEffect(() => {
     if (!storageReady || shareHydratedRef.current) return;
@@ -4127,10 +4167,6 @@ export default function Home() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [commandOpen]);
 
-  const notify = (message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(""), 2200);
-  };
   const runPhysicsBenchmarks = () => {
     if (benchmarkRunning) return;
     setBenchmarkRunning(true);
