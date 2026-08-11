@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a validated device-local component library for reusable nose, airframe,
+  fin-set, and recovery presets. Presets carry source/license metadata, can be
+  applied or exported from the browser, and travel in portable project JSON
+  without entering compact share links or claiming CAD/flight validation.
 - Added editable project identity to the browser shell. Names now persist through
   local autosave/history, restore from project JSON and share links, label the
   design views, and produce sanitized artifact filenames. The compatibility

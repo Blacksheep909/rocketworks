@@ -35,6 +35,10 @@ import {
   validateVehicleTopology,
   type LocalVehicleTopology,
 } from "../project/vehicle-topology.ts";
+import {
+  validateLocalComponentRecords,
+  type LocalComponentRecord,
+} from "../project/component-library-state.ts";
 
 export const KESTREL_PROJECT_SCHEMA_ID = "org.kestrel-lab.project";
 export const KESTREL_PROJECT_SCHEMA_VERSION = 1;
@@ -59,6 +63,7 @@ export type KestrelProjectImport = Readonly<{
   selectedAerodynamicTableId: string;
   motorLibrary: readonly MotorDataRecord[];
   aerodynamicLibrary: readonly AerodynamicCoefficientTableDefinition[];
+  componentLibrary: readonly LocalComponentRecord[];
   warnings: readonly string[];
 }>;
 
@@ -286,6 +291,16 @@ function importAerodynamicLibrary(
   });
 }
 
+function importComponentLibrary(value: unknown): LocalComponentRecord[] {
+  try {
+    return validateLocalComponentRecords(value ?? []);
+  } catch (error) {
+    throw new Error(
+      `project component library is invalid: ${error instanceof Error ? error.message : "unknown error"}`,
+    );
+  }
+}
+
 /**
  * Reads the portable configuration envelope emitted by the RocketWorks project
  * export. Simulation results remain inspectable data; only validated editable
@@ -322,6 +337,7 @@ export function parseKestrelProjectJson(serialized: string): KestrelProjectImpor
     const aerodynamicLibrary = importAerodynamicLibrary(
       configuration.aerodynamicLibrary ?? [],
     );
+    const componentLibrary = importComponentLibrary(configuration.componentLibrary ?? []);
     const selectedMotorId = importString(
       configuration.selectedMotorId ?? "synthetic",
       "selected motor id",
@@ -364,6 +380,7 @@ export function parseKestrelProjectJson(serialized: string): KestrelProjectImpor
           : "constant",
       motorLibrary,
       aerodynamicLibrary,
+      componentLibrary,
       warnings,
     };
   } catch (error) {

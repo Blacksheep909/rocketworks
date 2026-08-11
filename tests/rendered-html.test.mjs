@@ -151,10 +151,15 @@ test("ships a portable project import path with validated restoration warnings",
   assert.match(source, /namedProjectFingerprint/);
   assert.match(source, /projectFileStem/);
   assert.match(source, /setProjectName\(imported\.projectName\)/);
+  assert.match(source, /LOCAL_COMPONENT_LIBRARY_STORAGE_KEY/);
+  assert.match(source, /componentLibrary/);
+  assert.match(source, /Component library/);
+  assert.match(source, /applyComponentPreset/);
   assert.match(source, /rerun estimates to refresh results/);
   assert.match(exportSource, /export function parseKestrelProjectJson/);
   assert.match(exportSource, /validateEditableProjectInputs/);
   assert.match(exportSource, /validateVehicleTopology/);
+  assert.match(exportSource, /validateLocalComponentRecords/);
   assert.match(stylesheet, /export-import-option/);
   assert.match(stylesheet, /\.project-name-input/);
 });

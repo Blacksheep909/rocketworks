@@ -61,6 +61,21 @@ const geometry = {
   centerOfPressureXM: 0.69,
 };
 
+const componentRecord = {
+  id: "nose-ogive",
+  name: "Ogive nose",
+  kind: "nose",
+  parameters: { kind: "nose", lengthMm: 180, profile: "ogive" },
+  provenance: {
+    sourceName: "RocketWorks fixture",
+    sourceKind: "project-authored",
+    dataVersion: "0.1",
+    licenseIdentifier: "MIT",
+    attribution: "Original fixture",
+    validationStatus: "project-authored-unvalidated",
+  },
+};
+
 const portableConfiguration = {
   editableInputs: {
     lengthMm: 710,
@@ -114,6 +129,7 @@ const portableConfiguration = {
   selectedAerodynamicTableId: "constant",
   motorLibrary: [],
   aerodynamicLibrary: [],
+  componentLibrary: [componentRecord],
 };
 
 test("versioned RocketWorks project JSON is deterministic and clean-room qualified", () => {
@@ -144,6 +160,7 @@ test("versioned RocketWorks project JSON is deterministic and clean-room qualifi
   assert.equal(imported.editableInputs.diameterMm, 54);
   assert.equal(imported.topology.stages[0].role, "core");
   assert.equal(imported.selectedMotorId, "synthetic");
+  assert.equal(imported.componentLibrary[0].id, "nose-ogive");
   assert.deepEqual(imported.warnings, []);
 });
 

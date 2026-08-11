@@ -72,9 +72,10 @@ clearance, range-safety, or flight-safety coverage.
 
 The JSON export now includes a `configuration` envelope containing the
 validated editable inputs, vehicle topology, selected source identifiers, and
-the user-supplied motor and aerodynamic libraries. `parseKestrelProjectJson`
-validates the schema, numeric ranges, stage graph, motor records, coefficient
-tables, and selected-source fallbacks before any browser state is changed.
+the user-supplied motor and aerodynamic libraries plus the provenance-aware
+component preset library. `parseKestrelProjectJson` validates the schema,
+numeric ranges, stage graph, motor records, coefficient tables, component
+records, and selected-source fallbacks before any browser state is changed.
 Import is transactional at the UI boundary: malformed documents leave the
 current design untouched and report a clear error. Imported simulation results
 are treated as historical evidence only; the browser marks estimates stale and

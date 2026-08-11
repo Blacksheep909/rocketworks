@@ -1377,6 +1377,7 @@ kbd {
 .library-button strong { font-size: 9px; }
 .library-button small { overflow: hidden; color: var(--muted); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .library-button em { flex: 0 0 auto; color: #80c9fa; font: normal 650 7px var(--font-geist-mono),monospace; text-transform: uppercase; }
+.component-library-launch { margin-top: 10px; }
 .check-card > span {
   flex: 0 0 auto; display: grid; place-items: center;
   width: 22px; height: 22px; border-radius: 50%; font-weight: 700; font-size: 11px;
@@ -1504,6 +1505,28 @@ kbd {
 .template-card li::before { content: "↳"; margin-right: 6px; color: #61b7f1; }
 .template-card .primary-button { align-self: flex-start; margin-top: auto; min-height: 31px; font-size: 10px; }
 .motor-dialog { width: min(880px,100%); }
+.component-dialog { width: min(960px,100%); }
+.component-library-current { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 22px; border-bottom: 1px solid var(--line); background: rgba(47,159,255,.055); }
+.component-library-current > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.component-library-current strong { font-size: 11px; }
+.component-library-current small { color: var(--muted); font-size: 8px; }
+.component-library-list { display: flex; flex-direction: column; gap: 7px; padding: 16px 22px; border-bottom: 1px solid var(--line); }
+.component-library-empty { display: flex; flex-direction: column; gap: 5px; padding: 18px; border: 1px dashed var(--line-strong); border-radius: 4px; color: var(--muted); text-align: center; }
+.component-library-empty strong { color: #dbe9f0; font-size: 10px; }
+.component-library-empty span { font-size: 8px; }
+.component-record { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 4px; background: #10171d; }
+.component-record-main { min-width: 0; display: flex; align-items: center; gap: 10px; }
+.component-record-main > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.component-record-main strong { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.component-record-main small { overflow: hidden; color: var(--muted); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.component-record-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+.component-record-actions > span { color: var(--muted); font: 8px var(--font-geist-mono),monospace; }
+.component-record-actions button { padding: 6px 8px; border: 1px solid var(--line-strong); border-radius: 3px; background: transparent; color: #b9d0df; cursor: pointer; font-size: 8px; }
+.component-record-actions button:hover, .component-record-actions button:focus-visible { border-color: rgba(47,159,255,.5); color: #fff; }
+.component-record-actions .danger-button { color: #e5a18d; }
+.component-preset-fields, .component-import-section { padding: 16px 22px; border-bottom: 1px solid var(--line); }
+.component-description-field { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; color: var(--muted); font: 8px var(--font-geist-mono),monospace; text-transform: uppercase; }
+.component-description-field input { width: 100%; }
 .motor-performance { padding: 16px 22px 15px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg,rgba(47,159,255,.07),rgba(47,159,255,.015)); }
 .motor-performance-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .motor-performance-heading h3 { margin-top: 4px; color: #e7f3fa; font-size: 14px; }
@@ -1872,6 +1895,11 @@ kbd {
   .mode-switch { display: inline-flex; }
   .mode-switch button { min-height: 26px; padding: 0 6px; font-size: 8px; }
   .motor-library-list { padding: 12px 14px; }
+  .component-library-current { align-items: flex-start; flex-direction: column; padding: 12px 14px; }
+  .component-library-list { padding: 12px 14px; }
+  .component-record { align-items: flex-start; flex-direction: column; gap: 9px; }
+  .component-record-actions { justify-content: flex-start; }
+  .component-preset-fields, .component-import-section { padding: 12px 14px; }
   .motor-performance { padding: 14px; }
   .motor-performance-heading { flex-direction: column; gap: 9px; }
   .motor-performance-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }

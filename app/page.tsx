@@ -170,6 +170,15 @@ import {
   upsertLocalAerodynamicTable,
 } from "../lib/project/aero-library-state.ts";
 import {
+  LOCAL_COMPONENT_LIBRARY_STORAGE_KEY,
+  parseLocalComponentLibrary,
+  serializeLocalComponentLibrary,
+  upsertLocalComponentRecord,
+  type ComponentPresetKind,
+  type ComponentPresetParameters,
+  type LocalComponentRecord,
+} from "../lib/project/component-library-state.ts";
+import {
   LOCAL_FLIGHT_DATA_STORAGE_KEY,
   createLocalFlightDataSnapshot,
   parseLocalFlightDataSnapshot,
@@ -394,6 +403,26 @@ type AerodynamicTableImportDraft = {
   json: string;
 };
 
+type ComponentPresetDraft = {
+  name: string;
+  description: string;
+  sourceName: string;
+  dataVersion: string;
+  licenseIdentifier: string;
+  attribution: string;
+  sourceUrl: string;
+};
+
+const defaultComponentPresetDraft: ComponentPresetDraft = {
+  name: "Reusable component",
+  description: "Project-authored RocketWorks component preset.",
+  sourceName: "RocketWorks project",
+  dataVersion: "0.1",
+  licenseIdentifier: "MIT",
+  attribution: "Original project-authored geometry",
+  sourceUrl: "",
+};
+
 const defaultAerodynamicTableImportDraft: AerodynamicTableImportDraft = {
   json: JSON.stringify(
     {
@@ -473,6 +502,18 @@ const components: Array<{
   { id: "mount", name: "Motor mount", detail: "29 mm", marker: "04" },
   { id: "recovery", name: "Recovery", detail: "450 mm chute", marker: "05" },
 ];
+
+function componentPresetKindLabel(kind: ComponentPresetKind): string {
+  return kind === "nose" ? "Nose cone" : kind === "airframe" ? "Airframe" : kind === "fin-set" ? "Fin set" : "Recovery";
+}
+
+function componentPresetSummary(record: LocalComponentRecord): string {
+  const parameters = record.parameters;
+  if (parameters.kind === "nose") return `${parameters.profile} · ${parameters.lengthMm.toFixed(0)} mm`;
+  if (parameters.kind === "airframe") return `${parameters.diameterMm.toFixed(0)} × ${parameters.lengthMm.toFixed(0)} mm · ${parameters.material}`;
+  if (parameters.kind === "fin-set") return `${parameters.count} fins · ${parameters.rootChordMm.toFixed(0)} mm root · ${parameters.spanMm.toFixed(0)} mm span`;
+  return `${(parameters.diameterM * 1000).toFixed(0)} mm canopy · ${parameters.delayS.toFixed(1)} s delay · ${parameters.reefingEnabled ? "reefed" : "full open"}`;
+}
 
 const materialModels: Record<
   MaterialKey,
@@ -3397,6 +3438,12 @@ export default function Home() {
   const [selectedAerodynamicTableId, setSelectedAerodynamicTableId] = useState("constant");
   const [aerodynamicTableImportDraft, setAerodynamicTableImportDraft] = useState<AerodynamicTableImportDraft>(defaultAerodynamicTableImportDraft);
   const [aerodynamicTableError, setAerodynamicTableError] = useState("");
+  const [componentLibraryOpen, setComponentLibraryOpen] = useState(false);
+  const componentLibraryCloseRef = useRef<HTMLButtonElement>(null);
+  const [componentRecords, setComponentRecords] = useState<LocalComponentRecord[]>([]);
+  const [componentPresetDraft, setComponentPresetDraft] = useState<ComponentPresetDraft>(defaultComponentPresetDraft);
+  const [componentImportJson, setComponentImportJson] = useState("");
+  const [componentError, setComponentError] = useState("");
   const [topologyOpen, setTopologyOpen] = useState(false);
   const topologyCloseRef = useRef<HTMLButtonElement>(null);
   const [vehicleTopology, setVehicleTopology] = useState<LocalVehicleTopology>(() => createDefaultVehicleTopology());
@@ -4149,6 +4196,12 @@ export default function Home() {
         problems.push("the local aerodynamic library");
       }
       try {
+        const serialized = window.localStorage.getItem(LOCAL_COMPONENT_LIBRARY_STORAGE_KEY);
+        setComponentRecords(serialized ? parseLocalComponentLibrary(serialized) : []);
+      } catch {
+        problems.push("the local component library");
+      }
+      try {
         const serialized = window.localStorage.getItem(LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY);
         if (serialized) {
           const parsedTopology = parseVehicleTopology(serialized);
@@ -4531,6 +4584,16 @@ export default function Home() {
   }, [aerodynamicLibraryOpen]);
 
   useEffect(() => {
+    if (!componentLibraryOpen) return;
+    componentLibraryCloseRef.current?.focus();
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setComponentLibraryOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [componentLibraryOpen]);
+
+  useEffect(() => {
     if (!topologyOpen) return;
     topologyCloseRef.current?.focus();
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
@@ -4908,6 +4971,135 @@ export default function Home() {
     window.localStorage.setItem(LOCAL_MOTOR_LIBRARY_STORAGE_KEY, serializeLocalMotorLibrary(records));
     setUserMotorRecords(records);
   };
+  const persistComponentRecords = (records: LocalComponentRecord[]) => {
+    window.localStorage.setItem(LOCAL_COMPONENT_LIBRARY_STORAGE_KEY, serializeLocalComponentLibrary(records));
+    setComponentRecords(records);
+  };
+  const currentComponentPreset = (): Readonly<{
+    kind: ComponentPresetKind;
+    parameters: ComponentPresetParameters;
+  }> | null => {
+    if (selected === "nose") {
+      return { kind: "nose", parameters: { kind: "nose", lengthMm: noseLength, profile: noseProfile } };
+    }
+    if (selected === "body") {
+      return { kind: "airframe", parameters: { kind: "airframe", lengthMm: length, diameterMm: diameter, material } };
+    }
+    if (selected === "fins") {
+      return {
+        kind: "fin-set",
+        parameters: {
+          kind: "fin-set",
+          count: finCount,
+          rootChordMm: finRootChord,
+          tipChordMm: finTipChord,
+          sweepMm: finSweep,
+          spanMm: finSpan,
+          thicknessMm: finThickness,
+        },
+      };
+    }
+    if (selected === "recovery") {
+      return {
+        kind: "recovery",
+        parameters: {
+          kind: "recovery",
+          massKg: recoveryMass,
+          diameterM: recoveryDiameter,
+          delayS: recoveryDelay,
+          deploymentSuccessProbability: recoveryDeploymentSuccessProbability,
+          reefingEnabled: recoveryReefingEnabled,
+          reefingDurationS: recoveryReefingDurationS,
+          reefingStartAreaFraction: recoveryReefingStartAreaFraction,
+        },
+      };
+    }
+    return null;
+  };
+  const saveCurrentComponentPreset = () => {
+    try {
+      const current = currentComponentPreset();
+      if (!current) throw new Error("Select the nose, airframe, fin set, or recovery component before saving a preset.");
+      const name = componentPresetDraft.name.trim();
+      if (!name) throw new Error("Component preset name cannot be empty.");
+      const id = `component-${current.kind}-${projectFileStem(name)}`;
+      const record: LocalComponentRecord = {
+        id,
+        name,
+        kind: current.kind,
+        description: componentPresetDraft.description.trim() || undefined,
+        parameters: current.parameters,
+        provenance: {
+          sourceName: componentPresetDraft.sourceName.trim(),
+          sourceKind: "project-authored",
+          dataVersion: componentPresetDraft.dataVersion.trim(),
+          licenseIdentifier: componentPresetDraft.licenseIdentifier.trim(),
+          attribution: componentPresetDraft.attribution.trim(),
+          ...(componentPresetDraft.sourceUrl.trim() ? { sourceUrl: componentPresetDraft.sourceUrl.trim() } : {}),
+          validationStatus: "project-authored-unvalidated",
+        },
+      };
+      const next = upsertLocalComponentRecord(componentRecords, record);
+      persistComponentRecords(next);
+      setComponentError("");
+      notify(`${record.name} saved to the component library`);
+    } catch (error) {
+      setComponentError(error instanceof Error ? error.message : "Unable to save component preset");
+    }
+  };
+  const applyComponentPreset = (record: LocalComponentRecord) => {
+    if (record.kind === "nose") {
+      setNoseLength(record.parameters.lengthMm);
+      setNoseProfile(record.parameters.profile);
+      setSelected("nose");
+    } else if (record.kind === "airframe") {
+      setLength(record.parameters.lengthMm);
+      setDiameter(record.parameters.diameterMm);
+      setMaterial(record.parameters.material);
+      setSelected("body");
+    } else if (record.kind === "fin-set") {
+      setFinCount(record.parameters.count);
+      setFinRootChord(record.parameters.rootChordMm);
+      setFinTipChord(record.parameters.tipChordMm);
+      setFinSweep(record.parameters.sweepMm);
+      setFinSpan(record.parameters.spanMm);
+      setFinThickness(record.parameters.thicknessMm);
+      setSelected("fins");
+    } else {
+      setRecoveryMass(record.parameters.massKg);
+      setRecoveryDiameter(record.parameters.diameterM);
+      setRecoveryDelay(record.parameters.delayS);
+      setRecoveryDeploymentSuccessProbability(record.parameters.deploymentSuccessProbability);
+      setRecoveryReefingEnabled(record.parameters.reefingEnabled);
+      setRecoveryReefingDurationS(record.parameters.reefingDurationS);
+      setRecoveryReefingStartAreaFraction(record.parameters.reefingStartAreaFraction);
+      setRecoveryEnabled(true);
+      setSelected("recovery");
+    }
+    markChanged();
+    setComponentLibraryOpen(false);
+    notify(`${record.name} applied; rerun the estimate`);
+  };
+  const importComponentLibrary = () => {
+    try {
+      const records = parseLocalComponentLibrary(componentImportJson);
+      persistComponentRecords(records);
+      setComponentImportJson("");
+      setComponentError("");
+      notify(`${records.length} component preset${records.length === 1 ? "" : "s"} imported`);
+    } catch (error) {
+      setComponentError(error instanceof Error ? error.message : "Unable to import component library");
+    }
+  };
+  const removeComponentPreset = (id: string) => {
+    try {
+      persistComponentRecords(componentRecords.filter((record) => record.id !== id));
+      notify("Component preset removed from this device");
+    } catch (error) {
+      setComponentError(error instanceof Error ? error.message : "Unable to remove component preset");
+    }
+  };
+  const selectedComponentPreset = currentComponentPreset();
   const persistAerodynamicTables = (records: AerodynamicCoefficientTableDefinition[]) => {
     window.localStorage.setItem(
       LOCAL_AERODYNAMIC_LIBRARY_STORAGE_KEY,
@@ -5165,6 +5357,7 @@ export default function Home() {
       persistVehicleTopology(imported.topology);
       persistMotorRecords([...imported.motorLibrary]);
       persistAerodynamicTables([...imported.aerodynamicLibrary]);
+      persistComponentRecords([...imported.componentLibrary]);
       setSelectedMotorId(imported.selectedMotorId);
       setSelectedAerodynamicTableId(imported.selectedAerodynamicTableId);
       window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, imported.selectedMotorId);
@@ -5317,14 +5510,15 @@ export default function Home() {
                 }
               : null,
           } as unknown as JsonValue,
-          configuration: {
-            editableInputs,
-            topology: vehicleTopology,
-            selectedMotorId,
-            selectedAerodynamicTableId,
-            motorLibrary: userMotorRecords,
-            aerodynamicLibrary: aerodynamicTableDefinitions,
-          } as unknown as JsonValue,
+            configuration: {
+              editableInputs,
+              topology: vehicleTopology,
+              selectedMotorId,
+              selectedAerodynamicTableId,
+              motorLibrary: userMotorRecords,
+              aerodynamicLibrary: aerodynamicTableDefinitions,
+              componentLibrary: componentRecords,
+            } as unknown as JsonValue,
           provenance: {
             motor: previewMotor.provenance,
             environment: previewEnvironment.definition.provenance,
@@ -5842,6 +6036,7 @@ export default function Home() {
     { id: "open-topology", label: "Edit stages and boosters", description: "Open the serial, parallel, and radial topology editor", run: () => setTopologyOpen(true) },
     { id: "open-motors", label: "Open motor library", description: "Review or import a provenance-qualified user motor curve", run: () => setMotorLibraryOpen(true) },
     { id: "open-aero", label: "Open aerodynamic data", description: "Review or import Mach-Reynolds coefficient tables", run: () => setAerodynamicLibraryOpen(true) },
+    { id: "open-components", label: "Open component library", description: "Reuse attributed nose, airframe, fin, and recovery presets", run: () => setComponentLibraryOpen(true) },
     { id: "open-templates", label: "Choose a project template", description: "Start from a beginner, high-power, weather, or diagnostic setup", run: () => setTemplatesOpen(true) },
     { id: "open-history", label: "Open local project history", description: "Restore a validated device-local checkpoint", run: () => setHistoryOpen(true) },
     { id: "open-export", label: "Open artifact center", description: "Export project JSON, traces, reports, and CAD references", run: () => setExportOpen(true) },
@@ -7149,6 +7344,10 @@ export default function Home() {
                 </div>
               </>
             )}
+            <button className="library-button component-library-launch" type="button" onClick={() => setComponentLibraryOpen(true)}>
+              <span><strong>Component library</strong><small>Save or reuse attributed geometry and recovery presets</small></span>
+              <em>{componentRecords.length} saved · Manage</em>
+            </button>
             <div className="mass-properties-card">
               <div><span>Computed mass</span><strong>{mass.toFixed(3)} kg</strong></div>
               <div><span>CG from nose</span><strong>{centerOfMassMm.toFixed(0)} mm</strong></div>
@@ -7655,6 +7854,87 @@ export default function Home() {
             <div className="history-notice">
               <span>PREVIEW DATA</span>
               <p>Template values are educational starting points. They are not motor certification, structural evidence, range approval, or flight-safety guidance.</p>
+            </div>
+          </section>
+        </div>
+      )}
+      {componentLibraryOpen && (
+        <div
+          className="export-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setComponentLibraryOpen(false);
+          }}
+        >
+          <section
+            className="export-dialog component-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="component-library-title"
+            aria-describedby="component-library-description"
+          >
+            <div className="export-heading">
+              <div>
+                <span className="eyebrow">Design data center</span>
+                <h2 id="component-library-title">Component library</h2>
+                <p id="component-library-description">Save reusable nose, airframe, fin-set, and recovery configurations with explicit provenance. Presets stay on this device unless you export or include them in a portable project file.</p>
+              </div>
+              <button
+                ref={componentLibraryCloseRef}
+                className="export-close"
+                aria-label="Close component library"
+                onClick={() => setComponentLibraryOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="component-library-current">
+              <div>
+                <span className="eyebrow">Current selection</span>
+                <strong>{selectedComponentPreset ? componentPresetKindLabel(selectedComponentPreset.kind) : "Motor mount"}</strong>
+                <small>{selectedComponentPreset ? "Save the current values as a reusable preset." : "Motor data is managed in the motor library."}</small>
+              </div>
+              <button className="primary-button" type="button" disabled={!selectedComponentPreset} onClick={saveCurrentComponentPreset}>Save current component</button>
+            </div>
+            <div className="component-library-list" aria-label="Saved component presets">
+              {componentRecords.length === 0 ? (
+                <div className="component-library-empty"><strong>No component presets yet</strong><span>Save the current design selection to create your first reusable part.</span></div>
+              ) : componentRecords.map((record) => (
+                <article className="component-record" key={record.id}>
+                  <div className="component-record-main">
+                    <span className="motor-record-badge user">{componentPresetKindLabel(record.kind)}</span>
+                    <div><strong>{record.name}</strong><small>{componentPresetSummary(record)} · {record.provenance.sourceName}</small></div>
+                  </div>
+                  <div className="component-record-actions">
+                    <span>{record.provenance.licenseIdentifier} · {record.provenance.validationStatus}</span>
+                    <button type="button" onClick={() => applyComponentPreset(record)}>Use preset</button>
+                    <button type="button" onClick={() => downloadTextArtifact(`${record.id}.json`, "application/json;charset=utf-8", serializeLocalComponentLibrary([record]))}>JSON</button>
+                    <button type="button" className="danger-button" onClick={() => removeComponentPreset(record.id)}>Remove</button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="component-preset-fields">
+              <div className="motor-import-heading"><div><span className="eyebrow">Preset metadata</span><h3>Save provenance</h3></div><span>{componentRecords.length} / 32 saved</span></div>
+              <div className="motor-import-fields">
+                <label>Preset name<input value={componentPresetDraft.name} onChange={(event) => setComponentPresetDraft((draft) => ({ ...draft, name: event.target.value }))} /></label>
+                <label>Source name<input value={componentPresetDraft.sourceName} onChange={(event) => setComponentPresetDraft((draft) => ({ ...draft, sourceName: event.target.value }))} /></label>
+                <label>Data version<input value={componentPresetDraft.dataVersion} onChange={(event) => setComponentPresetDraft((draft) => ({ ...draft, dataVersion: event.target.value }))} /></label>
+                <label>License / permission<input value={componentPresetDraft.licenseIdentifier} onChange={(event) => setComponentPresetDraft((draft) => ({ ...draft, licenseIdentifier: event.target.value }))} /></label>
+                <label>Attribution<input value={componentPresetDraft.attribution} onChange={(event) => setComponentPresetDraft((draft) => ({ ...draft, attribution: event.target.value }))} /></label>
+                <label>Source URL (optional)<input inputMode="url" value={componentPresetDraft.sourceUrl} onChange={(event) => setComponentPresetDraft((draft) => ({ ...draft, sourceUrl: event.target.value }))} /></label>
+              </div>
+              <label className="component-description-field">Description (optional)<input value={componentPresetDraft.description} onChange={(event) => setComponentPresetDraft((draft) => ({ ...draft, description: event.target.value }))} /></label>
+              {componentError && <p className="motor-import-error" role="alert">{componentError}</p>}
+              <div className="motor-import-actions"><button className="primary-button" type="button" disabled={!selectedComponentPreset} onClick={saveCurrentComponentPreset}>Validate and save current values</button><span>Strict schema · project-authored-unvalidated</span></div>
+            </div>
+            <div className="component-import-section">
+              <div className="motor-import-heading"><div><span className="eyebrow">Portable exchange</span><h3>Import a component library</h3></div><span>JSON schema v1</span></div>
+              <label className="motor-csv-field">Component library JSON <small>Use JSON exported from RocketWorks. Imported records replace the current device-local component presets.</small><textarea value={componentImportJson} onChange={(event) => setComponentImportJson(event.target.value)} spellCheck={false} placeholder="Paste a component-library JSON document…" /></label>
+              <div className="motor-import-actions"><button className="primary-button" type="button" disabled={!componentImportJson.trim()} onClick={importComponentLibrary}>Validate and import library</button><span>Max 32 records · source and license metadata required</span></div>
+            </div>
+            <div className="history-notice">
+              <span>DATA BOUNDARY</span>
+              <p>Presets store editable geometry and recovery inputs, not third-party CAD, motor databases, or simulation engines. Validation checks the schema and numeric bounds; they remain engineering-preview inputs and are never certification evidence.</p>
             </div>
           </section>
         </div>
