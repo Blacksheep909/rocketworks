@@ -537,6 +537,19 @@ kbd {
 .stage-flight-heading p { max-width: 700px; margin-top: 5px; color: #9eb1bf; font-size: 9px; line-height: 1.45; }
 .stage-flight-heading .primary-button { flex: 0 0 auto; white-space: nowrap; }
 .stage-flight-heading .primary-button:disabled { opacity: .56; cursor: wait; }
+.stage-flight-model-options {
+  display: grid;
+  grid-template-columns: minmax(210px, 270px) minmax(210px, 270px) minmax(220px, 1fr);
+  align-items: end;
+  gap: 10px;
+  margin: 14px 0 2px;
+  padding: 10px;
+  border: 1px solid rgba(126, 157, 181, .16);
+  border-radius: 4px;
+  background: rgba(7, 13, 18, .38);
+}
+.stage-flight-model-options .field-group { margin: 0; }
+.stage-flight-model-options .field-help { margin: 0; align-self: center; }
 .stage-flight-error {
   margin-top: 12px; padding: 9px 10px; border: 1px solid rgba(219,128,94,.3); border-radius: 3px;
   background: rgba(219,128,94,.07); color: #efb09a; font-size: 9px; line-height: 1.45;
@@ -1682,6 +1695,7 @@ kbd {
   .rocket-3d-readout small { display: none; }
   .flight-view { padding: 22px 14px 30px; }
   .stage-flight-heading { flex-direction: column; }
+  .stage-flight-model-options { grid-template-columns: 1fr; }
   .recovery-opening-load-heading { flex-direction: column; }
   .uncertainty-sensitivity-row { grid-template-columns: minmax(88px,1.15fr) minmax(60px,1.7fr) 34px 28px; gap: 6px; }
   .stage-flight-heading .primary-button { width: 100%; }

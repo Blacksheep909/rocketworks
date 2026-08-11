@@ -88,6 +88,7 @@ import {
   type MotorDataRecord,
   type StageFlightPreviewResult,
   type StageFlightUncertaintyResult,
+  type CoupledMultiBodyGravityOptions,
   type VerticalFlightSweepParameterKey,
   type VerticalFlightSweepResult,
   type RocketStage,
@@ -1140,6 +1141,8 @@ function createStageFlightPreviewInputs({
   launchRailLengthM,
   launchRailInclinationDeg,
   launchRailAzimuthDeg,
+  coupledMutualGravityEnabled,
+  coupledGravitySofteningRadiusM,
   recoveryEnabled,
   recoveryDelay,
   recoveryDiameter,
@@ -1163,6 +1166,8 @@ function createStageFlightPreviewInputs({
   launchRailLengthM: number;
   launchRailInclinationDeg: number;
   launchRailAzimuthDeg: number;
+  coupledMutualGravityEnabled: boolean;
+  coupledGravitySofteningRadiusM: number;
   recoveryEnabled: boolean;
   recoveryDelay: number;
   recoveryDiameter: number;
@@ -1518,6 +1523,12 @@ function createStageFlightPreviewInputs({
     stateEvents,
     recoveryDevices,
     separationEnvelopeRadiiM,
+    coupledMultiBodyGravity: coupledMutualGravityEnabled
+      ? {
+          enabled: true,
+          softeningRadiusM: coupledGravitySofteningRadiusM,
+        }
+      : ({ enabled: false } satisfies CoupledMultiBodyGravityOptions),
     additionalWarnings: [
       ...(retainedInertiaWarning ? [retainedInertiaWarning] : []),
       ...motorAssignmentWarnings,
@@ -3135,6 +3146,8 @@ export default function Home() {
   const [launchRailLengthM, setLaunchRailLengthM] = useState(1.2);
   const [launchRailInclinationDeg, setLaunchRailInclinationDeg] = useState(0);
   const [launchRailAzimuthDeg, setLaunchRailAzimuthDeg] = useState(0);
+  const [coupledMutualGravityEnabled, setCoupledMutualGravityEnabled] = useState(false);
+  const [coupledGravitySofteningRadiusM, setCoupledGravitySofteningRadiusM] = useState(0.02);
   const [recoveryEnabled, setRecoveryEnabled] = useState(true);
   const [recoveryDelay, setRecoveryDelay] = useState(0);
   const [recoveryDiameter, setRecoveryDiameter] = useState(0.45);
@@ -3424,8 +3437,14 @@ export default function Home() {
         motor: previewMotor,
         selectedAerodynamicTableId,
         aerodynamicTable: selectedAerodynamicTableDefinition,
+        analysisOptions: {
+          coupledMultiBodyGravity: {
+            enabled: coupledMutualGravityEnabled,
+            softeningRadiusM: coupledGravitySofteningRadiusM,
+          },
+        },
       }),
-    [editableInputs, previewMotor, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, vehicleTopology],
+    [coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, editableInputs, previewMotor, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, vehicleTopology],
   );
   const previewEnvironment = useMemo(
     () => createPreviewEnvironment(launchAltitude, windSpeed, { siteName: launchSiteName, latitudeDeg: launchLatitudeDeg, longitudeDeg: launchLongitudeDeg, windAzimuthDeg, windProfileLayers, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
@@ -5125,6 +5144,8 @@ export default function Home() {
             launchRailLengthM,
             launchRailInclinationDeg,
             launchRailAzimuthDeg,
+            coupledMutualGravityEnabled,
+            coupledGravitySofteningRadiusM,
             recoveryEnabled,
             recoveryDelay,
             recoveryDiameter,
@@ -5173,6 +5194,8 @@ export default function Home() {
           launchRailLengthM,
           launchRailInclinationDeg,
           launchRailAzimuthDeg,
+          coupledMutualGravityEnabled,
+          coupledGravitySofteningRadiusM,
           recoveryEnabled,
           recoveryDelay,
           recoveryDiameter,
@@ -5763,6 +5786,32 @@ export default function Home() {
                     {stageFlightRunning ? "Propagating…" : stageFlightResult ? (activeStageCount > 1 ? "Rerun staged preview" : "Rerun 6DOF preview") : (activeStageCount > 1 ? "Run staged preview" : "Run 6DOF preview")}
                   </button>
                 </div>
+                <div className="stage-flight-model-options">
+                  <div className="field-group">
+                    <label htmlFor="released-body-force-model">Released-body force model</label>
+                    <select
+                      id="released-body-force-model"
+                      value={coupledMutualGravityEnabled ? "mutual-gravity" : "shared-environment"}
+                      onChange={(event) => setCoupledMutualGravityEnabled(event.target.value === "mutual-gravity")}
+                    >
+                      <option value="shared-environment">Shared environment only</option>
+                      <option value="mutual-gravity">Include mutual point-mass gravity</option>
+                    </select>
+                  </div>
+                  {coupledMutualGravityEnabled && (
+                    <NumberField
+                      id="released-body-softening"
+                      label="Close-approach softening radius"
+                      value={coupledGravitySofteningRadiusM}
+                      unit="m"
+                      min={0}
+                      max={1}
+                      step={0.001}
+                      onChange={setCoupledGravitySofteningRadiusM}
+                    />
+                  )}
+                  <p className="field-help">The default track propagates released bodies in a common atmosphere and wind without inventing body-to-body forces. Mutual gravity is an opt-in point-mass extension; a non-zero softening radius regularizes close approaches and is not a contact or collision model.</p>
+                </div>
                 {stageFlightError && <div className="stage-flight-error" role="alert">{stageFlightError}</div>}
                 {stageFlightResult && !stageFlightIsCurrent && (
                   <div className="stale-result-banner stage-stale-result-banner" role="status">
@@ -5969,6 +6018,7 @@ export default function Home() {
                               <div><span>Propagated bodies</span><strong>{stageFlightResult.coupledMultiBodyFlight.trajectories.length}</strong><small>shared mission track</small></div>
                               <div><span>Integration steps</span><strong>{stageFlightResult.coupledMultiBodyFlight.stepCount}</strong><small>{stageFlightResult.coupledMultiBodyFlight.timeStepS.toFixed(3)} s effective step</small></div>
                               <div><span>Minimum COM separation</span><strong>{stageFlightResult.coupledMultiBodyFlight.minimumDistanceM === null ? "Not assessed" : `${stageFlightResult.coupledMultiBodyFlight.minimumDistanceM.toFixed(2)} m`}</strong><small>{stageFlightResult.coupledMultiBodyFlight.closestPair ? `closest at ${stageFlightResult.coupledMultiBodyFlight.closestPair.timeS.toFixed(2)} s` : "no pairwise overlap"}</small></div>
+                              <div><span>Released-body force model</span><strong>{stageFlightResult.coupledMultiBodyFlight.mutualGravity.enabled ? "Mutual gravity" : "Shared environment"}</strong><small>{stageFlightResult.coupledMultiBodyFlight.mutualGravity.enabled && stageFlightResult.coupledMultiBodyFlight.mutualGravity.softeningRadiusM > 0 ? `ε ${stageFlightResult.coupledMultiBodyFlight.mutualGravity.softeningRadiusM.toFixed(3)} m` : "point-path coupling"}</small></div>
                               <div><span>Release window</span><strong>{stageFlightResult.coupledMultiBodyFlight.startTimeS.toFixed(2)} → {stageFlightResult.coupledMultiBodyFlight.endTimeS.toFixed(2)} s</strong><small>{publicModelVersion(stageFlightResult.coupledMultiBodyFlight.modelVersion)}</small></div>
                             </div>
                             <div className="stage-coupled-multi-body-flight-list">

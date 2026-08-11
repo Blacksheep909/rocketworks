@@ -27,9 +27,17 @@ import {
  * supplied inputs cannot support.
  */
 export const COUPLED_MULTI_BODY_FLIGHT_MODEL_VERSION =
-  "rocketworks-coupled-multi-body-flight-0.1.0";
+  "rocketworks-coupled-multi-body-flight-0.2.0";
 export const COUPLED_MULTI_BODY_FLIGHT_STATUS =
   "analytical-component-checks-only" as const;
+export const STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2 = 6.67430e-11;
+
+export type CoupledMultiBodyGravityOptions = Readonly<{
+  /** Enables direct pairwise point-mass gravity between released bodies. */
+  enabled?: boolean;
+  /** Optional Plummer-style softening radius for close approaches. */
+  softeningRadiusM?: number;
+}>;
 
 export type CoupledMultiBodyVelocityAdjustment = Readonly<{
   deltaVWorldMps: Vector3;
@@ -83,6 +91,8 @@ export type CoupledMultiBodyFlightInput = Readonly<{
   /** Absolute mission end time, matching the staged preview duration. */
   durationS: number;
   timeStepS: number;
+  /** Optional pairwise gravity model; disabled by default for compatibility. */
+  mutualGravity?: CoupledMultiBodyGravityOptions;
   launchAltitudeM?: number;
   environmentAt?: LaunchEnvironmentProvider;
   maximumSteps?: number;
@@ -95,6 +105,11 @@ export type CoupledMultiBodyFlightResult = Readonly<{
   endTimeS: number;
   timeStepS: number;
   stepCount: number;
+  mutualGravity: Readonly<{
+    enabled: boolean;
+    softeningRadiusM: number;
+    gravitationalConstantM3KgS2: typeof STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2;
+  }>;
   trajectories: readonly CoupledMultiBodyFlightTrajectory[];
   pairwise: MultiBodySeparationResult | null;
   minimumDistanceM: number | null;
@@ -120,6 +135,19 @@ type Derivative = Readonly<{
   velocityRateWorldMps2: Vector3;
 }>;
 
+type CoupledGroupState = Readonly<{
+  timeS: number;
+  positionsWorldM: Vector3[];
+  velocitiesWorldMps: Vector3[];
+  active: boolean[];
+}>;
+
+type CoupledGroupDerivative = Readonly<{
+  positionRatesWorldMps: readonly Vector3[];
+  velocityRatesWorldMps2: readonly Vector3[];
+  accelerationsWorldMps2: readonly Vector3[];
+}>;
+
 const ZERO_VECTOR: Vector3 = { x: 0, y: 0, z: 0 };
 const TIME_TOLERANCE_S = 1e-9;
 const DEFAULT_MAXIMUM_STEPS = 200_000;
@@ -140,6 +168,21 @@ function assertNonNegativeFinite(value: number, label: string): void {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${label} must be non-negative and finite`);
   }
+}
+
+function normalizeMutualGravityOptions(
+  options: CoupledMultiBodyGravityOptions | undefined,
+): Required<CoupledMultiBodyGravityOptions> {
+  const enabled = options?.enabled ?? false;
+  if (typeof enabled !== "boolean") {
+    throw new Error("coupled multi-body mutual gravity enabled flag must be boolean");
+  }
+  const softeningRadiusM = options?.softeningRadiusM ?? 0;
+  assertNonNegativeFinite(
+    softeningRadiusM,
+    "coupled multi-body mutual gravity softening radius",
+  );
+  return { enabled, softeningRadiusM };
 }
 
 function interpolateVector(a: Vector3, b: Vector3, fraction: number): Vector3 {
@@ -218,6 +261,164 @@ function accelerationAt(
     gravityAccelerationWorldMps2,
     scaleVector(relativeAirVelocityMps, -dragAccelerationMagnitudeMps2 / relativeAirSpeedMps),
   );
+}
+
+function mutualGravityAccelerationAt(
+  bodyIndex: number,
+  bodies: readonly CoupledMultiBodyFlightBodyInput[],
+  positionsWorldM: readonly Vector3[],
+  active: readonly boolean[],
+  softeningRadiusM: number,
+): Vector3 {
+  let acceleration = ZERO_VECTOR;
+  const position = positionsWorldM[bodyIndex];
+  for (let otherIndex = 0; otherIndex < bodies.length; otherIndex += 1) {
+    if (otherIndex === bodyIndex || !active[otherIndex]) continue;
+    const displacement = subtractVectors(positionsWorldM[otherIndex], position);
+    const distanceSquared =
+      displacement.x ** 2 + displacement.y ** 2 + displacement.z ** 2;
+    if (distanceSquared === 0 && softeningRadiusM === 0) {
+      throw new Error(
+        `coupled multi-body mutual gravity singularity between ${bodies[bodyIndex].id} and ${bodies[otherIndex].id}`,
+      );
+    }
+    const softenedDistanceSquared = distanceSquared + softeningRadiusM ** 2;
+    const inverseDistanceCubed = 1 / softenedDistanceSquared ** 1.5;
+    acceleration = addVectors(
+      acceleration,
+      scaleVector(
+        displacement,
+        STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2 *
+          bodies[otherIndex].massKg *
+          inverseDistanceCubed,
+      ),
+    );
+  }
+  return acceleration;
+}
+
+function coupledGroupDerivativeAt(
+  bodies: readonly CoupledMultiBodyFlightBodyInput[],
+  input: CoupledMultiBodyFlightInput,
+  state: CoupledGroupState,
+  mutualGravity: Required<CoupledMultiBodyGravityOptions>,
+): CoupledGroupDerivative {
+  const positionRatesWorldMps: Vector3[] = [];
+  const velocityRatesWorldMps2: Vector3[] = [];
+  const accelerationsWorldMps2: Vector3[] = [];
+  for (let index = 0; index < bodies.length; index += 1) {
+    if (!state.active[index]) {
+      positionRatesWorldMps.push(ZERO_VECTOR);
+      velocityRatesWorldMps2.push(ZERO_VECTOR);
+      accelerationsWorldMps2.push(ZERO_VECTOR);
+      continue;
+    }
+    const acceleration = addVectors(
+      accelerationAt(
+        bodies[index],
+        input,
+        state.timeS,
+        state.positionsWorldM[index],
+        state.velocitiesWorldMps[index],
+      ),
+      mutualGravity.enabled
+        ? mutualGravityAccelerationAt(
+            index,
+            bodies,
+            state.positionsWorldM,
+            state.active,
+            mutualGravity.softeningRadiusM,
+          )
+        : ZERO_VECTOR,
+    );
+    positionRatesWorldMps.push(state.velocitiesWorldMps[index]);
+    velocityRatesWorldMps2.push(acceleration);
+    accelerationsWorldMps2.push(acceleration);
+  }
+  return {
+    positionRatesWorldMps,
+    velocityRatesWorldMps2,
+    accelerationsWorldMps2,
+  };
+}
+
+function integrateCoupledGroupRungeKutta4(
+  bodies: readonly CoupledMultiBodyFlightBodyInput[],
+  input: CoupledMultiBodyFlightInput,
+  state: CoupledGroupState,
+  stepS: number,
+  mutualGravity: Required<CoupledMultiBodyGravityOptions>,
+): CoupledGroupState {
+  const k1 = coupledGroupDerivativeAt(bodies, input, state, mutualGravity);
+  const halfState = (
+    base: CoupledGroupState,
+    derivative: CoupledGroupDerivative,
+    scale: number,
+    timeS: number,
+  ): CoupledGroupState => ({
+    timeS,
+    positionsWorldM: base.positionsWorldM.map((position, index) =>
+      addVectors(position, scaleVector(derivative.positionRatesWorldMps[index], scale)),
+    ),
+    velocitiesWorldMps: base.velocitiesWorldMps.map((velocity, index) =>
+      addVectors(velocity, scaleVector(derivative.velocityRatesWorldMps2[index], scale)),
+    ),
+    active: base.active,
+  });
+  const k2 = coupledGroupDerivativeAt(
+    bodies,
+    input,
+    halfState(state, k1, stepS / 2, state.timeS + stepS / 2),
+    mutualGravity,
+  );
+  const k3 = coupledGroupDerivativeAt(
+    bodies,
+    input,
+    halfState(state, k2, stepS / 2, state.timeS + stepS / 2),
+    mutualGravity,
+  );
+  const k4 = coupledGroupDerivativeAt(
+    bodies,
+    input,
+    halfState(state, k3, stepS, state.timeS + stepS),
+    mutualGravity,
+  );
+  const weighted = (
+    index: number,
+    values: readonly Vector3[],
+  ): Vector3 => scaleVector(
+    addVectors(
+      addVectors(values[index], scaleVector(k2.positionRatesWorldMps[index], 2)),
+      addVectors(
+        scaleVector(k3.positionRatesWorldMps[index], 2),
+        k4.positionRatesWorldMps[index],
+      ),
+    ),
+    1 / 6,
+  );
+  const weightedAcceleration = (index: number): Vector3 => scaleVector(
+    addVectors(
+      addVectors(
+        k1.velocityRatesWorldMps2[index],
+        scaleVector(k2.velocityRatesWorldMps2[index], 2),
+      ),
+      addVectors(
+        scaleVector(k3.velocityRatesWorldMps2[index], 2),
+        k4.velocityRatesWorldMps2[index],
+      ),
+    ),
+    1 / 6,
+  );
+  return {
+    timeS: state.timeS + stepS,
+    positionsWorldM: state.positionsWorldM.map((position, index) =>
+      addVectors(position, scaleVector(weighted(index, k1.positionRatesWorldMps), stepS)),
+    ),
+    velocitiesWorldMps: state.velocitiesWorldMps.map((velocity, index) =>
+      addVectors(velocity, scaleVector(weightedAcceleration(index), stepS)),
+    ),
+    active: state.active,
+  };
 }
 
 function derivativeAt(
@@ -303,12 +504,63 @@ function tracePoint(
   };
 }
 
-function createMissionTimeGrid(startTimeS: number, endTimeS: number, timeStepS: number): number[] {
+function tracePointWithAcceleration(
+  body: CoupledMultiBodyFlightBodyInput,
+  state: PointState,
+  accelerationWorldMps2: Vector3,
+): CoupledMultiBodyTracePoint {
+  return {
+    timeS: state.timeS,
+    altitudeAglM: state.positionWorldM.z,
+    speedMps: magnitude(state.velocityWorldMps),
+    positionWorldM: state.positionWorldM,
+    velocityWorldMps: state.velocityWorldMps,
+    accelerationWorldMps2,
+  };
+}
+
+function createMissionTimeGrid(
+  startTimeS: number,
+  endTimeS: number,
+  timeStepS: number,
+  exactTimes: readonly number[] = [],
+): number[] {
   const grid: number[] = [startTimeS];
   while (grid.at(-1)! < endTimeS - TIME_TOLERANCE_S) {
     grid.push(Math.min(endTimeS, grid.at(-1)! + timeStepS));
   }
-  return grid;
+  const merged = [...grid, ...exactTimes.filter((time) =>
+    time > startTimeS + TIME_TOLERANCE_S && time < endTimeS - TIME_TOLERANCE_S,
+  )].sort((left, right) => left - right);
+  return merged.filter((time, index) =>
+    index === 0 || Math.abs(time - merged[index - 1]) > TIME_TOLERANCE_S,
+  );
+}
+
+function trajectoryFromTrace(
+  body: CoupledMultiBodyFlightBodyInput,
+  trace: readonly CoupledMultiBodyTracePoint[],
+  impactTimeS: number | null,
+): CoupledMultiBodyFlightTrajectory {
+  const adjustment = body.velocityAdjustment?.deltaVWorldMps ?? ZERO_VECTOR;
+  return {
+    id: body.id,
+    label: body.label ?? body.id,
+    massKg: body.massKg,
+    releaseTimeS: body.releaseTimeS,
+    releasePositionWorldM: body.releasePositionWorldM,
+    releaseVelocityWorldMps: addVectors(body.releaseVelocityWorldMps, adjustment),
+    baselineReleaseVelocityWorldMps: body.releaseVelocityWorldMps,
+    velocityAdjustmentWorldMps: adjustment,
+    trace,
+    maxAltitudeAglM: Math.max(...trace.map((point) => point.altitudeAglM)),
+    maxSpeedMps: Math.max(...trace.map((point) => point.speedMps)),
+    impactTimeS,
+    ...(body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined
+      ? { referenceAreaM2: body.referenceAreaM2, dragCoefficient: body.dragCoefficient }
+      : {}),
+    ...(body.envelopeRadiusM !== undefined ? { envelopeRadiusM: body.envelopeRadiusM } : {}),
+  };
 }
 
 function propagateBody(
@@ -385,24 +637,171 @@ function propagateBody(
   if (trace.length === 0) {
     throw new Error(`coupled-flight body ${body.id} did not overlap the mission time grid`);
   }
-  return {
-    id: body.id,
-    label: body.label ?? body.id,
-    massKg: body.massKg,
-    releaseTimeS: body.releaseTimeS,
-    releasePositionWorldM: body.releasePositionWorldM,
-    releaseVelocityWorldMps,
-    baselineReleaseVelocityWorldMps: baselineVelocityWorldMps,
-    velocityAdjustmentWorldMps: adjustment,
-    trace,
-    maxAltitudeAglM: Math.max(...trace.map((point) => point.altitudeAglM)),
-    maxSpeedMps: Math.max(...trace.map((point) => point.speedMps)),
-    impactTimeS,
-    ...(body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined
-      ? { referenceAreaM2: body.referenceAreaM2, dragCoefficient: body.dragCoefficient }
-      : {}),
-    ...(body.envelopeRadiusM !== undefined ? { envelopeRadiusM: body.envelopeRadiusM } : {}),
+  return trajectoryFromTrace(body, trace, impactTimeS);
+}
+
+function propagateCoupledBodies(
+  bodies: readonly CoupledMultiBodyFlightBodyInput[],
+  input: CoupledMultiBodyFlightInput,
+  grid: readonly number[],
+  integrationStepS: number,
+  mutualGravity: Required<CoupledMultiBodyGravityOptions>,
+): CoupledMultiBodyFlightTrajectory[] {
+  const traces: CoupledMultiBodyTracePoint[][] = bodies.map(() => []);
+  const impactTimes: (number | null)[] = bodies.map(() => null);
+  const released = bodies.map(() => false);
+  const active = bodies.map(() => false);
+  const positionsWorldM = bodies.map((body) => body.releasePositionWorldM);
+  const velocitiesWorldMps = bodies.map((body) =>
+    addVectors(body.releaseVelocityWorldMps, body.velocityAdjustment?.deltaVWorldMps ?? ZERO_VECTOR),
+  );
+  let state: CoupledGroupState = {
+    timeS: grid[0]!,
+    positionsWorldM,
+    velocitiesWorldMps,
+    active,
   };
+  const appendTrace = (index: number, point: CoupledMultiBodyTracePoint): void => {
+    const previous = traces[index].at(-1);
+    if (previous && Math.abs(previous.timeS - point.timeS) <= TIME_TOLERANCE_S) {
+      traces[index][traces[index].length - 1] = point;
+    } else {
+      traces[index].push(point);
+    }
+  };
+  const releaseBodiesAtCurrentTime = (): void => {
+    const newlyReleased: number[] = [];
+    for (let index = 0; index < bodies.length; index += 1) {
+      if (released[index] || bodies[index].releaseTimeS > state.timeS + TIME_TOLERANCE_S) {
+        continue;
+      }
+      released[index] = true;
+      state.positionsWorldM[index] = bodies[index].releasePositionWorldM;
+      state.velocitiesWorldMps[index] = velocitiesWorldMps[index];
+      state.active[index] = true;
+      newlyReleased.push(index);
+    }
+    for (const index of newlyReleased) {
+      const initialAcceleration = coupledGroupDerivativeAt(
+        bodies,
+        input,
+        state,
+        mutualGravity,
+      ).accelerationsWorldMps2[index];
+      appendTrace(index, tracePointWithAcceleration(
+        bodies[index],
+        {
+          timeS: state.timeS,
+          positionWorldM: state.positionsWorldM[index],
+          velocityWorldMps: state.velocitiesWorldMps[index],
+        },
+        initialAcceleration,
+      ));
+      if (
+        state.positionsWorldM[index].z <= 0 &&
+        state.velocitiesWorldMps[index].z <= 0
+      ) {
+        state.active[index] = false;
+        impactTimes[index] = state.timeS;
+      }
+    }
+  };
+
+  for (const targetTimeS of grid) {
+    releaseBodiesAtCurrentTime();
+    while (state.timeS < targetTimeS - TIME_TOLERANCE_S) {
+      const stepS = Math.min(integrationStepS, targetTimeS - state.timeS);
+      const previousState = state;
+      const nextState = integrateCoupledGroupRungeKutta4(
+        bodies,
+        input,
+        previousState,
+        stepS,
+        mutualGravity,
+      );
+      const nextActive = [...nextState.active];
+      for (let index = 0; index < bodies.length; index += 1) {
+        if (!previousState.active[index] || impactTimes[index] !== null) continue;
+        const previousPosition = previousState.positionsWorldM[index];
+        const nextPosition = nextState.positionsWorldM[index];
+        if (previousPosition.z > 0 && nextPosition.z <= 0) {
+          const fraction = Math.min(
+            1,
+            Math.max(
+              0,
+              previousPosition.z / (previousPosition.z - nextPosition.z),
+            ),
+          );
+          const impactState: PointState = {
+            timeS: previousState.timeS + fraction * stepS,
+            positionWorldM: interpolateVector(
+              previousPosition,
+              nextPosition,
+              fraction,
+            ),
+            velocityWorldMps: interpolateVector(
+              previousState.velocitiesWorldMps[index],
+              nextState.velocitiesWorldMps[index],
+              fraction,
+            ),
+          };
+          const impactAcceleration = coupledGroupDerivativeAt(
+            bodies,
+            input,
+            {
+              timeS: impactState.timeS,
+              positionsWorldM: nextState.positionsWorldM,
+              velocitiesWorldMps: nextState.velocitiesWorldMps,
+              active: previousState.active,
+            },
+            mutualGravity,
+          ).accelerationsWorldMps2[index];
+          appendTrace(
+            index,
+            tracePointWithAcceleration(
+              bodies[index],
+              impactState,
+              impactAcceleration,
+            ),
+          );
+          impactTimes[index] = impactState.timeS;
+          nextState.positionsWorldM[index] = impactState.positionWorldM;
+          nextState.velocitiesWorldMps[index] = impactState.velocityWorldMps;
+          nextActive[index] = false;
+        }
+      }
+      state = {
+        timeS: nextState.timeS,
+        positionsWorldM: nextState.positionsWorldM,
+        velocitiesWorldMps: nextState.velocitiesWorldMps,
+        active: nextActive,
+      };
+    }
+    for (let index = 0; index < bodies.length; index += 1) {
+      if (state.active[index]) {
+        const acceleration = coupledGroupDerivativeAt(
+          bodies,
+          input,
+          state,
+          mutualGravity,
+        ).accelerationsWorldMps2[index];
+        appendTrace(index, tracePointWithAcceleration(
+          bodies[index],
+          {
+            timeS: state.timeS,
+            positionWorldM: state.positionsWorldM[index],
+            velocityWorldMps: state.velocitiesWorldMps[index],
+          },
+          acceleration,
+        ));
+      }
+    }
+  }
+  return bodies.map((body, index) => trajectoryFromTrace(
+    body,
+    traces[index],
+    impactTimes[index],
+  ));
 }
 
 /**
@@ -426,6 +825,7 @@ export function simulateCoupledMultiBodyFlight(
   if (!Number.isInteger(maximumSteps) || maximumSteps < 2) {
     throw new Error("coupled multi-body flight maximum steps must be an integer >= 2");
   }
+  const mutualGravity = normalizeMutualGravityOptions(input.mutualGravity);
   const ids = new Set<string>();
   input.bodies.forEach((body) => {
     validateBody(body);
@@ -437,15 +837,37 @@ export function simulateCoupledMultiBodyFlight(
   });
   const startTimeS = Math.min(...input.bodies.map((body) => body.releaseTimeS));
   const nominalStepCount = Math.ceil((input.durationS - startTimeS) / input.timeStepS);
-  const gridStepCount = Math.min(nominalStepCount, maximumSteps - 1);
   const budgetAdjusted = nominalStepCount > maximumSteps - 1;
-  const effectiveTimeStepS = nominalStepCount > 0
-    ? Math.min(input.timeStepS, (input.durationS - startTimeS) / Math.max(gridStepCount, 1))
+  let effectiveTimeStepS = nominalStepCount > 0
+    ? Math.min(input.timeStepS, (input.durationS - startTimeS) / Math.max(Math.min(nominalStepCount, maximumSteps - 1), 1))
     : input.timeStepS;
-  const grid = createMissionTimeGrid(startTimeS, input.durationS, effectiveTimeStepS);
-  const trajectories = input.bodies.map((body) =>
-    propagateBody(body, input, grid, effectiveTimeStepS),
-  );
+  let grid: number[];
+  if (mutualGravity.enabled) {
+    const requestedGrid = createMissionTimeGrid(
+      startTimeS,
+      input.durationS,
+      input.timeStepS,
+      input.bodies.map((body) => body.releaseTimeS),
+    );
+    if (requestedGrid.length - 1 > maximumSteps - 1) {
+      throw new Error(
+        `coupled multi-body mutual gravity grid exceeds the maximum step budget (${maximumSteps}); increase maximumSteps or timeStepS`,
+      );
+    }
+    effectiveTimeStepS = input.timeStepS;
+    grid = requestedGrid;
+  } else {
+    const gridStepCount = Math.min(nominalStepCount, maximumSteps - 1);
+    effectiveTimeStepS = nominalStepCount > 0
+      ? Math.min(input.timeStepS, (input.durationS - startTimeS) / Math.max(gridStepCount, 1))
+      : input.timeStepS;
+    grid = createMissionTimeGrid(startTimeS, input.durationS, effectiveTimeStepS);
+  }
+  const trajectories = mutualGravity.enabled
+    ? propagateCoupledBodies(input.bodies, input, grid, effectiveTimeStepS, mutualGravity)
+    : input.bodies.map((body) =>
+        propagateBody(body, input, grid, effectiveTimeStepS),
+      );
   const pairwise: MultiBodySeparationResult | null = trajectories.length > 1
     ? analyzeMultiBodySeparation({
         bodies: trajectories.map((trajectory) => ({
@@ -462,7 +884,12 @@ export function simulateCoupledMultiBodyFlight(
     : null;
   const warnings = [
     "All released bodies were propagated simultaneously on a shared mission-time grid with a common environment provider.",
-    "The shared-grid coupling evaluates relative motion together but does not synthesize contact forces, collision response, plume interaction, or aerodynamic interference.",
+    mutualGravity.enabled
+      ? "Mutual point-mass gravity was included between active released bodies; contact forces, collision response, plume interaction, and aerodynamic interference remain outside the model."
+      : "The shared-grid coupling evaluates relative motion together but does not synthesize contact forces, collision response, plume interaction, or aerodynamic interference.",
+    ...(mutualGravity.enabled && mutualGravity.softeningRadiusM > 0
+      ? [`Mutual gravity uses a Plummer-style softening radius of ${mutualGravity.softeningRadiusM.toFixed(6)} m for close approaches; this is a numerical approximation, not a contact model.`]
+      : []),
     "Each body uses altitude-dependent gravity and, when supplied, constant isotropic point drag against environment-relative wind.",
     ...(trajectories.some((trajectory) => trajectory.impactTimeS !== null)
       ? ["Ground crossings are terminal component events; post-impact body motion is not propagated."]
@@ -480,6 +907,9 @@ export function simulateCoupledMultiBodyFlight(
     "The integrator is explicit fourth-order Runge-Kutta over a shared mission-time grid; release times are inserted as exact initial points and partial steps are used to align with the grid.",
     "Gravity is evaluated from altitude using the RocketWorks atmosphere/gravity implementation; drag is a constant-Cd, constant-reference-area isotropic approximation when configured.",
     "The environment provider is queried separately for each body at each Runge-Kutta substep, so wind and atmosphere may vary with time and position but bodies do not alter the environment.",
+    ...(mutualGravity.enabled
+      ? [`Pairwise point-mass gravity uses F = G m₁ m₂ r / (|r|² + ε²)^(3/2), with G=${STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2.toExponential(5)} m³ kg⁻¹ s⁻² and ε=${mutualGravity.softeningRadiusM.toFixed(6)} m.`]
+      : []),
     "Pairwise separation is a continuous piecewise-linear trace diagnostic; spherical envelope bounds, contact, collision response, and range-safety margins remain outside this model.",
     ...(input.bodies.some((body) => body.velocityAdjustment)
       ? ["Velocity adjustments are treated as instantaneous release-state corrections supplied by the caller; separation mechanism, joint compliance, and angular impulse are not modeled."]
@@ -497,6 +927,11 @@ export function simulateCoupledMultiBodyFlight(
     endTimeS: grid.at(-1)!,
     timeStepS: effectiveTimeStepS,
     stepCount: Math.max(grid.length - 1, 0),
+    mutualGravity: {
+      enabled: mutualGravity.enabled,
+      softeningRadiusM: mutualGravity.softeningRadiusM,
+      gravitationalConstantM3KgS2: STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2,
+    },
     trajectories,
     pairwise,
     minimumDistanceM: pairwise?.minimumDistanceM ?? null,

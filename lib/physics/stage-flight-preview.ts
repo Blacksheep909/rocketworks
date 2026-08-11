@@ -56,11 +56,12 @@ import {
 import {
   simulateCoupledMultiBodyFlight,
   type CoupledMultiBodyFlightBodyInput,
+  type CoupledMultiBodyGravityOptions,
   type CoupledMultiBodyFlightResult,
 } from "./coupled-multi-body-flight.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.15.0";
+  "kestrel-stage-flight-preview-0.16.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -93,6 +94,8 @@ export type StageFlightPreviewInput = Readonly<{
   recoveryDevices?: readonly RecoveryDevice[];
   /** Fixed spherical bounds keyed by `retained-vehicle` or `${stageId}/${instanceId}`. */
   separationEnvelopeRadiiM?: Readonly<Record<string, number | null | undefined>>;
+  /** Optional pairwise gravity mode for the shared released-body track. */
+  coupledMultiBodyGravity?: CoupledMultiBodyGravityOptions;
   launchRail?: LaunchRailConfig;
   launchRailMaximumSteps?: number;
   additionalWarnings?: readonly string[];
@@ -958,6 +961,7 @@ export function simulateStageFlightPreview(
         timeStepS: input.timeStepS,
         launchAltitudeM: input.launchAltitudeM,
         environmentAt: input.environmentAt,
+        mutualGravity: input.coupledMultiBodyGravity,
       });
     } catch (error) {
       separatedBodyWarnings.push(

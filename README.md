@@ -86,6 +86,9 @@ research, standards, and original code.
   applies only explicitly balanced event corrections, and reports continuous
   pairwise COM diagnostics without claiming contact, interference, or flight
   safety;
+- an opt-in mutual point-mass gravity mode for the shared released-body track,
+  with exact-release grid alignment, close-approach softening controls,
+  singular-state rejection, and explicit force-model provenance;
 - a trace-backed recovery opening-load screen with coverage labels, peak
   dynamic pressure, quasi-steady `q Cd A` drag, inflation impulse, and a
   force-rate proxy; opening shock and structural response remain explicitly
@@ -198,7 +201,8 @@ tests/                Deterministic physics, UI, export, and integration checks
 ## Roadmap
 
 Near-term work is stronger experimental/benchmark validation, a full coupled
-multi-body separation solver beyond the current impulse audit, event allocator,
+multi-body separation solver beyond the current point-mass gravity and impulse
+branches, event allocator,
 and mass-ratio branch, validated structural/aeroelastic benchmarks beyond the
 preliminary fin flutter screen, and more stage-aware design review. Angular and
 direct force/moment coefficient volumes are now supported as explicit

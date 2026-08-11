@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.15.0`.
+`kestrel-stage-flight-preview-0.16.0`.
 
 Before integration, scheduled and state-triggered declarations pass through the
 independent mission-event allocator. Semantic priorities put rail release,
@@ -220,10 +220,17 @@ The result keeps the baseline and applied release velocities visible, reports
 ground-crossing times, and feeds its synchronized traces into the continuous
 pairwise COM diagnostic.
 
+The browser can opt this track into direct pairwise point-mass gravity. That
+mode integrates all active released bodies as one translational state vector,
+aligns the shared grid to exact release times, and exposes the gravitational
+constant plus any Plummer-style close-approach softening radius. It is disabled
+by default; a zero-softening coincident state is rejected as a singularity.
+
 This track is intentionally distinct from the existing independent detached
 6DOF branches: it is a simultaneous shared-environment component check, not a
-full rigid-body multi-body solver. Bodies do not exchange contact forces or
-momentum after release, and the track does not model attitude, lift, plume
+full rigid-body multi-body solver. The optional point-mass gravity mode
+exchanges only the modeled Newtonian body force; the track does not model
+contact forces, momentum transfer after impact, attitude, lift, plume
 interaction, stage-to-stage aerodynamic interference, structural compliance,
 or collision response. A coarsened time step is labeled `partial` when the
 requested step would exceed the explicit maximum-step budget. It remains an
@@ -240,8 +247,9 @@ explicitly approximate; it is not a substitute for retained CAD geometry.
 - The retained-body staging model remains a single tracked vehicle; each
   separated-body branch is an independent 6DOF preview with optional isotropic
   point drag and optional stage-specific recovery loads. The adapter also
-  exposes a shared-grid detached point-mass track, but neither path is a
-  coupled multi-body force, contact, or aerodynamic-interference solver.
+  exposes a shared-grid detached point-mass track; mutual gravity is an opt-in
+  translational force extension, not a contact or aerodynamic-interference
+  solver.
 - A configured separation delta-v is applied to the retained body in body-frame
   +X and is carried into the event/trajectory diagnostics in body and world
   frames. The discarded-body branch receives the mass-ratio equal-and-opposite
@@ -270,5 +278,5 @@ independently versioned makes it possible to improve propulsion, aerodynamics,
 environment, or event mechanics without hiding a new monolithic simulator
   behind the browser UI. Future work can add correlated/model-form uncertainty,
   relative-body aerodynamic databases, attitude-aware envelope geometry, and a
-  time-propagated coupled multi-body separation solver while preserving this
-  provenance boundary.
+  time-propagated coupled multi-body separation solver with contact, relative
+  aerodynamics, and attitude while preserving this provenance boundary.

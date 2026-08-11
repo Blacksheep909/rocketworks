@@ -144,3 +144,23 @@ test("simulation fingerprints include the selected aerodynamic data source", () 
   assert.notEqual(baseline, selectedTable);
   assert.equal(isSimulationFingerprintCurrent(baseline, selectedTable), false);
 });
+
+test("simulation fingerprints include released-body force-model options", () => {
+  const baseline = fingerprint({
+    analysisOptions: {
+      coupledMultiBodyGravity: { enabled: false, softeningRadiusM: 0.02 },
+    },
+  });
+  const mutualGravity = fingerprint({
+    analysisOptions: {
+      coupledMultiBodyGravity: { enabled: true, softeningRadiusM: 0.02 },
+    },
+  });
+  const softened = fingerprint({
+    analysisOptions: {
+      coupledMultiBodyGravity: { enabled: true, softeningRadiusM: 0.04 },
+    },
+  });
+  assert.notEqual(baseline, mutualGravity);
+  assert.notEqual(mutualGravity, softened);
+});

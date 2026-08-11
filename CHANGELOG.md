@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added an opt-in mutual point-mass gravity path to the shared released-body
+  flight track, including exact release-time grid points, close-approach
+  softening metadata, singular-state rejection, and browser force-model
+  selection. The result remains an analytical component check, not a contact,
+  collision, range-safety, or flight-safety solver.
 - Added a preliminary airframe first-bending-mode screen using an independent
   Euler-Bernoulli equivalent-beam equation. The structural card and report now
   expose frequency, period, boundary assumption, modeled shell stiffness, and

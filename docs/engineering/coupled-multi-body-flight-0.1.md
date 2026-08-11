@@ -1,4 +1,4 @@
-# Shared-grid coupled multi-body flight 0.1
+# Shared-grid coupled multi-body flight 0.2
 
 Status: implemented analytical component check; mathematical regression tests
 only. This model is not flight-safety, range-safety, contact, or collision
@@ -40,12 +40,24 @@ a_drag = F_drag / m
 
 The environment provider is queried at each Runge–Kutta substep for each
 body, so atmosphere and wind can vary with time and position. Bodies share the
-provider and grid but do not modify one another's state or environment.
+provider and grid but do not modify the environment. The default mode still
+does not exchange forces. An opt-in mode integrates all active bodies in one
+state vector and adds pairwise point-mass gravity:
+
+```text
+a_i,gravity = sum_j G m_j (r_j - r_i) / (|r_j - r_i|^2 + epsilon^2)^(3/2)
+```
+
+`G` is the documented standard gravitational constant used by the module.
+The optional `epsilon` is a Plummer-style softening radius for close
+approaches. With `epsilon = 0`, coincident bodies are rejected as a singular
+state rather than silently inventing a force.
 
 ## Coupling boundary
 
-This is a simultaneous shared-environment and relative-motion track. It is not
-a full rigid-body multi-body solver. It does not model body attitude, lift,
+This is a simultaneous shared-environment and relative-motion track. The
+mutual-gravity option is still a point-mass component model, not a full
+rigid-body multi-body solver. It does not model body attitude, lift,
 aerodynamic torque, body-to-body contact forces, collision response, joint or
 spring compliance, plume interaction, wake/interference, separation mechanism
 dynamics, structural flexibility, or range-safety margins. Pairwise COM
@@ -55,7 +67,9 @@ remain a separate geometry screen.
 The stage-flight adapter applies a solved minimum-norm release correction only
 when the event-level separation allocator reports a balanced result. The
 existing detached 6DOF branches remain unchanged, so the shared-grid track is
-an explicit comparison/audit path rather than a silent state reset.
+an explicit comparison/audit path rather than a silent state reset. The browser
+exposes the mutual-gravity choice as an advanced released-body force model; it
+remains disabled by default.
 
 ## Step budget and status
 

@@ -114,3 +114,55 @@ test("shared-grid propagator validates identifiers, drag pairs, and mission hori
     /releases after mission end/,
   );
 });
+
+test("opt-in mutual gravity exchanges equal-and-opposite point-mass acceleration", () => {
+  const makeMass = (id, x) => body({
+    id,
+    massKg: 1e9,
+    releaseTimeS: 0,
+    releasePositionWorldM: { x, y: 0, z: 100 },
+    releaseVelocityWorldMps: { x: 0, y: 0, z: 0 },
+  });
+  const result = simulateCoupledMultiBodyFlight({
+    bodies: [makeMass("left", -1), makeMass("right", 1)],
+    durationS: 1,
+    timeStepS: 0.05,
+    mutualGravity: { enabled: true },
+  });
+  assert.equal(result.mutualGravity.enabled, true);
+  assert.equal(result.mutualGravity.softeningRadiusM, 0);
+  assert.ok(result.trajectories[0].trace[0].accelerationWorldMps2.x > 0);
+  assert.ok(result.trajectories[1].trace[0].accelerationWorldMps2.x < 0);
+  const leftFinal = result.trajectories[0].trace.at(-1).positionWorldM.x;
+  const rightFinal = result.trajectories[1].trace.at(-1).positionWorldM.x;
+  assert.ok(leftFinal > -1);
+  assert.ok(rightFinal < 1);
+  assert.ok(Math.abs(leftFinal + rightFinal) < 1e-9);
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("point-mass gravity")));
+});
+
+test("mutual gravity exposes singularity and softening controls explicitly", () => {
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({
+      bodies: [
+        body({ id: "same-a", releaseTimeS: 0 }),
+        body({ id: "same-b", releaseTimeS: 0 }),
+      ],
+      durationS: 1,
+      timeStepS: 0.1,
+      mutualGravity: { enabled: true },
+    }),
+    /singularity/,
+  );
+  const softened = simulateCoupledMultiBodyFlight({
+    bodies: [
+      body({ id: "same-a", releaseTimeS: 0 }),
+      body({ id: "same-b", releaseTimeS: 0 }),
+    ],
+    durationS: 0.2,
+    timeStepS: 0.1,
+    mutualGravity: { enabled: true, softeningRadiusM: 0.5 },
+  });
+  assert.equal(softened.mutualGravity.softeningRadiusM, 0.5);
+  assert.ok(softened.warnings.some((warning) => warning.includes("softening radius")));
+});

@@ -13,6 +13,7 @@ export type SimulationFingerprintInput = Readonly<{
   motor: MotorDataRecord;
   selectedAerodynamicTableId?: string;
   aerodynamicTable?: AerodynamicCoefficientTableDefinition | null;
+  analysisOptions?: Readonly<Record<string, unknown>>;
 }>;
 
 function stableValue(value: unknown): unknown {
@@ -42,6 +43,7 @@ export function createSimulationFingerprint(
       motor: input.motor,
       selectedAerodynamicTableId: input.selectedAerodynamicTableId ?? "constant",
       aerodynamicTable: input.aerodynamicTable ?? null,
+      analysisOptions: input.analysisOptions ?? {},
     }),
   );
 }

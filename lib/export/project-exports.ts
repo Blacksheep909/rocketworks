@@ -1676,6 +1676,7 @@ export function createEngineeringReportMarkdown(
                 `| Bodies | ${input.stageFlight.coupledMultiBodyFlight.trajectories.length} |`,
                 `| Shared-grid steps | ${input.stageFlight.coupledMultiBodyFlight.stepCount} |`,
                 `| Effective time step | ${formatNumber(input.stageFlight.coupledMultiBodyFlight.timeStepS, 4)} s |`,
+                `| Released-body force model | ${input.stageFlight.coupledMultiBodyFlight.mutualGravity?.enabled ? `mutual point-mass gravity (softening ${formatNumber(input.stageFlight.coupledMultiBodyFlight.mutualGravity.softeningRadiusM, 6)} m)` : "shared environment only"} |`,
                 `| Minimum COM separation | ${input.stageFlight.coupledMultiBodyFlight.minimumDistanceM === null ? "not assessed" : `${formatNumber(input.stageFlight.coupledMultiBodyFlight.minimumDistanceM, 3)} m`} |`,
                 `| Closest pair | ${input.stageFlight.coupledMultiBodyFlight.closestPair ? `${markdownText(input.stageFlight.coupledMultiBodyFlight.closestPair.firstBodyId)} / ${markdownText(input.stageFlight.coupledMultiBodyFlight.closestPair.secondBodyId)} at ${formatNumber(input.stageFlight.coupledMultiBodyFlight.closestPair.timeS, 2)} s` : "not assessed"} |`,
                 `| Model | \`${markdownText(input.stageFlight.coupledMultiBodyFlight.modelVersion)}\` |`,
@@ -1683,7 +1684,7 @@ export function createEngineeringReportMarkdown(
                 ...input.stageFlight.coupledMultiBodyFlight.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
                 ...input.stageFlight.coupledMultiBodyFlight.warnings.map((warning) => `- **Shared-grid warning:** ${markdownText(warning)}`),
                 "",
-                "> This shared-grid track propagates released point masses together against common environment queries. It does not model contact forces, collision response, plume interaction, aerodynamic interference, or flight safety.",
+                "> This shared-grid track propagates released point masses together against common environment queries. Mutual gravity, when selected, remains a point-mass approximation; neither path models contact forces, collision response, plume interaction, aerodynamic interference, or flight safety.",
               ]
             : []),
           ...((input.stageFlight.separationDynamics ?? []).length > 0
