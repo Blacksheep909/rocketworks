@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extended device-local UI preferences to schema v2 with a safe v1 migration,
+  keyboard-reachable Display & accessibility controls, explicit reduced-motion
+  behavior, and high-contrast presentation tokens. These flags remain outside
+  project fingerprints, simulations, share links, and engineering exports.
 - Added a trace-level force impulse budget to the coupled preview. The browser,
   project report, and export surface now expose trapezoidal thrust, aerodynamic
   drag, recovery drag, force/mass velocity-equivalent, peak-q, and per-stage

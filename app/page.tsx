@@ -184,6 +184,7 @@ import {
 } from "../lib/project/simulation-freshness.ts";
 import {
   createDefaultUiPreferences,
+  UI_PREFERENCES_LEGACY_STORAGE_KEY,
   parseUiPreferences,
   serializeUiPreferences,
   UI_PREFERENCES_STORAGE_KEY,
@@ -3121,6 +3122,8 @@ export default function Home() {
   const [view, setView] = useState<ViewKey>("design");
   const [designView, setDesignView] = useState<DesignViewKey>(() => createDefaultUiPreferences().designView);
   const [designAzimuthDeg, setDesignAzimuthDeg] = useState(() => createDefaultUiPreferences().designAzimuthDeg);
+  const [reducedMotion, setReducedMotion] = useState(() => createDefaultUiPreferences().reducedMotion);
+  const [highContrast, setHighContrast] = useState(() => createDefaultUiPreferences().highContrast);
   const [length, setLength] = useState(710);
   const [diameter, setDiameter] = useState(54);
   const [noseLength, setNoseLength] = useState(180);
@@ -3182,6 +3185,8 @@ export default function Home() {
   const [commandQuery, setCommandQuery] = useState("");
   const [commandIndex, setCommandIndex] = useState(0);
   const commandInputRef = useRef<HTMLInputElement>(null);
+  const [accessibilityOpen, setAccessibilityOpen] = useState(false);
+  const accessibilityCloseRef = useRef<HTMLButtonElement>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const exportCloseRef = useRef<HTMLButtonElement>(null);
   const projectImportInputRef = useRef<HTMLInputElement>(null);
@@ -3960,7 +3965,9 @@ export default function Home() {
         problems.push("the vehicle topology");
       }
       try {
-        const serialized = window.localStorage.getItem(UI_PREFERENCES_STORAGE_KEY);
+        const serialized =
+          window.localStorage.getItem(UI_PREFERENCES_STORAGE_KEY) ??
+          window.localStorage.getItem(UI_PREFERENCES_LEGACY_STORAGE_KEY);
         if (serialized) restoredUiPreferences = parseUiPreferences(serialized);
       } catch {
         problems.push("the display preferences");
@@ -3969,6 +3976,8 @@ export default function Home() {
       if (storedMode === "beginner" || storedMode === "expert") setExperienceMode(storedMode);
       setDesignView(restoredUiPreferences.designView);
       setDesignAzimuthDeg(restoredUiPreferences.designAzimuthDeg);
+      setReducedMotion(restoredUiPreferences.reducedMotion);
+      setHighContrast(restoredUiPreferences.highContrast);
       if (restoredSnapshot?.selectedMotorId) restoredMotorSelection = restoredSnapshot.selectedMotorId;
       if (restoredSnapshot?.selectedAerodynamicTableId) restoredAerodynamicSelection = restoredSnapshot.selectedAerodynamicTableId;
       const motorSelectionAvailable = restoredMotorSelection === "synthetic" || restoredMotorRecords.some((record) => record.id === restoredMotorSelection);
@@ -4079,6 +4088,8 @@ export default function Home() {
           ...createDefaultUiPreferences(),
           designView,
           designAzimuthDeg,
+          reducedMotion,
+          highContrast,
         }),
       );
     } catch {
@@ -4087,7 +4098,7 @@ export default function Home() {
         notify("Display preferences are session-only");
       }
     }
-  }, [designAzimuthDeg, designView, storageReady]);
+  }, [designAzimuthDeg, designView, highContrast, reducedMotion, storageReady]);
 
   useEffect(() => {
     if (!storageReady || shareHydratedRef.current) return;
@@ -4349,6 +4360,16 @@ export default function Home() {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [commandOpen]);
+
+  useEffect(() => {
+    if (!accessibilityOpen) return;
+    accessibilityCloseRef.current?.focus();
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setAccessibilityOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [accessibilityOpen]);
 
   const runPhysicsBenchmarks = () => {
     if (benchmarkRunning) return;
@@ -5596,6 +5617,7 @@ export default function Home() {
     { id: "open-export", label: "Open artifact center", description: "Export project JSON, traces, reports, and CAD references", run: () => setExportOpen(true) },
     { id: "share-design", label: "Copy design share link", description: "Share validated inputs and stage topology without embedding local library data", run: () => { void copyProjectShare(); } },
     { id: "import-project", label: "Import RocketWorks project", description: "Restore a portable project document and its validated user libraries", run: () => setProjectImportRequested(true) },
+    { id: "open-accessibility", label: "Open display and accessibility settings", description: "Adjust motion and contrast without changing engineering inputs", run: () => setAccessibilityOpen(true) },
     { id: "toggle-mode", label: experienceMode === "beginner" ? "Switch to expert mode" : "Switch to beginner mode", description: "Change how much of the workbench is exposed", run: () => changeExperienceMode(experienceMode === "beginner" ? "expert" : "beginner") },
   ];
   const filteredCommandActions = commandActions.filter((action) =>
@@ -5626,7 +5648,11 @@ export default function Home() {
   };
 
   return (
-    <main className="app-shell">
+    <main
+      className="app-shell"
+      data-reduced-motion={reducedMotion ? "true" : "false"}
+      data-high-contrast={highContrast ? "true" : "false"}
+    >
       <input
         ref={projectImportInputRef}
         className="sr-only"
@@ -5648,6 +5674,15 @@ export default function Home() {
           <div className="mission-chip" aria-label="Mission status"><span>MISSION</span><strong>RKW-01</strong><em>PRELIMINARY · REV 01</em></div>
           <button className="quiet-button command-button" onClick={openCommandPalette} aria-haspopup="dialog" aria-expanded={commandOpen}>
             <span>Search actions</span><kbd>⌘ K</kbd>
+          </button>
+          <button
+            className="quiet-button accessibility-button"
+            onClick={() => setAccessibilityOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={accessibilityOpen}
+            aria-label="Open display and accessibility settings"
+          >
+            <span aria-hidden="true">◌</span><span>Display</span>
           </button>
           <div className="mode-switch" role="group" aria-label="Experience mode">
             <button className={experienceMode === "beginner" ? "active" : ""} onClick={() => changeExperienceMode("beginner")}>Beginner</button>
@@ -7232,6 +7267,70 @@ export default function Home() {
               ))}
             </div>
             <div className="command-footer"><span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span><span><kbd>↵</kbd> Run</span><span><kbd>Esc</kbd> Close</span></div>
+          </section>
+        </div>
+      )}
+      {accessibilityOpen && (
+        <div
+          className="export-backdrop accessibility-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setAccessibilityOpen(false);
+          }}
+        >
+          <section
+            className="export-dialog accessibility-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="accessibility-title"
+            aria-describedby="accessibility-description"
+          >
+            <div className="export-heading">
+              <div>
+                <span className="eyebrow">Workbench preferences</span>
+                <h2 id="accessibility-title">Display &amp; accessibility</h2>
+                <p id="accessibility-description">Tune the presentation for your workspace. These settings stay on this device and never change engineering inputs, simulation fingerprints, or exported artifacts.</p>
+              </div>
+              <button
+                ref={accessibilityCloseRef}
+                className="export-close"
+                aria-label="Close display and accessibility settings"
+                onClick={() => setAccessibilityOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="accessibility-options">
+              <label className="accessibility-option">
+                <input
+                  type="checkbox"
+                  checked={reducedMotion}
+                  onChange={(event) => setReducedMotion(event.target.checked)}
+                />
+                <span>
+                  <strong>Reduce interface motion</strong>
+                  <small>Minimize transitions and animated feedback, independent of your operating-system preference.</small>
+                </span>
+              </label>
+              <label className="accessibility-option">
+                <input
+                  type="checkbox"
+                  checked={highContrast}
+                  onChange={(event) => setHighContrast(event.target.checked)}
+                />
+                <span>
+                  <strong>High-contrast controls</strong>
+                  <small>Increase panel borders, focus rings, field contrast, and status legibility for low-light or low-vision workspaces.</small>
+                </span>
+              </label>
+            </div>
+            <div className="accessibility-shortcuts" aria-label="Keyboard access summary">
+              <span><kbd>⌘ K</kbd><small>Open command search</small></span>
+              <span><kbd>1</kbd><small>2D view</small></span>
+              <span><kbd>2</kbd><small>3D skeleton</small></span>
+              <span><kbd>3</kbd><small>3D final</small></span>
+              <span><kbd>Esc</kbd><small>Close dialogs</small></span>
+            </div>
+            <p className="accessibility-note">Engineering outputs remain subject to their stated model limits. A presentation preference cannot make an unvalidated estimate flight-safe.</p>
           </section>
         </div>
       )}

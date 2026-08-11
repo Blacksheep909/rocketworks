@@ -13,6 +13,8 @@ test("UI preferences round-trip without becoming engineering inputs", () => {
     ...createDefaultUiPreferences(),
     designView: "3d-skeleton",
     designAzimuthDeg: 217,
+    reducedMotion: true,
+    highContrast: true,
   };
   const restored = parseUiPreferences(serializeUiPreferences(preferences));
   assert.deepEqual(restored, preferences);
@@ -35,6 +37,14 @@ test("UI preferences reject unsupported views and unsafe azimuth values", () => 
     /azimuth must be an integer/,
   );
   assert.throws(
+    () => parseUiPreferences(JSON.stringify({ ...base, reducedMotion: "yes" })),
+    /reduced-motion setting must be a boolean/,
+  );
+  assert.throws(
+    () => parseUiPreferences(JSON.stringify({ ...base, highContrast: 1 })),
+    /high-contrast setting must be a boolean/,
+  );
+  assert.throws(
     () => parseUiPreferences(JSON.stringify({ ...base, schemaVersion: 99 })),
     /unsupported UI preferences version/,
   );
@@ -47,5 +57,21 @@ test("UI preference serialization keeps the schema envelope explicit", () => {
     schemaVersion: UI_PREFERENCES_SCHEMA_VERSION,
     designView: "2d",
     designAzimuthDeg: 0,
+    reducedMotion: false,
+    highContrast: false,
+  });
+});
+
+test("UI preferences migrate the v1 presentation record without changing engineering state", () => {
+  const restored = parseUiPreferences(JSON.stringify({
+    schemaId: UI_PREFERENCES_SCHEMA_ID,
+    schemaVersion: 1,
+    designView: "3d-final",
+    designAzimuthDeg: 91,
+  }));
+  assert.deepEqual(restored, {
+    ...createDefaultUiPreferences(),
+    designView: "3d-final",
+    designAzimuthDeg: 91,
   });
 });

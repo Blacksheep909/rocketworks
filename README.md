@@ -143,7 +143,10 @@ research, standards, and original code.
 - validated project import, topology- and source-complete device-local
   autosave/history, templates,
   beginner/expert modes, keyboard command search, and compact browser design
-  share links.
+  share links;
+- device-local display and accessibility preferences with v1 migration,
+  reduced-motion behavior, high-contrast controls, and keyboard-reachable
+  settings; these never enter engineering project state.
 - an installable standards-based browser shell with original RocketWorks artwork,
   a native browser install affordance, and an honest later desktop/tablet
   wrapper path; offline simulation is not claimed.

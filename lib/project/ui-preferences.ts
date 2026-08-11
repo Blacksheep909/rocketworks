@@ -7,8 +7,9 @@
  */
 
 export const UI_PREFERENCES_SCHEMA_ID = "rocketworks-ui-preferences";
-export const UI_PREFERENCES_SCHEMA_VERSION = 1;
-export const UI_PREFERENCES_STORAGE_KEY = "rocketworks-ui-preferences-v1";
+export const UI_PREFERENCES_SCHEMA_VERSION = 2;
+export const UI_PREFERENCES_STORAGE_KEY = "rocketworks-ui-preferences-v2";
+export const UI_PREFERENCES_LEGACY_STORAGE_KEY = "rocketworks-ui-preferences-v1";
 
 export type UiDesignView = "2d" | "3d-skeleton" | "3d-final";
 
@@ -17,6 +18,8 @@ export type UiPreferences = Readonly<{
   schemaVersion: typeof UI_PREFERENCES_SCHEMA_VERSION;
   designView: UiDesignView;
   designAzimuthDeg: number;
+  reducedMotion: boolean;
+  highContrast: boolean;
 }>;
 
 const DESIGN_VIEWS: readonly UiDesignView[] = ["2d", "3d-skeleton", "3d-final"];
@@ -27,6 +30,8 @@ export function createDefaultUiPreferences(): UiPreferences {
     schemaVersion: UI_PREFERENCES_SCHEMA_VERSION,
     designView: "2d",
     designAzimuthDeg: 0,
+    reducedMotion: false,
+    highContrast: false,
   };
 }
 
@@ -47,6 +52,12 @@ export function serializeUiPreferences(preferences: UiPreferences): string {
   if (!Number.isInteger(preferences.designAzimuthDeg) || preferences.designAzimuthDeg < 0 || preferences.designAzimuthDeg > 359) {
     throw new Error("UI preferences azimuth must be an integer from 0 through 359 degrees");
   }
+  if (typeof preferences.reducedMotion !== "boolean") {
+    throw new Error("UI preferences reduced-motion setting must be a boolean");
+  }
+  if (typeof preferences.highContrast !== "boolean") {
+    throw new Error("UI preferences high-contrast setting must be a boolean");
+  }
   return JSON.stringify(preferences);
 }
 
@@ -59,17 +70,29 @@ export function parseUiPreferences(serialized: string): UiPreferences {
   }
   if (!isRecord(value)) throw new Error("UI preferences must be an object");
   if (value.schemaId !== UI_PREFERENCES_SCHEMA_ID) throw new Error("unsupported UI preferences schema");
-  if (value.schemaVersion !== UI_PREFERENCES_SCHEMA_VERSION) throw new Error("unsupported UI preferences version");
+  if (value.schemaVersion !== 1 && value.schemaVersion !== UI_PREFERENCES_SCHEMA_VERSION) {
+    throw new Error("unsupported UI preferences version");
+  }
   if (typeof value.designView !== "string" || !DESIGN_VIEWS.includes(value.designView as UiDesignView)) {
     throw new Error("UI preferences contain an unsupported design view");
   }
   if (typeof value.designAzimuthDeg !== "number" || !Number.isInteger(value.designAzimuthDeg) || value.designAzimuthDeg < 0 || value.designAzimuthDeg > 359) {
     throw new Error("UI preferences azimuth must be an integer from 0 through 359 degrees");
   }
+  const reducedMotion = value.schemaVersion === 1 ? false : value.reducedMotion;
+  const highContrast = value.schemaVersion === 1 ? false : value.highContrast;
+  if (typeof reducedMotion !== "boolean") {
+    throw new Error("UI preferences reduced-motion setting must be a boolean");
+  }
+  if (typeof highContrast !== "boolean") {
+    throw new Error("UI preferences high-contrast setting must be a boolean");
+  }
   return {
     schemaId: UI_PREFERENCES_SCHEMA_ID,
     schemaVersion: UI_PREFERENCES_SCHEMA_VERSION,
     designView: value.designView as UiDesignView,
     designAzimuthDeg: value.designAzimuthDeg,
+    reducedMotion,
+    highContrast,
   };
 }

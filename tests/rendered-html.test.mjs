@@ -423,7 +423,13 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(page, /designAzimuthDeg/);
   assert.match(page, /className="field-slider"/);
   assert.match(page, /UI_PREFERENCES_STORAGE_KEY/);
+  assert.match(page, /UI_PREFERENCES_LEGACY_STORAGE_KEY/);
   assert.match(page, /serializeUiPreferences/);
+  assert.match(page, /Display &amp; accessibility/);
+  assert.match(page, /reducedMotion/);
+  assert.match(page, /highContrast/);
+  assert.match(page, /data-reduced-motion/);
+  assert.match(page, /data-high-contrast/);
   assert.match(page, /aria-keyshortcuts="1"/);
   assert.match(page, /aria-keyshortcuts="2"/);
   assert.match(page, /aria-keyshortcuts="3"/);
@@ -455,6 +461,9 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(stylesheet, /.rocket-3d-display-mode/);
   assert.match(stylesheet, /.view-azimuth-rail/);
   assert.match(stylesheet, /.field-slider/);
+  assert.match(stylesheet, /.accessibility-dialog/);
+  assert.match(stylesheet, /data-reduced-motion/);
+  assert.match(stylesheet, /data-high-contrast/);
 });
 
 test("keeps command search and experience mode reachable on narrow screens", async () => {
