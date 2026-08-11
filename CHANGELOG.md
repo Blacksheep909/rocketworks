@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added persisted turbulence controls to the Flight inspector. A validated
+  0–3 RMS scale and bounded weather replay seed now flow through local project
+  state, templates, share links, coupled environments, landing-dispersion
+  scenarios, and engineering reports. The fast vertical trace continues to
+  use mean wind only and states that limitation explicitly.
 - Added a validated device-local component library for reusable nose, airframe,
   fin-set, and recovery presets. Presets carry source/license metadata, can be
   applied or exported from the browser, and travel in portable project JSON

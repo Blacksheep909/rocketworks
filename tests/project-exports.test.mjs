@@ -555,6 +555,8 @@ test("engineering report leads with status and preserves calculations and limita
       windAzimuthDeg: 35,
       windProfileLayerCount: 3,
       windProfileSource: "user-supplied",
+      turbulenceScale: 1.2,
+      weatherSeed: "report-weather-v1",
       surfacePressureHpa: 1004,
       surfaceTemperatureC: 15,
       relativeHumidityPercent: 60,
@@ -761,6 +763,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /^# ARC 54 — Preliminary Engineering Report/);
   assert.match(report, /Site coordinates \(WGS84\): -36\.85000°, 174\.76000°/);
   assert.match(report, /Mean-wind profile: user-supplied \(3 altitude layers\)/);
+  assert.match(report, /Turbulence RMS scale: 1\.20×/);
+  assert.match(report, /Weather replay seed: `report-weather-v1`/);
   assert.match(report, /Pad pressure observation: 1004\.0 hPa/);
   assert.match(report, /Wind azimuth input: 35° ENU/);
   assert.match(report, /Relative humidity observation: 60%/);

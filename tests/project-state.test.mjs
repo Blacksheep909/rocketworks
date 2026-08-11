@@ -64,6 +64,8 @@ test("local project snapshots round-trip through a strict versioned schema", () 
   assert.equal(source.inputs.launchLatitudeDeg, -36.85);
   assert.equal(source.inputs.launchLongitudeDeg, 174.76);
   assert.deepEqual(source.inputs.windProfileLayers, []);
+  assert.equal(source.inputs.turbulenceScale, 1);
+  assert.equal(source.inputs.weatherSeed, "arc54-weather-v1");
   assert.equal(source.inputs.noseLengthMm, 180);
   assert.equal(source.inputs.noseProfile, "ogive");
   assert.equal(source.inputs.finCount, 3);
@@ -155,6 +157,8 @@ test("legacy snapshots receive explicit surface-weather defaults", () => {
   assert.equal(legacy.inputs.recoveryReefingStartAreaFraction, 0.35);
   assert.equal(legacy.inputs.uncertaintySampleCount, 48);
   assert.equal(legacy.inputs.uncertaintySeed, "arc54-preview-v1");
+  assert.equal(legacy.inputs.turbulenceScale, 1);
+  assert.equal(legacy.inputs.weatherSeed, "arc54-weather-v1");
   assert.deepEqual(legacy.inputs.uncertaintyCorrelations, []);
 });
 
@@ -224,6 +228,14 @@ test("invalid, unsupported, and out-of-range snapshots fail explicitly", () => {
   assert.throws(
     () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, windAzimuthDeg: 180.1 } }),
     /windAzimuthDeg/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, turbulenceScale: 3.1 } }),
+    /turbulenceScale/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, weatherSeed: "" } }),
+    /weatherSeed/,
   );
   assert.throws(
     () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, launchLatitudeDeg: 90.1 } }),

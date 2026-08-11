@@ -145,6 +145,10 @@ export type EngineeringReportInput = Readonly<{
     windProfileLayerCount?: number;
     /** Whether the profile is the deterministic synthetic fallback or user data. */
     windProfileSource?: "synthetic" | "user-supplied";
+    /** Multiplier applied to the deterministic turbulence RMS envelope. */
+    turbulenceScale?: number;
+    /** Replay seed used for the deterministic turbulence realization. */
+    weatherSeed?: string;
     surfacePressureHpa?: number;
     surfaceTemperatureC?: number;
     relativeHumidityPercent?: number;
@@ -1506,6 +1510,15 @@ export function createEngineeringReportMarkdown(
   if (input.environment.windProfileSource !== undefined && !["synthetic", "user-supplied"].includes(input.environment.windProfileSource)) {
     throw new Error("report wind profile source is invalid");
   }
+  if (input.environment.turbulenceScale !== undefined) {
+    assertFinite(input.environment.turbulenceScale, "report turbulence scale");
+    if (input.environment.turbulenceScale < 0 || input.environment.turbulenceScale > 3) {
+      throw new Error("report turbulence scale must be between 0 and 3");
+    }
+  }
+  if (input.environment.weatherSeed !== undefined && !input.environment.weatherSeed.trim()) {
+    throw new Error("report weather seed cannot be empty");
+  }
   for (const [label, value, minimum, maximum] of [
     ["report latitude", input.environment.latitudeDeg, -90, 90],
     ["report longitude", input.environment.longitudeDeg, -180, 180],
@@ -1578,6 +1591,12 @@ export function createEngineeringReportMarkdown(
     ...(input.environment.windProfileLayerCount === undefined
       ? []
       : [`- Mean-wind profile: ${input.environment.windProfileSource === "user-supplied" ? "user-supplied" : "synthetic fallback"} (${input.environment.windProfileLayerCount} altitude layers)`]),
+    ...(input.environment.turbulenceScale === undefined
+      ? []
+      : [`- Turbulence RMS scale: ${formatNumber(input.environment.turbulenceScale, 2)}×`]),
+    ...(input.environment.weatherSeed === undefined
+      ? []
+      : [`- Weather replay seed: \`${markdownText(input.environment.weatherSeed)}\``]),
     ...(input.environment.surfacePressureHpa === undefined
       ? []
       : [`- Pad pressure observation: ${formatNumber(input.environment.surfacePressureHpa, 1)} hPa`]),

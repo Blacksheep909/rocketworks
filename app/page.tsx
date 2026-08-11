@@ -119,6 +119,7 @@ import {
 import {
   DEFAULT_UNCERTAINTY_SAMPLE_COUNT,
   DEFAULT_UNCERTAINTY_SEED,
+  DEFAULT_WEATHER_SEED,
   LOCAL_PROJECT_HISTORY_STORAGE_KEY,
   LOCAL_PROJECT_STORAGE_KEY,
   appendProjectHistory,
@@ -1957,6 +1958,8 @@ type LandingPredictionInputs = Parameters<typeof createFlightConfig>[0] & Readon
   launchSiteName: string;
   launchLatitudeDeg: number;
   launchLongitudeDeg: number;
+  turbulenceScale: number;
+  weatherSeed: string;
   recoveryDeploymentSuccessProbability: number;
   uncertaintyCorrelations?: readonly ProjectUncertaintyCorrelation[];
 }>;
@@ -2054,10 +2057,12 @@ function createLandingPrediction(
         {
           windAzimuthDeg: inputs.windAzimuthDeg,
           windProfileLayers: inputs.windProfileLayers,
-          seed: `arc54-landing-weather-${sampleIndex}`,
+          seed: `${inputs.weatherSeed}-landing-${sampleIndex}`,
           windScale: values.windScale,
           directionOffsetRad: values.windDirectionOffsetRad,
-          turbulenceScale: values.turbulenceScale,
+          // Keep the persisted Flight-inspector scale as the nominal envelope;
+          // the landing analysis factor is a bounded scenario perturbation.
+          turbulenceScale: inputs.turbulenceScale * values.turbulenceScale,
           relativeHumidityPercent: inputs.relativeHumidityPercent,
           surfacePressureHpa: inputs.surfacePressureHpa,
           surfaceTemperatureC: inputs.surfaceTemperatureC,
@@ -3378,6 +3383,8 @@ export default function Home() {
   const [windSpeed, setWindSpeed] = useState(4);
   const [windAzimuthDeg, setWindAzimuthDeg] = useState(0);
   const [windProfileLayers, setWindProfileLayers] = useState<ProjectWindLayer[]>([]);
+  const [turbulenceScale, setTurbulenceScale] = useState(1);
+  const [weatherSeed, setWeatherSeed] = useState(DEFAULT_WEATHER_SEED);
   const [relativeHumidityPercent, setRelativeHumidityPercent] = useState(60);
   const [surfacePressureHpa, setSurfacePressureHpa] = useState(1004);
   const [surfaceTemperatureC, setSurfaceTemperatureC] = useState(15);
@@ -3496,6 +3503,8 @@ export default function Home() {
       windSpeedMps: windSpeed,
       windAzimuthDeg,
       windProfileLayers,
+      turbulenceScale,
+      weatherSeed,
       relativeHumidityPercent,
       surfacePressureHpa,
       surfaceTemperatureC,
@@ -3515,7 +3524,7 @@ export default function Home() {
       uncertaintySeed,
       uncertaintyCorrelations,
     }),
-    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, launchSiteName, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, windAzimuthDeg, windProfileLayers, windSpeed],
+    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, launchSiteName, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -3695,8 +3704,8 @@ export default function Home() {
     [coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, editableInputs, previewMotor, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, vehicleTopology],
   );
   const previewEnvironment = useMemo(
-    () => createPreviewEnvironment(launchAltitude, windSpeed, { siteName: launchSiteName, latitudeDeg: launchLatitudeDeg, longitudeDeg: launchLongitudeDeg, windAzimuthDeg, windProfileLayers, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
-    [launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchSiteName, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, windAzimuthDeg, windProfileLayers, windSpeed],
+    () => createPreviewEnvironment(launchAltitude, windSpeed, { siteName: launchSiteName, latitudeDeg: launchLatitudeDeg, longitudeDeg: launchLongitudeDeg, windAzimuthDeg, windProfileLayers, turbulenceScale, seed: weatherSeed, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
+    [launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchSiteName, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, turbulenceScale, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const environmentAtPad = useMemo(
     () => previewEnvironment.at({ timeS: 0, positionWorldM: { x: 0, y: 0, z: 0 } }),
@@ -3808,6 +3817,8 @@ export default function Home() {
           windSpeed,
           windAzimuthDeg,
           windProfileLayers,
+          turbulenceScale,
+          weatherSeed,
           relativeHumidityPercent,
           surfacePressureHpa,
           surfaceTemperatureC,
@@ -4275,6 +4286,8 @@ export default function Home() {
         setWindSpeed(inputs.windSpeedMps);
         setWindAzimuthDeg(inputs.windAzimuthDeg);
         setWindProfileLayers([...(inputs.windProfileLayers ?? [])]);
+        setTurbulenceScale(inputs.turbulenceScale);
+        setWeatherSeed(inputs.weatherSeed);
         setRelativeHumidityPercent(inputs.relativeHumidityPercent);
         setSurfacePressureHpa(inputs.surfacePressureHpa);
         setSurfaceTemperatureC(inputs.surfaceTemperatureC);
@@ -4392,6 +4405,8 @@ export default function Home() {
         setWindSpeed(inputs.windSpeedMps);
         setWindAzimuthDeg(inputs.windAzimuthDeg);
         setWindProfileLayers([...(inputs.windProfileLayers ?? [])]);
+        setTurbulenceScale(inputs.turbulenceScale);
+        setWeatherSeed(inputs.weatherSeed);
         setRelativeHumidityPercent(inputs.relativeHumidityPercent);
         setSurfacePressureHpa(inputs.surfacePressureHpa);
         setSurfaceTemperatureC(inputs.surfaceTemperatureC);
@@ -4849,6 +4864,8 @@ export default function Home() {
     setWindSpeed(inputs.windSpeedMps);
     setWindAzimuthDeg(inputs.windAzimuthDeg);
     setWindProfileLayers([...(inputs.windProfileLayers ?? [])]);
+    setTurbulenceScale(inputs.turbulenceScale);
+    setWeatherSeed(inputs.weatherSeed);
     setRelativeHumidityPercent(inputs.relativeHumidityPercent);
     setSurfacePressureHpa(inputs.surfacePressureHpa);
     setSurfaceTemperatureC(inputs.surfaceTemperatureC);
@@ -5600,6 +5617,8 @@ export default function Home() {
             windAzimuthDeg,
             windProfileLayerCount: previewEnvironment.definition.meanWindProfile?.length ?? 0,
             windProfileSource: windProfileLayers.length > 0 ? "user-supplied" : "synthetic",
+            turbulenceScale,
+            weatherSeed,
             surfacePressureHpa,
             surfaceTemperatureC,
             relativeHumidityPercent,
@@ -5664,6 +5683,8 @@ export default function Home() {
       windSpeed,
       windAzimuthDeg,
       windProfileLayers,
+      turbulenceScale,
+      weatherSeed,
       relativeHumidityPercent,
       surfacePressureHpa,
       surfaceTemperatureC,
@@ -7561,8 +7582,13 @@ export default function Home() {
             <NumberField id="surface-temperature" label="Pad temperature" value={surfaceTemperatureC} unit="°C" min={-90} max={70} step={0.5} onChange={(value) => { setSurfaceTemperatureC(value); markChanged(); }} />
             <NumberField id="wind-speed" label="Wind at 500 m" value={windSpeed} unit="m/s" min={0} max={80} step={0.5} onChange={(value) => { setWindSpeed(value); markChanged(); }} />
             <NumberField id="wind-azimuth" label="Wind azimuth · east toward north" value={windAzimuthDeg} unit="deg" min={-180} max={180} step={1} onChange={(value) => { setWindAzimuthDeg(value); markChanged(); }} />
+            <NumberField id="turbulence-scale" label="Turbulence RMS scale" value={turbulenceScale} unit="×" min={0} max={3} step={0.05} slider onChange={(value) => { setTurbulenceScale(value); markChanged(); }} />
+            <div className="field-group">
+              <label htmlFor="weather-seed">Weather replay seed</label>
+              <input id="weather-seed" type="text" maxLength={80} value={weatherSeed} onChange={(event) => { setWeatherSeed(event.target.value.slice(0, 80)); markChanged(); }} onBlur={() => setWeatherSeed((current) => current.trim() || DEFAULT_WEATHER_SEED)} />
+            </div>
             <NumberField id="relative-humidity" label="Relative humidity" value={relativeHumidityPercent} unit="%" min={0} max={100} step={1} onChange={(value) => { setRelativeHumidityPercent(value); markChanged(); }} />
-            <p className="field-help">The site label and WGS84 coordinates flow into landing-zone provenance and exported reports. Pressure and temperature anchor the launch-site profile; wind azimuth uses the local ENU frame (0° east, +90° north); humidity couples to water-vapor pressure, virtual temperature, density, and sound speed. These are user observations, not a live weather feed.</p>
+            <p className="field-help">The site label and WGS84 coordinates flow into landing-zone provenance and exported reports. Pressure and temperature anchor the launch-site profile; wind azimuth uses the local ENU frame (0° east, +90° north); turbulence scale multiplies the deterministic RMS envelope, and the seed makes the generated field replayable. Humidity couples to water-vapor pressure, virtual temperature, density, and sound speed. These are user observations and assumptions, not a live weather feed.</p>
             <div className="field-group rail-control-group">
               <label htmlFor="launch-rail-enabled">Launch rail constraint</label>
               <select id="launch-rail-enabled" value={launchRailEnabled ? "enabled" : "disabled"} onChange={(event) => { setLaunchRailEnabled(event.target.value === "enabled"); markChanged(); }}>
@@ -7650,8 +7676,8 @@ export default function Home() {
                   <div><span>Relative humidity</span><strong>{relativeHumidityPercent.toFixed(0)}% · coupled</strong></div>
                   <div><span>Air density @ 500 m</span><strong>{environmentAt500M.atmosphere.densityKgM3.toFixed(3)} kg/m³</strong></div>
                   <div><span>Sound speed @ 500 m</span><strong>{environmentAt500M.atmosphere.speedOfSoundMps.toFixed(1)} m/s</strong></div>
-                  <div><span>Turbulence RMS L / T / V</span><strong>{(windSpeed * 0.12).toFixed(2)} / {(windSpeed * 0.1).toFixed(2)} / {(windSpeed * 0.06).toFixed(2)} m/s</strong></div>
-                  <div><span>Replay seed</span><strong>arc54-weather-v1</strong></div>
+                  <div><span>Turbulence RMS L / T / V</span><strong>{(previewEnvironment.definition.turbulence?.rmsVelocityMps.longitudinal ?? 0).toFixed(2)} / {(previewEnvironment.definition.turbulence?.rmsVelocityMps.lateral ?? 0).toFixed(2)} / {(previewEnvironment.definition.turbulence?.rmsVelocityMps.vertical ?? 0).toFixed(2)} m/s</strong></div>
+                  <div><span>Turbulence scale / seed</span><strong>{turbulenceScale.toFixed(2)}× · {weatherSeed}</strong></div>
                 </div>
                 <p className="motor-provenance">Synthetic deterministic Dryden-shaped environment · CC0-1.0 · unvalidated. The current 1D chart reports the mean profile only; the landing footprint now adds a versioned horizontal ascent-drift proxy, while the 6DOF load APIs remain the coupled-motion path.</p>
               </>

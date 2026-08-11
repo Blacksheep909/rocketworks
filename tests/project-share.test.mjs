@@ -71,6 +71,8 @@ test("project share links round-trip validated design configuration deterministi
       recoveryReefingStartAreaFraction: 0.35,
       uncertaintySampleCount: 48,
       uncertaintySeed: "arc54-preview-v1",
+      turbulenceScale: 1,
+      weatherSeed: "arc54-weather-v1",
       uncertaintyCorrelations: [],
     },
   });

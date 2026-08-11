@@ -11,6 +11,7 @@ export const LOCAL_PROJECT_HISTORY_STORAGE_KEY = "kestrel.project.arc54.history.
 export const DEFAULT_LOCAL_HISTORY_LIMIT = 40;
 export const DEFAULT_UNCERTAINTY_SAMPLE_COUNT = 48;
 export const DEFAULT_UNCERTAINTY_SEED = "arc54-preview-v1";
+export const DEFAULT_WEATHER_SEED = "arc54-weather-v1";
 
 export type ProjectMaterial = "kraft" | "fiberglass" | "carbon";
 export type NoseProfile = "ogive" | "conical" | "elliptical";
@@ -64,6 +65,10 @@ export type EditableProjectInputs = Readonly<{
   /** Mean-wind azimuth in the local ENU frame: 0° east, +90° north. */
   windAzimuthDeg: number;
   windProfileLayers: ReadonlyArray<ProjectWindLayer>;
+  /** Multiplier for the deterministic synthetic turbulence RMS envelope. */
+  turbulenceScale: number;
+  /** Reproducibility seed for the deterministic launch-environment turbulence field. */
+  weatherSeed: string;
   relativeHumidityPercent: number;
   surfacePressureHpa: number;
   surfaceTemperatureC: number;
@@ -122,7 +127,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "windProfileLayers" | "recoveryEnabled" | "launchRailEnabled" | "recoveryReefingEnabled" | "uncertaintySeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "windProfileLayers" | "recoveryEnabled" | "launchRailEnabled" | "recoveryReefingEnabled" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -141,6 +146,7 @@ const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material
   launchAltitudeM: [-400, 10000],
   windSpeedMps: [0, 80],
   windAzimuthDeg: [-180, 180],
+  turbulenceScale: [0, 3],
   relativeHumidityPercent: [0, 100],
   surfacePressureHpa: [20, 1100],
   surfaceTemperatureC: [-90, 70],
@@ -173,6 +179,7 @@ const numericDefaults: Readonly<Partial<Record<keyof typeof numericRanges, numbe
   surfacePressureHpa: 1004,
   surfaceTemperatureC: 15,
   windAzimuthDeg: 0,
+  turbulenceScale: 1,
   recoveryMassKg: 0.06,
   recoveryDeploymentSuccessProbability: 0.9,
   recoveryReefingDurationS: 3,
@@ -337,6 +344,9 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   const uncertaintySeed = input.uncertaintySeed === undefined
     ? DEFAULT_UNCERTAINTY_SEED
     : nonEmptyString(input.uncertaintySeed, "uncertaintySeed", 80);
+  const weatherSeed = input.weatherSeed === undefined
+    ? DEFAULT_WEATHER_SEED
+    : nonEmptyString(input.weatherSeed, "weatherSeed", 80);
   return {
     lengthMm: validated.lengthMm,
     diameterMm: validated.diameterMm,
@@ -360,6 +370,8 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     windSpeedMps: validated.windSpeedMps,
     windAzimuthDeg: validated.windAzimuthDeg,
     windProfileLayers: validateWindProfileLayers(input.windProfileLayers),
+    turbulenceScale: validated.turbulenceScale,
+    weatherSeed,
     relativeHumidityPercent: validated.relativeHumidityPercent,
     surfacePressureHpa: validated.surfacePressureHpa,
     surfaceTemperatureC: validated.surfaceTemperatureC,
@@ -477,6 +489,8 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   windSpeedMps: "wind speed",
   windAzimuthDeg: "wind azimuth",
   windProfileLayers: "altitude-dependent wind profile",
+  turbulenceScale: "turbulence RMS scale",
+  weatherSeed: "weather replay seed",
   relativeHumidityPercent: "relative humidity",
   surfacePressureHpa: "surface pressure",
   surfaceTemperatureC: "surface temperature",

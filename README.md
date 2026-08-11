@@ -66,6 +66,10 @@ research, standards, and original code.
 - validated custom altitude-dependent mean-wind layers (up to 32 local-ENU
   points) with explicit user-supplied provenance, local persistence, share
   links, landing/coupled propagation, and synthetic-profile fallback;
+- persisted turbulence RMS scaling and a weather replay seed, carried through
+  local projects, share links, templates, landing scenarios, coupled
+  environments, and engineering reports; the fast 1D vertical trace remains
+  intentionally mean-wind-only and labels that boundary in the UI;
 - persisted pad-pressure and pad-temperature observations shared by the fast
   vertical, launch-environment, landing, and report paths;
 - preliminary vertical flight, coupled 6DOF, staging, ignition delays,

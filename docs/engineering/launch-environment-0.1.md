@@ -92,6 +92,25 @@ components are already explicit. A user profile is not authenticated or
 experimentally validated, and it does not make a weather or range-safety
 prediction.
 
+The browser exposes two persisted turbulence controls alongside the wind
+profile. `turbulenceScale` is a validated multiplier from `0` through `3` for
+the synthesized RMS envelope; `0` is an exact calm-turbulence case.
+`weatherSeed` is a bounded non-empty replay label (the default is
+`arc54-weather-v1`). The seed is combined with each landing-dispersion sample
+index, so changing the seed produces a new deterministic realization while
+repeating a project and scenario remains reproducible. Landing-dispersion
+scenarios multiply the persisted nominal scale by their bounded uncertainty
+factor before querying the field. Both values are carried
+through local snapshots, portable project JSON, compact share links, templates,
+coupled environment queries, and engineering-report provenance.
+
+The coupled 6DOF and landing-dispersion adapters consume the turbulence field.
+The fast 1D vertical preview intentionally remains a mean-wind-only trace: its
+wind profile is still useful for a quick estimate, but the inspector and report
+must not imply that its scalar altitude integration resolves stochastic gust
+loads. This boundary is a product decision until the vertical adapter has a
+validated stochastic integration path.
+
 Turbulence is synthesized from logarithmically bounded spatial modes with
 seeded phases. The longitudinal and transverse mode weights use the Dryden
 spatial power spectral density shapes:
