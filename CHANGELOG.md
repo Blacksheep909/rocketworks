@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a world-frame vector impulse budget to the coupled preview. Recorded
+  thrust, aerodynamic, gravity, recovery, and discrete-event contributions are
+  integrated as force/mass vectors and checked against the observed velocity
+  change. Closure residuals expose omitted rail/contact or event mechanisms as
+  review telemetry; this remains analytical trace accounting, not a validated
+  mission delta-v or flight-safety budget.
 - Added a typed English/Spanish shell copy catalog and a persisted locale
   selector in Display & accessibility settings. Core navigation, view modes,
   and presentation controls can switch coherently; engineering explanations

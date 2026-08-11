@@ -20,6 +20,9 @@ more validated than the underlying source result.
 - configured coupled-stage runs expose preview freshness, event-allocation
   status, half-step convergence status, and non-balanced separation impulse
   proposals;
+- current coupled-stage runs expose world-frame vector-budget closure, with a
+  residual review when recorded force and event contributions do not reconcile
+  with the trace endpoint velocity;
 - missing evidence is never silently converted into a pass.
 
 Findings are ranked deterministically so the highest-priority review item is

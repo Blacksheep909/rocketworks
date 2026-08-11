@@ -2723,6 +2723,21 @@ function formatAbsoluteDifference(value: number | null, unit: string, decimals =
   return value === null ? "—" : `${value.toFixed(decimals)} ${unit}`;
 }
 
+function formatWorldVector(
+  value: Readonly<{ x: number; y: number; z: number }> | null,
+  decimals = 1,
+): string {
+  if (!value) return "Not assessed";
+  return `(${value.x.toFixed(decimals)}, ${value.y.toFixed(decimals)}, ${value.z.toFixed(decimals)}) m/s`;
+}
+
+function formatVectorMagnitude(
+  value: Readonly<{ deltaVMagnitudeMps: number }> | null,
+  decimals = 1,
+): string {
+  return value === null ? "Not assessed" : `${value.deltaVMagnitudeMps.toFixed(decimals)} m/s`;
+}
+
 function separationAuditStatus(
   audits: readonly SeparationDynamicsResult[],
 ): SeparationDynamicsResult["status"] {
@@ -3823,6 +3838,9 @@ export default function Home() {
       stageInterfaceLoads: stageFlightConfigured ? stageInterfaceLoadReview : null,
       stageMassRatio: stageFlightConfigured && stageFlightIsCurrent
         ? stageFlightResult?.massRatio ?? null
+        : null,
+      stageVectorBudget: stageFlightConfigured && stageFlightIsCurrent
+        ? stageFlightResult?.vectorBudget ?? null
         : null,
       verticalFlightCurrent: resultIsCurrent,
       verticalFlightModelVersion: result.modelVersion,
@@ -6090,6 +6108,36 @@ export default function Home() {
                       )}
                       <p className="stage-force-budget-note">{stageFlightResult.forceBudget.warnings[0] ?? "Scalar trace accounting only; velocity-equivalent values are not vector delta-v or mission loss terms."}</p>
                       <small className="stage-force-budget-model">{publicModelVersion(stageFlightResult.forceBudget.modelVersion)} · {stageFlightResult.forceBudget.validationStatus}</small>
+                    </section>
+                    <section className={`stage-vector-budget-card stage-vector-budget-${stageFlightResult.vectorBudget.closureStatus}`} aria-labelledby="stage-vector-budget-title">
+                      <div className="stage-vector-budget-heading">
+                        <div>
+                          <span className="eyebrow">World-frame accounting</span>
+                          <h4 id="stage-vector-budget-title">Vector impulse budget</h4>
+                          <p>Integrates the recorded thrust, aerodynamic, gravity, and recovery force vectors in ENU coordinates, then checks them against the observed velocity change.</p>
+                        </div>
+                        <span className={`uncertainty-status uncertainty-status-${stageFlightResult.vectorBudget.closureStatus}`}>
+                          {stageFlightResult.vectorBudget.closureStatus === "closed" ? "CLOSED TRACE" : stageFlightResult.vectorBudget.closureStatus === "review" ? "CLOSURE REVIEW" : "NOT ASSESSED"}
+                        </span>
+                      </div>
+                      <div className="stage-vector-budget-grid">
+                        <div><span>Thrust contribution</span><strong>{formatVectorMagnitude(stageFlightResult.vectorBudget.thrust)}</strong><small>world-frame ∫F/m dt</small></div>
+                        <div><span>Aerodynamic contribution</span><strong>{formatVectorMagnitude(stageFlightResult.vectorBudget.aerodynamic)}</strong><small>drag + normal force</small></div>
+                        <div><span>Gravity contribution</span><strong>{formatVectorMagnitude(stageFlightResult.vectorBudget.gravity)}</strong><small>world-frame ∫F/m dt</small></div>
+                        <div><span>Recovery contribution</span><strong>{formatVectorMagnitude(stageFlightResult.vectorBudget.recovery)}</strong><small>canopy force only</small></div>
+                        <div><span>Observed velocity change</span><strong>{formatWorldVector(stageFlightResult.vectorBudget.observedVelocityChangeWorldMps)}</strong><small>trace endpoints</small></div>
+                        <div><span>Accounted velocity change</span><strong>{formatWorldVector(stageFlightResult.vectorBudget.accountedVelocityChangeWorldMps)}</strong><small>continuous + event Δv</small></div>
+                        <div><span>Closure residual</span><strong>{stageFlightResult.vectorBudget.closureResidualMagnitudeMps === null ? "Not assessed" : `${stageFlightResult.vectorBudget.closureResidualMagnitudeMps.toFixed(3)} m/s`}</strong><small>tolerance {stageFlightResult.vectorBudget.closureToleranceMps.toFixed(3)} m/s</small></div>
+                        <div><span>Discrete event Δv</span><strong>{formatWorldVector(stageFlightResult.vectorBudget.eventDeltaVWorldMps)}</strong><small>{stageFlightResult.vectorBudget.eventCount} applied event{stageFlightResult.vectorBudget.eventCount === 1 ? "" : "s"}</small></div>
+                      </div>
+                      <div className="stage-vector-budget-vectors">
+                        <div><span>Thrust vector</span><strong>{formatWorldVector(stageFlightResult.vectorBudget.thrust?.deltaVWorldMps ?? null)}</strong></div>
+                        <div><span>Aero vector</span><strong>{formatWorldVector(stageFlightResult.vectorBudget.aerodynamic?.deltaVWorldMps ?? null)}</strong></div>
+                        <div><span>Gravity vector</span><strong>{formatWorldVector(stageFlightResult.vectorBudget.gravity?.deltaVWorldMps ?? null)}</strong></div>
+                        <div><span>Recovery vector</span><strong>{formatWorldVector(stageFlightResult.vectorBudget.recovery?.deltaVWorldMps ?? null)}</strong></div>
+                      </div>
+                      <p className="stage-vector-budget-note">{stageFlightResult.vectorBudget.warnings[0] ?? "World-frame vector accounting only; this is not a validated mission delta-v or flight-safety result."}</p>
+                      <small className="stage-vector-budget-model">{publicModelVersion(stageFlightResult.vectorBudget.modelVersion)} / {stageFlightResult.vectorBudget.validationStatus}</small>
                     </section>
                     {stageRecoveryOpeningLoad && (
                       <section className="recovery-opening-load-card" aria-labelledby="recovery-opening-load-title">

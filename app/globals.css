@@ -609,6 +609,29 @@ kbd {
 .stage-force-budget-row span { display: block; color: #8296a1; font-size: 7px; }
 .stage-force-budget-note { margin: 9px 1px 0; color: #8498a4; font: 7px/1.5 var(--font-geist-mono),monospace; }
 .stage-force-budget-model { display: block; margin-top: 6px; color: #708691; font: 7px var(--font-geist-mono),monospace; }
+.stage-vector-budget-card { margin-top: 12px; padding: 12px; border: 1px solid rgba(98,184,134,.28); border-radius: 3px; background: linear-gradient(135deg, rgba(98,184,134,.075), rgba(13,19,24,.76) 62%); }
+.stage-vector-budget-review { border-color: rgba(244,163,64,.38); background: linear-gradient(135deg, rgba(244,163,64,.09), rgba(13,19,24,.76) 62%); }
+.stage-vector-budget-not-assessed { border-color: rgba(198,212,221,.24); background: linear-gradient(135deg, rgba(198,212,221,.06), rgba(13,19,24,.76) 62%); }
+.stage-vector-budget-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.stage-vector-budget-heading h4 { margin-top: 4px; color: #e8f8ef; font-size: 11px; letter-spacing: .02em; }
+.stage-vector-budget-heading p { max-width: 720px; margin-top: 4px; color: #89a998; font-size: 8px; line-height: 1.45; }
+.stage-vector-budget-heading .uncertainty-status { flex: 0 0 auto; color: #98d6b1; border-color: rgba(98,184,134,.42); background: rgba(98,184,134,.09); }
+.stage-vector-budget-review .stage-vector-budget-heading h4 { color: #fff0d8; }
+.stage-vector-budget-review .stage-vector-budget-heading .uncertainty-status { color: #ffc477; border-color: rgba(244,163,64,.42); background: rgba(244,163,64,.09); }
+.stage-vector-budget-not-assessed .stage-vector-budget-heading .uncertainty-status { color: #a5b5bd; border-color: rgba(198,212,221,.3); background: rgba(198,212,221,.06); }
+.stage-vector-budget-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1px; margin-top: 10px; overflow: hidden; border: 1px solid rgba(98,184,134,.2); border-radius: 3px; background: rgba(98,184,134,.2); }
+.stage-vector-budget-grid div { min-width: 0; padding: 8px; background: rgba(12,18,24,.9); }
+.stage-vector-budget-grid span { display: block; color: #83a392; font-size: 8px; }
+.stage-vector-budget-grid strong { display: block; overflow: hidden; margin-top: 4px; color: #d9f5e7; font: 700 9px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-vector-budget-grid small { display: block; overflow: hidden; margin-top: 3px; color: #739087; font: 7px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-vector-budget-vectors { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1px; margin-top: 10px; }
+.stage-vector-budget-vectors div { min-width: 0; padding: 7px 8px; border-left: 2px solid rgba(98,184,134,.46); background: rgba(98,184,134,.045); }
+.stage-vector-budget-vectors span { display: block; color: #83a392; font-size: 7px; }
+.stage-vector-budget-vectors strong { display: block; overflow: hidden; margin-top: 3px; color: #cdebdc; font: 700 8px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-vector-budget-note { margin: 9px 1px 0; color: #84998e; font: 7px/1.5 var(--font-geist-mono),monospace; }
+.stage-vector-budget-model { display: block; margin-top: 6px; color: #708a7e; font: 7px var(--font-geist-mono),monospace; }
+.stage-vector-budget-review .stage-vector-budget-note { color: #b89b7a; }
+.stage-vector-budget-review .stage-vector-budget-vectors div { border-left-color: rgba(244,163,64,.56); background: rgba(244,163,64,.045); }
 .recovery-opening-load-card {
   margin-top: 12px; padding: 12px; border: 1px solid rgba(244,163,64,.28); border-radius: 3px;
   background: linear-gradient(135deg, rgba(244,163,64,.09), rgba(12,18,24,.84) 62%);
@@ -1755,6 +1778,9 @@ kbd {
   .stage-force-budget-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .stage-force-budget-row { grid-template-columns: minmax(0,1fr) minmax(76px,auto); }
   .stage-force-budget-row > div:nth-child(3), .stage-force-budget-row > div:nth-child(4) { grid-column: 2; }
+  .stage-vector-budget-heading { flex-direction: column; }
+  .stage-vector-budget-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .stage-vector-budget-vectors { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .recovery-opening-load-heading { flex-direction: column; }
   .uncertainty-sensitivity-row { grid-template-columns: minmax(88px,1.15fr) minmax(60px,1.7fr) 34px 28px; gap: 6px; }
   .stage-flight-heading .primary-button { width: 100%; }

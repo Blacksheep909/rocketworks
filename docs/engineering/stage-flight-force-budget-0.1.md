@@ -38,6 +38,11 @@ This is an explainable telemetry aid for comparing a run and its topology. It
 is not a mission-performance budget, physical validation, structural decision,
 range-safety boundary, or flight-safety assessment.
 
+For a directional force accounting view, see
+`stage-flight-vector-budget-0.1.md`. That companion diagnostic uses the actual
+world-frame force vectors and reports observed-versus-accounted velocity
+closure, while preserving the same engineering-preview boundary.
+
 ## Provenance
 
 - Implementation: `lib/physics/stage-flight-force-budget.ts`

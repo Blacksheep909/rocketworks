@@ -129,6 +129,9 @@ test("ships versioned flight results and explainable model UI", async () => {
   assert.match(atmosphereSource, /ATMOSPHERE_MAX_GEOMETRIC_ALTITUDE_M/);
   assert.match(source, /1st bending mode/);
   assert.match(source, /equivalent-beam/);
+  assert.match(source, /Vector impulse budget/);
+  assert.match(source, /Observed velocity change/);
+  assert.match(source, /stageFlightResult\.vectorBudget/);
   assert.doesNotMatch(source, /(?:Â|Ã|â†)/, "Flight UI source must not contain mojibake labels");
   assert.doesNotMatch(
     await readFile(new URL("../lib/export/project-exports.ts", import.meta.url), "utf8"),
@@ -556,11 +559,13 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(exportSource, /radial Z offset is projected out/);
   assert.match(page, /computeStructuralScreen/);
   assert.match(page, /stageFlightResult\.massRatio/);
+  assert.match(page, /stageVectorBudget/);
   assert.match(page, /Stage mass-ratio diagnostic/);
   assert.match(page, /createStageStructuralReview/);
   assert.match(page, /STAGE-AWARE STRUCTURAL REVIEW/);
   assert.match(exportSource, /Stage-aware structural review/);
   assert.match(exportSource, /Stage mass-ratio diagnostic/);
+  assert.match(exportSource, /World-frame vector impulse budget/);
   assert.match(page, /flutterFlightCondition/);
   assert.match(page, /Separation impulse audit/);
   assert.match(page, /STRUCTURAL SCREEN/);
@@ -576,6 +581,7 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(stylesheet, /\.stage-structural-review-card/);
   assert.match(stylesheet, /\.stage-structural-review-row-review/);
   assert.match(stylesheet, /\.stage-mass-ratio-card/);
+  assert.match(stylesheet, /\.stage-vector-budget-card/);
   assert.match(stylesheet, /\.structural-check-review/);
   assert.match(stylesheet, /\.engineering-review-card/);
   assert.match(stylesheet, /\.engineering-review-finding-review/);

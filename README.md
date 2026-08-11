@@ -121,6 +121,10 @@ research, standards, and original code.
 - a trace-level force impulse budget that integrates recorded thrust,
   aerodynamic drag, recovery drag, and force/mass velocity-equivalent signals
   by stage without mislabeling scalar accounting as vector delta-v;
+- a world-frame vector impulse budget that integrates the actual coupled
+  thrust, aerodynamic, gravity, recovery, and discrete-event contributions and
+  reports observed-versus-accounted velocity closure with an explicit review
+  residual;
 - deterministic structural and aeroelastic benchmark anchors for thin-wall
   section area, axial stress, Euler critical load, fin-root bending, and the
   preliminary fin-flutter equation, kept separate from experimental validation;

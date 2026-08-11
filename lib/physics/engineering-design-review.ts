@@ -5,6 +5,7 @@ import type {
 import type { StageStructuralReviewResult } from "./stage-structural-review.ts";
 import type { StageMassRatioResult } from "./stage-mass-ratio.ts";
 import type { StageInterfaceLoadResult } from "./stage-interface-loads.ts";
+import type { StageFlightVectorBudgetResult } from "./stage-flight-vector-budget.ts";
 
 export const ENGINEERING_DESIGN_REVIEW_MODEL_VERSION =
   "rocketworks-engineering-design-review-0.1.0";
@@ -36,6 +37,7 @@ export type EngineeringDesignReviewInput = Readonly<{
   stageStructural?: StageStructuralReviewResult | null;
   stageInterfaceLoads?: StageInterfaceLoadResult | null;
   stageMassRatio?: StageMassRatioResult | null;
+  stageVectorBudget?: StageFlightVectorBudgetResult | null;
   verticalFlightCurrent?: boolean | null;
   verticalFlightModelVersion?: string | null;
   stageFlightConfigured?: boolean;
@@ -505,6 +507,44 @@ export function createEngineeringDesignReview(
         threshold: 1,
         unit: "converged",
         modelVersion: input.stageFlightModelVersion ?? null,
+      }),
+    );
+
+    const vectorBudget = input.stageVectorBudget ?? null;
+    const vectorBudgetStatus: EngineeringReviewFindingStatus =
+      vectorBudget === null
+        ? "unavailable"
+        : vectorBudget.closureStatus === "closed"
+          ? "pass"
+          : vectorBudget.closureStatus === "review"
+            ? "review"
+            : "unavailable";
+    findings.push(
+      makeFinding({
+        id: "staging-vector-closure",
+        category: "staging",
+        label: "World-frame vector closure",
+        status: vectorBudgetStatus,
+        severity: vectorBudgetStatus === "pass" ? "info" : "warning",
+        summary:
+          vectorBudget === null
+            ? "World-frame vector accounting is not available."
+            : vectorBudget.closureStatus === "closed"
+              ? "Recorded force contributions close against the observed velocity change within tolerance."
+              : vectorBudget.closureStatus === "review"
+                ? `Velocity closure residual is ${vectorBudget.closureResidualMagnitudeMps?.toFixed(3) ?? "not available"} m/s.`
+                : "World-frame vector accounting is not assessed.",
+        detail: "This compares integrated recorded force vectors and discrete event jumps with trace endpoint velocity; it is not a mission-performance or validation result.",
+        action:
+          vectorBudgetStatus === "pass"
+            ? "No closure action from this analytical trace check."
+            : vectorBudgetStatus === "unavailable"
+              ? "Run the current coupled preview with at least two time-separated samples."
+              : "Inspect launch-rail reaction, event mechanisms, omitted forces, and step sensitivity before interpreting the vector budget.",
+        value: vectorBudget?.closureResidualMagnitudeMps ?? null,
+        threshold: vectorBudget?.closureToleranceMps ?? null,
+        unit: "m/s residual",
+        modelVersion: vectorBudget?.modelVersion ?? input.stageFlightModelVersion ?? null,
       }),
     );
 

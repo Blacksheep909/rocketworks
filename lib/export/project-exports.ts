@@ -1358,6 +1358,14 @@ function formatNumber(value: number, decimals: number): string {
   return value.toFixed(decimals);
 }
 
+function formatWorldVectorMps(
+  value: Readonly<{ x: number; y: number; z: number }> | null,
+  decimals: number,
+): string {
+  if (value === null) return "not assessed";
+  return `(${formatNumber(value.x, decimals)}, ${formatNumber(value.y, decimals)}, ${formatNumber(value.z, decimals)}) m/s`;
+}
+
 function formatMetricRange(
   summary: UncertaintyAnalysisResult["metrics"][string] | undefined,
   decimals: number,
@@ -1622,6 +1630,32 @@ export function createEngineeringReportMarkdown(
                 ...input.stageFlight.forceBudget.warnings.map((warning) => `- **Force-budget warning:** ${markdownText(warning)}`),
                 "",
                 "> This is scalar trace accounting. Velocity-equivalent values are not vector delta-v, gravity loss, steering loss, a mission-performance budget, or flight-safety evidence.",
+                "",
+              ]
+            : []),
+          ...(input.stageFlight.vectorBudget
+            ? [
+                "### World-frame vector impulse budget",
+                "",
+                `| Diagnostic | Value |`,
+                `|---|---:|`,
+                `| Status | ${markdownText(input.stageFlight.vectorBudget.status)} |`,
+                `| Closure status | ${markdownText(input.stageFlight.vectorBudget.closureStatus)} |`,
+                `| Trace samples | ${input.stageFlight.vectorBudget.sampleCount} |`,
+                `| Discrete events | ${input.stageFlight.vectorBudget.eventCount} |`,
+                `| Thrust Δv magnitude | ${input.stageFlight.vectorBudget.thrust === null ? "not assessed" : `${formatNumber(input.stageFlight.vectorBudget.thrust.deltaVMagnitudeMps, 3)} m/s`} |`,
+                `| Aerodynamic Δv magnitude | ${input.stageFlight.vectorBudget.aerodynamic === null ? "not assessed" : `${formatNumber(input.stageFlight.vectorBudget.aerodynamic.deltaVMagnitudeMps, 3)} m/s`} |`,
+                `| Gravity Δv magnitude | ${input.stageFlight.vectorBudget.gravity === null ? "not assessed" : `${formatNumber(input.stageFlight.vectorBudget.gravity.deltaVMagnitudeMps, 3)} m/s`} |`,
+                `| Recovery Δv magnitude | ${input.stageFlight.vectorBudget.recovery === null ? "not assessed" : `${formatNumber(input.stageFlight.vectorBudget.recovery.deltaVMagnitudeMps, 3)} m/s`} |`,
+                `| Observed velocity change | ${formatWorldVectorMps(input.stageFlight.vectorBudget.observedVelocityChangeWorldMps, 3)} |`,
+                `| Accounted velocity change | ${formatWorldVectorMps(input.stageFlight.vectorBudget.accountedVelocityChangeWorldMps, 3)} |`,
+                `| Closure residual | ${input.stageFlight.vectorBudget.closureResidualMagnitudeMps === null ? "not assessed" : `${formatNumber(input.stageFlight.vectorBudget.closureResidualMagnitudeMps, 3)} m/s`} |`,
+                `| Model | \`${markdownText(input.stageFlight.vectorBudget.modelVersion)}\` |`,
+                "",
+                ...input.stageFlight.vectorBudget.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+                ...input.stageFlight.vectorBudget.warnings.map((warning) => `- **Vector-budget warning:** ${markdownText(warning)}`),
+                "",
+                "> This is world-frame vector trace accounting. It is not a validated mission delta-v, loss budget, certification, or flight-safety result.",
                 "",
               ]
             : []),

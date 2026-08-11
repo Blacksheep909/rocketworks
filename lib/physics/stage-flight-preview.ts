@@ -21,7 +21,13 @@ import {
   type SixDofSimulationResult,
   type StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
-import { addVectors, magnitude, scaleVector, type Vector3 } from "./linear-algebra.ts";
+import {
+  addVectors,
+  magnitude,
+  scaleVector,
+  subtractVectors,
+  type Vector3,
+} from "./linear-algebra.ts";
 import type { VehicleComponent } from "./vehicle-components.ts";
 import type { WindLayer } from "./curves.ts";
 import type { MassProperties } from "./mass-properties.ts";
@@ -67,6 +73,10 @@ import {
   computeStageFlightForceBudget,
   type StageFlightForceBudgetResult,
 } from "./stage-flight-force-budget.ts";
+import {
+  computeStageFlightVectorBudget,
+  type StageFlightVectorBudgetResult,
+} from "./stage-flight-vector-budget.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
   "kestrel-stage-flight-preview-0.18.0";
@@ -114,6 +124,7 @@ export type StageFlightTracePoint = Readonly<{
   timeS: number;
   altitudeAglM: number;
   speedMps: number;
+  velocityWorldMps: Vector3;
   mach: number;
   angleOfAttackRad: number;
   sideslipRad: number;
@@ -128,6 +139,10 @@ export type StageFlightTracePoint = Readonly<{
   directForceApplied?: boolean;
   directMomentApplied?: boolean;
   coefficientBasis?: string | null;
+  thrustForceWorldN: Vector3;
+  aerodynamicForceWorldN: Vector3;
+  gravityForceWorldN: Vector3;
+  recoveryForceWorldN: Vector3;
   recoveryDragN: number;
   recoveryEffectiveAreaM2: number;
   massKg: number;
@@ -198,6 +213,7 @@ export type StageFlightPreviewResult = Readonly<{
   clusterDiagnostics: readonly StageFlightClusterDiagnostic[];
   massRatio: StageMassRatioResult;
   forceBudget: StageFlightForceBudgetResult;
+  vectorBudget: StageFlightVectorBudgetResult;
   separatedBodies: readonly SeparatedBodyTrajectory[];
   separationDynamics: readonly SeparationDynamicsResult[];
   separationImpulseSolutions: readonly CoupledSeparationImpulseResult[];
@@ -692,6 +708,7 @@ export function simulateStageFlightPreview(
         timeS: state.timeS,
         altitudeAglM: state.positionWorldM.z,
         speedMps: magnitude(state.velocityWorldMps),
+        velocityWorldMps: state.velocityWorldMps,
         mach: loadEvaluation.diagnostics.mach,
         angleOfAttackRad: loadEvaluation.diagnostics.angleOfAttackRad,
         sideslipRad: loadEvaluation.diagnostics.sideslipRad,
@@ -710,6 +727,20 @@ export function simulateStageFlightPreview(
         directForceApplied: loadEvaluation.diagnostics.directForceApplied,
         directMomentApplied: loadEvaluation.diagnostics.directMomentApplied,
         coefficientBasis: loadEvaluation.diagnostics.coefficientBasis,
+        thrustForceWorldN: rotateBodyToWorld(
+          state.orientationBodyToWorld,
+          loadEvaluation.diagnostics.propulsionForceBodyN,
+        ),
+        aerodynamicForceWorldN: rotateBodyToWorld(
+          state.orientationBodyToWorld,
+          loadEvaluation.diagnostics.aerodynamicForceBodyN,
+        ),
+        gravityForceWorldN: {
+          x: 0,
+          y: 0,
+          z: -loadEvaluation.diagnostics.gravityN,
+        },
+        recoveryForceWorldN: recoveryEvaluation?.loads.forceWorldN ?? ZERO_VECTOR,
         recoveryDragN: recoveryEvaluation?.devices.reduce((sum, device) => sum + device.dragN, 0) ?? 0,
         recoveryEffectiveAreaM2: recoveryEvaluation?.devices.reduce((sum, device) => sum + device.effectiveAreaM2, 0) ?? 0,
         massKg: evaluation.massProperties.massKg,
@@ -765,6 +796,26 @@ export function simulateStageFlightPreview(
   const forceBudget = computeStageFlightForceBudget(primaryRun.trace, {
     stageLabels: Object.fromEntries(input.stages.map((stage) => [stage.id, stage.name])),
   });
+  const vectorBudget = computeStageFlightVectorBudget(
+    primaryRun.trace,
+    primaryRun.appliedEvents.map((event) => ({
+      id: event.id,
+      timeS: event.timeS,
+      deltaVWorldMps: subtractVectors(
+        event.stateAfter.velocityWorldMps,
+        event.stateBefore.velocityWorldMps,
+      ),
+    })),
+    {
+      ...(input.launchRail
+        ? {
+            additionalWarnings: [
+              "Launch-rail reaction and guide-contact forces are not recorded as separate vector trace components; their effect appears in the closure residual.",
+            ],
+          }
+        : {}),
+    },
+  );
   const eventAllocation: MissionEventAllocation =
     primaryRun.simulation?.eventAllocation ??
     primaryRun.rail?.freeFlight?.eventAllocation ??
@@ -1056,6 +1107,7 @@ export function simulateStageFlightPreview(
     ...separationImpulseSolutions.flatMap((solution) => solution.warnings),
     ...massRatio.warnings,
     ...forceBudget.warnings,
+    ...vectorBudget.warnings,
   ];
   const assumptions = [
     ...(input.additionalAssumptions ?? []),
@@ -1087,6 +1139,7 @@ export function simulateStageFlightPreview(
     ...separationImpulseSolutions.flatMap((solution) => solution.assumptions),
     ...massRatio.assumptions,
     ...forceBudget.assumptions,
+    ...vectorBudget.assumptions,
     ...(recovery
       ? [
           `Retained-vehicle recovery devices are coupled as body loads through ${recovery.modelVersion}; deployment commands, inflation, and reefing remain deterministic effective-area approximations.`,
@@ -1111,6 +1164,7 @@ export function simulateStageFlightPreview(
     clusterDiagnostics,
     massRatio,
     forceBudget,
+    vectorBudget,
     separatedBodies,
     separationDynamics,
     separationImpulseSolutions,

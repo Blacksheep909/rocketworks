@@ -249,6 +249,23 @@ test("engineering design review keeps incomplete mass-ratio evidence visible", (
   assert.match(finding.action, /incomplete stage mass/);
 });
 
+test("engineering design review surfaces vector-budget closure residuals", () => {
+  const result = createEngineeringDesignReview({
+    stageFlightConfigured: true,
+    stageVectorBudget: {
+      modelVersion: "rocketworks-stage-flight-vector-budget-0.1.0",
+      closureStatus: "review",
+      closureResidualMagnitudeMps: 2,
+      closureToleranceMps: 0.5,
+    },
+  });
+
+  const finding = result.findings.find((candidate) => candidate.id === "staging-vector-closure");
+  assert.ok(finding);
+  assert.equal(finding.status, "review");
+  assert.match(finding.summary, /2\.000 m\/s/);
+});
+
 test("stage interface load review computes serial downstream demand and reserve", () => {
   const result = createStageInterfaceLoadReview({
     retainedMassKg: 0.2,
