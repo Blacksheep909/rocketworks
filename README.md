@@ -175,8 +175,8 @@ research, standards, and original code.
   documents, accessible labels, and sanitized artifact filenames while the
   compatibility project ID remains stable;
 - device-local, provenance-aware component presets for nose, airframe, fin-set,
-  and recovery configurations, with strict bounds, portable project-file
-  exchange, and no bundled third-party geometry;
+  recovery, equipment-mass, and cylindrical-pod configurations, with strict
+  bounds, portable project-file exchange, and no bundled third-party geometry;
 - device-local display and accessibility preferences with v1 migration,
   reduced-motion behavior, high-contrast controls, and keyboard-reachable
   settings; these never enter engineering project state;
