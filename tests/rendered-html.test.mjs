@@ -399,6 +399,10 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(page, /className="field-slider"/);
   assert.match(page, /UI_PREFERENCES_STORAGE_KEY/);
   assert.match(page, /serializeUiPreferences/);
+  assert.match(page, /aria-keyshortcuts="1"/);
+  assert.match(page, /aria-keyshortcuts="2"/);
+  assert.match(page, /aria-keyshortcuts="3"/);
+  assert.match(page, /Show 3D skeleton view/);
   assert.match(viewport, /createRocketPreviewMesh/);
   assert.match(viewport, /RocketPreviewStageInstance/);
   assert.match(viewport, /Stage visibility controls/);

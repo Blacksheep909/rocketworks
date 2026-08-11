@@ -12,6 +12,10 @@ flight-readiness claims.
   configuration fingerprint, share link, or exported report. Invalid browser
   records fall back to the documented defaults and remain visible as a
   persistence warning.
+- Added direct keyboard view shortcuts: `1` for 2D, `2` for 3D skeleton, and
+  `3` for 3D final. The shortcuts are ignored while focus is inside a form
+  control and are also discoverable through the command palette and ARIA
+  `aria-keyshortcuts` metadata.
 - Added a focused vehicle presentation layer to the design workbench. The mode
   selector now distinguishes 2D, 3D skeleton, and 3D final display states; the
   skeleton is an intentionally low-ink rendering of the same independent

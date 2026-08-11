@@ -4151,6 +4151,15 @@ export default function Home() {
         setCommandQuery("");
         setCommandIndex(0);
         setCommandOpen(true);
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && target.closest("input, textarea, select, [contenteditable=\"true\"]")) return;
+      if (event.key === "1" || event.key === "2" || event.key === "3") {
+        event.preventDefault();
+        setView("design");
+        setDesignView(event.key === "1" ? "2d" : event.key === "2" ? "3d-skeleton" : "3d-final");
       }
     };
     window.addEventListener("keydown", openOnShortcut);
@@ -5376,6 +5385,9 @@ export default function Home() {
     notify("Recommendation applied; rerun the estimate to review it");
   };
   const commandActions: readonly CommandAction[] = [
+    { id: "view-2d", label: "Show 2D design view", description: "Switch to the orthographic vehicle profile", shortcut: "1", run: () => { setView("design"); setDesignView("2d"); } },
+    { id: "view-3d-skeleton", label: "Show 3D skeleton view", description: "Switch to the low-ink structural display model", shortcut: "2", run: () => { setView("design"); setDesignView("3d-skeleton"); } },
+    { id: "view-3d-final", label: "Show 3D final view", description: "Switch to the shaded display model", shortcut: "3", run: () => { setView("design"); setDesignView("3d-final"); } },
     { id: "run-estimate", label: "Run vertical estimate", description: "Propagate the current vehicle through the preliminary vertical model", shortcut: "R", run: simulate },
     { id: "run-sweep", label: "Run parameter sweep", description: "Evaluate a bounded one-variable trade study", shortcut: "S", run: runSweep },
     { id: "run-staged", label: activeStageCount > 1 ? "Run staged 6DOF preview" : "Run coupled 6DOF preview", description: activeStageCount > 1 ? "Propagate the active stage graph and event transitions" : "Propagate the current vehicle through the coupled rigid-body preview", run: runStageAwareEstimate },
@@ -5516,9 +5528,9 @@ export default function Home() {
           <div className="view-tools">
             {view === "design" ? (
               <div className="design-view-toggle design-view-mode" role="group" aria-label="Design visualization mode">
-                <button type="button" className={designView === "2d" ? "active" : ""} aria-pressed={designView === "2d"} onClick={() => setDesignView("2d")} title="Orthographic side profile">2D</button>
-                <button type="button" className={designView === "3d-skeleton" ? "active" : ""} aria-pressed={designView === "3d-skeleton"} onClick={() => setDesignView("3d-skeleton")} title="Low-ink structural wireframe">3D skeleton</button>
-                <button type="button" className={designView === "3d-final" ? "active" : ""} aria-pressed={designView === "3d-final"} onClick={() => setDesignView("3d-final")} title="Shaded display model">3D final</button>
+                <button type="button" className={designView === "2d" ? "active" : ""} aria-pressed={designView === "2d"} aria-keyshortcuts="1" onClick={() => setDesignView("2d")} title="Orthographic side profile · press 1">2D</button>
+                <button type="button" className={designView === "3d-skeleton" ? "active" : ""} aria-pressed={designView === "3d-skeleton"} aria-keyshortcuts="2" onClick={() => setDesignView("3d-skeleton")} title="Low-ink structural wireframe · press 2">3D skeleton</button>
+                <button type="button" className={designView === "3d-final" ? "active" : ""} aria-pressed={designView === "3d-final"} aria-keyshortcuts="3" onClick={() => setDesignView("3d-final")} title="Shaded display model · press 3">3D final</button>
               </div>
             ) : (
               <span>Results workspace</span>
