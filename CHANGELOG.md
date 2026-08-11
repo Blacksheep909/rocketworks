@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Fixed the browser recovery-event adapter so mission-time commands enter the
+  scheduled-event queue instead of the state-triggered queue; TypeScript now
+  checks the full event definition and stage-interface review path without
+  errors.
 - Extended the device-local component library with provenance-qualified
   equipment-mass and cylindrical-pod presets. Presets retain bounded stage-local
   placement, can be applied as new topology plans, and remain portable-project

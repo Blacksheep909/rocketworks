@@ -1667,23 +1667,25 @@ function createStageFlightPreviewInputs({
       ]
     : [];
   if (recoveryDevices.length > 0) {
-    stateEvents.push(recoveryDeploymentTrigger === "altitude"
-      ? createAltitudeRecoveryDeploymentEvent({
-          deviceId: "main",
-          altitudeAglM: recoveryDeploymentAltitudeM,
-          direction: "falling",
-          label: `Main recovery command on descent through ${recoveryDeploymentAltitudeM.toFixed(0)} m AGL`,
-        })
-      : recoveryDeploymentTrigger === "time"
-        ? createScheduledRecoveryDeploymentEvent({
+    if (recoveryDeploymentTrigger === "time") {
+      events.push(createScheduledRecoveryDeploymentEvent({
+        deviceId: "main",
+        timeS: recoveryDeploymentTimeS,
+        label: `Main recovery command at ${recoveryDeploymentTimeS.toFixed(2)} s`,
+      }));
+    } else {
+      stateEvents.push(recoveryDeploymentTrigger === "altitude"
+        ? createAltitudeRecoveryDeploymentEvent({
             deviceId: "main",
-            timeS: recoveryDeploymentTimeS,
-            label: `Main recovery command at ${recoveryDeploymentTimeS.toFixed(2)} s`,
+            altitudeAglM: recoveryDeploymentAltitudeM,
+            direction: "falling",
+            label: `Main recovery command on descent through ${recoveryDeploymentAltitudeM.toFixed(0)} m AGL`,
           })
         : createApogeeRecoveryDeploymentEvent({
             deviceId: "main",
             label: "Main recovery command after apogee",
           }));
+    }
   }
   return {
     retainedMassProperties,

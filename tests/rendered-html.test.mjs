@@ -534,6 +534,8 @@ test("ships a provenance-qualified recovery landing footprint", async () => {
   assert.match(page, /recoveryReefingDurationS/);
   assert.match(page, /recoveryReefingStartAreaFraction/);
   assert.match(page, /recoveryDeploymentTrigger/);
+  assert.match(page, /events\.push\(createScheduledRecoveryDeploymentEvent/);
+  assert.match(page, /stateEvents\.push\(recoveryDeploymentTrigger === "altitude"/);
   assert.match(page, /recoveryDeploymentAltitudeM/);
   assert.match(page, /recoveryDeploymentTimeS/);
   assert.match(page, /recovery-provenance/);

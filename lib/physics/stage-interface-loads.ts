@@ -282,7 +282,7 @@ export function createStageInterfaceLoadReview(
         };
       }
 
-      const downstreamMassKg = subtreeMass(child.id) + retainedMassKg;
+      const downstreamMassKg = subtreeMass(child.id, new Set()) + retainedMassKg;
       const axialDemandN = downstreamMassKg * effectiveAxialAccelerationMps2 * loadFactor;
       if (child.attachment === "parallel") {
         return {
@@ -322,7 +322,7 @@ export function createStageInterfaceLoadReview(
           : "review";
       const reason = missingEvidence.length > 0
         ? `Missing ${missingEvidence.join(" and ")} evidence.`
-        : status === "review"
+        : status === "review" && factorOfSafety !== null
           ? `Interface factor of safety ${factorOfSafety.toFixed(2)}x is below the required ${requiredFactorOfSafety.toFixed(2)}x.`
           : null;
       return {
