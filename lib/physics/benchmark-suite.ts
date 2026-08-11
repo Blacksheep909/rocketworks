@@ -13,9 +13,13 @@ import {
 } from "./six-dof.ts";
 import { magnitude, subtractVectors } from "./linear-algebra.ts";
 import { computeStaticStability } from "./static-aerodynamics.ts";
+import {
+  computeStructuralScreen,
+  type StructuralMaterialModel,
+} from "./structural-screen.ts";
 
 export const BENCHMARK_SUITE_MODEL_VERSION =
-  "kestrel-physics-benchmark-suite-0.2.0";
+  "kestrel-physics-benchmark-suite-0.3.0";
 export const BENCHMARK_SUITE_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -170,6 +174,105 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
     loads: () => ({ momentBodyNm: { x: 2, y: 0, z: 0 } }),
   });
 
+  const structuralMaterial: StructuralMaterialModel = {
+    label: "Benchmark isotropic laminate",
+    youngsModulusPa: 70e9,
+    poissonRatio: 0.3,
+    allowableCompressionPa: 200e6,
+    allowableBendingPa: 200e6,
+    allowableShearPa: 100e6,
+  };
+  const structuralBody = {
+    id: "benchmark-structural-body",
+    name: "Benchmark structural body",
+    stageId: "core",
+    kind: "axisymmetric",
+    densityKgM3: 1200,
+    wallThicknessM: 0.002,
+    stations: [
+      { xM: 0, outerRadiusM: 0.05 },
+      { xM: 1, outerRadiusM: 0.05 },
+    ],
+  } as const;
+  const structuralFins = {
+    id: "benchmark-structural-fins",
+    name: "Benchmark structural fins",
+    stageId: "core",
+    kind: "finSet",
+    count: 3,
+    axialPositionM: 0.7,
+    bodyRadiusM: 0.05,
+    rootChordM: 0.18,
+    tipChordM: 0.1,
+    sweepM: 0.04,
+    spanM: 0.08,
+    thicknessM: 0.004,
+    densityKgM3: 1600,
+  } as const;
+  const structuralMassKg = 2;
+  const structuralPeakThrustN = 100;
+  const structuralGravityMps2 = 9.80665;
+  const structuralDynamicPressurePa = 12_000;
+  const structuralAirspeedMps = 120;
+  const innerRadiusM =
+    structuralBody.stations[0].outerRadiusM - structuralBody.wallThicknessM;
+  const shellAreaM2 =
+    Math.PI * (structuralBody.stations[0].outerRadiusM ** 2 - innerRadiusM ** 2);
+  const shellSecondMomentM4 =
+    (Math.PI / 4) *
+    (structuralBody.stations[0].outerRadiusM ** 4 - innerRadiusM ** 4);
+  const structuralAxialCompressionN =
+    structuralPeakThrustN + structuralMassKg * structuralGravityMps2;
+  const structuralEulerLoadN =
+    (Math.PI ** 2 * structuralMaterial.youngsModulusPa * shellSecondMomentM4) /
+    structuralBody.stations[1].xM ** 2;
+  const structuralScreen = computeStructuralScreen({
+    body: structuralBody,
+    fins: structuralFins,
+    totalMassKg: structuralMassKg,
+    peakThrustN: structuralPeakThrustN,
+    maxDynamicPressurePa: structuralDynamicPressurePa,
+    maxAirspeedMps: structuralAirspeedMps,
+    flutterAtmosphere: seaLevel,
+    flutterSafetyFactor: 1.25,
+    staticMarginCalibers: 1.5,
+    material: structuralMaterial,
+    flightResultCurrent: true,
+    designNormalForceCoefficient: 1.2,
+  });
+  const flutter = structuralScreen.finFlutter;
+  const flutterPressurePa = flutter?.conditions.pressurePa ?? null;
+  const flutterSpeedOfSoundMps = flutter?.conditions.speedOfSoundMps ?? null;
+  const flutterPredictedSpeedMps = flutter?.predictedFlutterSpeedMps ?? null;
+  if (
+    !flutter ||
+    flutterPressurePa === null ||
+    flutterSpeedOfSoundMps === null ||
+    flutterPredictedSpeedMps === null
+  ) {
+    throw new Error("structural benchmark flutter fixture did not produce a speed");
+  }
+  const flutterDynamicFactor = flutterPressurePa / 101_325;
+  const flutterD =
+    (24 * flutter.geometry.epsilon * 1.4 * 101_325) / Math.PI;
+  const flutterF =
+    (flutterD * flutter.geometry.aspectRatio ** 3) /
+    (flutter.geometry.thicknessRatio ** 3 * (flutter.geometry.aspectRatio + 2)) *
+    ((flutter.geometry.taperRatio + 1) / 2) *
+    flutterDynamicFactor;
+  const flutterExpectedSpeedMps =
+    flutterSpeedOfSoundMps *
+    Math.sqrt(flutter.material.shearModulusPa / flutterF);
+  const finPlanformAreaM2 =
+    ((structuralFins.rootChordM + structuralFins.tipChordM) / 2) * structuralFins.spanM;
+  const finForcePerFinN =
+    (structuralDynamicPressurePa * finPlanformAreaM2 * 1.2) /
+    structuralFins.count;
+  const finRootMomentNm = finForcePerFinN * structuralFins.spanM * 0.5;
+  const finRootSectionModulusM3 =
+    (structuralFins.rootChordM * structuralFins.thicknessM ** 2) / 6;
+  const finRootBendingStressPa = finRootMomentNm / finRootSectionModulusM3;
+
   const cases = [
     compareCase({
       id: "atmosphere-sea-level-pressure",
@@ -260,6 +363,56 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
       expected: 1,
       tolerance: 1e-14,
       method: "constant principal-axis moment with normalized attitude state",
+    }),
+    compareCase({
+      id: "structural-shell-area",
+      label: "Thin-wall circular shell area",
+      metric: "minimum shell area",
+      unit: "m^2",
+      observed: structuralScreen.geometry.minimumSectionAreaM2,
+      expected: shellAreaM2,
+      tolerance: 1e-16,
+      method: "closed-form pi (r_outer^2 - r_inner^2) section anchor",
+    }),
+    compareCase({
+      id: "structural-axial-stress",
+      label: "Airframe axial compression stress",
+      metric: "axial stress",
+      unit: "Pa",
+      observed: structuralScreen.checks.axialStress.demand!,
+      expected: structuralAxialCompressionN / shellAreaM2,
+      tolerance: 1e-8,
+      method: "peak thrust plus weight divided by the thin-wall shell area",
+    }),
+    compareCase({
+      id: "structural-euler-buckling",
+      label: "Pinned-column Euler critical load",
+      metric: "critical load",
+      unit: "N",
+      observed: structuralScreen.checks.eulerBuckling.capacity!,
+      expected: structuralEulerLoadN,
+      tolerance: 1e-6,
+      method: "pi^2 E I / (K L)^2 with K=1 and the circular shell second moment",
+    }),
+    compareCase({
+      id: "fin-root-bending-stress",
+      label: "Uniform-span fin-root bending stress",
+      metric: "root bending stress",
+      unit: "Pa",
+      observed: structuralScreen.checks.finBending.demand!,
+      expected: finRootBendingStressPa,
+      tolerance: 1e-6,
+      method: "equal per-fin dynamic-pressure load times half-span over rectangular section modulus",
+    }),
+    compareCase({
+      id: "fin-flutter-speed",
+      label: "Preliminary fin flutter speed",
+      metric: "predicted flutter speed",
+      unit: "m/s",
+      observed: flutterPredictedSpeedMps,
+      expected: flutterExpectedSpeedMps,
+      tolerance: 1e-10,
+      method: "NACA-TN-4197-style thin-fin relation with local standard-atmosphere pressure",
     }),
   ] as const;
   const passedCount = cases.filter((benchmark) => benchmark.passed).length;

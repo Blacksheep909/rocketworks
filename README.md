@@ -101,6 +101,9 @@ research, standards, and original code.
   topology readouts;
 - preliminary structural-readiness screen for axial stress, Euler buckling,
   fin-root bending/shear, and static-margin review with explicit assumptions;
+- deterministic structural and aeroelastic benchmark anchors for thin-wall
+  section area, axial stress, Euler critical load, fin-root bending, and the
+  preliminary fin-flutter equation, kept separate from experimental validation;
 - configurable seeded uncertainty analysis, parameter sweeps, sensitivity,
   nominal optimization, and an opt-in finite-sample robust optimization screen
   with explicit quantile and scenario-failure metrics;
@@ -115,8 +118,8 @@ research, standards, and original code.
   normalization, deterministic residual CSV export, browser-local persistence,
   and explicit validation boundaries;
 - on-demand deterministic physics benchmarks for atmosphere, gravity,
-  thrust-curve impulse, static aerodynamics, and rigid-body 6DOF regression
-  fixtures;
+  thrust-curve impulse, static aerodynamics, rigid-body 6DOF, structural, and
+  preliminary aeroelastic regression fixtures;
 - validated project import, topology- and source-complete device-local
   autosave/history, templates,
   beginner/expert modes, keyboard command search, and compact browser design

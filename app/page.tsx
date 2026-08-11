@@ -63,6 +63,7 @@ import {
   createFlightDataComparisonCsv,
   parseFlightDataCsv,
   runPhysicsBenchmarkSuite,
+  createEngineeringDesignReview,
   computeStructuralScreen,
   estimateRecoveryOpeningLoad,
   estimateSphericalEnvelopeRadiusM,
@@ -80,6 +81,7 @@ import {
   type FlightDataSeries,
   type FlightDataTraceSource,
   type PhysicsBenchmarkSuiteResult,
+  type EngineeringDesignReviewResult,
   type VehicleComponent,
   type MotorDataRecord,
   type StageFlightPreviewResult,
@@ -3618,6 +3620,43 @@ export default function Home() {
       flightResultCurrent: resultIsCurrent,
     });
   }, [flutterFlightCondition, mass, material, previewMotor, result.maxDynamicPressurePa, resultIsCurrent, staticStability.staticMarginCalibers, structuralBody, structuralFins]);
+  const engineeringReview = useMemo<EngineeringDesignReviewResult>(() => {
+    const stageFlightConfigured =
+      vehicleTopology.stages.filter((stage) => stage.enabled).length > 1;
+    return createEngineeringDesignReview({
+      thrustToWeight:
+        mass > 0
+          ? previewMotor.metrics.peakThrustN / (mass * 9.80665)
+          : null,
+      staticMarginCalibers: staticStability.staticMarginCalibers,
+      staticAerodynamicsModelVersion: staticStability.modelVersion,
+      structural: structuralScreen,
+      verticalFlightCurrent: resultIsCurrent,
+      verticalFlightModelVersion: result.modelVersion,
+      stageFlightConfigured,
+      stageFlightCurrent: stageFlightResult === null ? null : stageFlightIsCurrent,
+      stageFlightModelVersion: stageFlightResult?.modelVersion ?? null,
+      stageEventAllocationStatus: stageFlightResult?.eventAllocation.status ?? null,
+      stageConvergenceStatus: stageFlightResult?.convergence.status ?? null,
+      separationImpulseReviewCount:
+        stageFlightResult === null
+          ? null
+          : stageFlightResult.separationImpulseSolutions.filter(
+              (solution) => solution.status !== "balanced",
+            ).length,
+    });
+  }, [
+    mass,
+    previewMotor.metrics.peakThrustN,
+    result.modelVersion,
+    resultIsCurrent,
+    stageFlightIsCurrent,
+    stageFlightResult,
+    staticStability.modelVersion,
+    staticStability.staticMarginCalibers,
+    structuralScreen,
+    vehicleTopology.stages,
+  ]);
 
   const selectedComponent = components.find((component) => component.id === selected)!;
   const componentDetails: Readonly<Record<ComponentKey, string>> = {
@@ -3638,38 +3677,18 @@ export default function Home() {
     96,
     Math.max(4, (centerOfPressureMm / designLength) * 100),
   );
-  const designWarning = useMemo(() => {
-    const ratio = thrust / (mass * 9.80665);
-    if (ratio < 3) {
-      return {
-        good: false,
-        title: "Low launch thrust-to-weight ratio",
-        explanation: "The current average-thrust estimate is below 3:1 at ignition.",
-      };
-    }
-    if (diameter < 30) {
-      return {
-        good: false,
-        title: "Structural review needed",
-        explanation: "The small diameter requires a more detailed structural model.",
-      };
-    }
-    const aerodynamicWarning =
-      staticStability.warnings.find((item) => item.severity !== "info") ??
-      staticStability.warnings[0];
-    return {
-      good: aerodynamicWarning.severity === "info",
-      title: aerodynamicWarning.title,
-      explanation: aerodynamicWarning.explanation,
-    };
-  }, [diameter, mass, staticStability.warnings, thrust]);
   const modelWarning =
     result.warnings.find((item) => item.severity !== "info") ??
     result.warnings[0];
   const activeStageCount = vehicleTopology.stages.filter((stage) => stage.enabled).length;
   const configurationRevision = projectHistory.entries.at(-1)?.snapshot.revision ?? 0;
   const configurationId = `A-${String(configurationRevision + 1).padStart(2, "0")}`;
-  const readinessLabel = designWarning.good ? "NOMINAL" : "REVIEW";
+  const readinessLabel =
+    engineeringReview.overallStatus === "nominal"
+      ? "NOMINAL"
+      : engineeringReview.overallStatus === "not-assessed"
+        ? "NOT ASSESSED"
+        : "REVIEW";
   const burnoutEvent = result.events.find((event) => event.type === "burnout");
   const apogeeEvent = result.events.find((event) => event.type === "apogee");
   const recoveryEvent = result.events.find(
@@ -4934,6 +4953,7 @@ export default function Home() {
           uncertainty,
           landing: landingPrediction,
           structural: structuralScreen,
+          designReview: engineeringReview,
         });
       } else if (format === "dxf") {
         filename = "arc-54-side-profile.dxf";
@@ -5449,7 +5469,7 @@ export default function Home() {
           <div className="mission-rack" aria-label="Mission telemetry">
             <div><span>CONFIG</span><strong>{configurationId}</strong></div>
             <div><span>STAGES</span><strong>{String(activeStageCount).padStart(2, "0")}</strong></div>
-            <div className={designWarning.good ? "readout-ok" : "readout-warn"}>
+            <div className={engineeringReview.overallStatus === "nominal" ? "readout-ok" : "readout-warn"}>
               <span>CHECK</span><strong>{readinessLabel}</strong>
             </div>
             <div className={resultIsCurrent ? "readout-ok" : "readout-warn"}>
@@ -6479,6 +6499,38 @@ export default function Home() {
                 <p className="structural-screen-note">Analytical component checks only. The NACA-TN-4197-style fin flutter screen is preliminary; body-fin coupling, transonic effects, joints, local buckling, vibration, and manufacturing effects are not modeled{resultIsCurrent ? "." : "; rerun the flight estimate before using dynamic-pressure and flutter trends."}</p>
               </div>
             )}
+            <div className={`engineering-review-card engineering-review-${engineeringReview.overallStatus}`}>
+              <div className="engineering-review-heading">
+                <div>
+                  <span>ENGINEERING DESIGN REVIEW</span>
+                  <strong>
+                    {engineeringReview.overallStatus === "nominal"
+                      ? "NOMINAL POLICY CHECKS"
+                      : engineeringReview.overallStatus === "review"
+                        ? "REVIEW REQUIRED"
+                        : "NOT ASSESSED"}
+                  </strong>
+                </div>
+                <small>{publicModelVersion(engineeringReview.modelVersion)}</small>
+              </div>
+              <div className="engineering-review-counts">
+                <div><span>Pass</span><strong>{engineeringReview.counts.pass}</strong></div>
+                <div><span>Review</span><strong>{engineeringReview.counts.review}</strong></div>
+                <div><span>Unavailable</span><strong>{engineeringReview.counts.unavailable}</strong></div>
+              </div>
+              <div className="engineering-review-findings">
+                {engineeringReview.findings.slice(0, 6).map((finding) => (
+                  <div className={`engineering-review-finding engineering-review-finding-${finding.status}`} key={finding.id}>
+                    <span>{finding.status === "pass" ? "✓" : finding.status === "review" ? "!" : "—"}</span>
+                    <div>
+                      <strong>{finding.label}</strong>
+                      <small>{finding.summary} {finding.action}</small>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="engineering-review-note">{engineeringReview.warnings[0]} Results carry their own model versions and assumptions; this surface does not certify the vehicle.</p>
+            </div>
             {experienceMode === "expert" ? (
               <>
                 <div className="property-section-label">
@@ -6669,11 +6721,11 @@ export default function Home() {
             <button className="full-run-button" onClick={simulate}>Recalculate flight</button>
           </>
         )}
-        <div className={(view === "design" ? designWarning.good : modelWarning.severity === "info") ? "check-card good" : "check-card warn"}>
-          <span>{(view === "design" ? designWarning.good : modelWarning.severity === "info") ? "✓" : "!"}</span>
+        <div className={(view === "design" ? engineeringReview.overallStatus === "nominal" : modelWarning.severity === "info") ? "check-card good" : "check-card warn"}>
+          <span>{(view === "design" ? engineeringReview.overallStatus === "nominal" : modelWarning.severity === "info") ? "✓" : "!"}</span>
           <div>
-            <strong>{view === "design" ? designWarning.title : modelWarning.title}</strong>
-            <p>{view === "design" ? designWarning.explanation : modelWarning.explanation}</p>
+            <strong>{view === "design" ? engineeringReview.primaryFinding?.label ?? "Engineering design review" : modelWarning.title}</strong>
+            <p>{view === "design" ? engineeringReview.primaryFinding ? `${engineeringReview.primaryFinding.summary} ${engineeringReview.primaryFinding.action}` : "No engineering review items are available yet." : modelWarning.explanation}</p>
           </div>
         </div>
         <div className="inspector-footnote">

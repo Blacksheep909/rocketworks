@@ -238,6 +238,8 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(source, /Restored from this browser/);
   assert.match(source, /PhysicsBenchmarkCard/);
   assert.match(source, /runPhysicsBenchmarkSuite/);
+  assert.match(source, /createEngineeringDesignReview/);
+  assert.match(source, /ENGINEERING DESIGN REVIEW/);
   assert.match(source, /Deterministic physics benchmarks/);
   assert.match(source, /Gaussian-copula pair/);
   assert.match(source, /Apogee sensitivity/);
@@ -499,6 +501,7 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(page, /flutterFlightCondition/);
   assert.match(page, /Separation impulse audit/);
   assert.match(page, /STRUCTURAL SCREEN/);
+  assert.match(page, /ENGINEERING DESIGN REVIEW/);
   assert.match(page, /Flutter-safe speed/);
   assert.match(page, /Analytical component checks only/);
   assert.match(page, /URL\.createObjectURL/);
@@ -508,6 +511,8 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(stylesheet, /\.export-backdrop/);
   assert.match(stylesheet, /\.structural-screen-card/);
   assert.match(stylesheet, /\.structural-check-review/);
+  assert.match(stylesheet, /\.engineering-review-card/);
+  assert.match(stylesheet, /\.engineering-review-finding-review/);
   assert.match(stylesheet, /\.stage-separation-dynamics/);
   assert.match(stylesheet, /\.structural-check-review/);
   assert.match(stylesheet, /\.export-grid button:focus-visible/);

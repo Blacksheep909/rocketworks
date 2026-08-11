@@ -5,14 +5,16 @@ import { runPhysicsBenchmarkSuite } from "../lib/physics/index.ts";
 test("physics benchmark suite passes deterministic standards and closed-form fixtures", () => {
   const result = runPhysicsBenchmarkSuite();
 
-  assert.equal(result.modelVersion, "kestrel-physics-benchmark-suite-0.2.0");
+  assert.equal(result.modelVersion, "kestrel-physics-benchmark-suite-0.3.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.status, "pass");
   assert.equal(result.passedCount, result.totalCount);
-  assert.equal(result.totalCount, 9);
+  assert.equal(result.totalCount, 14);
   assert.ok(result.cases.every((benchmark) => benchmark.passed));
   assert.ok(result.cases.some((benchmark) => benchmark.id === "cone-center-of-pressure"));
   assert.ok(result.cases.some((benchmark) => benchmark.id === "six-dof-torque-free-angular-momentum"));
+  assert.ok(result.cases.some((benchmark) => benchmark.id === "structural-euler-buckling"));
+  assert.ok(result.cases.some((benchmark) => benchmark.id === "fin-flutter-speed"));
   assert.ok(result.warnings.some((warning) => warning.includes("not experimental validation")));
 });
 

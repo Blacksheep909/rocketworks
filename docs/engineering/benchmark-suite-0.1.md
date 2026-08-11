@@ -1,4 +1,4 @@
-# Deterministic physics benchmark suite 0.2
+# Deterministic physics benchmark suite 0.3
 
 Status: `mathematical-regression-tests-only`.
 
@@ -17,12 +17,19 @@ enough to run in CI.
 - torque-free asymmetric-rigid-body rotational energy and world angular
   momentum conservation;
 - 6DOF attitude quaternion normalization under a constant principal-axis
-  moment.
+  moment;
+- thin-wall circular-shell area, axial compression stress, and pinned-column
+  Euler critical load;
+- equal-load fin-root bending stress;
+- a preliminary NACA-TN-4197-style fin flutter-speed equation anchor using the
+  local standard-atmosphere pressure and sound speed.
 
 Each case reports the observed value, public-reference expected value, absolute
 and relative error, and a declared tolerance. The suite currently contains
-nine cases because the atmosphere fixture checks pressure and density as
-separate metrics and the 6DOF conservation checks are reported independently.
+fourteen cases because the atmosphere fixture checks pressure and density as
+separate metrics, the 6DOF conservation checks are reported independently,
+and the structural/aeroelastic equations are checked against independent
+closed-form recomputations.
 
 ## Interpretation
 
@@ -34,6 +41,7 @@ visible.
 
 The fixtures deliberately use no OpenRocket code, data, assets, backend, or
 simulation engine. They exercise the independent atmosphere, thrust-curve,
-gravity, static-aerodynamics, and rigid-body 6DOF modules directly. The
-conservation cases are integration-regression anchors, not experimental
-validation of a vehicle, motor, aerodynamic database, or operational profile.
+gravity, static-aerodynamics, rigid-body 6DOF, structural-screen, and
+fin-flutter modules directly. The conservation, structural, and aeroelastic
+cases are regression anchors, not experimental validation of a vehicle, motor,
+aerodynamic database, material, or operational profile.

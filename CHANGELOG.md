@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added structural and aeroelastic benchmark anchors to the deterministic
+  evidence lane. Thin-wall shell area, axial stress, Euler critical load,
+  fin-root bending, and the preliminary fin-flutter relation now have fixed
+  closed-form recomputations; these remain regression evidence rather than
+  experimental, certification, or flight-safety validation.
 - Added a shared-grid detached-body flight track. Released bodies now have an
   independent fourth-order point-mass propagator that advances all branches
   together against common gravity, atmosphere, and wind queries, carries

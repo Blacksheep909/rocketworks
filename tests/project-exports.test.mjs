@@ -15,7 +15,7 @@ import {
   createRocketProfileDxf,
   createRocketStl,
 } from "../lib/export/project-exports.ts";
-import { analyzeLandingFootprint, computeStructuralScreen, runUncertaintyAnalysis } from "../lib/physics/index.ts";
+import { analyzeLandingFootprint, computeStructuralScreen, createEngineeringDesignReview, runUncertaintyAnalysis } from "../lib/physics/index.ts";
 
 const trace = [
   {
@@ -473,6 +473,20 @@ test("engineering report leads with status and preserves calculations and limita
       allowableShearPa: 8e6,
     },
   });
+  const designReview = createEngineeringDesignReview({
+    thrustToWeight: 22 / (0.58 * 9.80665),
+    staticMarginCalibers: 2.93,
+    staticAerodynamicsModelVersion: "aero-fixture",
+    structural,
+    verticalFlightCurrent: true,
+    verticalFlightModelVersion: "flight-fixture",
+    stageFlightConfigured: true,
+    stageFlightCurrent: true,
+    stageFlightModelVersion: "stage-flight-fixture",
+    stageEventAllocationStatus: "allocated",
+    stageConvergenceStatus: "watch",
+    separationImpulseReviewCount: 1,
+  });
   const report = createEngineeringReportMarkdown({
     projectName: "ARC 54",
     generatedAtIso: "2026-08-01T00:00:00.000Z",
@@ -637,6 +651,7 @@ test("engineering report leads with status and preserves calculations and limita
     },
     uncertainty,
     structural,
+    designReview,
     landing: {
       modelVersion: "landing-fixture",
       validationStatus: "engineering-preview-unvalidated",
@@ -680,6 +695,9 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /## Preliminary structural screen/);
   assert.match(report, /Euler column buckling/);
   assert.match(report, /Fin flutter margin/);
+  assert.match(report, /## Engineering design review/);
+  assert.match(report, /rocketworks-engineering-design-review-0.1.0/);
+  assert.match(report, /Separation impulse proposals/);
   assert.match(report, /Separation impulse audit/);
   assert.match(report, /## Uncertainty analysis/);
   assert.match(report, /## Coupled 6DOF uncertainty/);

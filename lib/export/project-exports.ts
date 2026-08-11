@@ -13,6 +13,7 @@ import type {
   UncertaintyAnalysisResult,
 } from "../physics/uncertainty-analysis.ts";
 import type { StructuralScreenResult } from "../physics/structural-screen.ts";
+import type { EngineeringDesignReviewResult } from "../physics/engineering-design-review.ts";
 import {
   createAerodynamicCoefficientTable,
   type AerodynamicCoefficientTableDefinition,
@@ -154,6 +155,7 @@ export type EngineeringReportInput = Readonly<{
   uncertainty?: UncertaintyAnalysisResult | null;
   landing?: LandingDispersionResult | null;
   structural?: StructuralScreenResult | null;
+  designReview?: EngineeringDesignReviewResult | null;
 }>;
 
 function assertFinite(value: number, label: string): void {
@@ -1804,6 +1806,32 @@ export function createEngineeringReportMarkdown(
           ...input.structural.warnings.map((warning) => `- **Structural screen warning:** ${markdownText(warning)}`),
           "",
           "> This screen uses representative material properties and simplified component loads. It is not a structural certification, manufacturing release, or flight-safety decision.",
+          "",
+        ]
+      : []),
+    ...(input.designReview
+      ? [
+          "## Engineering design review",
+          "",
+          `Model: \`${markdownText(input.designReview.modelVersion)}\`  `,
+          `Status: \`${markdownText(input.designReview.validationStatus)}\`  `,
+          `Overall review: **${markdownText(input.designReview.overallStatus).toUpperCase()}**`,
+          "",
+          `| Pass | Review | Unavailable |`,
+          `|---:|---:|---:|`,
+          `| ${input.designReview.counts.pass} | ${input.designReview.counts.review} | ${input.designReview.counts.unavailable} |`,
+          "",
+          "| Finding | Category | Status | Severity | Summary | Action |",
+          "|---|---|---|---|---|---|",
+          ...input.designReview.findings.map(
+            (finding) =>
+              `| ${markdownText(finding.label)} | ${markdownText(finding.category)} | ${markdownText(finding.status)} | ${markdownText(finding.severity)} | ${markdownText(finding.summary)} | ${markdownText(finding.action)} |`,
+          ),
+          "",
+          ...input.designReview.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+          ...input.designReview.warnings.map((warning) => `- **Review warning:** ${markdownText(warning)}`),
+          "",
+          "> This review aggregates analytical checks and policy thresholds. It is not flight-safety, range-safety, manufacturing, certification, or experimental validation evidence.",
           "",
         ]
       : []),
