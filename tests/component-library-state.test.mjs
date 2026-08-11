@@ -64,14 +64,47 @@ const recovery = {
   provenance,
 };
 
+const equipmentMass = {
+  id: "equipment-avionics",
+  name: "Avionics mass",
+  kind: "point-mass",
+  parameters: {
+    kind: "point-mass",
+    massKg: 0.2,
+    axialPositionM: 0.4,
+    radialOffsetM: 0.01,
+    azimuthDeg: 45,
+  },
+  provenance,
+};
+
+const cylindricalPod = {
+  id: "pod-camera",
+  name: "Camera pod",
+  kind: "cylindrical-pod",
+  parameters: {
+    kind: "cylindrical-pod",
+    lengthM: 0.25,
+    diameterM: 0.06,
+    wallThicknessM: 0.001,
+    densityKgM3: 850,
+    axialPositionM: 0.2,
+    radialOffsetM: 0.07,
+    azimuthDeg: -90,
+  },
+  provenance,
+};
+
 test("component presets round-trip with an explicit schema and normalized parameters", () => {
-  const serialized = serializeLocalComponentLibrary([nose, finSet, recovery]);
+  const serialized = serializeLocalComponentLibrary([nose, finSet, recovery, equipmentMass, cylindricalPod]);
   assert.match(serialized, new RegExp(LOCAL_COMPONENT_LIBRARY_SCHEMA_ID));
   assert.match(serialized, new RegExp(`"schemaVersion": ${LOCAL_COMPONENT_LIBRARY_SCHEMA_VERSION}`));
   assert.deepEqual(parseLocalComponentLibrary(serialized), [
     validateLocalComponentRecord(nose),
     validateLocalComponentRecord(finSet),
     validateLocalComponentRecord(recovery),
+    validateLocalComponentRecord(equipmentMass),
+    validateLocalComponentRecord(cylindricalPod),
   ]);
 });
 
@@ -121,6 +154,27 @@ test("component presets reject mismatched kinds, unsafe ranges, and missing prov
       parameters: { ...recovery.parameters, deploymentAltitudeM: -1 },
     }),
     /deploymentAltitudeM/,
+  );
+  assert.throws(
+    () => validateLocalComponentRecord({
+      ...equipmentMass,
+      parameters: { ...equipmentMass.parameters, axialPositionM: 10.1 },
+    }),
+    /axialPositionM/,
+  );
+  assert.throws(
+    () => validateLocalComponentRecord({
+      ...equipmentMass,
+      parameters: { ...equipmentMass.parameters, azimuthDeg: 181 },
+    }),
+    /azimuthDeg/,
+  );
+  assert.throws(
+    () => validateLocalComponentRecord({
+      ...cylindricalPod,
+      parameters: { ...cylindricalPod.parameters, wallThicknessM: 0.031 },
+    }),
+    /wallThicknessM/,
   );
 });
 

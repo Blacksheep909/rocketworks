@@ -893,6 +893,12 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Custom component instances/);
   assert.match(page, /\+ Equipment mass/);
   assert.match(page, /\+ Cylindrical pod/);
+  assert.match(page, /Equipment mass/);
+  assert.match(page, /Cylindrical pod/);
+  assert.match(page, /addTopologyComponentFromPreset/);
+  assert.match(page, /selectedTopologyComponentId/);
+  assert.match(page, /Save reusable nose, airframe, fin-set, recovery, equipment-mass, and cylindrical-pod/);
+  assert.match(page, /topology placement/);
   assert.match(page, /topologyComponentToVehicleComponent/);
   assert.match(page, /duplicateTopologyStage/);
   assert.match(page, /Duplicate/);

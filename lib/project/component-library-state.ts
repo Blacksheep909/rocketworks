@@ -5,7 +5,7 @@ export const LOCAL_COMPONENT_LIBRARY_STORAGE_KEY =
   "kestrel.project.arc54.component-library.v1";
 export const LOCAL_COMPONENT_LIBRARY_LIMIT = 32;
 
-export type ComponentPresetKind = "nose" | "airframe" | "fin-set" | "recovery";
+export type ComponentPresetKind = "nose" | "airframe" | "fin-set" | "recovery" | "point-mass" | "cylindrical-pod";
 
 export type ComponentPresetParameters =
   | Readonly<{
@@ -40,6 +40,23 @@ export type ComponentPresetParameters =
       reefingEnabled: boolean;
       reefingDurationS: number;
       reefingStartAreaFraction: number;
+    }>
+  | Readonly<{
+      kind: "point-mass";
+      massKg: number;
+      axialPositionM: number;
+      radialOffsetM: number;
+      azimuthDeg: number;
+    }>
+  | Readonly<{
+      kind: "cylindrical-pod";
+      lengthM: number;
+      diameterM: number;
+      wallThicknessM: number;
+      densityKgM3: number;
+      axialPositionM: number;
+      radialOffsetM: number;
+      azimuthDeg: number;
     }>;
 
 export type ComponentPresetProvenance = Readonly<{
@@ -137,6 +154,8 @@ function validateParameters(value: unknown, expectedKind: ComponentPresetKind): 
     "airframe",
     "fin-set",
     "recovery",
+    "point-mass",
+    "cylindrical-pod",
   ] as const);
   if (kind !== expectedKind) {
     throw new Error(`component parameters kind ${kind} does not match record kind ${expectedKind}.`);
@@ -170,41 +189,72 @@ function validateParameters(value: unknown, expectedKind: ComponentPresetKind): 
       thicknessMm: positiveNumber(parameters.thicknessMm, "fin thicknessMm", 100),
     };
   }
+  if (kind === "recovery") {
+    return {
+      kind,
+      massKg: positiveNumber(parameters.massKg, "recovery massKg", 20),
+      diameterM: positiveNumber(parameters.diameterM, "recovery diameterM", 10),
+      delayS: nonNegativeNumber(parameters.delayS, "recovery delayS", 60),
+      deploymentTrigger: oneOf(parameters.deploymentTrigger ?? "apogee", "recovery deploymentTrigger", [
+        "apogee",
+        "altitude",
+        "time",
+      ] as const),
+      deploymentAltitudeM: nonNegativeNumber(
+        parameters.deploymentAltitudeM ?? 150,
+        "recovery deploymentAltitudeM",
+        100_000,
+      ),
+      deploymentTimeS: nonNegativeNumber(parameters.deploymentTimeS ?? 8, "recovery deploymentTimeS", 180),
+      deploymentSuccessProbability: (() => {
+        const probability = finiteNumber(
+          parameters.deploymentSuccessProbability,
+          "recovery deploymentSuccessProbability",
+        );
+        if (probability < 0 || probability > 1) {
+          throw new Error("recovery deploymentSuccessProbability must be between zero and one.");
+        }
+        return probability;
+      })(),
+      reefingEnabled: booleanValue(parameters.reefingEnabled, "recovery reefingEnabled"),
+      reefingDurationS: positiveNumber(parameters.reefingDurationS, "recovery reefingDurationS", 60),
+      reefingStartAreaFraction: (() => {
+        const fraction = finiteNumber(parameters.reefingStartAreaFraction, "recovery reefingStartAreaFraction");
+        if (fraction < 0.05 || fraction > 1) {
+          throw new Error("recovery reefingStartAreaFraction must be between 0.05 and one.");
+        }
+        return fraction;
+      })(),
+    };
+  }
+  const axialPositionM = nonNegativeNumber(parameters.axialPositionM, `${kind} axialPositionM`, 10);
+  const radialOffsetM = nonNegativeNumber(parameters.radialOffsetM, `${kind} radialOffsetM`, 2);
+  const azimuthDeg = finiteNumber(parameters.azimuthDeg, `${kind} azimuthDeg`);
+  if (azimuthDeg < -180 || azimuthDeg > 180) {
+    throw new Error(`${kind} azimuthDeg must be between -180 and 180.`);
+  }
+  if (kind === "point-mass") {
+    return {
+      kind,
+      massKg: positiveNumber(parameters.massKg, "point-mass massKg", 100),
+      axialPositionM,
+      radialOffsetM,
+      azimuthDeg,
+    };
+  }
+  const lengthM = positiveNumber(parameters.lengthM, "cylindrical-pod lengthM", 5);
+  const diameterM = positiveNumber(parameters.diameterM, "cylindrical-pod diameterM", 2);
+  const wallThicknessM = positiveNumber(parameters.wallThicknessM, "cylindrical-pod wallThicknessM", diameterM / 2);
+  const densityKgM3 = positiveNumber(parameters.densityKgM3, "cylindrical-pod densityKgM3", 20_000);
   return {
     kind,
-    massKg: positiveNumber(parameters.massKg, "recovery massKg", 20),
-    diameterM: positiveNumber(parameters.diameterM, "recovery diameterM", 10),
-    delayS: nonNegativeNumber(parameters.delayS, "recovery delayS", 60),
-    deploymentTrigger: oneOf(parameters.deploymentTrigger ?? "apogee", "recovery deploymentTrigger", [
-      "apogee",
-      "altitude",
-      "time",
-    ] as const),
-    deploymentAltitudeM: nonNegativeNumber(
-      parameters.deploymentAltitudeM ?? 150,
-      "recovery deploymentAltitudeM",
-      100_000,
-    ),
-    deploymentTimeS: nonNegativeNumber(parameters.deploymentTimeS ?? 8, "recovery deploymentTimeS", 180),
-    deploymentSuccessProbability: (() => {
-      const probability = finiteNumber(
-        parameters.deploymentSuccessProbability,
-        "recovery deploymentSuccessProbability",
-      );
-      if (probability < 0 || probability > 1) {
-        throw new Error("recovery deploymentSuccessProbability must be between zero and one.");
-      }
-      return probability;
-    })(),
-    reefingEnabled: booleanValue(parameters.reefingEnabled, "recovery reefingEnabled"),
-    reefingDurationS: positiveNumber(parameters.reefingDurationS, "recovery reefingDurationS", 60),
-    reefingStartAreaFraction: (() => {
-      const fraction = finiteNumber(parameters.reefingStartAreaFraction, "recovery reefingStartAreaFraction");
-      if (fraction < 0.05 || fraction > 1) {
-        throw new Error("recovery reefingStartAreaFraction must be between 0.05 and one.");
-      }
-      return fraction;
-    })(),
+    lengthM,
+    diameterM,
+    wallThicknessM,
+    densityKgM3,
+    axialPositionM,
+    radialOffsetM,
+    azimuthDeg,
   };
 }
 
@@ -238,7 +288,7 @@ export function validateLocalComponentRecord(value: unknown, label = "component 
   if (!/^[A-Za-z0-9._-]+$/.test(id)) {
     throw new Error(`${label} id contains unsupported characters.`);
   }
-  const kind = oneOf(record.kind, `${label} kind`, ["nose", "airframe", "fin-set", "recovery"] as const);
+  const kind = oneOf(record.kind, `${label} kind`, ["nose", "airframe", "fin-set", "recovery", "point-mass", "cylindrical-pod"] as const);
   return {
     id,
     name: nonEmptyString(record.name, `${label} name`, 120),

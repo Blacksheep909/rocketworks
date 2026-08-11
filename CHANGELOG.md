@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extended the device-local component library with provenance-qualified
+  equipment-mass and cylindrical-pod presets. Presets retain bounded stage-local
+  placement, can be applied as new topology plans, and remain portable-project
+  data rather than third-party CAD or simulation content.
 - Added a bounded custom topology-component layer for browser-authored
   equipment point masses and cylindrical pods. Components persist with the
   vehicle, flow through assembly mass/CG/inertia, radial stage placement, 3D

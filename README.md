@@ -26,6 +26,9 @@ research, standards, and original code.
 - editable topology point-mass equipment and cylindrical pod primitives with
   slider/exact-number placement controls; off-axis aerodynamic interference is
   explicitly outside this analytical preview;
+- a device-local, provenance-aware component library for reusable core,
+  recovery, equipment-mass, and cylindrical-pod presets, with strict bounds and
+  portable-project import/export;
 - one-click configured-stage duplication with authored-component copies and
   safe component rehoming when a non-core stage is removed;
 - per-stage body-length, diameter, and nose-length overrides for generated

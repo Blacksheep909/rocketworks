@@ -513,7 +513,17 @@ const components: Array<{
 ];
 
 function componentPresetKindLabel(kind: ComponentPresetKind): string {
-  return kind === "nose" ? "Nose cone" : kind === "airframe" ? "Airframe" : kind === "fin-set" ? "Fin set" : "Recovery";
+  return kind === "nose"
+    ? "Nose cone"
+    : kind === "airframe"
+      ? "Airframe"
+      : kind === "fin-set"
+        ? "Fin set"
+        : kind === "recovery"
+          ? "Recovery"
+          : kind === "point-mass"
+            ? "Equipment mass"
+            : "Cylindrical pod";
 }
 
 function componentPresetSummary(record: LocalComponentRecord): string {
@@ -521,6 +531,8 @@ function componentPresetSummary(record: LocalComponentRecord): string {
   if (parameters.kind === "nose") return `${parameters.profile} · ${parameters.lengthMm.toFixed(0)} mm`;
   if (parameters.kind === "airframe") return `${parameters.diameterMm.toFixed(0)} × ${parameters.lengthMm.toFixed(0)} mm · ${parameters.material}`;
   if (parameters.kind === "fin-set") return `${parameters.count} fins · ${parameters.rootChordMm.toFixed(0)} mm root · ${parameters.spanMm.toFixed(0)} mm span`;
+  if (parameters.kind === "point-mass") return `${parameters.massKg.toFixed(3)} kg · X ${parameters.axialPositionM.toFixed(2)} m · radial ${parameters.radialOffsetM.toFixed(3)} m`;
+  if (parameters.kind === "cylindrical-pod") return `${(parameters.diameterM * 1000).toFixed(0)} × ${(parameters.lengthM * 1000).toFixed(0)} mm · ${parameters.densityKgM3.toFixed(0)} kg/m³`;
   const trigger = parameters.deploymentTrigger === "altitude"
     ? `descent ${parameters.deploymentAltitudeM.toFixed(0)} m`
     : parameters.deploymentTrigger === "time"
@@ -3460,6 +3472,7 @@ function AerodynamicTableInspector({ table }: { table: AerodynamicCoefficientTab
 
 export default function Home() {
   const [selected, setSelected] = useState<ComponentKey>("body");
+  const [selectedTopologyComponentId, setSelectedTopologyComponentId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState(DEFAULT_PROJECT_NAME);
   const [view, setView] = useState<ViewKey>("design");
   const [designView, setDesignView] = useState<DesignViewKey>(() => createDefaultUiPreferences().designView);
@@ -5182,6 +5195,36 @@ export default function Home() {
     kind: ComponentPresetKind;
     parameters: ComponentPresetParameters;
   }> | null => {
+    const topologyComponent = selectedTopologyComponentId
+      ? vehicleTopology.components.find((component) => component.id === selectedTopologyComponentId)
+      : undefined;
+    if (topologyComponent?.kind === "pointMass") {
+      return {
+        kind: "point-mass",
+        parameters: {
+          kind: "point-mass",
+          massKg: topologyComponent.massKg!,
+          axialPositionM: topologyComponent.axialPositionM,
+          radialOffsetM: topologyComponent.radialOffsetM,
+          azimuthDeg: topologyComponent.azimuthDeg,
+        },
+      };
+    }
+    if (topologyComponent?.kind === "cylindricalPod") {
+      return {
+        kind: "cylindrical-pod",
+        parameters: {
+          kind: "cylindrical-pod",
+          lengthM: topologyComponent.lengthM!,
+          diameterM: topologyComponent.diameterM!,
+          wallThicknessM: topologyComponent.wallThicknessM!,
+          densityKgM3: topologyComponent.densityKgM3!,
+          axialPositionM: topologyComponent.axialPositionM,
+          radialOffsetM: topologyComponent.radialOffsetM,
+          azimuthDeg: topologyComponent.azimuthDeg,
+        },
+      };
+    }
     if (selected === "nose") {
       return { kind: "nose", parameters: { kind: "nose", lengthMm: noseLength, profile: noseProfile } };
     }
@@ -5225,7 +5268,7 @@ export default function Home() {
   const saveCurrentComponentPreset = () => {
     try {
       const current = currentComponentPreset();
-      if (!current) throw new Error("Select the nose, airframe, fin set, or recovery component before saving a preset.");
+      if (!current) throw new Error("Select a core component or custom topology component before saving a preset.");
       const name = componentPresetDraft.name.trim();
       if (!name) throw new Error("Component preset name cannot be empty.");
       const id = `component-${current.kind}-${projectFileStem(name)}`;
@@ -5254,36 +5297,42 @@ export default function Home() {
     }
   };
   const applyComponentPreset = (record: LocalComponentRecord) => {
-    if (record.kind === "nose") {
-      setNoseLength(record.parameters.lengthMm);
-      setNoseProfile(record.parameters.profile);
+    const parameters = record.parameters;
+    if (parameters.kind === "nose") {
+      setNoseLength(parameters.lengthMm);
+      setNoseProfile(parameters.profile);
       setSelected("nose");
-    } else if (record.kind === "airframe") {
-      setLength(record.parameters.lengthMm);
-      setDiameter(record.parameters.diameterMm);
-      setMaterial(record.parameters.material);
+    } else if (parameters.kind === "airframe") {
+      setLength(parameters.lengthMm);
+      setDiameter(parameters.diameterMm);
+      setMaterial(parameters.material);
       setSelected("body");
-    } else if (record.kind === "fin-set") {
-      setFinCount(record.parameters.count);
-      setFinRootChord(record.parameters.rootChordMm);
-      setFinTipChord(record.parameters.tipChordMm);
-      setFinSweep(record.parameters.sweepMm);
-      setFinSpan(record.parameters.spanMm);
-      setFinThickness(record.parameters.thicknessMm);
+    } else if (parameters.kind === "fin-set") {
+      setFinCount(parameters.count);
+      setFinRootChord(parameters.rootChordMm);
+      setFinTipChord(parameters.tipChordMm);
+      setFinSweep(parameters.sweepMm);
+      setFinSpan(parameters.spanMm);
+      setFinThickness(parameters.thicknessMm);
       setSelected("fins");
-    } else {
-      setRecoveryMass(record.parameters.massKg);
-      setRecoveryDiameter(record.parameters.diameterM);
-      setRecoveryDelay(record.parameters.delayS);
-      setRecoveryDeploymentTrigger(record.parameters.deploymentTrigger);
-      setRecoveryDeploymentAltitudeM(record.parameters.deploymentAltitudeM);
-      setRecoveryDeploymentTimeS(record.parameters.deploymentTimeS);
-      setRecoveryDeploymentSuccessProbability(record.parameters.deploymentSuccessProbability);
-      setRecoveryReefingEnabled(record.parameters.reefingEnabled);
-      setRecoveryReefingDurationS(record.parameters.reefingDurationS);
-      setRecoveryReefingStartAreaFraction(record.parameters.reefingStartAreaFraction);
+    } else if (parameters.kind === "recovery") {
+      setRecoveryMass(parameters.massKg);
+      setRecoveryDiameter(parameters.diameterM);
+      setRecoveryDelay(parameters.delayS);
+      setRecoveryDeploymentTrigger(parameters.deploymentTrigger);
+      setRecoveryDeploymentAltitudeM(parameters.deploymentAltitudeM);
+      setRecoveryDeploymentTimeS(parameters.deploymentTimeS);
+      setRecoveryDeploymentSuccessProbability(parameters.deploymentSuccessProbability);
+      setRecoveryReefingEnabled(parameters.reefingEnabled);
+      setRecoveryReefingDurationS(parameters.reefingDurationS);
+      setRecoveryReefingStartAreaFraction(parameters.reefingStartAreaFraction);
       setRecoveryEnabled(true);
       setSelected("recovery");
+    } else {
+      addTopologyComponentFromPreset(parameters);
+      setTopologyOpen(true);
+      setComponentLibraryOpen(false);
+      return;
     }
     markChanged();
     setComponentLibraryOpen(false);
@@ -5525,6 +5574,52 @@ export default function Home() {
       setTopologyError(error instanceof Error ? error.message : "Unable to add custom component");
     }
   };
+  const addTopologyComponentFromPreset = (
+    parameters: Extract<ComponentPresetParameters, { kind: "point-mass" | "cylindrical-pod" }>,
+  ) => {
+    try {
+      if (vehicleTopology.components.length >= 64) {
+        throw new Error("Vehicle topology already contains the maximum of 64 components.");
+      }
+      const baseId = parameters.kind === "point-mass" ? "equipment" : "pod";
+      let index = 1;
+      while (vehicleTopology.components.some((component) => component.id === `${baseId}-${String(index).padStart(2, "0")}`)) index += 1;
+      const stageId = vehicleTopology.stages.find((stage) => stage.enabled)?.id ?? vehicleTopology.stages[0]?.id;
+      if (!stageId) throw new Error("Add a stage before placing a custom component.");
+      const component: VehicleTopologyComponentPlan = parameters.kind === "point-mass"
+        ? {
+            id: `${baseId}-${String(index).padStart(2, "0")}`,
+            name: `Equipment ${index}`,
+            stageId,
+            enabled: true,
+            kind: "pointMass",
+            axialPositionM: parameters.axialPositionM,
+            radialOffsetM: parameters.radialOffsetM,
+            azimuthDeg: parameters.azimuthDeg,
+            massKg: parameters.massKg,
+          }
+        : {
+            id: `${baseId}-${String(index).padStart(2, "0")}`,
+            name: `Cylindrical pod ${index}`,
+            stageId,
+            enabled: true,
+            kind: "cylindricalPod",
+            axialPositionM: parameters.axialPositionM,
+            radialOffsetM: parameters.radialOffsetM,
+            azimuthDeg: parameters.azimuthDeg,
+            lengthM: parameters.lengthM,
+            diameterM: parameters.diameterM,
+            wallThicknessM: parameters.wallThicknessM,
+            densityKgM3: parameters.densityKgM3,
+          };
+      persistVehicleTopology({ ...vehicleTopology, components: [...vehicleTopology.components, component] });
+      setSelectedTopologyComponentId(component.id);
+      setSelected("body");
+      notify(`${component.name} added from component library`);
+    } catch (error) {
+      setTopologyError(error instanceof Error ? error.message : "Unable to add preset component");
+    }
+  };
   const updateTopologyComponent = (id: string, patch: Partial<VehicleTopologyComponentPlan>): boolean => {
     try {
       const nextComponents = vehicleTopology.components.map((component) => component.id === id ? { ...component, ...patch } : component);
@@ -5539,6 +5634,7 @@ export default function Home() {
     try {
       const component = vehicleTopology.components.find((candidate) => candidate.id === id);
       persistVehicleTopology({ ...vehicleTopology, components: vehicleTopology.components.filter((candidate) => candidate.id !== id) });
+      if (selectedTopologyComponentId === id) setSelectedTopologyComponentId(null);
       notify(`${component?.name ?? "Custom component"} removed`);
     } catch (error) {
       setTopologyError(error instanceof Error ? error.message : "Unable to remove custom component");
@@ -6352,7 +6448,7 @@ export default function Home() {
     { id: "open-topology", label: "Edit stages and boosters", description: "Open the serial, parallel, and radial topology editor", run: () => setTopologyOpen(true) },
     { id: "open-motors", label: "Open motor library", description: "Review or import a provenance-qualified user motor curve", run: () => setMotorLibraryOpen(true) },
     { id: "open-aero", label: "Open aerodynamic data", description: "Review or import Mach-Reynolds coefficient tables", run: () => setAerodynamicLibraryOpen(true) },
-    { id: "open-components", label: "Open component library", description: "Reuse attributed nose, airframe, fin, and recovery presets", run: () => setComponentLibraryOpen(true) },
+    { id: "open-components", label: "Open component library", description: "Reuse attributed geometry, recovery, equipment, and pod presets", run: () => setComponentLibraryOpen(true) },
     { id: "open-templates", label: "Choose a project template", description: "Start from a beginner, high-power, weather, or diagnostic setup", run: () => setTemplatesOpen(true) },
     { id: "open-history", label: "Open local project history", description: "Restore a validated device-local checkpoint", run: () => setHistoryOpen(true) },
     { id: "open-export", label: "Open artifact center", description: "Export project JSON, traces, reports, and CAD references", run: () => setExportOpen(true) },
@@ -6461,7 +6557,7 @@ export default function Home() {
             <button
               className={selected === component.id ? "component active" : "component"}
               key={component.id}
-              onClick={() => { setSelected(component.id); setView("design"); }}
+              onClick={() => { setSelectedTopologyComponentId(null); setSelected(component.id); setView("design"); }}
             >
               <span className="component-marker">{component.marker}</span>
               <span><strong>{component.name}</strong><small>{componentDetails[component.id]}</small></span>
@@ -6606,7 +6702,11 @@ export default function Home() {
                         }}
                         aria-label={`${marker.name} custom component`}
                         title={`${marker.name} · open vehicle topology`}
-                        onClick={() => { setTopologyOpen(true); notify(`${marker.name} selected in vehicle topology`); }}
+                        onClick={() => {
+                          setSelectedTopologyComponentId(marker.id.replace(/-instance-\d+$/, ""));
+                          setTopologyOpen(true);
+                          notify(`${marker.name} selected in vehicle topology`);
+                        }}
                       />
                     );
                   })}
@@ -6664,6 +6764,7 @@ export default function Home() {
                             : null
                 }
                 onSurfaceSelect={(surface) => {
+                  setSelectedTopologyComponentId(null);
                   const component: ComponentKey =
                     surface === "nose"
                       ? "nose"
@@ -6680,12 +6781,14 @@ export default function Home() {
                     ? vehicleTopology.components.find((component) => `topology-${component.id}` === componentId)
                     : undefined;
                   if (topologyComponent) {
+                    setSelectedTopologyComponentId(topologyComponent.id);
                     setSelected("body");
                     setView("design");
                     setToast(`${topologyComponent.name} selected · edit it in vehicle topology`);
                     window.setTimeout(() => setToast(""), 2600);
                     return;
                   }
+                  setSelectedTopologyComponentId(null);
                   const component: ComponentKey =
                     componentId === "nose" || componentId.endsWith("-nose")
                       ? "nose"
@@ -8272,7 +8375,7 @@ export default function Home() {
               <div>
                 <span className="eyebrow">Design data center</span>
                 <h2 id="component-library-title">Component library</h2>
-                <p id="component-library-description">Save reusable nose, airframe, fin-set, and recovery configurations with explicit provenance. Presets stay on this device unless you export or include them in a portable project file.</p>
+                <p id="component-library-description">Save reusable nose, airframe, fin-set, recovery, equipment-mass, and cylindrical-pod configurations with explicit provenance. Presets stay on this device unless you export or include them in a portable project file.</p>
               </div>
               <button
                 ref={componentLibraryCloseRef}
@@ -8330,7 +8433,7 @@ export default function Home() {
             </div>
             <div className="history-notice">
               <span>DATA BOUNDARY</span>
-              <p>Presets store editable geometry and recovery inputs, not third-party CAD, motor databases, or simulation engines. Validation checks the schema and numeric bounds; they remain engineering-preview inputs and are never certification evidence.</p>
+              <p>Presets store editable geometry, topology placement, and recovery inputs, not third-party CAD, motor databases, or simulation engines. Validation checks the schema and numeric bounds; they remain engineering-preview inputs and are never certification evidence.</p>
             </div>
           </section>
         </div>
