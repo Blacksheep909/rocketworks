@@ -3,6 +3,7 @@ import type {
   FlightTracePoint,
   VerticalFlightResult,
 } from "../physics/vertical-flight.ts";
+import type { VerticalFlightConvergenceDiagnostic } from "../physics/vertical-flight-convergence.ts";
 import type {
   StageFlightPreviewResult,
   StageFlightTracePoint,
@@ -150,6 +151,7 @@ export type EngineeringReportInput = Readonly<{
     reefingStartAreaFraction: number;
   }>;
   flight: VerticalFlightResult;
+  verticalConvergence?: VerticalFlightConvergenceDiagnostic | null;
   stageFlight?: StageFlightPreviewResult | null;
   stageUncertainty?: StageFlightUncertaintyResult | null;
   uncertainty?: UncertaintyAnalysisResult | null;
@@ -1522,6 +1524,28 @@ export function createEngineeringReportMarkdown(
         `| ${markdownText(event.label)} | ${formatNumber(event.timeS, 2)} s | ${formatNumber(event.altitudeAglM, 1)} m | ${formatNumber(event.velocityMps, 2)} m/s |`,
     ),
     "",
+    ...(input.verticalConvergence
+      ? [
+          "### Vertical integration-step convergence",
+          "",
+          `Model: \`${markdownText(input.verticalConvergence.modelVersion)}\`  `,
+          `Status: \`${markdownText(input.verticalConvergence.validationStatus)}\``,
+          "",
+          "| Diagnostic | Value |",
+          "|---|---:|",
+          `| Heuristic status | ${markdownText(input.verticalConvergence.status)} |`,
+          `| Coarse step | ${formatNumber(input.verticalConvergence.baseTimeStepS, 4)} s |`,
+          `| Half-step | ${formatNumber(input.verticalConvergence.refinedTimeStepS, 4)} s |`,
+          `| Maximum relative shift | ${input.verticalConvergence.maximumRelativeDifference === null ? "not available" : `${formatNumber(input.verticalConvergence.maximumRelativeDifference * 100, 2)}%`} |`,
+          `| Apogee timing difference | ${input.verticalConvergence.apogeeTimeDifferenceS === null ? "not available" : `${formatNumber(input.verticalConvergence.apogeeTimeDifferenceS, 4)} s`} |`,
+          `| Event timing difference | ${input.verticalConvergence.maximumEventTimeDifferenceS === null ? "not available" : `${formatNumber(input.verticalConvergence.maximumEventTimeDifferenceS, 4)} s`} |`,
+          `| Event sets | ${input.verticalConvergence.eventSetsMatch === null ? "not assessed" : input.verticalConvergence.eventSetsMatch ? "match" : "differ"} |`,
+          "",
+          ...input.verticalConvergence.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+          ...input.verticalConvergence.warnings.map((warning) => `- **Convergence warning:** ${markdownText(warning)}`),
+          "",
+        ]
+      : []),
     ...(input.stageFlight
       ? [
           "## Coupled 6DOF preview",

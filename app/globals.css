@@ -2240,6 +2240,39 @@ body {
 .stale-result-banner .secondary-button { border-color: rgba(244, 163, 64, .42); color: #ffd5a1; white-space: nowrap; }
 .stage-stale-result-banner { margin: 0 0 12px; }
 
+.vertical-flight-convergence {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(47, 159, 255, .22);
+  border-radius: 3px;
+  background: linear-gradient(135deg, rgba(47, 159, 255, .065), rgba(10, 16, 22, .72) 60%);
+}
+.vertical-flight-convergence-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.vertical-flight-convergence-heading h3 { margin-top: 4px; color: #eaf2f6; font-size: 11px; letter-spacing: .02em; }
+.vertical-flight-convergence-heading p { max-width: 700px; margin-top: 4px; color: #869aa5; font-size: 8px; line-height: 1.45; }
+.vertical-flight-convergence-heading .uncertainty-status { flex: 0 0 auto; }
+.vertical-flight-convergence-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(47, 159, 255, .18);
+  border-radius: 3px;
+  background: rgba(47, 159, 255, .18);
+}
+.vertical-flight-convergence-grid div { min-width: 0; padding: 9px; background: rgba(12, 18, 24, .88); }
+.vertical-flight-convergence-grid span { display: block; color: #8296a1; font-size: 8px; }
+.vertical-flight-convergence-grid strong { display: block; margin-top: 5px; color: #d9efff; font: 700 11px var(--font-geist-mono), monospace; }
+.vertical-flight-convergence-grid small { display: block; margin-top: 4px; color: #738995; font: 7px var(--font-geist-mono), monospace; }
+.vertical-flight-convergence-warnings { display: flex; flex-direction: column; gap: 3px; margin: 9px 0 0; padding: 0 0 0 13px; color: #b89b7a; font-size: 8px; line-height: 1.45; }
+.vertical-flight-convergence-model { display: block; margin-top: 9px; color: #6f8590; font: 7px var(--font-geist-mono), monospace; }
+
 .stage-flight-convergence {
   margin-top: 12px;
   padding: 12px;
@@ -2420,8 +2453,8 @@ body {
   .stage-flight-uncertainty .uncertainty-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .stage-flight-comparison-heading { flex-direction: column; }
   .stage-flight-comparison-grid { grid-template-columns: 1fr; }
-  .stage-flight-convergence-heading { flex-direction: column; }
-  .stage-flight-convergence-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stage-flight-convergence-heading, .vertical-flight-convergence-heading { flex-direction: column; }
+  .stage-flight-convergence-grid, .vertical-flight-convergence-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stage-event-allocation-heading { flex-direction: column; }
   .stage-event-allocation-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stage-separated-bodies-heading { flex-direction: column; }

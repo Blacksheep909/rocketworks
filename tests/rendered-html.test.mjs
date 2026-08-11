@@ -403,6 +403,9 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(page, /aria-keyshortcuts="2"/);
   assert.match(page, /aria-keyshortcuts="3"/);
   assert.match(page, /Show 3D skeleton view/);
+  assert.match(page, /analyzeVerticalFlightConvergence/);
+  assert.match(page, /Vertical integration-step convergence/);
+  assert.match(stylesheet, /\.vertical-flight-convergence/);
   assert.match(viewport, /createRocketPreviewMesh/);
   assert.match(viewport, /RocketPreviewStageInstance/);
   assert.match(viewport, /Stage visibility controls/);

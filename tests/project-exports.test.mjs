@@ -553,6 +553,26 @@ test("engineering report leads with status and preserves calculations and limita
       trace,
       assumptions: ["Constant drag coefficient"],
     },
+    verticalConvergence: {
+      modelVersion: "rocketworks-vertical-convergence-0.1.0",
+      validationStatus: "engineering-preview-unvalidated",
+      status: "converged",
+      baseTimeStepS: 0.02,
+      refinedTimeStepS: 0.01,
+      maximumRelativeDifference: 0.004,
+      apogeeRelativeDifference: 0.002,
+      maxSpeedRelativeDifference: 0.003,
+      maxDynamicPressureRelativeDifference: 0.004,
+      impactSpeedRelativeDifference: 0.001,
+      apogeeTimeDifferenceS: 0.01,
+      totalFlightTimeDifferenceS: 0.02,
+      maximumEventTimeDifferenceS: 0.01,
+      eventSetsMatch: true,
+      relativeTolerance: 0.02,
+      timeToleranceS: 0.05,
+      assumptions: ["Half-step vertical fixture comparison."],
+      warnings: [],
+    },
     stageFlight: {
       modelVersion: "stage-flight-fixture",
       validationStatus: "mathematical-regression-tests-only",
@@ -703,6 +723,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /## Coupled 6DOF uncertainty/);
   assert.match(report, /kestrel-stage-flight-uncertainty-0.5.0/);
   assert.match(report, /## Coupled 6DOF preview/);
+  assert.match(report, /### Vertical integration-step convergence/);
+  assert.match(report, /Heuristic status \| converged/);
   assert.match(report, /Step convergence \| watch/);
   assert.match(report, /Fixture convergence warning/);
   assert.match(report, /### Motor-state diagnostics/);

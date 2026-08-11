@@ -63,6 +63,7 @@ import {
   createFlightDataComparisonCsv,
   parseFlightDataCsv,
   runPhysicsBenchmarkSuite,
+  analyzeVerticalFlightConvergence,
   createEngineeringDesignReview,
   computeStructuralScreen,
   estimateRecoveryOpeningLoad,
@@ -76,6 +77,7 @@ import {
   type LandingAscentDriftSummary,
   type UncertaintyAnalysisResult,
   type VerticalFlightConfig,
+  type VerticalFlightConvergenceDiagnostic,
   type VerticalFlightResult,
   type FlightDataComparisonResult,
   type FlightDataSeries,
@@ -3473,6 +3475,10 @@ export default function Home() {
       aerodynamicTable: selectedAerodynamicTable,
     }),
   );
+  const [verticalConvergence, setVerticalConvergence] =
+    useState<VerticalFlightConvergenceDiagnostic | null>(null);
+  const [verticalConvergenceFingerprint, setVerticalConvergenceFingerprint] =
+    useState<string | null>(null);
   const [lastRunFingerprint, setLastRunFingerprint] = useState<string | null>(
     () => simulationFingerprint,
   );
@@ -3555,6 +3561,12 @@ export default function Home() {
     lastRunFingerprint,
     simulationFingerprint,
   );
+  const verticalConvergenceIsCurrent =
+    verticalConvergence !== null &&
+    isSimulationFingerprintCurrent(
+      verticalConvergenceFingerprint,
+      simulationFingerprint,
+    );
   const stageFlightIsCurrent =
     stageFlightResult !== null &&
     isSimulationFingerprintCurrent(stageFlightFingerprint, simulationFingerprint);
@@ -4844,11 +4856,17 @@ export default function Home() {
           } as unknown as JsonValue,
           simulations: {
             verticalFlight: result,
+            verticalConvergence: verticalConvergenceIsCurrent ? verticalConvergence : null,
             stageFlight: stageFlightResult,
             verticalSweep: sweepResult,
             freshness: {
               modelVersion: SIMULATION_FRESHNESS_MODEL_VERSION,
               verticalFlight: resultIsCurrent ? "current" : "stale",
+              verticalConvergence: verticalConvergence === null
+                ? "not-run"
+                : verticalConvergenceIsCurrent
+                  ? "current"
+                  : "stale",
               stageFlight: stageFlightResult === null
                 ? "not-run"
                 : stageFlightIsCurrent
@@ -4994,6 +5012,7 @@ export default function Home() {
             reefingStartAreaFraction: recoveryReefingStartAreaFraction,
           },
           flight: result,
+          verticalConvergence: verticalConvergenceIsCurrent ? verticalConvergence : null,
           stageFlight: stageFlightIsCurrent ? stageFlightResult : null,
           stageUncertainty: stageUncertaintyIsCurrent ? stageUncertainty : null,
           uncertainty,
@@ -5052,8 +5071,15 @@ export default function Home() {
     setView("flight");
     window.setTimeout(() => {
       try {
-        const nextResult = createFlightResult(inputs);
+        const nextConfig = createFlightConfig(inputs);
+        const nextResult = simulateVerticalFlight(nextConfig);
+        const nextConvergence = analyzeVerticalFlightConvergence({
+          config: nextConfig,
+          baseResult: nextResult,
+        });
         setResult(nextResult);
+        setVerticalConvergence(nextConvergence);
+        setVerticalConvergenceFingerprint(runFingerprint);
         setUncertainty(createUncertaintyResult(inputs, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed));
         setLandingPrediction(createLandingPrediction({ ...inputs, uncertaintyCorrelations }, nextResult));
         setLastRunFingerprint(runFingerprint);
@@ -5696,6 +5722,34 @@ export default function Home() {
                 </div>
                 <button className="secondary-button" onClick={simulate} disabled={running}>{running ? "Running…" : "Rerun estimate"}</button>
               </div>
+            )}
+            {verticalConvergence && verticalConvergenceIsCurrent && (
+              <section className="vertical-flight-convergence" aria-labelledby="vertical-flight-convergence-title">
+                <div className="vertical-flight-convergence-heading">
+                  <div>
+                    <span className="eyebrow">Numerical check</span>
+                    <h3 id="vertical-flight-convergence-title">Vertical integration-step convergence</h3>
+                    <p>Replays the same fast model at half the step size to expose numerical sensitivity. This is a heuristic check, not validation, certification, or a flight-safety gate.</p>
+                  </div>
+                  <span className={`uncertainty-status uncertainty-status-${verticalConvergence.status}`}>
+                    {verticalConvergence.status === "converged" ? "Step-stable heuristic" : verticalConvergence.status === "watch" ? "Step sensitivity watch" : "Not assessed"}
+                  </span>
+                </div>
+                <div className="vertical-flight-convergence-grid">
+                  <div><span>Step pair</span><strong>{verticalConvergence.baseTimeStepS.toFixed(3)} â†’ {verticalConvergence.refinedTimeStepS.toFixed(3)} s</strong><small>coarse â†’ half-step</small></div>
+                  <div><span>Apogee shift</span><strong>{formatRelativeDifference(verticalConvergence.apogeeRelativeDifference)}</strong><small>relative difference</small></div>
+                  <div><span>Peak speed shift</span><strong>{formatRelativeDifference(verticalConvergence.maxSpeedRelativeDifference)}</strong><small>relative difference</small></div>
+                  <div><span>Peak q shift</span><strong>{formatRelativeDifference(verticalConvergence.maxDynamicPressureRelativeDifference)}</strong><small>relative difference</small></div>
+                  <div><span>Apogee timing</span><strong>{formatAbsoluteDifference(verticalConvergence.apogeeTimeDifferenceS, "s")}</strong><small>absolute difference</small></div>
+                  <div><span>Event timing</span><strong>{formatAbsoluteDifference(verticalConvergence.maximumEventTimeDifferenceS, "s")}</strong><small>{verticalConvergence.eventSetsMatch === false ? "event sets differ" : "maximum event delta"}</small></div>
+                </div>
+                {verticalConvergence.warnings.length > 0 && (
+                  <ul className="vertical-flight-convergence-warnings">
+                    {verticalConvergence.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                  </ul>
+                )}
+                <small className="vertical-flight-convergence-model">{publicModelVersion(verticalConvergence.modelVersion)} Â· {verticalConvergence.validationStatus}</small>
+              </section>
             )}
             {activeStageCount > 0 && (
               <section className="stage-flight-card" aria-labelledby="stage-flight-title">
