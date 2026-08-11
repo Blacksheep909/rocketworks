@@ -147,11 +147,16 @@ test("ships a portable project import path with validated restoration warnings",
   assert.match(source, /parseKestrelProjectJson/);
   assert.match(source, /Import RocketWorks project/);
   assert.match(source, /projectImportInputRef/);
+  assert.match(source, /id="project-name"/);
+  assert.match(source, /namedProjectFingerprint/);
+  assert.match(source, /projectFileStem/);
+  assert.match(source, /setProjectName\(imported\.projectName\)/);
   assert.match(source, /rerun estimates to refresh results/);
   assert.match(exportSource, /export function parseKestrelProjectJson/);
   assert.match(exportSource, /validateEditableProjectInputs/);
   assert.match(exportSource, /validateVehicleTopology/);
   assert.match(stylesheet, /export-import-option/);
+  assert.match(stylesheet, /\.project-name-input/);
 });
 
 test("ships a validated browser design-share path without bundling local libraries", async () => {
@@ -161,6 +166,8 @@ test("ships a validated browser design-share path without bundling local librari
   assert.match(source, /decodeProjectShare/);
   assert.match(source, /Share design link/);
   assert.match(source, /Referenced motor/);
+  assert.match(source, /projectName,/);
+  assert.match(source, /Shared \$\{shared\.projectName\} design loaded/);
   assert.match(shareSource, /PROJECT_SHARE_HASH_PREFIX/);
   assert.match(shareSource, /validateEditableProjectInputs/);
   assert.match(shareSource, /validateVehicleTopology/);
@@ -620,8 +627,9 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(page, /setLaunchLongitudeDeg\(inputs\.launchLongitudeDeg\)/);
   assert.match(page, /topology: vehicleTopology/);
   assert.match(page, /LOCAL_MOTOR_SELECTION_STORAGE_KEY/);
-  assert.match(page, /selectedMotorId: restoredMotorSelection/);
-  assert.match(page, /selectedAerodynamicTableId: restoredAerodynamicSelection/);
+  assert.match(page, /namedProjectFingerprint\(/);
+  assert.match(page, /restoredMotorSelection/);
+  assert.match(page, /restoredAerodynamicSelection/);
   assert.match(page, /legacy topology retained/);
   assert.match(page, /setLaunchRailEnabled/);
   assert.match(page, /launchRailLengthM/);

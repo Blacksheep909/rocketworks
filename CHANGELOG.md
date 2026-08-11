@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added editable project identity to the browser shell. Names now persist through
+  local autosave/history, restore from project JSON and share links, label the
+  design views, and produce sanitized artifact filenames. The compatibility
+  project ID remains stable and renaming does not alter simulation inputs or
+  freshness fingerprints.
 - Added a provenance-aware motor performance view to the browser library. The
   selected thrust curve is rendered with its trapezoidal impulse metrics, peak,
   burn time, source status, and separate measured-mass-flow disclosure before

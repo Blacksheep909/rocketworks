@@ -155,6 +155,9 @@ research, standards, and original code.
   autosave/history, templates,
   beginner/expert modes, keyboard command search, and compact browser design
   share links;
+- editable project identity carried through local history, share links, imported
+  documents, accessible labels, and sanitized artifact filenames while the
+  compatibility project ID remains stable;
 - device-local display and accessibility preferences with v1 migration,
   reduced-motion behavior, high-contrast controls, and keyboard-reachable
   settings; these never enter engineering project state;

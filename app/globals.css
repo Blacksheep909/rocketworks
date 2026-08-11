@@ -2043,6 +2043,14 @@ body {
   letter-spacing: .08em;
   text-transform: uppercase;
 }
+.project-name-heading { min-width: 0; }
+.project-name-input {
+  width: 100%; min-width: 0; padding: 0; border: 0; outline: 0;
+  background: transparent; color: inherit; font: inherit; letter-spacing: inherit;
+  text-transform: inherit; text-overflow: ellipsis;
+}
+.project-name-input:hover { color: #f6fafc; }
+.project-name-input:focus-visible { outline: 2px solid rgba(146, 212, 255, .7); outline-offset: 4px; border-radius: 2px; }
 .eyebrow {
   color: #97c6e1;
   letter-spacing: .16em;

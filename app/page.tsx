@@ -216,6 +216,31 @@ type CommandAction = Readonly<{
   run: () => void;
 }>;
 
+const DEFAULT_PROJECT_NAME = "ARC 54";
+
+function namedProjectFingerprint(
+  inputs: EditableProjectInputs,
+  topology: LocalVehicleTopology,
+  selectedMotorId: string,
+  selectedAerodynamicTableId: string,
+  projectName: string,
+): string {
+  return JSON.stringify([
+    projectConfigurationFingerprint({
+      inputs,
+      topology,
+      selectedMotorId,
+      selectedAerodynamicTableId,
+    }),
+    projectName,
+  ]);
+}
+
+function projectFileStem(value: string): string {
+  const stem = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return (stem || "rocketworks-project").slice(0, 48);
+}
+
 function publicModelVersion(value: string | null | undefined): string {
   if (!value) return "";
   return value.replace(/^kestrel-/i, "rocketworks-");
@@ -3283,6 +3308,7 @@ function AerodynamicTableInspector({ table }: { table: AerodynamicCoefficientTab
 
 export default function Home() {
   const [selected, setSelected] = useState<ComponentKey>("body");
+  const [projectName, setProjectName] = useState(DEFAULT_PROJECT_NAME);
   const [view, setView] = useState<ViewKey>("design");
   const [designView, setDesignView] = useState<DesignViewKey>(() => createDefaultUiPreferences().designView);
   const [designAzimuthDeg, setDesignAzimuthDeg] = useState(() => createDefaultUiPreferences().designAzimuthDeg);
@@ -4173,6 +4199,7 @@ export default function Home() {
       }
       if (restoredSnapshot?.projectId === "arc54") {
         const inputs = restoredSnapshot.inputs;
+        setProjectName(restoredSnapshot.projectName);
         setLength(inputs.lengthMm);
         setDiameter(inputs.diameterMm);
         setNoseLength(inputs.noseLengthMm);
@@ -4219,21 +4246,23 @@ export default function Home() {
           setVehicleTopology(restoredSnapshot.topology);
         }
         lastSavedInputsRef.current = inputs;
-        lastSavedFingerprintRef.current = projectConfigurationFingerprint({
+        lastSavedFingerprintRef.current = namedProjectFingerprint(
           inputs,
-          topology: restoredTopology ?? topologyRef.current,
-          selectedMotorId: restoredMotorSelection,
-          selectedAerodynamicTableId: restoredAerodynamicSelection,
-        });
+          restoredTopology ?? topologyRef.current,
+          restoredMotorSelection,
+          restoredAerodynamicSelection,
+          restoredSnapshot.projectName,
+        );
         revisionRef.current = restoredSnapshot.revision;
       } else if (problems.length > 0) {
         lastSavedInputsRef.current = initialInputsRef.current;
-        lastSavedFingerprintRef.current = projectConfigurationFingerprint({
-          inputs: initialInputsRef.current,
-          topology: restoredTopology ?? topologyRef.current,
-          selectedMotorId: restoredMotorSelection,
-          selectedAerodynamicTableId: restoredAerodynamicSelection,
-        });
+        lastSavedFingerprintRef.current = namedProjectFingerprint(
+          initialInputsRef.current,
+          restoredTopology ?? topologyRef.current,
+          restoredMotorSelection,
+          restoredAerodynamicSelection,
+          DEFAULT_PROJECT_NAME,
+        );
       }
       const latestHistoryRevision = restoredHistory.entries.at(-1)?.snapshot.revision ?? 0;
       revisionRef.current = Math.max(revisionRef.current, latestHistoryRevision);
@@ -4287,6 +4316,7 @@ export default function Home() {
       try {
         const shared = decodeProjectShare(hash);
         const inputs = shared.editableInputs;
+        setProjectName(shared.projectName);
         setLength(inputs.lengthMm);
         setDiameter(inputs.diameterMm);
         setNoseLength(inputs.noseLengthMm);
@@ -4382,12 +4412,13 @@ export default function Home() {
 
   useEffect(() => {
     if (!storageReady) return;
-    const fingerprint = projectConfigurationFingerprint({
-      inputs: editableInputs,
-      topology: vehicleTopology,
+    const fingerprint = namedProjectFingerprint(
+      editableInputs,
+      vehicleTopology,
       selectedMotorId,
       selectedAerodynamicTableId,
-    });
+      projectName,
+    );
     if (fingerprint === lastSavedFingerprintRef.current) {
       setSaved(true);
       return;
@@ -4402,7 +4433,7 @@ export default function Home() {
         const savedAtIso = nextLocalSaveTime(lastTimestamp);
         const snapshot = createLocalProjectSnapshot({
           projectId: "arc54",
-          projectName: "ARC 54",
+          projectName,
           revision: revisionRef.current + 1,
           savedAtIso,
           inputs: editableInputs,
@@ -4411,14 +4442,16 @@ export default function Home() {
           selectedAerodynamicTableId,
         });
         const label = previous
-          ? describeProjectConfigurationChanges(
-              previous,
-              editableInputs,
-              previousTopology,
-              vehicleTopology,
-              previousSnapshot,
-              { selectedMotorId, selectedAerodynamicTableId },
-            )
+          ? projectName !== previousSnapshot?.projectName
+            ? `Renamed project to ${projectName}`
+            : describeProjectConfigurationChanges(
+                previous,
+                editableInputs,
+                previousTopology,
+                vehicleTopology,
+                previousSnapshot,
+                { selectedMotorId, selectedAerodynamicTableId },
+              )
           : "Initial local snapshot";
         const nextHistory = appendProjectHistory(historyRef.current, snapshot, label);
         window.localStorage.setItem(LOCAL_PROJECT_STORAGE_KEY, serializeLocalProjectSnapshot(snapshot));
@@ -4436,7 +4469,7 @@ export default function Home() {
       }
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [editableInputs, selectedAerodynamicTableId, selectedMotorId, storageReady, vehicleTopology]);
+  }, [editableInputs, projectName, selectedAerodynamicTableId, selectedMotorId, storageReady, vehicleTopology]);
 
   useEffect(() => {
     if (!exportOpen) return;
@@ -4623,7 +4656,7 @@ export default function Home() {
       ? "coupled-6dof"
       : "vertical-1d";
     downloadTextArtifact(
-      `arc-54-${traceSource}-flight-data-residuals.csv`,
+      `${projectFileStem(projectName)}-${traceSource}-flight-data-residuals.csv`,
       "text/csv;charset=utf-8",
       createFlightDataComparisonCsv(flightDataComparisonState.comparison),
     );
@@ -4778,11 +4811,12 @@ export default function Home() {
     allowDuplicate = true,
     topology = vehicleTopology,
     sourceSelections = { selectedMotorId, selectedAerodynamicTableId },
+    projectNameOverride = projectName,
   ) => {
     const lastTimestamp = historyRef.current.entries.at(-1)?.snapshot.savedAtIso;
     const snapshot = createLocalProjectSnapshot({
       projectId: "arc54",
-      projectName: "ARC 54",
+      projectName: projectNameOverride,
       revision: revisionRef.current + 1,
       savedAtIso: nextLocalSaveTime(lastTimestamp),
       inputs,
@@ -4796,7 +4830,13 @@ export default function Home() {
     historyRef.current = nextHistory;
     setProjectHistory(nextHistory);
     lastSavedInputsRef.current = inputs;
-    lastSavedFingerprintRef.current = projectConfigurationFingerprint({ inputs, topology, ...sourceSelections });
+    lastSavedFingerprintRef.current = namedProjectFingerprint(
+      inputs,
+      topology,
+      sourceSelections.selectedMotorId,
+      sourceSelections.selectedAerodynamicTableId,
+      projectNameOverride,
+    );
     setSaveError("");
     setSaved(true);
     return snapshot;
@@ -4814,6 +4854,7 @@ export default function Home() {
       const topology = source.topology ?? topologyRef.current;
       const sourceMotorSelection = source.selectedMotorId ?? selectedMotorId;
       const sourceAerodynamicSelection = source.selectedAerodynamicTableId ?? selectedAerodynamicTableId;
+      setProjectName(source.projectName);
       if (source.topology) {
         persistVehicleTopology(source.topology);
       }
@@ -4831,6 +4872,7 @@ export default function Home() {
         true,
         topology,
         { selectedMotorId: effectiveMotorSelection, selectedAerodynamicTableId: effectiveAerodynamicSelection },
+        source.projectName,
       );
       applyEditableInputs(source.inputs);
       setHistoryOpen(false);
@@ -5081,7 +5123,7 @@ export default function Home() {
   const copyProjectShare = async () => {
     try {
       const hash = encodeProjectShare({
-        projectName: "ARC 54",
+        projectName,
         editableInputs,
         topology: vehicleTopology,
         selectedMotorId,
@@ -5118,6 +5160,7 @@ export default function Home() {
         throw new Error("RocketWorks project files must be 10 MB or smaller.");
       }
       const imported = parseKestrelProjectJson(await file.text());
+      setProjectName(imported.projectName);
       applyEditableInputs(imported.editableInputs);
       persistVehicleTopology(imported.topology);
       persistMotorRecords([...imported.motorLibrary]);
@@ -5136,6 +5179,7 @@ export default function Home() {
         true,
         imported.topology,
         { selectedMotorId: imported.selectedMotorId, selectedAerodynamicTableId: imported.selectedAerodynamicTableId },
+        imported.projectName,
       );
       setSelected("body");
       setView("design");
@@ -5162,8 +5206,9 @@ export default function Home() {
         throw new Error("Rerun the coupled 6DOF preview before exporting its trace for this design.");
       }
       const generatedAtIso = new Date().toISOString();
+      const fileStem = projectFileStem(projectName);
       const cadGeometry: RocketCadGeometry = {
-        projectName: "ARC 54",
+        projectName,
         noseLengthM: noseLength / 1000,
         noseProfile,
         bodyLengthM: length / 1000,
@@ -5193,11 +5238,11 @@ export default function Home() {
       let mediaType: string;
       let content: string;
       if (format === "project") {
-        filename = "arc-54.rocketworks.json";
+        filename = `${fileStem}.rocketworks.json`;
         mediaType = "application/json;charset=utf-8";
         content = createKestrelProjectJson({
           projectId: "arc54",
-          projectName: "ARC 54",
+          projectName,
           generatedAtIso,
           applicationVersion: "rocketworks-browser-0.1.0",
           vehicle: {
@@ -5298,28 +5343,28 @@ export default function Home() {
           } as unknown as JsonValue,
         });
       } else if (format === "flight-csv") {
-        filename = "arc-54-flight-trace.csv";
+        filename = `${fileStem}-flight-trace.csv`;
         mediaType = "text/csv;charset=utf-8";
         content = createFlightTraceCsv(result.trace);
       } else if (format === "stage-flight-csv") {
         if (!stageFlightResult) throw new Error("Run the staged preview before exporting its trace.");
-        filename = "arc-54-stage-flight-trace.csv";
+        filename = `${fileStem}-stage-flight-trace.csv`;
         mediaType = "text/csv;charset=utf-8";
         content = createStageFlightTraceCsv(stageFlightResult.trace);
       } else if (format === "sweep-csv") {
         if (!sweepResult) throw new Error("Run a parameter sweep before exporting its table.");
-        filename = "arc-54-parameter-sweep.csv";
+        filename = `${fileStem}-parameter-sweep.csv`;
         mediaType = "text/csv;charset=utf-8";
         content = createParameterSweepCsv(sweepResult.result);
       } else if (format === "uncertainty-csv") {
-        filename = "arc-54-uncertainty-samples.csv";
+        filename = `${fileStem}-uncertainty-samples.csv`;
         mediaType = "text/csv;charset=utf-8";
         content = createUncertaintyCsv(uncertainty);
       } else if (format === "report") {
-        filename = "arc-54-engineering-report.md";
+        filename = `${fileStem}-engineering-report.md`;
         mediaType = "text/markdown;charset=utf-8";
         content = createEngineeringReportMarkdown({
-          projectName: "ARC 54",
+          projectName,
           generatedAtIso,
           selectedMotorId,
           selectedAerodynamicTableId,
@@ -5389,19 +5434,19 @@ export default function Home() {
         if (!selectedAerodynamicTable) {
           throw new Error("Select a provenance-qualified aerodynamic table before exporting its polar.");
         }
-        filename = "arc-54-aerodynamic-polar.csv";
+        filename = `${fileStem}-aerodynamic-polar.csv`;
         mediaType = "text/csv;charset=utf-8";
         content = createAerodynamicPolarCsv(sampleAerodynamicPolar(selectedAerodynamicTable));
       } else if (format === "dxf") {
-        filename = "arc-54-side-profile.dxf";
+        filename = `${fileStem}-side-profile.dxf`;
         mediaType = "application/dxf;charset=utf-8";
         content = createRocketProfileDxf(cadGeometry);
       } else if (format === "stl") {
-        filename = "arc-54-reference-mesh.stl";
+        filename = `${fileStem}-reference-mesh.stl`;
         mediaType = "model/stl;charset=utf-8";
         content = createRocketStl(cadGeometry);
       } else {
-        filename = "arc-54-parametric.scad";
+        filename = `${fileStem}-parametric.scad`;
         mediaType = "text/plain;charset=utf-8";
         content = createRocketOpenScad(cadGeometry);
       }
@@ -5854,7 +5899,7 @@ export default function Home() {
         </div>
         <div className="project-title">
           <button className="quiet-button" aria-label="Go back to projects">‹</button>
-          <div><strong>ARC 54 / Vehicle 01</strong><span><i className="live-dot" />{saveError ? "Review required" : saved ? "Saved locally" : "Saving changes…"}</span></div>
+          <div><strong>{projectName} / Vehicle 01</strong><span><i className="live-dot" />{saveError ? "Review required" : saved ? "Saved locally" : "Saving changes…"}</span></div>
         </div>
         <div className="top-actions">
           <div className="mission-chip" aria-label="Mission status"><span>MISSION</span><strong>RKW-01</strong><em>PRELIMINARY · REV 01</em></div>
@@ -5882,7 +5927,7 @@ export default function Home() {
 
       <aside className="component-panel">
         <div className="panel-heading">
-           <div><span className="eyebrow">{uiCopy.vehicle}</span><h1>ARC 54</h1></div>
+           <div><span className="eyebrow">{uiCopy.vehicle}</span><h1 className="project-name-heading"><label className="sr-only" htmlFor="project-name">Project name</label><input id="project-name" className="project-name-input" type="text" maxLength={80} value={projectName} onChange={(event) => { setProjectName(event.target.value.slice(0, 80)); markChanged(); }} onBlur={() => setProjectName((current) => current.trim() || DEFAULT_PROJECT_NAME)} /></h1></div>
           <button className="icon-button" aria-label="Open local project history" onClick={() => setHistoryOpen(true)}>···</button>
         </div>
         <div className="design-summary">
@@ -5930,7 +5975,7 @@ export default function Home() {
           </div>
           <div className="workspace-status" aria-label="Current vehicle context">
             <i className="status-pulse" aria-hidden="true" />
-            <span>FLIGHT DESIGN / MISSION CONTROL / DESIGN LOOP</span><strong>ARC 54 / SUSTAINER</strong>
+            <span>FLIGHT DESIGN / MISSION CONTROL / DESIGN LOOP</span><strong>{projectName} / SUSTAINER</strong>
           </div>
           <div className="mission-rack" aria-label="Mission telemetry">
             <div><span>CONFIG</span><strong>{configurationId}</strong></div>
@@ -5999,10 +6044,10 @@ export default function Home() {
               </aside>
               <div className="dimension dimension-top"><span /><strong>{designLength} mm</strong><span /></div>
               <div className="rocket-assembly-orbit" style={{ transform: `perspective(960px) rotateY(${designAzimuthDeg}deg)` }}>
-               <div className="rocket-assembly" aria-label={`${uiCopy.sideProfile} of the ARC 54 rocket at ${designAzimuthDeg} degrees ${uiCopy.azimuth.toLowerCase()}`}>
+               <div className="rocket-assembly" aria-label={`${uiCopy.sideProfile} of the ${projectName} rocket at ${designAzimuthDeg} degrees ${uiCopy.azimuth.toLowerCase()}`}>
                   <div className={`rocket-nose rocket-nose-${noseProfile}`} style={{ width: `${Math.max(72, Math.min(160, noseLength * 0.66))}px` }} />
                   <div className="rocket-body" style={{ width: `${Math.min(520, 280 + length / 4)}px` }}>
-                    <div className="body-label">ARC 54</div><div className="body-band" /><div className="body-seam" />
+                    <div className="body-label">{projectName}</div><div className="body-band" /><div className="body-seam" />
                   </div>
                   <div className="rocket-tail">
                     <div className="fin fin-top" /><div className="fin fin-bottom" /><div className="nozzle" />
@@ -7947,7 +7992,7 @@ export default function Home() {
             <div className="export-heading">
               <div>
                 <span className="eyebrow">Artifact center</span>
-                <h2 id="export-title">Export ARC 54</h2>
+                <h2 id="export-title">Export {projectName}</h2>
                 <p id="export-description">Choose an open, inspectable format. Every artifact includes model identity or engineering limitations.</p>
               </div>
               <button
