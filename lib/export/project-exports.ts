@@ -1494,6 +1494,11 @@ export function createEngineeringReportMarkdown(
 ): string {
   if (!input.projectName.trim()) throw new Error("report project name cannot be empty");
   assertIsoDate(input.generatedAtIso, "report timestamp");
+  // Keep imported reports from pre-trace schemas readable. The runtime model
+  // now supplies these fields, but older saved project snapshots may not.
+  const stageInterfaceAccelerationBasis = input.stageInterfaceLoads?.accelerationBasis ?? "peak-thrust-common-acceleration";
+  const stageInterfaceTracePeakAxialAccelerationMps2 = input.stageInterfaceLoads?.tracePeakAxialAccelerationMps2 ?? null;
+  const stageInterfaceTracePeakTimeS = input.stageInterfaceLoads?.tracePeakTimeS ?? null;
   for (const [label, value] of [
     ["selected motor source ID", input.selectedMotorId],
     ["selected aerodynamic source ID", input.selectedAerodynamicTableId],
@@ -2130,6 +2135,7 @@ export function createEngineeringReportMarkdown(
           `- Stack mass: ${formatNumber(input.stageInterfaceLoads.totalStackMassKg, 3)} kg (retained mass ${formatNumber(input.stageInterfaceLoads.retainedMassKg, 3)} kg).`,
           `- Peak configured thrust: ${formatNumber(input.stageInterfaceLoads.peakThrustN, 2)} N.`,
           `- Effective axial acceleration: ${input.stageInterfaceLoads.effectiveAxialAccelerationMps2 === null ? "not assessed" : `${formatNumber(input.stageInterfaceLoads.effectiveAxialAccelerationMps2, 3)} m/s²`}.`,
+          `- Acceleration basis: ${markdownText(stageInterfaceAccelerationBasis)}${stageInterfaceTracePeakAxialAccelerationMps2 === null ? "" : ` (trace peak ${formatNumber(stageInterfaceTracePeakAxialAccelerationMps2, 3)} m/s² at ${formatNumber(stageInterfaceTracePeakTimeS ?? 0, 3)} s)`}.`,
           `- Interface rows: ${input.stageInterfaceLoads.interfaces.length}; pass ${input.stageInterfaceLoads.counts.pass}, review ${input.stageInterfaceLoads.counts.review}, unavailable ${input.stageInterfaceLoads.counts.unavailable}.`,
           "",
           "| Interface | Attachment | Downstream mass | Axial demand | Capacity | Factor of safety | Status |",

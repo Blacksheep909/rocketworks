@@ -24,6 +24,7 @@ import {
 } from "./six-dof.ts";
 import {
   addVectors,
+  dot,
   magnitude,
   scaleVector,
   subtractVectors,
@@ -150,6 +151,8 @@ export type StageFlightTracePoint = Readonly<{
   recoveryEffectiveAreaM2: number;
   massKg: number;
   thrustN: number;
+  /** Net force projected onto the vehicle nose axis (+nose direction) as acceleration. */
+  axialAccelerationMps2: number;
   attachedStageIds: readonly string[];
 }>;
 
@@ -709,6 +712,28 @@ export function simulateStageFlightPreview(
       const evaluation = staging.evaluate(state);
       const loadEvaluation = loads.evaluate(state);
       const recoveryEvaluation = recovery?.evaluate(state);
+      const thrustForceWorldN = rotateBodyToWorld(
+        state.orientationBodyToWorld,
+        loadEvaluation.diagnostics.propulsionForceBodyN,
+      );
+      const aerodynamicForceWorldN = rotateBodyToWorld(
+        state.orientationBodyToWorld,
+        loadEvaluation.diagnostics.aerodynamicForceBodyN,
+      );
+      const gravityForceWorldN = {
+        x: 0,
+        y: 0,
+        z: -loadEvaluation.diagnostics.gravityN,
+      };
+      const recoveryForceWorldN = recoveryEvaluation?.loads.forceWorldN ?? ZERO_VECTOR;
+      const netForceWorldN = addVectors(
+        addVectors(thrustForceWorldN, aerodynamicForceWorldN),
+        addVectors(gravityForceWorldN, recoveryForceWorldN),
+      );
+      const noseDirectionWorld = rotateBodyToWorld(
+        state.orientationBodyToWorld,
+        { x: -1, y: 0, z: 0 },
+      );
       return {
         timeS: state.timeS,
         altitudeAglM: state.positionWorldM.z,
@@ -732,24 +757,18 @@ export function simulateStageFlightPreview(
         directForceApplied: loadEvaluation.diagnostics.directForceApplied,
         directMomentApplied: loadEvaluation.diagnostics.directMomentApplied,
         coefficientBasis: loadEvaluation.diagnostics.coefficientBasis,
-        thrustForceWorldN: rotateBodyToWorld(
-          state.orientationBodyToWorld,
-          loadEvaluation.diagnostics.propulsionForceBodyN,
-        ),
-        aerodynamicForceWorldN: rotateBodyToWorld(
-          state.orientationBodyToWorld,
-          loadEvaluation.diagnostics.aerodynamicForceBodyN,
-        ),
-        gravityForceWorldN: {
-          x: 0,
-          y: 0,
-          z: -loadEvaluation.diagnostics.gravityN,
-        },
-        recoveryForceWorldN: recoveryEvaluation?.loads.forceWorldN ?? ZERO_VECTOR,
+        thrustForceWorldN,
+        aerodynamicForceWorldN,
+        gravityForceWorldN,
+        recoveryForceWorldN,
         recoveryDragN: recoveryEvaluation?.devices.reduce((sum, device) => sum + device.dragN, 0) ?? 0,
         recoveryEffectiveAreaM2: recoveryEvaluation?.devices.reduce((sum, device) => sum + device.effectiveAreaM2, 0) ?? 0,
         massKg: evaluation.massProperties.massKg,
         thrustN: evaluation.totalThrustN,
+        axialAccelerationMps2: dot(
+          scaleVector(netForceWorldN, 1 / evaluation.massProperties.massKg),
+          noseDirectionWorld,
+        ),
         attachedStageIds: [...evaluation.attachedStageIds],
       };
     });

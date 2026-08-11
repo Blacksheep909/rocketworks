@@ -239,6 +239,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.ok(["balanced", "review", "unavailable"].includes(result.separationImpulseSolutions[0].status));
   assert.equal(result.separationImpulseSolutions[0].correctionModel, "minimum-norm-linear-and-angular-impulse");
   assert.ok(result.multiBodySeparation);
+  assert.ok(result.trace.every((point) => Number.isFinite(point.axialAccelerationMps2)));
   assert.equal(result.multiBodySeparation.bodies.length, 2);
   assert.equal(result.multiBodySeparation.pairs.length, 1);
   assert.ok(["assessed", "partial", "not-assessed"].includes(result.multiBodySeparation.status));

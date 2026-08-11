@@ -4231,8 +4231,19 @@ export default function Home() {
           requiredFactorOfSafety: screen?.loads.requiredFactorOfSafety ?? 1.5,
         };
       });
-    return createStageInterfaceLoadReview({ stages, retainedMassKg });
-  }, [assembly.componentInstances, previewMotor, stageStructuralReview, userMotorRecords, vehicleTopology.stages]);
+    const trace = stageFlightIsCurrent && stageFlightResult
+      ? stageFlightResult.trace.map((point) => ({
+          timeS: point.timeS,
+          axialAccelerationMps2: point.axialAccelerationMps2,
+          attachedStageIds: point.attachedStageIds,
+        }))
+      : undefined;
+    return createStageInterfaceLoadReview({
+      stages,
+      retainedMassKg,
+      ...(trace ? { trace } : {}),
+    });
+  }, [assembly.componentInstances, previewMotor, stageFlightIsCurrent, stageFlightResult, stageStructuralReview, userMotorRecords, vehicleTopology.stages]);
   const engineeringReview = useMemo<EngineeringDesignReviewResult>(() => {
     const stageFlightConfigured =
       vehicleTopology.stages.filter((stage) => stage.enabled).length > 1;
@@ -7988,6 +7999,7 @@ export default function Home() {
                 <div className="stage-interface-load-summary">
                   <span>Stack {stageInterfaceLoadReview.totalStackMassKg.toFixed(3)} kg</span>
                   <span>Peak {stageInterfaceLoadReview.peakThrustN.toFixed(1)} N</span>
+                  <span>{stageInterfaceLoadReview.accelerationBasis === "trace-peak-with-baseline" ? `Trace peak ${stageInterfaceLoadReview.tracePeakAxialAccelerationMps2?.toFixed(2) ?? "—"} m/s²` : "Peak-thrust baseline"}</span>
                   <span>Axial {stageInterfaceLoadReview.effectiveAxialAccelerationMps2 === null ? "—" : `${stageInterfaceLoadReview.effectiveAxialAccelerationMps2.toFixed(2)} m/s²`}</span>
                 </div>
                 <div className="stage-interface-load-list">
@@ -8002,7 +8014,7 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
-                <p className="stage-interface-load-note">Bounded common-acceleration screen only. Connector geometry, fasteners, bending, transient loads, radial joints, staging impulse, and local failure modes are not modeled.</p>
+                <p className="stage-interface-load-note">{stageInterfaceLoadReview.accelerationBasis === "trace-peak-with-baseline" ? "Current staged trace informs the axial acceleration envelope; the peak-thrust baseline is retained when larger. " : "Bounded common-acceleration screen only. "}Connector geometry, fasteners, bending, transient loads, radial joints, staging impulse, and local failure modes are not modeled.</p>
               </div>
             )}
             <div className={`engineering-review-card engineering-review-${engineeringReview.overallStatus}`}>

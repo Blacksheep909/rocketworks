@@ -4,17 +4,30 @@
  * This is deliberately a bounded proxy, not a connector/contact solver. It
  * uses the supplied stage masses, peak thrusts, and shell-section allowables
  * to estimate the axial force carried across each serial topology edge. A
+ * current staged-flight trace may add a peak body-axis acceleration envelope,
+ * while the peak-thrust baseline remains as a conservative lower bound. A
  * parallel edge is reported as unavailable because its radial attachment and
  * local joint load path are outside this model.
  */
 
 export const STAGE_INTERFACE_LOADS_MODEL_VERSION =
-  "rocketworks-stage-interface-loads-0.1.0";
+  "rocketworks-stage-interface-loads-0.2.0";
 export const STAGE_INTERFACE_LOADS_VALIDATION_STATUS =
   "analytical-axial-load-path-proxy" as const;
 
 export type StageInterfaceLoadAttachment = "serial" | "parallel";
 export type StageInterfaceLoadStatus = "pass" | "review" | "unavailable";
+export type StageInterfaceLoadAccelerationBasis =
+  | "peak-thrust-common-acceleration"
+  | "trace-peak-with-baseline";
+
+export type StageInterfaceLoadTracePoint = Readonly<{
+  timeS: number;
+  /** Net acceleration projected onto the vehicle nose axis (+nose direction). */
+  axialAccelerationMps2: number;
+  /** Optional active-stage set used to exclude post-separation intervals. */
+  attachedStageIds?: readonly string[];
+}>;
 
 export type StageInterfaceLoadStageInput = Readonly<{
   id: string;
@@ -41,6 +54,9 @@ export type StageInterfaceLoadInterface = Readonly<{
   childLabel: string;
   attachment: StageInterfaceLoadAttachment;
   status: StageInterfaceLoadStatus;
+  accelerationBasis: StageInterfaceLoadAccelerationBasis;
+  tracePeakAxialAccelerationMps2: number | null;
+  tracePeakTimeS: number | null;
   downstreamMassKg: number | null;
   totalStackMassKg: number;
   peakThrustN: number;
@@ -69,6 +85,9 @@ export type StageInterfaceLoadResult = Readonly<{
   retainedMassKg: number;
   peakThrustN: number;
   effectiveAxialAccelerationMps2: number | null;
+  accelerationBasis: StageInterfaceLoadAccelerationBasis;
+  tracePeakAxialAccelerationMps2: number | null;
+  tracePeakTimeS: number | null;
   gravityMps2: number;
   loadFactor: number;
   interfaces: readonly StageInterfaceLoadInterface[];
@@ -108,6 +127,54 @@ function normalizeOptionalPositive(value: number | null | undefined, label: stri
   return value;
 }
 
+function normalizeTrace(
+  trace: readonly StageInterfaceLoadTracePoint[] | undefined,
+): readonly StageInterfaceLoadTracePoint[] {
+  if (trace === undefined) return [];
+  if (trace.length === 0) throw new Error("stage interface load trace cannot be empty when supplied");
+  let previousTimeS = -Infinity;
+  return trace.map((point, index) => {
+    assertFinite(point.timeS, `stage interface load trace sample ${index + 1} time`);
+    if (point.timeS < previousTimeS) {
+      throw new Error("stage interface load trace times must be non-decreasing");
+    }
+    assertFinite(
+      point.axialAccelerationMps2,
+      `stage interface load trace sample ${index + 1} axial acceleration`,
+    );
+    const attachedStageIds = point.attachedStageIds === undefined
+      ? undefined
+      : [...new Set(point.attachedStageIds.map((stageId) => stageId.trim()))];
+    if (attachedStageIds?.some((stageId) => !stageId)) {
+      throw new Error(`stage interface load trace sample ${index + 1} stage identifiers cannot be empty`);
+    }
+    previousTimeS = point.timeS;
+    return {
+      timeS: point.timeS,
+      axialAccelerationMps2: point.axialAccelerationMps2,
+      ...(attachedStageIds ? { attachedStageIds } : {}),
+    };
+  });
+}
+
+function tracePeakForInterface(
+  trace: readonly StageInterfaceLoadTracePoint[],
+  parentStageId: string,
+  childStageId: string,
+): Readonly<{ accelerationMps2: number; timeS: number }> | null {
+  const relevant = trace.filter((point) =>
+    point.attachedStageIds === undefined ||
+    (point.attachedStageIds.includes(parentStageId) && point.attachedStageIds.includes(childStageId)),
+  );
+  if (relevant.length === 0) return null;
+  return relevant.reduce<Readonly<{ accelerationMps2: number; timeS: number }>>(
+    (peak, point) => point.axialAccelerationMps2 > peak.accelerationMps2
+      ? { accelerationMps2: point.axialAccelerationMps2, timeS: point.timeS }
+      : peak,
+    { accelerationMps2: relevant[0]!.axialAccelerationMps2, timeS: relevant[0]!.timeS },
+  );
+}
+
 function statusRank(status: StageInterfaceLoadStatus): number {
   return status === "review" ? 0 : status === "unavailable" ? 1 : 2;
 }
@@ -115,11 +182,13 @@ function statusRank(status: StageInterfaceLoadStatus): number {
 /**
  * Review axial force transfer across each enabled topology edge.
  *
- * The effective acceleration is `max(g, T/M)`, then each serial interface
- * demand is `downstream mass * effective acceleration * load factor`. Capacity
- * is the weaker of the parent/child section proxies when both are supplied.
- * This intentionally ignores drag, rail contact, thrust cant, transients,
- * bending, fasteners, joints, local buckling, and separation dynamics.
+ * The baseline effective acceleration is `max(g, T/M)`, then each serial
+ * interface demand is `downstream mass * effective acceleration * load factor`.
+ * When a trace is supplied, the largest attached-sample body-axis acceleration
+ * is compared with that baseline. Capacity is the weaker of the parent/child
+ * section proxies when both are supplied. This intentionally ignores drag,
+ * rail contact/reaction, thrust cant, transients, bending, fasteners, joints,
+ * local buckling, and separation dynamics.
  */
 export function createStageInterfaceLoadReview(
   input: Readonly<{
@@ -127,12 +196,14 @@ export function createStageInterfaceLoadReview(
     retainedMassKg?: number;
     gravityMps2?: number;
     loadFactor?: number;
+    trace?: readonly StageInterfaceLoadTracePoint[];
   }>,
 ): StageInterfaceLoadResult {
   const retainedMassKg = input.retainedMassKg ?? 0;
   assertNonNegative(retainedMassKg, "retained mass");
   const gravityMps2 = normalizePositive(input.gravityMps2, DEFAULT_GRAVITY_MPS2, "gravity");
   const loadFactor = normalizePositive(input.loadFactor, DEFAULT_LOAD_FACTOR, "interface load factor");
+  const trace = normalizeTrace(input.trace);
 
   const seenIds = new Set<string>();
   const normalizedStages = input.stages.map((stage) => {
@@ -210,9 +281,23 @@ export function createStageInterfaceLoadReview(
     0,
   );
   const peakThrustN = activeStages.reduce((total, stage) => total + stage.peakThrustN, 0);
-  const effectiveAxialAccelerationMps2 = totalStackMassKg > 0
+  const baselineAxialAccelerationMps2 = totalStackMassKg > 0
     ? Math.max(gravityMps2, peakThrustN / totalStackMassKg)
     : null;
+  const tracePeak = trace.length > 0
+    ? trace.reduce<Readonly<{ accelerationMps2: number; timeS: number }>>(
+        (peak, point) => point.axialAccelerationMps2 > peak.accelerationMps2
+          ? { accelerationMps2: point.axialAccelerationMps2, timeS: point.timeS }
+          : peak,
+        { accelerationMps2: trace[0]!.axialAccelerationMps2, timeS: trace[0]!.timeS },
+      )
+    : null;
+  const effectiveAxialAccelerationMps2 = baselineAxialAccelerationMps2 === null
+    ? null
+    : Math.max(baselineAxialAccelerationMps2, tracePeak?.accelerationMps2 ?? 0);
+  const accelerationBasis: StageInterfaceLoadAccelerationBasis = trace.length > 0
+    ? "trace-peak-with-baseline"
+    : "peak-thrust-common-acceleration";
 
   const interfaces: StageInterfaceLoadInterface[] = activeStages
     .filter((stage) => stage.parentStageId !== null)
@@ -225,6 +310,15 @@ export function createStageInterfaceLoadReview(
         child.requiredFactorOfSafety,
         parent?.requiredFactorOfSafety ?? DEFAULT_REQUIRED_FACTOR_OF_SAFETY,
       );
+      const interfaceTracePeak = parentId === null
+        ? null
+        : tracePeakForInterface(trace, parentId, child.id);
+      const interfaceEffectiveAxialAccelerationMps2 = effectiveAxialAccelerationMps2 === null
+        ? null
+        : Math.max(
+            baselineAxialAccelerationMps2 ?? 0,
+            interfaceTracePeak?.accelerationMps2 ?? 0,
+          );
       const base = {
         id,
         parentStageId: parentId,
@@ -232,14 +326,17 @@ export function createStageInterfaceLoadReview(
         parentLabel: parent?.label ?? null,
         childLabel: child.label,
         attachment: child.attachment,
+        accelerationBasis,
+        tracePeakAxialAccelerationMps2: interfaceTracePeak?.accelerationMps2 ?? null,
+        tracePeakTimeS: interfaceTracePeak?.timeS ?? null,
         totalStackMassKg,
         peakThrustN,
-        effectiveAxialAccelerationMps2: effectiveAxialAccelerationMps2 ?? 0,
+        effectiveAxialAccelerationMps2: interfaceEffectiveAxialAccelerationMps2 ?? 0,
         loadFactor,
         requiredFactorOfSafety,
       };
 
-      if (effectiveAxialAccelerationMps2 === null) {
+      if (interfaceEffectiveAxialAccelerationMps2 === null) {
         return {
           ...base,
           status: "unavailable" as const,
@@ -283,7 +380,7 @@ export function createStageInterfaceLoadReview(
       }
 
       const downstreamMassKg = subtreeMass(child.id, new Set()) + retainedMassKg;
-      const axialDemandN = downstreamMassKg * effectiveAxialAccelerationMps2 * loadFactor;
+      const axialDemandN = downstreamMassKg * interfaceEffectiveAxialAccelerationMps2 * loadFactor;
       if (child.attachment === "parallel") {
         return {
           ...base,
@@ -365,8 +462,13 @@ export function createStageInterfaceLoadReview(
       ? "review"
       : "assessed";
   const warnings = [
-    "This proxy uses a common axial acceleration and a weaker parent/child shell-section capacity; it does not model connector geometry, fasteners, joints, bending, local buckling, or transient loads.",
+    "This proxy uses a common or trace-backed axial acceleration and a weaker parent/child shell-section capacity; it does not model connector geometry, fasteners, joints, bending, local buckling, or transient loads.",
     "Thrust is summed by configured peak value and thrust cant, drag, rail contact, staging impulse, and off-axis imbalance are not represented.",
+    ...(trace.length > 0
+      ? [
+          `The current trace peak axial acceleration is ${tracePeak!.accelerationMps2.toFixed(3)} m/s² at ${tracePeak!.timeS.toFixed(3)} s; demand retains the peak-thrust baseline when it is larger. Rail reaction, stage-wise propellant redistribution, and transient amplification remain outside this proxy.`,
+        ]
+      : []),
     ...(interfaces.some((item) => item.attachment === "parallel")
       ? ["One or more parallel interfaces are visible but remain unavailable because radial load transfer is outside this serial axial proxy."]
       : []),
@@ -384,12 +486,21 @@ export function createStageInterfaceLoadReview(
     retainedMassKg,
     peakThrustN,
     effectiveAxialAccelerationMps2,
+    accelerationBasis,
+    tracePeakAxialAccelerationMps2: tracePeak?.accelerationMps2 ?? null,
+    tracePeakTimeS: tracePeak?.timeS ?? null,
     gravityMps2,
     loadFactor,
     interfaces,
     weakestInterface,
     assumptions: [
       "A serial interface carries the downstream child subtree plus retained payload/recovery mass under a common axial acceleration proxy.",
+      ...(trace.length > 0
+        ? [
+            "When supplied, each interface filters the current stage-flight trace to samples where both parent and child are attached, then uses the largest body-axis acceleration while retaining the static peak-thrust baseline if larger.",
+            "Trace axial acceleration is the unconstrained net-force projection onto the vehicle nose axis; rail reaction, flex, local eccentricity, propellant slosh, and transient joint response are not reconstructed.",
+          ]
+        : []),
       "Interface capacity uses the minimum supplied parent/child shell-section area multiplied by the minimum supplied compression allowable.",
       "The load factor defaults to 1.0 and is an explicit screening multiplier, not a measured transient or certification factor.",
       "A pass means only that this analytical proxy exceeds the declared factor-of-safety threshold; it is not connector qualification or flight-safety evidence.",

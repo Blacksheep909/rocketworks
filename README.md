@@ -150,7 +150,9 @@ research, standards, and original code.
   downstream-payload and loss-model limits;
 - a bounded stage-interface axial load-path review that transfers downstream
   mass across serial topology edges, compares supplied parent/child section
-  proxies, and keeps parallel/radial interfaces visibly unavailable;
+  proxies, uses a current staged trace peak when available while retaining the
+  peak-thrust baseline, and keeps parallel/radial interfaces visibly
+  unavailable;
 - a trace-level force impulse budget that integrates recorded thrust,
   aerodynamic drag, recovery drag, and force/mass velocity-equivalent signals
   by stage without mislabeling scalar accounting as vector delta-v;

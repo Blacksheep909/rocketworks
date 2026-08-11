@@ -1,4 +1,4 @@
-# Stage-interface axial load path 0.1
+# Stage-interface axial load path 0.2
 
 RocketWorks includes a bounded stage-interface review for enabled topology edges. The adapter is original clean-room code and is intentionally narrower than a connector, contact, or structural finite-element solver.
 
@@ -13,7 +13,7 @@ RocketWorks includes a bounded stage-interface review for enabled topology edges
 5. When both parent and child supply section evidence, use the weaker shell-section proxy: `capacity = min(A_parent, A_child) · min(allowable_parent, allowable_child)`.
 6. Report factor of safety against the larger declared parent/child requirement.
 
-The default load factor is 1.0. It is an explicit screening multiplier and is not a measured transient or certification factor.
+The default load factor is 1.0. It is an explicit screening multiplier and is not a measured transient or certification factor. When a current staged-flight trace is supplied, the review filters each interface to samples where both stages remain attached and compares the largest body-axis acceleration with the peak-thrust baseline; the larger value is used for the demand.
 
 ## Status policy
 
@@ -25,13 +25,13 @@ The aggregate is `assessed` only when every interface passes. Any review or unav
 
 ## Deliberate limits
 
-This screen does not model connector geometry, fasteners, threads, latches, bonded joints, local shell buckling, bending, eccentricity, thrust cant, drag, rail contact, transient amplification, staging impulse, plume interaction, separation dynamics, or radial/parallel joint load transfer. Parallel interfaces remain visible but unavailable. The section and allowable fields are proxies taken from the current component screen, not connector qualification data.
+The trace projection uses the unconstrained net force divided by instantaneous stack mass, projected onto the vehicle nose direction. It is a kinematic envelope, not a rail-reaction or joint-load reconstruction. This screen does not model connector geometry, fasteners, threads, latches, bonded joints, local shell buckling, bending, eccentricity, thrust cant, drag, rail contact/reaction, transient amplification, staging impulse, plume interaction, separation dynamics, or radial/parallel joint load transfer. Parallel interfaces remain visible but unavailable. The section and allowable fields are proxies taken from the current component screen, not connector qualification data.
 
 The result is an engineering triage surface. It is not structural certification, manufacturing release, range-safety evidence, flight-safety evidence, or experimental validation.
 
 ## Provenance
 
 - Implementation: `lib/physics/stage-interface-loads.ts`
-- Model version: `rocketworks-stage-interface-loads-0.1.0`
+- Model version: `rocketworks-stage-interface-loads-0.2.0`
 - Validation status: `analytical-axial-load-path-proxy`
 - Related public basis: Newton's second law (`F = m a`) and the project structural-screen section/allowable inputs. Public equations and standards are reference material only; no OpenRocket source, UI, assets, database, or simulation engine is used.

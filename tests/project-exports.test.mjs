@@ -801,7 +801,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /## Preliminary structural screen/);
   assert.match(report, /## Stage-aware structural review/);
   assert.match(report, /## Stage-interface axial load path/);
-  assert.match(report, /rocketworks-stage-interface-loads-0.1.0/);
+  assert.match(report, /rocketworks-stage-interface-loads-0.2.0/);
+  assert.match(report, /Acceleration basis: peak-thrust-common-acceleration/);
   assert.match(report, /Parallel\/radial interface solver|Interface rows/);
   assert.match(report, /Booster pair/);
   assert.match(report, /Fixture geometry omitted/);

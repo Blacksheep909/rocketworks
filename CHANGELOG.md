@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extended the stage-interface axial load-path review with current staged-trace
+  body-axis acceleration telemetry. Interface demand now filters to intervals
+  where both stages are attached and retains the conservative peak-thrust
+  baseline when larger; rail reaction, transient joints, and parallel/radial
+  transfer remain outside scope.
 - Extended separated-body clearance and spherical-envelope diagnostics with
   closest-approach relative speed and inward closing speed telemetry. These
   kinematic values are disclosed in the browser and engineering report but do

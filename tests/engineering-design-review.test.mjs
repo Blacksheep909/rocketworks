@@ -292,7 +292,7 @@ test("stage interface load review computes serial downstream demand and reserve"
     ],
   });
 
-  assert.equal(result.modelVersion, "rocketworks-stage-interface-loads-0.1.0");
+  assert.equal(result.modelVersion, "rocketworks-stage-interface-loads-0.2.0");
   assert.equal(result.validationStatus, "analytical-axial-load-path-proxy");
   assert.equal(result.overallStatus, "assessed");
   assert.deepEqual(result.counts, { pass: 1, review: 0, unavailable: 0 });
@@ -304,6 +304,47 @@ test("stage interface load review computes serial downstream demand and reserve"
   assert.ok((result.interfaces[0].factorOfSafety ?? 0) > 1.5);
   assert.ok((result.interfaces[0].axialDemandN ?? 0) > 0);
   assert.match(result.warnings.join(" "), /does not model connector geometry/);
+});
+
+test("stage interface load review uses attached trace acceleration without undercutting the baseline", () => {
+  const result = createStageInterfaceLoadReview({
+    retainedMassKg: 0.2,
+    trace: [
+      { timeS: 0, axialAccelerationMps2: 12, attachedStageIds: ["core", "upper"] },
+      { timeS: 1, axialAccelerationMps2: 40, attachedStageIds: ["core", "upper"] },
+      { timeS: 2, axialAccelerationMps2: 120, attachedStageIds: ["core"] },
+    ],
+    stages: [
+      {
+        id: "core",
+        label: "Core",
+        attachment: "serial",
+        stageMassKg: 1,
+        peakThrustN: 30,
+        sectionAreaM2: 0.002,
+        allowableCompressionPa: 1e6,
+      },
+      {
+        id: "upper",
+        label: "Upper",
+        parentStageId: "core",
+        attachment: "serial",
+        stageMassKg: 0.5,
+        peakThrustN: 10,
+        sectionAreaM2: 0.001,
+        allowableCompressionPa: 2e6,
+      },
+    ],
+  });
+
+  assert.equal(result.accelerationBasis, "trace-peak-with-baseline");
+  assert.equal(result.tracePeakAxialAccelerationMps2, 120);
+  assert.equal(result.tracePeakTimeS, 2);
+  assert.equal(result.interfaces[0].tracePeakAxialAccelerationMps2, 40);
+  assert.equal(result.interfaces[0].tracePeakTimeS, 1);
+  assert.equal(result.interfaces[0].effectiveAxialAccelerationMps2, 40);
+  assert.equal(result.interfaces[0].axialDemandN, 28);
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("filters the current stage-flight trace")));
 });
 
 test("stage interface load review keeps parallel and missing capacity evidence unavailable", () => {

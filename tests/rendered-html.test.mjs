@@ -857,6 +857,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /createStageInterfaceLoadReview/);
   assert.match(page, /STAGE-INTERFACE AXIAL LOAD PATH/);
   assert.match(page, /stageInterfaceLoadReview/);
+  assert.match(page, /Trace peak/);
+  assert.match(page, /trace-peak-with-baseline/);
   assert.match(page, /Force impulse budget/);
   assert.match(page, /stageFlightResult\.forceBudget/);
   assert.match(page, /Dynamic pressure/);
@@ -976,6 +978,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stageInterfaceLoads, /analytical-axial-load-path-proxy/);
   assert.match(stageInterfaceLoads, /Parallel\/radial interface solver/);
   assert.match(stageInterfaceLoads, /downstream mass/);
+  assert.match(stageInterfaceLoads, /StageInterfaceLoadTracePoint/);
+  assert.match(stageInterfaceLoads, /tracePeakForInterface/);
   assert.match(stageForceBudget, /analytical-trace-integral-only/);
   assert.match(stageForceBudget, /velocity-equivalent accounting/);
   assert.match(stylesheet, /\.stage-flight-model-options/);
