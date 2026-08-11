@@ -31,14 +31,26 @@ RocketWorks now exposes a local topology editor for:
 - paired range and exact-number controls for stage geometry, repetition,
   motor cant, ignition/separation timing, separation delta-v, and detached
   recovery settings; both inputs write the same validated topology field.
+- bounded custom component instances: point-mass equipment and cylindrical pod
+  primitives can be assigned to any stage, enabled/disabled, named, and placed
+  in a local stage frame with axial position, radial offset, and azimuth.
 
-The editor produces a validated `LocalVehicleTopology` document with schema `dev.kestrel-lab.local-vehicle-topology`, version 1. It is stored under `kestrel.project.arc54.vehicle-topology.v1` and is bounded to eight stages. IDs, optional motor and aerodynamic-table assignments, stage order, parent references, attachment type, roles, repeat count, radius, bounded geometry overrides, cant angles, separation delta-v, and per-motor failure indices are checked before persistence. Motor, aerodynamic-table, geometry, cant, failure, and separation-delta-v assignments are migration-by-default: older v1 records without an optional field continue to use the global selection, role-based geometry, axial thrust, all-motors-available, or zero-delta-v default.
+The editor produces a validated `LocalVehicleTopology` document with schema `dev.kestrel-lab.local-vehicle-topology`, version 1. It is stored under `kestrel.project.arc54.vehicle-topology.v1` and is bounded to eight stages and 64 custom component plans. IDs, optional motor and aerodynamic-table assignments, stage order, parent references, attachment type, roles, repeat count, radius, bounded geometry overrides, cant angles, separation delta-v, per-motor failure indices, component stage references, and component dimensions are checked before persistence. Motor, aerodynamic-table, geometry, cant, failure, separation-delta-v, and component assignments are migration-by-default: older v1 records without an optional field continue to use the global selection, role-based geometry, axial thrust, all-motors-available, zero-delta-v, or empty-component default.
 
 The range controls are an interaction layer only. Their minimums, maximums,
 and steps mirror the topology validator's bounded values, while the adjacent
 number input preserves precise edits and allows an empty optional geometry
 override to return to its role-based default. Changing either control marks
 the same topology snapshot stale and does not bypass validation.
+
+Custom component coordinates use metres in the owning stage frame: `+X` points
+noseward, radial offset is measured from the stage axis, and azimuth is measured
+from `+Y` toward `+Z`. Point masses accept 0.001--100 kg. Cylindrical pods accept
+0.01--5 m length, 0.005--2 m diameter, a wall thickness no greater than the
+radius, and 1--20,000 kg/m³ density. These primitives contribute mass, CG,
+inertia, assembly instance identity, preview geometry, and portable exports.
+They do not add pod interference, shielding, wake, or structural-joint
+aerodynamics; the assembly model emits the existing off-axis limitation.
 
 ## Assembly mapping
 

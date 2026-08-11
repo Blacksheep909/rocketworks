@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   LOCAL_VEHICLE_TOPOLOGY_SCHEMA_ID,
+  MAX_VEHICLE_COMPONENTS,
   MAX_VEHICLE_STAGES,
   createDefaultVehicleTopology,
   createStagePlan,
@@ -24,7 +25,54 @@ test("default topology is a strict versioned single-core plan", () => {
   assert.equal(topology.stages[0].thrustCantAngleDeg, 0);
   assert.equal(topology.stages[0].thrustCantAzimuthDeg, 0);
   assert.equal(topology.stages[0].motorId, undefined);
+  assert.deepEqual(topology.components, []);
   assert.deepEqual(parseVehicleTopology(serializeVehicleTopology(topology)), topology);
+});
+
+test("bounded equipment and cylindrical pod components validate and round-trip", () => {
+  const topology = {
+    ...createDefaultVehicleTopology(),
+    stages: [
+      createStagePlan({ id: "sustainer", name: "Sustainer", role: "core", attachment: "serial" }),
+      createStagePlan({ id: "upper-01", name: "Upper stage", role: "upper", attachment: "serial", parentStageId: "sustainer" }),
+    ],
+    components: [
+      {
+        id: "avionics",
+        name: "Avionics bay",
+        stageId: "sustainer",
+        enabled: true,
+        kind: "pointMass",
+        axialPositionM: 0.42,
+        radialOffsetM: 0.018,
+        azimuthDeg: 45,
+        massKg: 0.24,
+      },
+      {
+        id: "camera-pod",
+        name: "Camera pod",
+        stageId: "upper-01",
+        enabled: true,
+        kind: "cylindricalPod",
+        axialPositionM: 0.08,
+        radialOffsetM: 0.07,
+        azimuthDeg: -90,
+        lengthM: 0.25,
+        diameterM: 0.06,
+        wallThicknessM: 0.001,
+        densityKgM3: 850,
+      },
+    ],
+  };
+  const validated = validateVehicleTopology(topology);
+  assert.equal(validated.components[0].massKg, 0.24);
+  assert.equal(validated.components[1].diameterM, 0.06);
+  assert.deepEqual(parseVehicleTopology(serializeVehicleTopology(validated)), validated);
+  assert.deepEqual(validateVehicleTopology({ ...topology, components: undefined }).components, []);
+  assert.throws(() => validateVehicleTopology({ ...topology, components: [{ ...topology.components[0], stageId: "missing" }] }), /unknown stage/);
+  assert.throws(() => validateVehicleTopology({ ...topology, components: [{ ...topology.components[0], id: "avionics" }, { ...topology.components[0], id: "avionics" }] }), /Duplicate topology component/);
+  assert.throws(() => validateVehicleTopology({ ...topology, components: [{ ...topology.components[1], wallThicknessM: 0.04 }] }), /wallThicknessM/);
+  assert.throws(() => validateVehicleTopology({ ...topology, components: Array.from({ length: MAX_VEHICLE_COMPONENTS + 1 }, (_, index) => ({ ...topology.components[0], id: `equipment-${index}` })) }), /components must contain/);
 });
 
 test("serial upper stages and repeated parallel boosters validate in order", () => {

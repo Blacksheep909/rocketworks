@@ -113,6 +113,17 @@ const portableConfiguration = {
     schema: "dev.kestrel-lab.local-vehicle-topology",
     schemaVersion: 1,
     vehicleId: "arc54",
+    components: [{
+      id: "avionics",
+      name: "Avionics bay",
+      stageId: "sustainer",
+      enabled: true,
+      kind: "pointMass",
+      axialPositionM: 0.4,
+      radialOffsetM: 0.01,
+      azimuthDeg: 90,
+      massKg: 0.2,
+    }],
     stages: [{
       id: "sustainer",
       name: "Sustainer",
@@ -162,6 +173,7 @@ test("versioned RocketWorks project JSON is deterministic and clean-room qualifi
   assert.equal(imported.projectId, "arc54");
   assert.equal(imported.editableInputs.diameterMm, 54);
   assert.equal(imported.topology.stages[0].role, "core");
+  assert.equal(imported.topology.components[0].id, "avionics");
   assert.equal(imported.selectedMotorId, "synthetic");
   assert.equal(imported.componentLibrary[0].id, "nose-ogive");
   assert.deepEqual(imported.warnings, []);

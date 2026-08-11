@@ -2,12 +2,40 @@ export const LOCAL_VEHICLE_TOPOLOGY_SCHEMA_ID = "dev.kestrel-lab.local-vehicle-t
 export const LOCAL_VEHICLE_TOPOLOGY_SCHEMA_VERSION = 1;
 export const LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY = "kestrel.project.arc54.vehicle-topology.v1";
 export const MAX_VEHICLE_STAGES = 8;
+export const MAX_VEHICLE_COMPONENTS = 64;
 
 export type VehicleStageRole = "core" | "upper" | "booster" | "payload";
 export type VehicleStageAttachment = "serial" | "parallel";
 
 /** Optional recovery hardware carried by a detachable stage. */
 export type VehicleStageRecoveryTrigger = "apogee" | "altitude" | "time";
+
+/** Bounded user-authored component primitives placed in a logical stage. */
+export type VehicleTopologyComponentKind = "pointMass" | "cylindricalPod";
+
+export type VehicleTopologyComponentPlan = Readonly<{
+  id: string;
+  name: string;
+  stageId: string;
+  enabled: boolean;
+  kind: VehicleTopologyComponentKind;
+  /** Local component-profile origin measured along the stage axis, metres. */
+  axialPositionM: number;
+  /** Local radial placement from the stage axis, metres. */
+  radialOffsetM: number;
+  /** Local radial placement azimuth, degrees. */
+  azimuthDeg: number;
+  /** Point-mass equipment payload, kilograms. */
+  massKg?: number;
+  /** Cylindrical pod profile length, metres. */
+  lengthM?: number;
+  /** Cylindrical pod outside diameter, metres. */
+  diameterM?: number;
+  /** Cylindrical pod wall thickness, metres. */
+  wallThicknessM?: number;
+  /** Cylindrical pod material density, kilograms per cubic metre. */
+  densityKgM3?: number;
+}>;
 
 export type VehicleStageRecoveryPlan = Readonly<{
   enabled: boolean;
@@ -83,6 +111,8 @@ export type LocalVehicleTopology = Readonly<{
   schemaVersion: typeof LOCAL_VEHICLE_TOPOLOGY_SCHEMA_VERSION;
   vehicleId: string;
   stages: ReadonlyArray<VehicleStagePlan>;
+  /** Optional v1 additive component plans; absent legacy documents normalize to an empty list. */
+  components: ReadonlyArray<VehicleTopologyComponentPlan>;
 }>;
 
 const ID_PATTERN = /^[A-Za-z0-9_.-]+$/;
@@ -257,6 +287,69 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
   };
 }
 
+function validTopologyComponent(
+  value: unknown,
+  index: number,
+  stageIds: ReadonlySet<string>,
+): VehicleTopologyComponentPlan {
+  const component = objectValue(value, `Topology component ${index + 1}`);
+  const id = validString(component.id, `Topology component ${index + 1} id`);
+  if (!ID_PATTERN.test(id)) {
+    throw new Error(`Topology component ${id} id may contain only letters, numbers, underscores, and hyphens.`);
+  }
+  const name = validString(component.name, `Topology component ${id} name`);
+  const stageId = validString(component.stageId, `Topology component ${id} stageId`);
+  if (!stageIds.has(stageId)) {
+    throw new Error(`Topology component ${id} references unknown stage ${stageId}.`);
+  }
+  const enabled = component.enabled ?? true;
+  if (typeof enabled !== "boolean") throw new Error(`Topology component ${id} enabled must be boolean.`);
+  const kind = component.kind;
+  if (kind !== "pointMass" && kind !== "cylindricalPod") {
+    throw new Error(`Topology component ${id} kind must be pointMass or cylindricalPod.`);
+  }
+  const finiteRange = (value: unknown, label: string, minimum: number, maximum: number): number => {
+    if (typeof value !== "number" || !Number.isFinite(value) || value < minimum || value > maximum) {
+      throw new Error(`${label} must be a finite value from ${minimum} through ${maximum}.`);
+    }
+    return value;
+  };
+  const axialPositionM = finiteRange(component.axialPositionM ?? 0, `Topology component ${id} axialPositionM`, 0, 10);
+  const radialOffsetM = finiteRange(component.radialOffsetM ?? 0, `Topology component ${id} radialOffsetM`, 0, 2);
+  const azimuthDeg = finiteRange(component.azimuthDeg ?? 0, `Topology component ${id} azimuthDeg`, -180, 180);
+  if (kind === "pointMass") {
+    return {
+      id,
+      name,
+      stageId,
+      enabled,
+      kind,
+      axialPositionM,
+      radialOffsetM,
+      azimuthDeg,
+      massKg: finiteRange(component.massKg, `Topology component ${id} massKg`, 0.001, 100),
+    };
+  }
+  const lengthM = finiteRange(component.lengthM, `Topology component ${id} lengthM`, 0.01, 5);
+  const diameterM = finiteRange(component.diameterM, `Topology component ${id} diameterM`, 0.005, 2);
+  const wallThicknessM = finiteRange(component.wallThicknessM, `Topology component ${id} wallThicknessM`, 0.0001, diameterM / 2);
+  const densityKgM3 = finiteRange(component.densityKgM3, `Topology component ${id} densityKgM3`, 1, 20_000);
+  return {
+    id,
+    name,
+    stageId,
+    enabled,
+    kind,
+    axialPositionM,
+    radialOffsetM,
+    azimuthDeg,
+    lengthM,
+    diameterM,
+    wallThicknessM,
+    densityKgM3,
+  };
+}
+
 export function validateVehicleTopology(value: unknown): LocalVehicleTopology {
   const topology = objectValue(value, "Vehicle topology");
   if (topology.schema !== LOCAL_VEHICLE_TOPOLOGY_SCHEMA_ID) throw new Error("Unsupported vehicle topology schema.");
@@ -275,7 +368,23 @@ export function validateVehicleTopology(value: unknown): LocalVehicleTopology {
     if (stage.attachment === "parallel" && !stage.parentStageId) throw new Error(`Parallel stage ${stage.id} requires a parent stage.`);
     if (stage.parentStageId && !ids.has(stage.parentStageId)) throw new Error(`Stage ${stage.id} parent must appear earlier in the topology.`);
   }
-  return { schema: LOCAL_VEHICLE_TOPOLOGY_SCHEMA_ID, schemaVersion: LOCAL_VEHICLE_TOPOLOGY_SCHEMA_VERSION, vehicleId, stages };
+  const componentValue = topology.components ?? [];
+  if (!Array.isArray(componentValue) || componentValue.length > MAX_VEHICLE_COMPONENTS) {
+    throw new Error(`Vehicle topology components must contain 0 through ${MAX_VEHICLE_COMPONENTS} records.`);
+  }
+  const components = componentValue.map((candidate, index) => validTopologyComponent(candidate, index, ids));
+  const componentIds = new Set<string>();
+  for (const component of components) {
+    if (componentIds.has(component.id)) throw new Error(`Duplicate topology component identifier ${component.id}.`);
+    componentIds.add(component.id);
+  }
+  return {
+    schema: LOCAL_VEHICLE_TOPOLOGY_SCHEMA_ID,
+    schemaVersion: LOCAL_VEHICLE_TOPOLOGY_SCHEMA_VERSION,
+    vehicleId,
+    stages,
+    components,
+  };
 }
 
 export function createDefaultVehicleTopology(): LocalVehicleTopology {
@@ -283,6 +392,7 @@ export function createDefaultVehicleTopology(): LocalVehicleTopology {
     schema: LOCAL_VEHICLE_TOPOLOGY_SCHEMA_ID,
     schemaVersion: LOCAL_VEHICLE_TOPOLOGY_SCHEMA_VERSION,
     vehicleId: "arc54",
+    components: [],
     stages: [{
       id: "sustainer",
       name: "Sustainer",

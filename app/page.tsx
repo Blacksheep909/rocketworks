@@ -167,6 +167,7 @@ import {
   type VehicleStagePlan,
   type VehicleStageRecoveryTrigger,
   type VehicleStageRole,
+  type VehicleTopologyComponentPlan,
 } from "../lib/project/vehicle-topology.ts";
 import {
   LOCAL_AERODYNAMIC_LIBRARY_STORAGE_KEY,
@@ -953,6 +954,44 @@ function createCadStageParts(
   });
 }
 
+function topologyComponentToVehicleComponent(
+  plan: VehicleTopologyComponentPlan,
+): VehicleComponent {
+  const azimuthRad = (plan.azimuthDeg * Math.PI) / 180;
+  const positionM = {
+    x: plan.axialPositionM,
+    y: plan.radialOffsetM * Math.cos(azimuthRad),
+    z: plan.radialOffsetM * Math.sin(azimuthRad),
+  };
+  const id = `topology-${plan.id}`;
+  if (plan.kind === "pointMass") {
+    return {
+      id,
+      name: plan.name,
+      stageId: plan.stageId,
+      kind: "pointMass",
+      enabled: plan.enabled,
+      massKg: plan.massKg!,
+      positionM,
+    };
+  }
+  const radiusM = plan.diameterM! / 2;
+  return {
+    id,
+    name: plan.name,
+    stageId: plan.stageId,
+    kind: "axisymmetric",
+    enabled: plan.enabled,
+    densityKgM3: plan.densityKgM3!,
+    wallThicknessM: plan.wallThicknessM!,
+    positionM,
+    stations: [
+      { xM: 0, outerRadiusM: radiusM },
+      { xM: plan.lengthM!, outerRadiusM: radiusM },
+    ],
+  };
+}
+
 function placeStageComponent(
   component: VehicleComponent,
   placement: StagePlacement,
@@ -967,16 +1006,21 @@ function placeStageComponent(
         z: placement.stage.repeatRadiusM * Math.sin(angle),
       }
     : { y: 0, z: 0 };
+  const rotateLocalTransverse = (position: { y: number; z: number }) => ({
+    y: position.y * Math.cos(angle) - position.z * Math.sin(angle),
+    z: position.y * Math.sin(angle) + position.z * Math.cos(angle),
+  });
   const idSuffix = placement.instanceCount > 1 ? `-instance-${instanceIndex + 1}` : "";
   if (component.kind === "axisymmetric") {
     const position = component.positionM ?? { x: 0, y: 0, z: 0 };
+    const localTransverse = rotateLocalTransverse(position);
     return {
       ...component,
       id: `${component.id}${idSuffix}`,
       positionM: {
         x: position.x + placement.translationXM,
-        y: position.y + radialTranslation.y,
-        z: position.z + radialTranslation.z,
+        y: localTransverse.y + radialTranslation.y,
+        z: localTransverse.z + radialTranslation.z,
       },
     };
   }
@@ -988,13 +1032,14 @@ function placeStageComponent(
       angularOffsetRad: (component.angularOffsetRad ?? 0) + angle,
     };
   }
+  const localTransverse = rotateLocalTransverse(component.positionM);
   return {
     ...component,
     id: `${component.id}${idSuffix}`,
     positionM: {
       x: component.positionM.x + placement.translationXM,
-      y: component.positionM.y + radialTranslation.y,
-      z: component.positionM.z + radialTranslation.z,
+      y: localTransverse.y + radialTranslation.y,
+      z: localTransverse.z + radialTranslation.z,
     },
   };
 }
@@ -1018,9 +1063,10 @@ function makePlacedStageComponents(
     recoveryMassKg: number;
     motorMassKgByStageId?: Readonly<Record<string, number>>;
   }>,
+  topologyComponents: readonly VehicleTopologyComponentPlan[] = [],
 ): VehicleComponent[] {
   return createStagePlacements(stages, inputs).flatMap((placement) => {
-    const stageComponents = makeAssemblyStageComponents(placement.stage, baseComponents, inputs);
+    const stageComponents = makeAssemblyStageComponents(placement.stage, baseComponents, inputs, topologyComponents);
     return Array.from({ length: placement.instanceCount }, (_, instanceIndex) =>
       stageComponents.map((component) => placeStageComponent(component, placement, instanceIndex)),
     ).flat();
@@ -1041,14 +1087,22 @@ function unplaceComponentForEnvelope(
         z: placement.stage.repeatRadiusM * Math.sin(angle),
       }
     : { y: 0, z: 0 };
+  const unrotateLocalTransverse = (position: { y: number; z: number }) => ({
+    y: position.y * Math.cos(angle) + position.z * Math.sin(angle),
+    z: -position.y * Math.sin(angle) + position.z * Math.cos(angle),
+  });
   if (component.kind === "axisymmetric") {
     const position = component.positionM ?? { x: 0, y: 0, z: 0 };
+    const localTransverse = unrotateLocalTransverse({
+      y: position.y - radialTranslation.y,
+      z: position.z - radialTranslation.z,
+    });
     return {
       ...component,
       positionM: {
         x: position.x - placement.translationXM,
-        y: position.y - radialTranslation.y,
-        z: position.z - radialTranslation.z,
+        y: localTransverse.y,
+        z: localTransverse.z,
       },
     };
   }
@@ -1059,12 +1113,16 @@ function unplaceComponentForEnvelope(
       angularOffsetRad: (component.angularOffsetRad ?? 0) - angle,
     };
   }
+  const localTransverse = unrotateLocalTransverse({
+    y: component.positionM.y - radialTranslation.y,
+    z: component.positionM.z - radialTranslation.z,
+  });
   return {
     ...component,
     positionM: {
       x: component.positionM.x - placement.translationXM,
-      y: component.positionM.y - radialTranslation.y,
-      z: component.positionM.z - radialTranslation.z,
+      y: localTransverse.y,
+      z: localTransverse.z,
     },
   };
 }
@@ -1180,6 +1238,7 @@ function makeAssemblyStageComponents(
     recoveryMassKg: number;
     motorMassKgByStageId?: Readonly<Record<string, number>>;
   }>,
+  topologyComponents: readonly VehicleTopologyComponentPlan[] = [],
 ): VehicleComponent[] {
   if (stage.role === "core") return baseComponents.map((component) => ({ ...component, stageId: stage.id }));
   const stageGeometry = stagePreviewGeometry(stage, inputs);
@@ -1207,9 +1266,13 @@ function makeAssemblyStageComponents(
     : stage.role === "payload"
       ? new Set(["nose", "body", "payload", "recovery"])
       : new Set(["nose", "body", "fins", "motor", "payload"]);
-  return generated
+  const generatedComponents = generated
     .filter((component) => allowedKinds.has(component.id))
     .map((component) => ({ ...component, id: `${stage.id}-${component.id}`, stageId: stage.id }));
+  const customComponents = topologyComponents
+    .filter((component) => component.stageId === stage.id)
+    .map(topologyComponentToVehicleComponent);
+  return [...generatedComponents, ...customComponents];
 }
 
 function createStageFlightPreviewInputs({
@@ -3579,8 +3642,9 @@ export default function Home() {
     [selectedMotorId, userMotorRecords, vehicleTopology.stages],
   );
   const vehicleComponents = useMemo(
-    () =>
-      makeDesignComponents({
+    () => {
+      const coreStageId = vehicleTopology.stages[0]?.id ?? "sustainer";
+      const baseComponents = makeDesignComponents({
         lengthM: length / 1000,
         diameterM: diameter / 1000,
         noseLengthM: noseLength / 1000,
@@ -3594,9 +3658,16 @@ export default function Home() {
         material,
         payloadMassKg: payloadMass,
         recoveryMassKg: recoveryMass,
-        motorMassKg: stageMotorMassKgById[vehicleTopology.stages[0]?.id ?? "sustainer"] ?? 0.16,
-      }),
-    [diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, material, noseLength, noseProfile, payloadMass, recoveryMass, stageMotorMassKgById, vehicleTopology.stages],
+        motorMassKg: stageMotorMassKgById[coreStageId] ?? 0.16,
+      });
+      return [
+        ...baseComponents,
+        ...(vehicleTopology.components ?? [])
+          .filter((component) => component.stageId === coreStageId)
+          .map(topologyComponentToVehicleComponent),
+      ];
+    },
+    [diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, material, noseLength, noseProfile, payloadMass, recoveryMass, stageMotorMassKgById, vehicleTopology.components, vehicleTopology.stages],
   );
   const stageFlightComponents = useMemo(
     () => makePlacedStageComponents(vehicleTopology.stages, vehicleComponents, {
@@ -3614,8 +3685,8 @@ export default function Home() {
       payloadMassKg: payloadMass,
       recoveryMassKg: recoveryMass,
       motorMassKgByStageId: stageMotorMassKgById,
-    }),
-    [diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, material, noseLength, noseProfile, payloadMass, recoveryMass, stageMotorMassKgById, vehicleComponents, vehicleTopology],
+    }, vehicleTopology.components ?? []),
+    [diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, material, noseLength, noseProfile, payloadMass, recoveryMass, stageMotorMassKgById, vehicleComponents, vehicleTopology.components, vehicleTopology.stages],
   );
   const assemblyDefinition = useMemo(() => {
     const placements = createStagePlacements(vehicleTopology.stages, {
@@ -3642,7 +3713,7 @@ export default function Home() {
         payloadMassKg: payloadMass,
         recoveryMassKg: recoveryMass,
         motorMassKgByStageId: stageMotorMassKgById,
-      });
+      }, vehicleTopology.components ?? []);
       return {
         id: stage.id,
         name: stage.name,
@@ -3667,7 +3738,7 @@ export default function Home() {
       };
       }),
     };
-  }, [diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, material, noseLength, noseProfile, payloadMass, recoveryMass, stageMotorMassKgById, vehicleComponents, vehicleTopology]);
+  }, [diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, material, noseLength, noseProfile, payloadMass, recoveryMass, stageMotorMassKgById, vehicleComponents, vehicleTopology.components, vehicleTopology.stages]);
   const assembly = useMemo(
     () => createVehicleAssemblyModel(assemblyDefinition).evaluate(),
     [assemblyDefinition],
@@ -5353,6 +5424,64 @@ export default function Home() {
       setTopologyError(error instanceof Error ? error.message : "Unable to add stage");
     }
   };
+  const addTopologyComponent = (kind: VehicleTopologyComponentPlan["kind"]) => {
+    try {
+      const baseId = kind === "pointMass" ? "equipment" : "pod";
+      let index = 1;
+      while (vehicleTopology.components.some((component) => component.id === `${baseId}-${String(index).padStart(2, "0")}`)) index += 1;
+      const stageId = vehicleTopology.stages.find((stage) => stage.enabled)?.id ?? vehicleTopology.stages[0]?.id;
+      if (!stageId) throw new Error("Add a stage before placing a custom component.");
+      const component: VehicleTopologyComponentPlan = kind === "pointMass"
+        ? {
+            id: `${baseId}-${String(index).padStart(2, "0")}`,
+            name: `Equipment ${index}`,
+            stageId,
+            enabled: true,
+            kind,
+            axialPositionM: 0.35,
+            radialOffsetM: 0,
+            azimuthDeg: 0,
+            massKg: 0.2,
+          }
+        : {
+            id: `${baseId}-${String(index).padStart(2, "0")}`,
+            name: `Cylindrical pod ${index}`,
+            stageId,
+            enabled: true,
+            kind,
+            axialPositionM: 0.35,
+            radialOffsetM: 0,
+            azimuthDeg: 0,
+            lengthM: 0.25,
+            diameterM: 0.05,
+            wallThicknessM: 0.001,
+            densityKgM3: 850,
+          };
+      persistVehicleTopology({ ...vehicleTopology, components: [...vehicleTopology.components, component] });
+      notify(`${component.name} added to ${vehicleTopology.stages.find((stage) => stage.id === stageId)?.name ?? "stage"}`);
+    } catch (error) {
+      setTopologyError(error instanceof Error ? error.message : "Unable to add custom component");
+    }
+  };
+  const updateTopologyComponent = (id: string, patch: Partial<VehicleTopologyComponentPlan>): boolean => {
+    try {
+      const nextComponents = vehicleTopology.components.map((component) => component.id === id ? { ...component, ...patch } : component);
+      persistVehicleTopology({ ...vehicleTopology, components: nextComponents });
+      return true;
+    } catch (error) {
+      setTopologyError(error instanceof Error ? error.message : "Unable to update custom component");
+      return false;
+    }
+  };
+  const removeTopologyComponent = (id: string) => {
+    try {
+      const component = vehicleTopology.components.find((candidate) => candidate.id === id);
+      persistVehicleTopology({ ...vehicleTopology, components: vehicleTopology.components.filter((candidate) => candidate.id !== id) });
+      notify(`${component?.name ?? "Custom component"} removed`);
+    } catch (error) {
+      setTopologyError(error instanceof Error ? error.message : "Unable to remove custom component");
+    }
+  };
   const updateTopologyStage = (id: string, patch: Partial<VehicleStagePlan>): boolean => {
     try {
       const nextStages = vehicleTopology.stages.map((stage) => stage.id === id ? { ...stage, ...patch } : stage);
@@ -6436,6 +6565,16 @@ export default function Home() {
                   setView("design");
                 }}
                 onComponentSelect={(componentId) => {
+                  const topologyComponent = componentId.startsWith("topology-")
+                    ? vehicleTopology.components.find((component) => `topology-${component.id}` === componentId)
+                    : undefined;
+                  if (topologyComponent) {
+                    setSelected("body");
+                    setView("design");
+                    setToast(`${topologyComponent.name} selected · edit it in vehicle topology`);
+                    window.setTimeout(() => setToast(""), 2600);
+                    return;
+                  }
                   const component: ComponentKey =
                     componentId === "nose" || componentId.endsWith("-nose")
                       ? "nose"
@@ -8285,6 +8424,51 @@ export default function Home() {
               </div>
             </div>
             {topologyError && <p className="topology-error" role="alert">{topologyError}</p>}
+            <section className="topology-components" aria-labelledby="topology-components-title">
+              <div className="topology-components-heading">
+                <div>
+                  <span className="eyebrow">Mass properties</span>
+                  <h3 id="topology-components-title">Custom component instances</h3>
+                  <p>Place equipment mass or a simple cylindrical pod inside any stage. These primitives update mass, CG, inertia, assembly preview, and exports.</p>
+                </div>
+                <div className="topology-add-actions">
+                  <button onClick={() => addTopologyComponent("pointMass")} disabled={vehicleTopology.components.length >= 64}>+ Equipment mass</button>
+                  <button onClick={() => addTopologyComponent("cylindricalPod")} disabled={vehicleTopology.components.length >= 64}>+ Cylindrical pod</button>
+                </div>
+              </div>
+              {vehicleTopology.components.length === 0 ? (
+                <div className="topology-components-empty">No custom components yet. Add avionics, ballast, a camera, or a bounded pod primitive to make the assembly mass model yours.</div>
+              ) : (
+                <div className="topology-components-list" aria-label="Custom topology components">
+                  {vehicleTopology.components.map((component, index) => (
+                    <article className={component.enabled ? "topology-component-card active" : "topology-component-card"} key={component.id}>
+                      <div className="topology-component-heading">
+                        <div><span className="topology-component-index">C{String(index + 1).padStart(2, "0")}</span><strong>{component.name}</strong><small>{component.kind === "pointMass" ? "POINT MASS" : "CYLINDRICAL POD"} · {vehicleTopology.stages.find((stage) => stage.id === component.stageId)?.name ?? "Unknown stage"}</small></div>
+                        <label className="topology-enabled"><input type="checkbox" checked={component.enabled} onChange={(event) => updateTopologyComponent(component.id, { enabled: event.target.checked })} /> Enabled</label>
+                      </div>
+                      <div className="topology-component-fields">
+                        <label>Component name<input value={component.name} onChange={(event) => updateTopologyComponent(component.id, { name: event.target.value })} /></label>
+                        <label>Stage<select value={component.stageId} onChange={(event) => updateTopologyComponent(component.id, { stageId: event.target.value })}>{vehicleTopology.stages.map((stage) => <option value={stage.id} key={stage.id}>{stage.name}</option>)}</select></label>
+                        <TopologyNumberField id={`${component.id}-axial`} label="Axial position (m)" value={component.axialPositionM} min={0} max={10} step={0.01} disabled={!component.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyComponent(component.id, { axialPositionM: value }); }} />
+                        <TopologyNumberField id={`${component.id}-radial`} label="Radial offset (m)" value={component.radialOffsetM} min={0} max={2} step={0.005} disabled={!component.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyComponent(component.id, { radialOffsetM: value }); }} />
+                        <TopologyNumberField id={`${component.id}-azimuth`} label="Azimuth (deg)" value={component.azimuthDeg} min={-180} max={180} step={1} disabled={!component.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyComponent(component.id, { azimuthDeg: value }); }} />
+                        {component.kind === "pointMass" ? (
+                          <TopologyNumberField id={`${component.id}-mass`} label="Mass (kg)" value={component.massKg ?? 0.2} min={0.001} max={100} step={0.001} disabled={!component.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyComponent(component.id, { massKg: value }); }} />
+                        ) : (
+                          <>
+                            <TopologyNumberField id={`${component.id}-length`} label="Pod length (m)" value={component.lengthM ?? 0.25} min={0.01} max={5} step={0.01} disabled={!component.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyComponent(component.id, { lengthM: value }); }} />
+                            <TopologyNumberField id={`${component.id}-diameter`} label="Pod diameter (m)" value={component.diameterM ?? 0.05} min={0.005} max={2} step={0.001} disabled={!component.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyComponent(component.id, { diameterM: value }); }} />
+                            <TopologyNumberField id={`${component.id}-wall`} label="Wall thickness (m)" value={component.wallThicknessM ?? 0.001} min={0.0001} max={Math.max(0.0001, (component.diameterM ?? 0.05) / 2)} step={0.0001} disabled={!component.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyComponent(component.id, { wallThicknessM: value }); }} />
+                            <TopologyNumberField id={`${component.id}-density`} label="Density (kg/m³)" value={component.densityKgM3 ?? 850} min={1} max={20000} step={1} disabled={!component.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyComponent(component.id, { densityKgM3: value }); }} />
+                          </>
+                        )}
+                      </div>
+                      <div className="topology-component-footer"><span>Local stage frame · X forward · radial placement rotates with repeated booster instances</span><button className="danger-button" onClick={() => removeTopologyComponent(component.id)}>Remove</button></div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
             <div className="topology-list" aria-label="Vehicle stages">
               {vehicleTopology.stages.map((stage, index) => (
                 <article className={stage.enabled ? "topology-stage active" : "topology-stage"} key={stage.id}>
@@ -8312,26 +8496,26 @@ export default function Home() {
                       </select></label>
                       <label>Attachment<select value={stage.attachment} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { attachment: event.target.value as VehicleStageAttachment, parentStageId: event.target.value === "parallel" ? (stage.parentStageId ?? "sustainer") : stage.parentStageId })}><option value="serial">Serial</option><option value="parallel">Parallel</option></select></label>
                       <label>Parent stage<select value={stage.parentStageId ?? ""} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { parentStageId: event.target.value || undefined })}>{vehicleTopology.stages.slice(0, index).map((candidate) => <option value={candidate.id} key={candidate.id}>{candidate.name}</option>)}</select></label>
-                      <TopologyNumberField id={`${stage.id}-repeat-count`} label="Repeat count" value={stage.repeatCount} min={1} max={8} step={1} onChange={(value) => updateTopologyStage(stage.id, { repeatCount: value })} />
-                      <TopologyNumberField id={`${stage.id}-repeat-radius`} label="Radial radius (m)" value={stage.repeatRadiusM} min={0} max={2} step={0.01} onChange={(value) => updateTopologyStage(stage.id, { repeatRadiusM: value })} />
-                      <TopologyNumberField id={`${stage.id}-motor-cant`} label="Motor cant (deg)" value={stage.thrustCantAngleDeg} min={0} max={15} step={0.1} disabled={stage.role === "payload"} onChange={(value) => updateTopologyStage(stage.id, { thrustCantAngleDeg: value })} />
-                      <TopologyNumberField id={`${stage.id}-cant-azimuth`} label="Cant azimuth (deg)" value={stage.thrustCantAzimuthDeg} min={-180} max={180} step={1} disabled={stage.role === "payload"} onChange={(value) => updateTopologyStage(stage.id, { thrustCantAzimuthDeg: value })} />
+                      <TopologyNumberField id={`${stage.id}-repeat-count`} label="Repeat count" value={stage.repeatCount} min={1} max={8} step={1} onChange={(value) => { if (typeof value === "number") updateTopologyStage(stage.id, { repeatCount: value }); }} />
+                      <TopologyNumberField id={`${stage.id}-repeat-radius`} label="Radial radius (m)" value={stage.repeatRadiusM} min={0} max={2} step={0.01} onChange={(value) => { if (typeof value === "number") updateTopologyStage(stage.id, { repeatRadiusM: value }); }} />
+                      <TopologyNumberField id={`${stage.id}-motor-cant`} label="Motor cant (deg)" value={stage.thrustCantAngleDeg} min={0} max={15} step={0.1} disabled={stage.role === "payload"} onChange={(value) => { if (typeof value === "number") updateTopologyStage(stage.id, { thrustCantAngleDeg: value }); }} />
+                      <TopologyNumberField id={`${stage.id}-cant-azimuth`} label="Cant azimuth (deg)" value={stage.thrustCantAzimuthDeg} min={-180} max={180} step={1} disabled={stage.role === "payload"} onChange={(value) => { if (typeof value === "number") updateTopologyStage(stage.id, { thrustCantAzimuthDeg: value }); }} />
                     </div>
                     <div className="topology-stage-events">
-                      <TopologyNumberField id={`${stage.id}-ignition-delay`} label="Ignition delay (s)" value={stage.ignitionDelayS} min={0} max={120} step={0.01} onChange={(value) => updateTopologyStage(stage.id, { ignitionDelayS: value })} />
-                      <TopologyNumberField id={`${stage.id}-separation-delay`} label="Separation delay (s)" value={stage.separationDelayS} min={0} max={120} step={0.01} disabled={stage.role === "core"} onChange={(value) => updateTopologyStage(stage.id, { separationDelayS: value })} />
-                      <TopologyNumberField id={`${stage.id}-separation-dv`} label="Separation dV (+X, m/s)" value={stage.separationDeltaVBodyMps ?? 0} min={0} max={30} step={0.01} disabled={stage.role === "core"} onChange={(value) => updateTopologyStage(stage.id, { separationDeltaVBodyMps: value })} />
+                      <TopologyNumberField id={`${stage.id}-ignition-delay`} label="Ignition delay (s)" value={stage.ignitionDelayS} min={0} max={120} step={0.01} onChange={(value) => { if (typeof value === "number") updateTopologyStage(stage.id, { ignitionDelayS: value }); }} />
+                      <TopologyNumberField id={`${stage.id}-separation-delay`} label="Separation delay (s)" value={stage.separationDelayS} min={0} max={120} step={0.01} disabled={stage.role === "core"} onChange={(value) => { if (typeof value === "number") updateTopologyStage(stage.id, { separationDelayS: value }); }} />
+                      <TopologyNumberField id={`${stage.id}-separation-dv`} label="Separation dV (+X, m/s)" value={stage.separationDeltaVBodyMps ?? 0} min={0} max={30} step={0.01} disabled={stage.role === "core"} onChange={(value) => { if (typeof value === "number") updateTopologyStage(stage.id, { separationDeltaVBodyMps: value }); }} />
                       {stage.role !== "core" && stage.role !== "payload" && <>
                         <label className="topology-failure-toggle"><input type="checkbox" checked={stage.recovery?.enabled ?? false} onChange={(event) => updateTopologyRecovery(stage, { enabled: event.target.checked })} /> Detached recovery</label>
-                        <TopologyNumberField id={`${stage.id}-recovery-diameter`} label="Canopy diameter (m)" value={stage.recovery?.diameterM ?? 0.45} min={0.05} max={3} step={0.01} disabled={!stage.recovery?.enabled} onChange={(value) => updateTopologyRecovery(stage, { diameterM: value })} />
+                        <TopologyNumberField id={`${stage.id}-recovery-diameter`} label="Canopy diameter (m)" value={stage.recovery?.diameterM ?? 0.45} min={0.05} max={3} step={0.01} disabled={!stage.recovery?.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyRecovery(stage, { diameterM: value }); }} />
                         <label>Recovery trigger<select value={stage.recovery?.deploymentTrigger ?? "apogee"} disabled={!stage.recovery?.enabled} onChange={(event) => updateTopologyRecovery(stage, { deploymentTrigger: event.target.value as VehicleStageRecoveryTrigger })}>
                           <option value="apogee">Branch apogee</option>
                           <option value="altitude">Descending altitude</option>
                           <option value="time">Mission time</option>
                         </select></label>
-                        {stage.recovery?.deploymentTrigger === "altitude" && <TopologyNumberField id={`${stage.id}-recovery-altitude`} label="Trigger altitude (m AGL)" value={stage.recovery.deploymentAltitudeAglM ?? 150} min={0} max={100000} step={5} disabled={!stage.recovery.enabled} onChange={(value) => updateTopologyRecovery(stage, { deploymentAltitudeAglM: value })} />}
-                        {stage.recovery?.deploymentTrigger === "time" && <TopologyNumberField id={`${stage.id}-recovery-time`} label="Trigger mission time (s)" value={stage.recovery.deploymentTimeS ?? 8} min={0} max={180} step={0.1} disabled={!stage.recovery.enabled} onChange={(value) => updateTopologyRecovery(stage, { deploymentTimeS: value })} />}
-                        <TopologyNumberField id={`${stage.id}-recovery-delay`} label="Recovery delay (s)" value={stage.recovery?.deploymentDelayS ?? 0} min={0} max={60} step={0.1} disabled={!stage.recovery?.enabled} onChange={(value) => updateTopologyRecovery(stage, { deploymentDelayS: value })} />
+                        {stage.recovery?.deploymentTrigger === "altitude" && <TopologyNumberField id={`${stage.id}-recovery-altitude`} label="Trigger altitude (m AGL)" value={stage.recovery.deploymentAltitudeAglM ?? 150} min={0} max={100000} step={5} disabled={!stage.recovery.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyRecovery(stage, { deploymentAltitudeAglM: value }); }} />}
+                        {stage.recovery?.deploymentTrigger === "time" && <TopologyNumberField id={`${stage.id}-recovery-time`} label="Trigger mission time (s)" value={stage.recovery.deploymentTimeS ?? 8} min={0} max={180} step={0.1} disabled={!stage.recovery.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyRecovery(stage, { deploymentTimeS: value }); }} />}
+                        <TopologyNumberField id={`${stage.id}-recovery-delay`} label="Recovery delay (s)" value={stage.recovery?.deploymentDelayS ?? 0} min={0} max={60} step={0.1} disabled={!stage.recovery?.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyRecovery(stage, { deploymentDelayS: value }); }} />
                       </>}
                       <label>Failed motors (1-based)<input type="text" inputMode="text" placeholder={stageMotorInstanceCount(stage) > 1 ? "e.g. 1, 3" : "none"} value={topologyFailureDrafts[stage.id] ?? stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")} disabled={stage.role === "payload"} onChange={(event) => { setTopologyFailureDrafts((current) => ({ ...current, [stage.id]: event.target.value })); setTopologyError(""); }} onBlur={() => { const value = topologyFailureDrafts[stage.id]; if (value === undefined) return; if (updateTopologyMotorFailures(stage, value)) { setTopologyFailureDrafts((current) => { const next = { ...current }; delete next[stage.id]; return next; }); } }} /></label>
                       <label className="topology-failure-toggle"><input type="checkbox" checked={stage.ignitionFailure} onChange={(event) => updateTopologyStage(stage.id, { ignitionFailure: event.target.checked })} /> Force ignition failure in preview</label>

@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a bounded custom topology-component layer for browser-authored
+  equipment point masses and cylindrical pods. Components persist with the
+  vehicle, flow through assembly mass/CG/inertia, radial stage placement, 3D
+  preview, project/share exports, and history, with explicit off-axis aero
+  limitations.
+
 - Extended the original RASP/ENG interchange parser to validate multi-record
   files. Batch imports receive deterministic local ID suffixes, preserve the
   supplied provenance, update the device-local motor library transactionally,

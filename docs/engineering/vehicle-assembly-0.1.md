@@ -90,5 +90,7 @@ Regression tests cover serial-stage CG, active-stage filtering, four-way booster
   multi-stage event model when independent separation is required.
 - Flexible joints, mount compliance, slosh, and structural modes are absent.
 - Motor mounts do not automatically create motor mass or thrust curves.
-- Placements are programmatic; interactive browser editing of arbitrary trees is a future layer.
+- The browser editor now exposes bounded point-mass and cylindrical-pod plans
+  for direct stage placement. Arbitrary nested group authoring, flexible joints,
+  and custom CAD solids remain future layers.
 - Validation is analytical only and is not sufficient for flight-safety decisions.

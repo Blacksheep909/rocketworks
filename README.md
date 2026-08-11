@@ -20,6 +20,9 @@ research, standards, and original code.
 - mass, centre-of-gravity, inertia, static stability, and centre-of-pressure
   calculations with model versions and assumptions;
 - serial, parallel, radial, clustered, and multi-stage vehicle topology;
+- editable topology point-mass equipment and cylindrical pod primitives with
+  slider/exact-number placement controls; off-axis aerodynamic interference is
+  explicitly outside this analytical preview;
 - per-stage body-length, diameter, and nose-length overrides for generated
   upper-stage, booster, and payload preview geometry, with role-based defaults;
 - independent repeated-stage instance ignition, burnout, separation, and live

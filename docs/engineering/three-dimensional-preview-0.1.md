@@ -26,6 +26,8 @@ vehicle. It currently visualizes:
   vehicle topology
 - expanded axisymmetric, fin-set, and point-mass component instances from the
   validated assembly graph, with component identity retained for selection
+- user-authored cylindrical pod primitives and equipment point-mass markers
+  from the topology editor, including their repeated-stage transforms
 
 The preview mesh is deliberately separate from the versioned mass-property,
 static-aerodynamic, assembly, and flight models. It consumes their current
@@ -136,8 +138,9 @@ flight safety.
 ## Known limitations
 
 - The preview now maps expanded component instances supplied by the browser's
-  assembly graph, but arbitrary custom group visual primitives and nested CAD
-  solids still need dedicated display schemas.
+  assembly graph, including the bounded topology component primitives. Arbitrary
+  custom group visual primitives and nested CAD solids still need dedicated
+  display schemas.
 - No internal transparent solids, section cuts, stage separation animation, or
   material texture; point-mass markers are intentionally abstract.
 - Painter-style triangle sorting can produce minor overlap artifacts for future
