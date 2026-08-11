@@ -5349,11 +5349,11 @@ export default function Home() {
   const updateTopologyDimension = (
     id: string,
     key: "bodyLengthM" | "diameterM" | "noseLengthM",
-    value: string,
+    value: number | string,
   ): boolean => {
-    const normalized = value.trim();
+    const normalized = typeof value === "string" ? value.trim() : value;
     if (normalized === "") return updateTopologyStage(id, { [key]: undefined });
-    const numericValue = Number(normalized);
+    const numericValue = typeof normalized === "number" ? normalized : Number(normalized);
     if (!Number.isFinite(numericValue)) {
       setTopologyError(`${key} must be a finite number or left blank for the role default.`);
       return false;
@@ -8276,9 +8276,9 @@ export default function Home() {
                     <div className="topology-stage-heading"><div><strong>{stage.name}</strong><small>{stage.role} · {stage.repeatCount > 1 ? `${stage.repeatCount} radial instances` : "single instance"}</small></div><label className="topology-enabled"><input type="checkbox" checked={stage.enabled} onChange={(event) => updateTopologyStage(stage.id, { enabled: event.target.checked })} /> Enabled</label></div>
                     <div className="topology-stage-fields">
                       <label>Stage name<input value={stage.name} onChange={(event) => updateTopologyStage(stage.id, { name: event.target.value })} /></label>
-                      <label>Body length (m)<input type="number" min="0.05" max="10" step="0.01" value={stage.bodyLengthM ?? ""} placeholder={stage.role === "core" ? "core input" : "role default"} disabled={stage.role === "core"} onChange={(event) => updateTopologyDimension(stage.id, "bodyLengthM", event.target.value)} /></label>
-                      <label>Diameter (m)<input type="number" min="0.02" max="2" step="0.001" value={stage.diameterM ?? ""} placeholder={stage.role === "core" ? "core input" : "role default"} disabled={stage.role === "core"} onChange={(event) => updateTopologyDimension(stage.id, "diameterM", event.target.value)} /></label>
-                      <label>Nose length (m)<input type="number" min="0.01" max="3" step="0.01" value={stage.noseLengthM ?? ""} placeholder={stage.role === "core" ? "core input" : "role default"} disabled={stage.role === "core"} onChange={(event) => updateTopologyDimension(stage.id, "noseLengthM", event.target.value)} /></label>
+                      <TopologyNumberField id={`${stage.id}-body-length`} label="Body length (m)" value={stage.bodyLengthM ?? ""} placeholder={stage.role === "core" ? "core input" : "role default"} min={0.05} max={10} step={0.01} disabled={stage.role === "core"} onChange={(value) => updateTopologyDimension(stage.id, "bodyLengthM", value)} />
+                      <TopologyNumberField id={`${stage.id}-diameter`} label="Diameter (m)" value={stage.diameterM ?? ""} placeholder={stage.role === "core" ? "core input" : "role default"} min={0.02} max={2} step={0.001} disabled={stage.role === "core"} onChange={(value) => updateTopologyDimension(stage.id, "diameterM", value)} />
+                      <TopologyNumberField id={`${stage.id}-nose-length`} label="Nose length (m)" value={stage.noseLengthM ?? ""} placeholder={stage.role === "core" ? "core input" : "role default"} min={0.01} max={3} step={0.01} disabled={stage.role === "core"} onChange={(value) => updateTopologyDimension(stage.id, "noseLengthM", value)} />
                       <label>Role<select value={stage.role} disabled={stage.role === "core"} onChange={(event) => {
                         const role = event.target.value as VehicleStageRole;
                         updateTopologyStage(stage.id, { role, attachment: role === "booster" ? "parallel" : "serial", repeatCount: role === "booster" ? Math.max(2, stage.repeatCount) : 1, repeatRadiusM: role === "booster" ? Math.max(0.09, stage.repeatRadiusM) : 0 });
@@ -8295,26 +8295,26 @@ export default function Home() {
                       </select></label>
                       <label>Attachment<select value={stage.attachment} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { attachment: event.target.value as VehicleStageAttachment, parentStageId: event.target.value === "parallel" ? (stage.parentStageId ?? "sustainer") : stage.parentStageId })}><option value="serial">Serial</option><option value="parallel">Parallel</option></select></label>
                       <label>Parent stage<select value={stage.parentStageId ?? ""} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { parentStageId: event.target.value || undefined })}>{vehicleTopology.stages.slice(0, index).map((candidate) => <option value={candidate.id} key={candidate.id}>{candidate.name}</option>)}</select></label>
-                      <label>Repeat count<input type="number" min="1" max="8" value={stage.repeatCount} onChange={(event) => updateTopologyStage(stage.id, { repeatCount: Number(event.target.value) })} /></label>
-                      <label>Radial radius (m)<input type="number" min="0" max="2" step="0.01" value={stage.repeatRadiusM} onChange={(event) => updateTopologyStage(stage.id, { repeatRadiusM: Number(event.target.value) })} /></label>
-                      <label>Motor cant (deg)<input type="number" min="0" max="15" step="0.1" value={stage.thrustCantAngleDeg} disabled={stage.role === "payload"} onChange={(event) => updateTopologyStage(stage.id, { thrustCantAngleDeg: Number(event.target.value) })} /></label>
-                      <label>Cant azimuth (deg)<input type="number" min="-180" max="180" step="1" value={stage.thrustCantAzimuthDeg} disabled={stage.role === "payload"} onChange={(event) => updateTopologyStage(stage.id, { thrustCantAzimuthDeg: Number(event.target.value) })} /></label>
+                      <TopologyNumberField id={`${stage.id}-repeat-count`} label="Repeat count" value={stage.repeatCount} min={1} max={8} step={1} onChange={(value) => updateTopologyStage(stage.id, { repeatCount: value })} />
+                      <TopologyNumberField id={`${stage.id}-repeat-radius`} label="Radial radius (m)" value={stage.repeatRadiusM} min={0} max={2} step={0.01} onChange={(value) => updateTopologyStage(stage.id, { repeatRadiusM: value })} />
+                      <TopologyNumberField id={`${stage.id}-motor-cant`} label="Motor cant (deg)" value={stage.thrustCantAngleDeg} min={0} max={15} step={0.1} disabled={stage.role === "payload"} onChange={(value) => updateTopologyStage(stage.id, { thrustCantAngleDeg: value })} />
+                      <TopologyNumberField id={`${stage.id}-cant-azimuth`} label="Cant azimuth (deg)" value={stage.thrustCantAzimuthDeg} min={-180} max={180} step={1} disabled={stage.role === "payload"} onChange={(value) => updateTopologyStage(stage.id, { thrustCantAzimuthDeg: value })} />
                     </div>
                     <div className="topology-stage-events">
-                      <label>Ignition delay (s)<input type="number" min="0" max="120" step="0.01" value={stage.ignitionDelayS} onChange={(event) => updateTopologyStage(stage.id, { ignitionDelayS: Number(event.target.value) })} /></label>
-                      <label>Separation delay (s)<input type="number" min="0" max="120" step="0.01" value={stage.separationDelayS} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { separationDelayS: Number(event.target.value) })} /></label>
-                      <label>Separation dV (+X, m/s)<input type="number" min="0" max="30" step="0.01" value={stage.separationDeltaVBodyMps ?? 0} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { separationDeltaVBodyMps: Number(event.target.value) })} /></label>
+                      <TopologyNumberField id={`${stage.id}-ignition-delay`} label="Ignition delay (s)" value={stage.ignitionDelayS} min={0} max={120} step={0.01} onChange={(value) => updateTopologyStage(stage.id, { ignitionDelayS: value })} />
+                      <TopologyNumberField id={`${stage.id}-separation-delay`} label="Separation delay (s)" value={stage.separationDelayS} min={0} max={120} step={0.01} disabled={stage.role === "core"} onChange={(value) => updateTopologyStage(stage.id, { separationDelayS: value })} />
+                      <TopologyNumberField id={`${stage.id}-separation-dv`} label="Separation dV (+X, m/s)" value={stage.separationDeltaVBodyMps ?? 0} min={0} max={30} step={0.01} disabled={stage.role === "core"} onChange={(value) => updateTopologyStage(stage.id, { separationDeltaVBodyMps: value })} />
                       {stage.role !== "core" && stage.role !== "payload" && <>
                         <label className="topology-failure-toggle"><input type="checkbox" checked={stage.recovery?.enabled ?? false} onChange={(event) => updateTopologyRecovery(stage, { enabled: event.target.checked })} /> Detached recovery</label>
-                        <label>Canopy diameter (m)<input type="number" min="0.05" max="3" step="0.01" value={stage.recovery?.diameterM ?? 0.45} disabled={!stage.recovery?.enabled} onChange={(event) => updateTopologyRecovery(stage, { diameterM: Number(event.target.value) })} /></label>
+                        <TopologyNumberField id={`${stage.id}-recovery-diameter`} label="Canopy diameter (m)" value={stage.recovery?.diameterM ?? 0.45} min={0.05} max={3} step={0.01} disabled={!stage.recovery?.enabled} onChange={(value) => updateTopologyRecovery(stage, { diameterM: value })} />
                         <label>Recovery trigger<select value={stage.recovery?.deploymentTrigger ?? "apogee"} disabled={!stage.recovery?.enabled} onChange={(event) => updateTopologyRecovery(stage, { deploymentTrigger: event.target.value as VehicleStageRecoveryTrigger })}>
                           <option value="apogee">Branch apogee</option>
                           <option value="altitude">Descending altitude</option>
                           <option value="time">Mission time</option>
                         </select></label>
-                        {stage.recovery?.deploymentTrigger === "altitude" && <label>Trigger altitude (m AGL)<input type="number" min="0" max="100000" step="5" value={stage.recovery.deploymentAltitudeAglM ?? 150} disabled={!stage.recovery.enabled} onChange={(event) => updateTopologyRecovery(stage, { deploymentAltitudeAglM: Number(event.target.value) })} /></label>}
-                        {stage.recovery?.deploymentTrigger === "time" && <label>Trigger mission time (s)<input type="number" min="0" max="180" step="0.1" value={stage.recovery.deploymentTimeS ?? 8} disabled={!stage.recovery.enabled} onChange={(event) => updateTopologyRecovery(stage, { deploymentTimeS: Number(event.target.value) })} /></label>}
-                        <label>Recovery delay (s)<input type="number" min="0" max="60" step="0.1" value={stage.recovery?.deploymentDelayS ?? 0} disabled={!stage.recovery?.enabled} onChange={(event) => updateTopologyRecovery(stage, { deploymentDelayS: Number(event.target.value) })} /></label>
+                        {stage.recovery?.deploymentTrigger === "altitude" && <TopologyNumberField id={`${stage.id}-recovery-altitude`} label="Trigger altitude (m AGL)" value={stage.recovery.deploymentAltitudeAglM ?? 150} min={0} max={100000} step={5} disabled={!stage.recovery.enabled} onChange={(value) => updateTopologyRecovery(stage, { deploymentAltitudeAglM: value })} />}
+                        {stage.recovery?.deploymentTrigger === "time" && <TopologyNumberField id={`${stage.id}-recovery-time`} label="Trigger mission time (s)" value={stage.recovery.deploymentTimeS ?? 8} min={0} max={180} step={0.1} disabled={!stage.recovery.enabled} onChange={(value) => updateTopologyRecovery(stage, { deploymentTimeS: value })} />}
+                        <TopologyNumberField id={`${stage.id}-recovery-delay`} label="Recovery delay (s)" value={stage.recovery?.deploymentDelayS ?? 0} min={0} max={60} step={0.1} disabled={!stage.recovery?.enabled} onChange={(value) => updateTopologyRecovery(stage, { deploymentDelayS: value })} />
                       </>}
                       <label>Failed motors (1-based)<input type="text" inputMode="text" placeholder={stageMotorInstanceCount(stage) > 1 ? "e.g. 1, 3" : "none"} value={topologyFailureDrafts[stage.id] ?? stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")} disabled={stage.role === "payload"} onChange={(event) => { setTopologyFailureDrafts((current) => ({ ...current, [stage.id]: event.target.value })); setTopologyError(""); }} onBlur={() => { const value = topologyFailureDrafts[stage.id]; if (value === undefined) return; if (updateTopologyMotorFailures(stage, value)) { setTopologyFailureDrafts((current) => { const next = { ...current }; delete next[stage.id]; return next; }); } }} /></label>
                       <label className="topology-failure-toggle"><input type="checkbox" checked={stage.ignitionFailure} onChange={(event) => updateTopologyStage(stage.id, { ignitionFailure: event.target.checked })} /> Force ignition failure in preview</label>
@@ -8882,6 +8882,64 @@ function ParameterSweepCard({
         <div className="sweep-empty"><strong>Inspect sensitivity before changing the design</strong><p>Run {steps || DEFAULT_SWEEP_STEPS} deterministic rows to see how {definition.label.toLowerCase()} moves apogee, peak dynamic pressure, and impact speed.</p></div>
       )}
     </section>
+  );
+}
+
+function TopologyNumberField({
+  id,
+  label,
+  value,
+  placeholder,
+  min,
+  max,
+  step,
+  disabled = false,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: number | "";
+  placeholder?: string;
+  min: number;
+  max: number;
+  step: number;
+  disabled?: boolean;
+  onChange: (value: number | string) => void;
+}) {
+  const sliderValue = typeof value === "number" && Number.isFinite(value) ? value : min;
+  return (
+    <label className="topology-number-field">
+      <span>{label}</span>
+      <input
+        id={`${id}-slider`}
+        className="topology-slider"
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={sliderValue}
+        disabled={disabled}
+        aria-label={`${label} slider`}
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
+      <div className="topology-number-input">
+        <input
+          id={id}
+          type="number"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          placeholder={placeholder}
+          disabled={disabled}
+          aria-label={label}
+          onChange={(event) => {
+            const raw = event.target.value;
+            onChange(raw === "" ? "" : Number(raw));
+          }}
+        />
+      </div>
+    </label>
   );
 }
 

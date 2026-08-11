@@ -1671,6 +1671,19 @@ kbd {
 .topology-stage-fields input, .topology-stage-fields select { width: 100%; min-height: 29px; padding: 0 6px; border: 1px solid var(--line); border-radius: 3px; background: #0b1116; color: var(--ink); font-size: 9px; }
 .topology-stage-fields input:focus, .topology-stage-fields select:focus { border-color: rgba(47,159,255,.52); outline: 0; box-shadow: 0 0 0 2px rgba(47,159,255,.12); }
 .topology-stage-fields input:disabled, .topology-stage-fields select:disabled { opacity: .55; }
+.topology-number-field > span { min-height: 17px; }
+.topology-number-input { position: relative; }
+.topology-number-input input { min-height: 27px; }
+.topology-stage-fields .topology-slider, .topology-stage-events .topology-slider {
+  width: 100%; min-height: 15px; height: 15px; padding: 0; border: 0; border-radius: 0;
+  background: transparent; accent-color: var(--launch-orange); appearance: none;
+}
+.topology-stage-fields .topology-slider:focus, .topology-stage-events .topology-slider:focus { border: 0; outline: 0; box-shadow: none; }
+.topology-stage-fields .topology-slider::-webkit-slider-runnable-track, .topology-stage-events .topology-slider::-webkit-slider-runnable-track { height: 3px; border-radius: 99px; background: linear-gradient(90deg,var(--launch-orange),rgba(198,212,221,.2)); }
+.topology-stage-fields .topology-slider::-webkit-slider-thumb, .topology-stage-events .topology-slider::-webkit-slider-thumb { width: 11px; height: 11px; margin-top: -4px; border: 2px solid #081016; border-radius: 50%; background: var(--launch-orange); box-shadow: 0 0 0 1px rgba(255,112,67,.46); appearance: none; }
+.topology-stage-fields .topology-slider::-moz-range-track, .topology-stage-events .topology-slider::-moz-range-track { height: 3px; border-radius: 99px; background: linear-gradient(90deg,var(--launch-orange),rgba(198,212,221,.2)); }
+.topology-stage-fields .topology-slider::-moz-range-thumb, .topology-stage-events .topology-slider::-moz-range-thumb { width: 9px; height: 9px; border: 2px solid #081016; border-radius: 50%; background: var(--launch-orange); box-shadow: 0 0 0 1px rgba(255,112,67,.46); }
+.topology-stage-fields .topology-slider:disabled, .topology-stage-events .topology-slider:disabled { opacity: .45; }
 .topology-stage-events { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)) minmax(180px,1.45fr); gap: 7px; margin-top: 9px; padding-top: 9px; border-top: 1px solid rgba(117,153,180,.12); }
 .topology-stage-events label { display: flex; min-width: 0; flex-direction: column; gap: 4px; color: #8fa4b2; font-size: 7px; }
 .topology-stage-events input[type="number"], .topology-stage-events input[type="text"] { width: 100%; min-height: 29px; padding: 0 6px; border: 1px solid var(--line); border-radius: 3px; background: #0b1116; color: var(--ink); font-size: 9px; }

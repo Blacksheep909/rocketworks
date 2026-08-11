@@ -28,8 +28,17 @@ RocketWorks now exposes a local topology editor for:
 - bounded per-stage motor cant up to 15 degrees, with an azimuth that rotates
   with repeated radial instances so outward/inward thrust alignment remains
   inspectable.
+- paired range and exact-number controls for stage geometry, repetition,
+  motor cant, ignition/separation timing, separation delta-v, and detached
+  recovery settings; both inputs write the same validated topology field.
 
 The editor produces a validated `LocalVehicleTopology` document with schema `dev.kestrel-lab.local-vehicle-topology`, version 1. It is stored under `kestrel.project.arc54.vehicle-topology.v1` and is bounded to eight stages. IDs, optional motor and aerodynamic-table assignments, stage order, parent references, attachment type, roles, repeat count, radius, bounded geometry overrides, cant angles, separation delta-v, and per-motor failure indices are checked before persistence. Motor, aerodynamic-table, geometry, cant, failure, and separation-delta-v assignments are migration-by-default: older v1 records without an optional field continue to use the global selection, role-based geometry, axial thrust, all-motors-available, or zero-delta-v default.
+
+The range controls are an interaction layer only. Their minimums, maximums,
+and steps mirror the topology validator's bounded values, while the adjacent
+number input preserves precise edits and allows an empty optional geometry
+override to return to its role-based default. Changing either control marks
+the same topology snapshot stale and does not bypass validation.
 
 ## Assembly mapping
 

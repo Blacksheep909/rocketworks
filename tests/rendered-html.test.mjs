@@ -884,6 +884,10 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Recovery delay \(s\)/);
   assert.match(page, /updateTopologyRecovery/);
   assert.match(page, /thrustCantAngleDeg/);
+  assert.match(page, /TopologyNumberField/);
+  assert.match(page, /className="topology-slider"/);
+  assert.match(page, /value=\{sliderValue\}/);
+  assert.match(page, /raw === "" \? "" : Number\(raw\)/);
   assert.match(topology, /MAX_VEHICLE_STAGES = 8/);
   assert.match(topology, /Parallel stage/);
   assert.match(topology, /parent must appear earlier/);
@@ -915,6 +919,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stylesheet, /\.stage-flight-model-options/);
   assert.match(stylesheet, /\.topology-stage/);
   assert.match(stylesheet, /\.topology-stage-events/);
+  assert.match(stylesheet, /\.topology-slider/);
+  assert.match(stylesheet, /\.topology-number-field/);
   assert.match(stylesheet, /\.topology-failure-toggle/);
   assert.match(stylesheet, /\.topology-add-actions/);
   assert.match(stylesheet, /\.stage-flight-profile/);

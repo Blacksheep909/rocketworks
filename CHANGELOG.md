@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added paired range sliders and exact-number inputs to the stage/topology
+  editor for bounded geometry, repetition, motor cant, event timing,
+  separation delta-v, and detached recovery settings. Both controls update the
+  same validated topology state; optional geometry overrides can still be
+  cleared back to role defaults.
 - Extended detachable-stage recovery plans beyond the legacy branch-apogee
   default. Topology records now validate and persist descending-altitude and
   mission-time triggers, the detached-body 6DOF branch applies the selected
