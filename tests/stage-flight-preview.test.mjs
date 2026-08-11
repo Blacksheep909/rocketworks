@@ -247,6 +247,8 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.ok(["assessed", "partial", "not-assessed"].includes(result.separationEnvelope.envelopeStatus));
   assert.ok(result.coupledMultiBodyFlight);
   assert.equal(result.coupledMultiBodyFlight.trajectories.length, 1);
+  assert.equal(result.coupledMultiBodyFlight.rigidBodyCount, 1);
+  assert.ok(result.coupledMultiBodyFlight.trajectories[0].trace.at(-1).orientationBodyToWorld);
   assert.equal(result.coupledMultiBodyFlight.pairwise, null);
   assert.equal(result.coupledMultiBodyFlight.status, "assessed");
   assert.ok(result.assumptions.some((assumption) => assumption.includes("shared mission-time grid")));

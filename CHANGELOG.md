@@ -11,7 +11,9 @@ flight-readiness claims.
   positive-definite inertia tensor, and caller-supplied body/world loads while
   preserving the point-mass default. Traces expose the attitude state and the
   result reports the rigid-body count and explicit contact/aerodynamic limits;
-  this remains analytical regression evidence, not multi-body validation.
+  the stage-flight adapter forwards detached-stage release attitude, angular
+  rate, and center-of-mass inertia into this audit; this remains analytical
+  regression evidence, not multi-body validation.
 - Added an opt-in adaptive RK4 step-doubling path to the independent six-degree-
   of-freedom kernel. It preserves exact scheduled/state-event boundaries,
   reports accepted/rejected internal steps and normalized truncation error, and

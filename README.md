@@ -91,7 +91,9 @@ research, standards, and original code.
   detached center-of-mass separation diagnostics, plus aggregate pairwise
   retained/detached and detached/detached path checks; released-body tracks
   can opt into an independently integrated quaternion attitude, angular-rate,
-  inertia, and caller-supplied body/world load state; the independent 6DOF
+  inertia, and caller-supplied body/world load state; the stage-flight adapter
+  now forwards detached-stage release attitude/rate/inertia into this audit;
+  the independent 6DOF
   kernel also offers opt-in adaptive RK4 step-doubling with explicit numerical
   error diagnostics while retaining fixed-step compatibility;
 - half-step numerical convergence diagnostics for the fast vertical estimate,

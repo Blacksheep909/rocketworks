@@ -994,6 +994,7 @@ export function simulateStageFlightPreview(
               z: solvedBody.solvedDeltaVWorldMps.z - separatedBody.detachedBodyDeltaVWorldMps.z,
             }
           : undefined;
+        const detachedInitialState = separatedBody.simulation.trace[0] ?? event.stateBefore;
         coupledBodySeeds.push({
           id: bodyId,
           label: instanceId
@@ -1020,6 +1021,11 @@ export function simulateStageFlightPreview(
           ...(separatedBody.envelopeRadiusM !== undefined
             ? { envelopeRadiusM: separatedBody.envelopeRadiusM }
             : {}),
+          rigidBody: {
+            orientationBodyToWorld: detachedInitialState.orientationBodyToWorld,
+            angularVelocityBodyRadS: detachedInitialState.angularVelocityBodyRadS,
+            inertiaBodyKgM2: massProperties.inertiaAtCenterKgM2,
+          },
         });
         spawnedStageInstances.add(spawnKey);
       } catch (error) {

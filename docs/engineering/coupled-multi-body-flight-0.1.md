@@ -89,9 +89,10 @@ The stage-flight adapter applies a solved minimum-norm release correction only
 when the event-level separation allocator reports a balanced result. The
 existing detached 6DOF branches remain unchanged, so the shared-grid track is
 an explicit comparison/audit path rather than a silent state reset. The browser
-exposes the mutual-gravity choice as an advanced released-body force model; the
-rigid-body input is currently an API-level advanced path and remains disabled
-for generated preview bodies unless explicitly supplied.
+exposes the mutual-gravity choice as an advanced released-body force model. The
+stage-flight adapter forwards each detached stage's release attitude, angular
+rate, and center-of-mass inertia into the shared audit track; it intentionally
+does not duplicate the detached recovery/aerodynamic-moment loads there.
 
 ## Step budget and status
 
