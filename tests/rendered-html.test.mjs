@@ -391,7 +391,12 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(page, /onSurfaceSelect/);
   assert.match(page, /onComponentSelect/);
   assert.match(page, /Design visualization mode/);
-  assert.match(page, />3D<\/button>/);
+  assert.match(page, /3D skeleton/);
+  assert.match(page, /3D final/);
+  assert.match(page, /renderMode={designView === "3d-skeleton" \? "skeleton" : "final"}/);
+  assert.match(page, /view-azimuth-rail/);
+  assert.match(page, /designAzimuthDeg/);
+  assert.match(page, /className="field-slider"/);
   assert.match(viewport, /createRocketPreviewMesh/);
   assert.match(viewport, /RocketPreviewStageInstance/);
   assert.match(viewport, /Stage visibility controls/);
@@ -404,6 +409,8 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(viewport, /Exploded/);
   assert.match(viewport, /press E to toggle/);
   assert.match(viewport, /Interactive three-dimensional ARC 54/);
+  assert.match(viewport, /Rocket3DRenderMode/);
+  assert.match(viewport, /renderMode === "skeleton"/);
   assert.match(viewport, /Click a rendered surface to select/);
   assert.match(viewport, /onPointerMove/);
   assert.match(viewport, /onWheel/);
@@ -412,6 +419,8 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(stylesheet, /\.rocket-3d-viewport canvas:focus-visible/);
   assert.match(stylesheet, /touch-action: none/);
   assert.match(stylesheet, /.rocket-3d-display-mode/);
+  assert.match(stylesheet, /.view-azimuth-rail/);
+  assert.match(stylesheet, /.field-slider/);
 });
 
 test("keeps command search and experience mode reachable on narrow screens", async () => {

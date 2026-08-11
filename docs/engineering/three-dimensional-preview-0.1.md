@@ -1,4 +1,4 @@
-# Three-dimensional design preview 0.6
+# Three-dimensional design preview 0.7
 
 Status: `display-only-unvalidated`
 
@@ -86,6 +86,16 @@ Canvas 2D API rather than a third-party 3D or CAD library.
 - The canvas is keyboard focusable and has a descriptive accessible label.
 - Focus-visible styling makes keyboard location explicit.
 - The 2D/3D mode switch remains a normal labelled button group.
+- The design workbench exposes three presentation states: an orthographic 2D
+  side profile, a low-ink 3D skeleton, and the shaded 3D final display. These
+  are display choices only and all consume the same independent preview mesh.
+- In 2D, the vertical azimuth rail applies a bounded CSS perspective rotation
+  to the side-profile presentation and announces the current 0–359° view angle
+  through an output readout. It is a view-orientation aid, not a new geometry
+  or attitude input to the flight model.
+- Geometry fields in the design inspector may expose a paired range slider and
+  exact number input. Both controls update the same React state and preserve
+  the existing component validation and stale-result behavior.
 - Rendering has no continuous animation, so reduced-motion users are not
   exposed to automatic camera movement.
 
@@ -111,7 +121,8 @@ Automated tests cover:
   picking
 - invalid geometry, camera, and viewport rejection
 - UI presence, pointer/touch controls, keyboard controls, accessible label, and
-  surface selection, and explicit display-only qualification
+  surface selection, explicit display-only qualification, the three display
+  modes, the 2D azimuth rail, and paired range controls
 
 These tests validate display behavior only. They are not evidence of CAD
 accuracy, aerodynamic fidelity, manufacturability, structural adequacy, or

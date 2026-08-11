@@ -37,6 +37,7 @@ function clamp(value: number, minimum: number, maximum: number) {
 }
 
 type Rocket3DDisplayMode = "integrated" | "exploded";
+export type Rocket3DRenderMode = "skeleton" | "final";
 
 function triangleColor(triangle: ProjectedRocketTriangle) {
   const base = SURFACE_COLORS[triangle.surface];
@@ -59,6 +60,7 @@ export function Rocket3DViewport({
   centerOfPressureXM,
   stageInstances,
   componentInstances,
+  renderMode = "final",
   highlightSurface = null,
   onSurfaceSelect,
   onComponentSelect,
@@ -78,6 +80,7 @@ export function Rocket3DViewport({
   centerOfPressureXM: number;
   stageInstances?: readonly RocketPreviewStageInstance[];
   componentInstances?: readonly RocketPreviewComponentInstance[];
+  renderMode?: Rocket3DRenderMode;
   highlightSurface?: RocketPreviewSurface | null;
   onSurfaceSelect?: (surface: RocketPreviewSurface) => void;
   onComponentSelect?: (componentId: string) => void;
@@ -234,15 +237,16 @@ export function Rocket3DViewport({
       context.lineTo(triangle.points[1].x, triangle.points[1].y);
       context.lineTo(triangle.points[2].x, triangle.points[2].y);
       context.closePath();
-      context.globalAlpha = triangle.facingCamera ? 0.98 : 0.52;
+      const isSkeleton = renderMode === "skeleton";
+      context.globalAlpha = isSkeleton ? 0.04 : triangle.facingCamera ? 0.98 : 0.52;
       context.fillStyle = triangleColor(triangle);
       context.fill();
       const isSurfaceHighlighted = highlightSurface === triangle.surface;
       const isStageHighlighted = selectedStageId !== null && triangle.stageId === selectedStageId;
       const isHighlighted = isSurfaceHighlighted || isStageHighlighted;
-      context.globalAlpha = isHighlighted ? 0.86 : 0.26;
+      context.globalAlpha = isHighlighted ? 0.9 : isSkeleton ? 0.68 : 0.26;
       context.strokeStyle = isSurfaceHighlighted ? "#e7f7ff" : isStageHighlighted ? "#ffad55" : "#a9c2d3";
-      context.lineWidth = isHighlighted ? 1.25 : 0.45;
+      context.lineWidth = isHighlighted ? 1.4 : isSkeleton ? 0.8 : 0.45;
       context.stroke();
     }
     context.globalAlpha = 1;
@@ -273,7 +277,7 @@ export function Rocket3DViewport({
       drawMarker("cg", "#ffad55", "CG");
       drawMarker("cp", "#69bfff", "CP");
     }
-  }, [centerOfMassXM, centerOfPressureXM, displayMode, highlightSurface, mesh, pitchRad, selectedStageId, yawRad, zoom]);
+  }, [centerOfMassXM, centerOfPressureXM, displayMode, highlightSurface, mesh, pitchRad, renderMode, selectedStageId, yawRad, zoom]);
 
   useEffect(() => {
     draw();
@@ -387,7 +391,7 @@ export function Rocket3DViewport({
         ref={canvasRef}
         tabIndex={0}
         role="img"
-        aria-label={`Interactive three-dimensional ARC 54 ${displayMode} preview with ${renderedInstanceCount} rendered component instances and ${visibleStageCount} visible stages, a ${noseProfile} nose and ${finCount} fins. Click a rendered surface to select its inspector component and stage. Drag or use arrow keys to orbit, use the mouse wheel or plus and minus keys to zoom, and press E to toggle integrated or exploded assembly view.`}
+        aria-label={`Interactive three-dimensional ARC 54 ${renderMode} ${displayMode} preview with ${renderedInstanceCount} rendered component instances and ${visibleStageCount} visible stages, a ${noseProfile} nose and ${finCount} fins. Click a rendered surface to select its inspector component and stage. Drag or use arrow keys to orbit, use the mouse wheel or plus and minus keys to zoom, and press E to toggle integrated or exploded assembly view.`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -450,7 +454,7 @@ export function Rocket3DViewport({
         <button type="button" onClick={() => setYawRad((value) => value + 0.2)} aria-label="Orbit right">↷</button>
       </div>
       <div className="rocket-3d-readout">
-        <span>DISPLAY MODEL · {displayMode === "exploded" ? "EXPLODED" : "INTEGRATED"}</span>
+        <span>DISPLAY MODEL · {renderMode === "skeleton" ? "SKELETON" : "FINAL"} · {displayMode === "exploded" ? "EXPLODED" : "INTEGRATED"}</span>
         <strong>{mesh.modelVersion}</strong>
         <small>{visibleStageCount}/{stageGroups.length || 1} stages visible</small>
         <small>{displayMode === "exploded" ? "Integrated CG / CP markers hidden in exploded view" : "Click a surface to select · drag to orbit · wheel to zoom · arrows / + / − / 0 / E"}</small>

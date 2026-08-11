@@ -178,7 +178,7 @@ import {
 
 type ComponentKey = "nose" | "body" | "fins" | "mount" | "recovery";
 type ViewKey = "design" | "flight";
-type DesignViewKey = "2d" | "3d";
+type DesignViewKey = "2d" | "3d-skeleton" | "3d-final";
 type MaterialKey = "kraft" | "fiberglass" | "carbon";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
 type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "sweep-csv" | "uncertainty-csv" | "report" | "dxf" | "stl" | "openscad";
@@ -3096,6 +3096,7 @@ export default function Home() {
   const [selected, setSelected] = useState<ComponentKey>("body");
   const [view, setView] = useState<ViewKey>("design");
   const [designView, setDesignView] = useState<DesignViewKey>("2d");
+  const [designAzimuthDeg, setDesignAzimuthDeg] = useState(0);
   const [length, setLength] = useState(710);
   const [diameter, setDiameter] = useState(54);
   const [noseLength, setNoseLength] = useState(180);
@@ -5478,9 +5479,10 @@ export default function Home() {
           </div>
           <div className="view-tools">
             {view === "design" ? (
-              <div className="design-view-toggle" aria-label="Design visualization mode">
-                <button className={designView === "2d" ? "active" : ""} onClick={() => setDesignView("2d")}>2D</button>
-                <button className={designView === "3d" ? "active" : ""} onClick={() => setDesignView("3d")}>3D</button>
+              <div className="design-view-toggle design-view-mode" role="group" aria-label="Design visualization mode">
+                <button type="button" className={designView === "2d" ? "active" : ""} aria-pressed={designView === "2d"} onClick={() => setDesignView("2d")} title="Orthographic side profile">2D</button>
+                <button type="button" className={designView === "3d-skeleton" ? "active" : ""} aria-pressed={designView === "3d-skeleton"} onClick={() => setDesignView("3d-skeleton")} title="Low-ink structural wireframe">3D skeleton</button>
+                <button type="button" className={designView === "3d-final" ? "active" : ""} aria-pressed={designView === "3d-final"} onClick={() => setDesignView("3d-final")} title="Shaded display model">3D final</button>
               </div>
             ) : (
               <span>Results workspace</span>
@@ -5511,31 +5513,55 @@ export default function Home() {
 
         {view === "design" ? (
           designView === "2d" ? (
-            <div className="design-canvas">
+            <div className="design-canvas design-canvas-2d">
               <div className="canvas-grid" />
+              <aside className="view-azimuth-rail" aria-label="2D viewing angle">
+                <span className="view-azimuth-kicker">2D VIEW</span>
+                <input
+                  id="design-azimuth"
+                  className="view-azimuth-slider"
+                  type="range"
+                  min={0}
+                  max={359}
+                  step={1}
+                  value={designAzimuthDeg}
+                  onChange={(event) => setDesignAzimuthDeg(Number(event.target.value))}
+                  aria-label="2D viewing azimuth"
+                  aria-orientation="vertical"
+                />
+                <output className="view-azimuth-readout" htmlFor="design-azimuth" aria-live="polite">{designAzimuthDeg}°</output>
+                <small>AZIMUTH</small>
+              </aside>
               <div className="dimension dimension-top"><span /><strong>{designLength} mm</strong><span /></div>
-              <div className="rocket-assembly" aria-label="Side profile of the ARC 54 rocket">
-                <div className={`rocket-nose rocket-nose-${noseProfile}`} style={{ width: `${Math.max(72, Math.min(160, noseLength * 0.66))}px` }} />
-                <div className="rocket-body" style={{ width: `${Math.min(520, 280 + length / 4)}px` }}>
-                  <div className="body-label">ARC 54</div><div className="body-band" /><div className="body-seam" />
-                </div>
-                <div className="rocket-tail">
-                  <div className="fin fin-top" /><div className="fin fin-bottom" /><div className="nozzle" />
-                </div>
-                <div className="cg-marker" style={{ left: `${centerMarkerPercent}%` }}>
-                  <span>CG</span>
-                </div>
-                <div className="cp-marker" style={{ left: `${pressureMarkerPercent}%` }}>
-                  <span>CP</span>
+              <div className="rocket-assembly-orbit" style={{ transform: `perspective(960px) rotateY(${designAzimuthDeg}deg)` }}>
+                <div className="rocket-assembly" aria-label={`Side profile of the ARC 54 rocket at ${designAzimuthDeg} degrees azimuth`}>
+                  <div className={`rocket-nose rocket-nose-${noseProfile}`} style={{ width: `${Math.max(72, Math.min(160, noseLength * 0.66))}px` }} />
+                  <div className="rocket-body" style={{ width: `${Math.min(520, 280 + length / 4)}px` }}>
+                    <div className="body-label">ARC 54</div><div className="body-band" /><div className="body-seam" />
+                  </div>
+                  <div className="rocket-tail">
+                    <div className="fin fin-top" /><div className="fin fin-bottom" /><div className="nozzle" />
+                  </div>
+                  <div className="cg-marker" style={{ left: `${centerMarkerPercent}%` }}>
+                    <span>CG</span>
+                  </div>
+                  <div className="cp-marker" style={{ left: `${pressureMarkerPercent}%` }}>
+                    <span>CP</span>
+                  </div>
                 </div>
               </div>
               <div className="centerline" />
-              <div className="canvas-caption"><span>Side profile</span><span>Dimensions in millimetres</span></div>
+              <div className="canvas-caption"><span>Side profile</span><span>{designAzimuthDeg}° azimuth</span><span>Dimensions in millimetres</span></div>
             </div>
           ) : (
             <div className="design-canvas design-canvas-3d">
               <div className="canvas-grid" />
+              <div className="viewport-mode-badge" aria-live="polite">
+                <span>DISPLAY MODE</span>
+                <strong>{designView === "3d-skeleton" ? "3D SKELETON" : "3D FINAL"}</strong>
+              </div>
               <Rocket3DViewport
+                renderMode={designView === "3d-skeleton" ? "skeleton" : "final"}
                 noseLengthM={noseLength / 1000}
                 noseProfile={noseProfile}
                 bodyLengthM={length / 1000}
@@ -6390,7 +6416,7 @@ export default function Home() {
           <>
             {selected === "nose" && (
               <>
-                <NumberField id="nose-length" label="Nose length" value={noseLength} unit="mm" min={40} max={600} onChange={(value) => { setNoseLength(value); markChanged(); }} />
+                <NumberField id="nose-length" label="Nose length" value={noseLength} unit="mm" min={40} max={600} slider onChange={(value) => { setNoseLength(value); markChanged(); }} />
                 <div className="field-group">
                   <label htmlFor="nose-profile">Nose profile</label>
                   <select id="nose-profile" value={noseProfile} onChange={(event) => { setNoseProfile(event.target.value as NoseProfile); markChanged(); }}>
@@ -6407,25 +6433,25 @@ export default function Home() {
             )}
             {selected === "body" && (
               <>
-                <NumberField id="length" label="Airframe length" value={length} unit="mm" min={200} max={1600} onChange={changeAirframeLength} />
-                <NumberField id="diameter" label="Outer diameter" value={diameter} unit="mm" min={20} max={200} onChange={(value) => { setDiameter(value); markChanged(); }} />
+                <NumberField id="length" label="Airframe length" value={length} unit="mm" min={200} max={1600} slider onChange={changeAirframeLength} />
+                <NumberField id="diameter" label="Outer diameter" value={diameter} unit="mm" min={20} max={200} slider onChange={(value) => { setDiameter(value); markChanged(); }} />
                 <div className="field-group">
                   <label htmlFor="material">Airframe material model</label>
                   <select id="material" value={material} onChange={(event) => { setMaterial(event.target.value as MaterialKey); markChanged(); }}>
                     {Object.entries(materialModels).map(([key, model]) => <option value={key} key={key}>{model.label}</option>)}
                   </select>
                 </div>
-                <NumberField id="payload-mass" label="Payload + avionics allowance" value={payloadMass} unit="kg" min={0.001} max={20} step={0.01} onChange={(value) => { setPayloadMass(value); markChanged(); }} />
+                <NumberField id="payload-mass" label="Payload + avionics allowance" value={payloadMass} unit="kg" min={0.001} max={20} step={0.01} slider onChange={(value) => { setPayloadMass(value); markChanged(); }} />
               </>
             )}
             {selected === "fins" && (
               <>
-                <NumberField id="fin-count" label="Fin count" value={finCount} unit="fins" min={2} max={12} step={1} onChange={(value) => { setFinCount(Math.round(value)); markChanged(); }} />
-                <NumberField id="fin-root-chord" label="Root chord" value={finRootChord} unit="mm" min={20} max={Math.min(500, length)} onChange={changeFinRootChord} />
-                <NumberField id="fin-tip-chord" label="Tip chord" value={finTipChord} unit="mm" min={5} max={Math.min(300, finRootChord)} onChange={changeFinTipChord} />
-                <NumberField id="fin-sweep" label="Sweep" value={finSweep} unit="mm" min={0} max={Math.min(300, Math.max(0, finRootChord - finTipChord))} onChange={changeFinSweep} />
-                <NumberField id="fin-span" label="Span" value={finSpan} unit="mm" min={5} max={300} onChange={(value) => { setFinSpan(value); markChanged(); }} />
-                <NumberField id="fin-thickness" label="Thickness" value={finThickness} unit="mm" min={0.2} max={20} step={0.1} onChange={(value) => { setFinThickness(value); markChanged(); }} />
+                <NumberField id="fin-count" label="Fin count" value={finCount} unit="fins" min={2} max={12} step={1} slider onChange={(value) => { setFinCount(Math.round(value)); markChanged(); }} />
+                <NumberField id="fin-root-chord" label="Root chord" value={finRootChord} unit="mm" min={20} max={Math.min(500, length)} slider onChange={changeFinRootChord} />
+                <NumberField id="fin-tip-chord" label="Tip chord" value={finTipChord} unit="mm" min={5} max={Math.min(300, finRootChord)} slider onChange={changeFinTipChord} />
+                <NumberField id="fin-sweep" label="Sweep" value={finSweep} unit="mm" min={0} max={Math.min(300, Math.max(0, finRootChord - finTipChord))} slider onChange={changeFinSweep} />
+                <NumberField id="fin-span" label="Span" value={finSpan} unit="mm" min={5} max={300} slider onChange={(value) => { setFinSpan(value); markChanged(); }} />
+                <NumberField id="fin-thickness" label="Thickness" value={finThickness} unit="mm" min={0.2} max={20} step={0.1} slider onChange={(value) => { setFinThickness(value); markChanged(); }} />
                 <div className="component-note">
                   <span>FIN VALIDATION</span>
                   <p>Fin count, planform, and thickness are included in the mass and static-normal-force model. Structural attachment, flutter, and local stress are not modeled.</p>
@@ -6452,7 +6478,7 @@ export default function Home() {
             )}
             {selected === "recovery" && (
               <>
-                <NumberField id="recovery-mass" label="Packed recovery mass" value={recoveryMass} unit="kg" min={0.005} max={2} step={0.005} onChange={(value) => { setRecoveryMass(value); markChanged(); }} />
+                <NumberField id="recovery-mass" label="Packed recovery mass" value={recoveryMass} unit="kg" min={0.005} max={2} step={0.005} slider onChange={(value) => { setRecoveryMass(value); markChanged(); }} />
                 <div className="mass-properties-card component-readout-card">
                   <div><span>Canopy diameter</span><strong>{(recoveryDiameter * 1000).toFixed(0)} mm</strong></div>
                   <div><span>Deployment delay</span><strong>{recoveryDelay.toFixed(1)} s</strong></div>
@@ -7646,16 +7672,32 @@ function ParameterSweepCard({
 }
 
 function NumberField({
-  id, label, value, unit, min, max, step, onChange,
+  id, label, value, unit, min, max, step, slider = false, onChange,
 }: {
   id: string; label: string; value: number; unit: string; min: number; max: number;
-  step?: number; onChange: (value: number) => void;
+  step?: number; slider?: boolean; onChange: (value: number) => void;
 }) {
   return (
     <div className="field-group">
       <label htmlFor={id}>{label}</label>
+      {slider && (
+        <input
+          id={`${id}-slider`}
+          className="field-slider"
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(event) => onChange(Number(event.target.value))}
+          aria-label={`${label} slider`}
+        />
+      )}
       <div className="input-with-unit">
-        <input id={id} type="number" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} />
+        <input id={id} type="number" min={min} max={max} step={step} value={value} onChange={(event) => {
+          const next = Number(event.target.value);
+          if (Number.isFinite(next)) onChange(next);
+        }} />
         <span>{unit}</span>
       </div>
     </div>

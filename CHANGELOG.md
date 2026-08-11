@@ -6,6 +6,14 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a focused vehicle presentation layer to the design workbench. The mode
+  selector now distinguishes 2D, 3D skeleton, and 3D final display states; the
+  skeleton is an intentionally low-ink rendering of the same independent
+  preview mesh. Design inspector geometry fields now pair exact numeric entry
+  with keyboard-accessible range sliders, and the 2D canvas includes a vertical
+  azimuth rail with a live degree readout. The canvas uses a restrained
+  graphite instrumentation field so the vehicle occupies more of the viewport
+  without implying a change to the engineering models.
 - Added structural and aeroelastic benchmark anchors to the deterministic
   evidence lane. Thin-wall shell area, axial stress, Euler critical load,
   fin-root bending, and the preliminary fin-flutter relation now have fixed
