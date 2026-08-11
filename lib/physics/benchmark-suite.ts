@@ -375,7 +375,7 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
       id: "six-dof-torque-free-angular-momentum",
       label: "6DOF torque-free world angular momentum",
       metric: "momentum error",
-      unit: "NÂ·mÂ·s",
+      unit: "N·m·s",
       observed: torqueFreeMomentumError,
       expected: 0,
       tolerance: 2e-10,

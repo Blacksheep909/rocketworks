@@ -5736,7 +5736,7 @@ export default function Home() {
                   </span>
                 </div>
                 <div className="vertical-flight-convergence-grid">
-                  <div><span>Step pair</span><strong>{verticalConvergence.baseTimeStepS.toFixed(3)} â†’ {verticalConvergence.refinedTimeStepS.toFixed(3)} s</strong><small>coarse â†’ half-step</small></div>
+                  <div><span>Step pair</span><strong>{verticalConvergence.baseTimeStepS.toFixed(3)} → {verticalConvergence.refinedTimeStepS.toFixed(3)} s</strong><small>coarse → half-step</small></div>
                   <div><span>Apogee shift</span><strong>{formatRelativeDifference(verticalConvergence.apogeeRelativeDifference)}</strong><small>relative difference</small></div>
                   <div><span>Peak speed shift</span><strong>{formatRelativeDifference(verticalConvergence.maxSpeedRelativeDifference)}</strong><small>relative difference</small></div>
                   <div><span>Peak q shift</span><strong>{formatRelativeDifference(verticalConvergence.maxDynamicPressureRelativeDifference)}</strong><small>relative difference</small></div>
@@ -5748,7 +5748,7 @@ export default function Home() {
                     {verticalConvergence.warnings.map((warning) => <li key={warning}>{warning}</li>)}
                   </ul>
                 )}
-                <small className="vertical-flight-convergence-model">{publicModelVersion(verticalConvergence.modelVersion)} Â· {verticalConvergence.validationStatus}</small>
+                <small className="vertical-flight-convergence-model">{publicModelVersion(verticalConvergence.modelVersion)} · {verticalConvergence.validationStatus}</small>
               </section>
             )}
             {activeStageCount > 0 && (
@@ -6826,7 +6826,7 @@ export default function Home() {
                   <div><span>Altitude reference</span><strong>{environmentAt500M.altitudeAslM.toFixed(0)} m ASL at 500 m AGL</strong></div>
                   <div><span>Mean wind at 500 m</span><strong>{Math.hypot(environmentAt500M.meanWindWorldMps.x, environmentAt500M.meanWindWorldMps.y).toFixed(1)} m/s</strong></div>
                   <div><span>Wind azimuth input</span><strong>{windAzimuthDeg.toFixed(0)}° ENU</strong></div>
-                  <div><span>Mean-wind source</span><strong>{windProfileLayers.length > 0 ? `User layers Â· ${windProfileLayers.length}` : "Synthetic Â· 3 layers"}</strong></div>
+                  <div><span>Mean-wind source</span><strong>{windProfileLayers.length > 0 ? `User layers · ${windProfileLayers.length}` : "Synthetic · 3 layers"}</strong></div>
                   <div><span>Pad pressure</span><strong>{(environmentAtPad.atmosphere.pressurePa / 100).toFixed(1)} hPa</strong></div>
                   <div><span>Pad temperature</span><strong>{(environmentAtPad.atmosphere.temperatureK - 273.15).toFixed(1)} °C</strong></div>
                   <div><span>Relative humidity</span><strong>{relativeHumidityPercent.toFixed(0)}% · coupled</strong></div>

@@ -1713,7 +1713,7 @@ export function createEngineeringReportMarkdown(
                 "|---|---|---:|---:|---:|---:|",
                 ...(input.stageFlight.separationImpulseSolutions ?? []).map(
                   (solution) =>
-                    `| ${markdownText(solution.eventId)} | ${markdownText(solution.status)} | ${solution.resolvedConstraintCount === null ? "not assessed" : `${solution.resolvedConstraintCount} / 6`} | ${solution.maximumCorrectionMps === null ? "not assessed" : `${formatNumber(solution.maximumCorrectionMps, 6)} m/s`} | ${solution.linearMomentumResidualMagnitudeKgMps === null ? "not assessed" : `${formatNumber(solution.linearMomentumResidualMagnitudeKgMps, 6)} kgÂ·m/s`} | ${solution.angularImpulseResidualMagnitudeKgM2PerS === null ? "not assessed" : `${formatNumber(solution.angularImpulseResidualMagnitudeKgM2PerS, 6)} kgÂ·mÂ²/s`} |`,
+                    `| ${markdownText(solution.eventId)} | ${markdownText(solution.status)} | ${solution.resolvedConstraintCount === null ? "not assessed" : `${solution.resolvedConstraintCount} / 6`} | ${solution.maximumCorrectionMps === null ? "not assessed" : `${formatNumber(solution.maximumCorrectionMps, 6)} m/s`} | ${solution.linearMomentumResidualMagnitudeKgMps === null ? "not assessed" : `${formatNumber(solution.linearMomentumResidualMagnitudeKgMps, 6)} kg·m/s`} | ${solution.angularImpulseResidualMagnitudeKgM2PerS === null ? "not assessed" : `${formatNumber(solution.angularImpulseResidualMagnitudeKgM2PerS, 6)} kg·m²/s`} |`,
                 ),
                 "",
                 ...input.stageFlight.separationImpulseSolutions.flatMap((solution) => solution.assumptions.map((assumption) => `- ${markdownText(assumption)}`)),

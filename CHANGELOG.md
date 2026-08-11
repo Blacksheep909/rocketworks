@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Corrected literal encoding artifacts in the Flight convergence card, launch
+  environment metrics, engineering-report residual units, and benchmark unit
+  labels so arrows, middle dots, and SI exponents render as intended. Added a
+  source-level regression guard for user-facing mojibake.
 - Fixed the CI/runtime portability failure hidden by newer local Node versions:
   `npm test` now opts into Node 22's erasable TypeScript loader before running
   the direct `.ts` regression imports, with a source-level contract test. This

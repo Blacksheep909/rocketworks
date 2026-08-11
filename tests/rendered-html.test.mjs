@@ -127,6 +127,12 @@ test("ships versioned flight results and explainable model UI", async () => {
   assert.match(source, /launchLongitudeDeg/);
   assert.match(atmosphereSource, /84_852/);
   assert.match(atmosphereSource, /ATMOSPHERE_MAX_GEOMETRIC_ALTITUDE_M/);
+  assert.doesNotMatch(source, /(?:Â|Ã|â†)/, "Flight UI source must not contain mojibake labels");
+  assert.doesNotMatch(
+    await readFile(new URL("../lib/export/project-exports.ts", import.meta.url), "utf8"),
+    /(?:Â|Ã|â†)/,
+    "engineering report source must not contain mojibake units",
+  );
 });
 
 test("ships a portable project import path with validated restoration warnings", async () => {
