@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a typed English/Spanish shell copy catalog and a persisted locale
+  selector in Display & accessibility settings. Core navigation, view modes,
+  and presentation controls can switch coherently; engineering explanations
+  remain explicitly English until a complete translated catalog is available.
 - Extended device-local UI preferences to schema v2 with a safe v1 migration,
   keyboard-reachable Display & accessibility controls, explicit reduced-motion
   behavior, and high-contrast presentation tokens. These flags remain outside

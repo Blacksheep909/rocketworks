@@ -1,6 +1,7 @@
 # RocketWorks device-local UI preferences 0.2
 
-Status: implemented presentation contract; not an engineering or flight model
+Status: implemented accessibility contract; the current envelope is v3 (see
+`ui-localization-0.1.md` for the locale extension)
 
 ## Scope
 
@@ -10,9 +11,11 @@ azimuth, reduced-motion behavior, and high-contrast presentation. None of
 these values enter a project configuration fingerprint, a simulation input,
 an uncertainty sample, a share link, or an exported engineering artifact.
 
-The record is stored under `rocketworks-ui-preferences-v2`. The previous
-`rocketworks-ui-preferences-v1` key remains readable so a browser upgrade does
-not discard the user's view selection.
+The accessibility release introduced the `rocketworks-ui-preferences-v2`
+record. The current app stores the v3 envelope under
+`rocketworks-ui-preferences-v3`; both v2 and the earlier
+`rocketworks-ui-preferences-v1` key remain readable so a browser upgrade does
+not discard the user's view selection or accessibility choices.
 
 ## Schema
 

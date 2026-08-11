@@ -415,7 +415,7 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(page, /highlightSurface/);
   assert.match(page, /onSurfaceSelect/);
   assert.match(page, /onComponentSelect/);
-  assert.match(page, /Design visualization mode/);
+  assert.match(page, /uiCopy\.designVisualizationMode/);
   assert.match(page, /3D skeleton/);
   assert.match(page, /3D final/);
   assert.match(page, /renderMode={designView === "3d-skeleton" \? "skeleton" : "final"}/);
@@ -423,13 +423,17 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(page, /designAzimuthDeg/);
   assert.match(page, /className="field-slider"/);
   assert.match(page, /UI_PREFERENCES_STORAGE_KEY/);
-  assert.match(page, /UI_PREFERENCES_LEGACY_STORAGE_KEY/);
+  assert.match(page, /UI_PREFERENCES_LEGACY_STORAGE_KEYS/);
   assert.match(page, /serializeUiPreferences/);
-  assert.match(page, /Display &amp; accessibility/);
+  assert.match(page, /getUiCopy/);
+  assert.match(page, /ui-locale/);
+  assert.match(page, /accessibilityTitle/);
+  assert.match(page, /interfaceLanguage/);
   assert.match(page, /reducedMotion/);
   assert.match(page, /highContrast/);
   assert.match(page, /data-reduced-motion/);
   assert.match(page, /data-high-contrast/);
+  assert.match(page, /lang={locale}/);
   assert.match(page, /aria-keyshortcuts="1"/);
   assert.match(page, /aria-keyshortcuts="2"/);
   assert.match(page, /aria-keyshortcuts="3"/);
@@ -464,6 +468,7 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(stylesheet, /.accessibility-dialog/);
   assert.match(stylesheet, /data-reduced-motion/);
   assert.match(stylesheet, /data-high-contrast/);
+  assert.match(stylesheet, /.accessibility-language/);
 });
 
 test("keeps command search and experience mode reachable on narrow screens", async () => {
@@ -639,19 +644,22 @@ test("ships validated device-local autosave and recoverable project history", as
 test("ships beginner and expert workflows with original templates and guidance", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const templates = await readFile(new URL("../lib/project/templates.ts", import.meta.url), "utf8");
+  const copy = await readFile(new URL("../lib/project/ui-copy.ts", import.meta.url), "utf8");
   const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(page, /Experience mode/);
-  assert.match(page, />Beginner<\/button>/);
-  assert.match(page, />Expert<\/button>/);
+  assert.match(page, /uiCopy\.experienceMode/);
+  assert.match(page, /uiCopy\.beginner/);
+  assert.match(page, /uiCopy\.expert/);
   assert.match(page, /Start from a template/);
   assert.match(page, /Each template is an original RocketWorks configuration/);
   assert.match(page, /Build, check, then estimate/);
-  assert.match(page, /How to read CG \/ CP/);
+  assert.match(page, /uiCopy\.showGuide/);
   assert.match(page, /Loaded template:/);
   assert.match(page, /Show expert details/);
   assert.match(templates, /first-flight/);
   assert.match(templates, /weather-study/);
   assert.match(templates, /ballistic-check/);
+  assert.match(copy, /SPANISH_COPY/);
+  assert.match(copy, /Pantalla y accesibilidad/);
   assert.match(stylesheet, /\.beginner-guide/);
   assert.match(stylesheet, /\.template-grid/);
   assert.match(stylesheet, /\.mode-switch/);

@@ -146,7 +146,10 @@ research, standards, and original code.
   share links;
 - device-local display and accessibility preferences with v1 migration,
   reduced-motion behavior, high-contrast controls, and keyboard-reachable
-  settings; these never enter engineering project state.
+  settings; these never enter engineering project state;
+- a typed English/Spanish shell copy catalog with device-local locale
+  persistence and a clearly bounded translation surface while engineering
+  explanations remain English until a complete catalog is available.
 - an installable standards-based browser shell with original RocketWorks artwork,
   a native browser install affordance, and an honest later desktop/tablet
   wrapper path; offline simulation is not claimed.

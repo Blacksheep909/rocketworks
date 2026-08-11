@@ -184,12 +184,13 @@ import {
 } from "../lib/project/simulation-freshness.ts";
 import {
   createDefaultUiPreferences,
-  UI_PREFERENCES_LEGACY_STORAGE_KEY,
+  UI_PREFERENCES_LEGACY_STORAGE_KEYS,
   parseUiPreferences,
   serializeUiPreferences,
   UI_PREFERENCES_STORAGE_KEY,
   type UiDesignView,
 } from "../lib/project/ui-preferences.ts";
+import { getUiCopy, type UiLocale } from "../lib/project/ui-copy.ts";
 
 type ComponentKey = "nose" | "body" | "fins" | "mount" | "recovery";
 type ViewKey = "design" | "flight";
@@ -3124,6 +3125,7 @@ export default function Home() {
   const [designAzimuthDeg, setDesignAzimuthDeg] = useState(() => createDefaultUiPreferences().designAzimuthDeg);
   const [reducedMotion, setReducedMotion] = useState(() => createDefaultUiPreferences().reducedMotion);
   const [highContrast, setHighContrast] = useState(() => createDefaultUiPreferences().highContrast);
+  const [locale, setLocale] = useState<UiLocale>(() => createDefaultUiPreferences().locale);
   const [length, setLength] = useState(710);
   const [diameter, setDiameter] = useState(54);
   const [noseLength, setNoseLength] = useState(180);
@@ -3229,6 +3231,7 @@ export default function Home() {
   const [saveError, setSaveError] = useState("");
   const [saved, setSaved] = useState(false);
   const [toast, setToast] = useState("");
+  const uiCopy = getUiCopy(locale);
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 2200);
@@ -3965,9 +3968,12 @@ export default function Home() {
         problems.push("the vehicle topology");
       }
       try {
-        const serialized =
-          window.localStorage.getItem(UI_PREFERENCES_STORAGE_KEY) ??
-          window.localStorage.getItem(UI_PREFERENCES_LEGACY_STORAGE_KEY);
+        const serialized = [
+          UI_PREFERENCES_STORAGE_KEY,
+          ...UI_PREFERENCES_LEGACY_STORAGE_KEYS,
+        ]
+          .map((key) => window.localStorage.getItem(key))
+          .find((value): value is string => Boolean(value));
         if (serialized) restoredUiPreferences = parseUiPreferences(serialized);
       } catch {
         problems.push("the display preferences");
@@ -3978,6 +3984,7 @@ export default function Home() {
       setDesignAzimuthDeg(restoredUiPreferences.designAzimuthDeg);
       setReducedMotion(restoredUiPreferences.reducedMotion);
       setHighContrast(restoredUiPreferences.highContrast);
+      setLocale(restoredUiPreferences.locale);
       if (restoredSnapshot?.selectedMotorId) restoredMotorSelection = restoredSnapshot.selectedMotorId;
       if (restoredSnapshot?.selectedAerodynamicTableId) restoredAerodynamicSelection = restoredSnapshot.selectedAerodynamicTableId;
       const motorSelectionAvailable = restoredMotorSelection === "synthetic" || restoredMotorRecords.some((record) => record.id === restoredMotorSelection);
@@ -4090,6 +4097,7 @@ export default function Home() {
           designAzimuthDeg,
           reducedMotion,
           highContrast,
+          locale,
         }),
       );
     } catch {
@@ -4098,7 +4106,11 @@ export default function Home() {
         notify("Display preferences are session-only");
       }
     }
-  }, [designAzimuthDeg, designView, highContrast, reducedMotion, storageReady]);
+  }, [designAzimuthDeg, designView, highContrast, locale, reducedMotion, storageReady]);
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
 
   useEffect(() => {
     if (!storageReady || shareHydratedRef.current) return;
@@ -5617,7 +5629,7 @@ export default function Home() {
     { id: "open-export", label: "Open artifact center", description: "Export project JSON, traces, reports, and CAD references", run: () => setExportOpen(true) },
     { id: "share-design", label: "Copy design share link", description: "Share validated inputs and stage topology without embedding local library data", run: () => { void copyProjectShare(); } },
     { id: "import-project", label: "Import RocketWorks project", description: "Restore a portable project document and its validated user libraries", run: () => setProjectImportRequested(true) },
-    { id: "open-accessibility", label: "Open display and accessibility settings", description: "Adjust motion and contrast without changing engineering inputs", run: () => setAccessibilityOpen(true) },
+    { id: "open-accessibility", label: uiCopy.openAccessibility, description: "Adjust motion and contrast without changing engineering inputs", run: () => setAccessibilityOpen(true) },
     { id: "toggle-mode", label: experienceMode === "beginner" ? "Switch to expert mode" : "Switch to beginner mode", description: "Change how much of the workbench is exposed", run: () => changeExperienceMode(experienceMode === "beginner" ? "expert" : "beginner") },
   ];
   const filteredCommandActions = commandActions.filter((action) =>
@@ -5650,6 +5662,7 @@ export default function Home() {
   return (
     <main
       className="app-shell"
+      lang={locale}
       data-reduced-motion={reducedMotion ? "true" : "false"}
       data-high-contrast={highContrast ? "true" : "false"}
     >
@@ -5664,7 +5677,7 @@ export default function Home() {
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">R</span>
-          <div><strong>RocketWorks</strong><span>Aerospace workbench · Mission systems</span></div>
+          <div><strong>RocketWorks</strong><span>{uiCopy.brandTagline}</span></div>
         </div>
         <div className="project-title">
           <button className="quiet-button" aria-label="Go back to projects">‹</button>
@@ -5673,30 +5686,30 @@ export default function Home() {
         <div className="top-actions">
           <div className="mission-chip" aria-label="Mission status"><span>MISSION</span><strong>RKW-01</strong><em>PRELIMINARY · REV 01</em></div>
           <button className="quiet-button command-button" onClick={openCommandPalette} aria-haspopup="dialog" aria-expanded={commandOpen}>
-            <span>Search actions</span><kbd>⌘ K</kbd>
+            <span>{uiCopy.searchActions}</span><kbd>⌘ K</kbd>
           </button>
           <button
             className="quiet-button accessibility-button"
             onClick={() => setAccessibilityOpen(true)}
             aria-haspopup="dialog"
             aria-expanded={accessibilityOpen}
-            aria-label="Open display and accessibility settings"
+            aria-label={uiCopy.openAccessibility}
           >
-            <span aria-hidden="true">◌</span><span>Display</span>
+            <span aria-hidden="true">◌</span><span>{uiCopy.display}</span>
           </button>
-          <div className="mode-switch" role="group" aria-label="Experience mode">
-            <button className={experienceMode === "beginner" ? "active" : ""} onClick={() => changeExperienceMode("beginner")}>Beginner</button>
-            <button className={experienceMode === "expert" ? "active" : ""} onClick={() => changeExperienceMode("expert")}>Expert</button>
+          <div className="mode-switch" role="group" aria-label={uiCopy.experienceMode}>
+            <button className={experienceMode === "beginner" ? "active" : ""} onClick={() => changeExperienceMode("beginner")}>{uiCopy.beginner}</button>
+            <button className={experienceMode === "expert" ? "active" : ""} onClick={() => changeExperienceMode("expert")}>{uiCopy.expert}</button>
           </div>
-          <button className="secondary-button" onClick={() => setTemplatesOpen(true)}>Templates</button>
-          <button className="secondary-button" onClick={() => setExportOpen(true)}>Export</button>
-          <button className="primary-button" onClick={simulate}>Run estimate</button>
+          <button className="secondary-button" onClick={() => setTemplatesOpen(true)}>{uiCopy.templates}</button>
+          <button className="secondary-button" onClick={() => setExportOpen(true)}>{uiCopy.export}</button>
+          <button className="primary-button" onClick={simulate}>{uiCopy.runEstimate}</button>
         </div>
       </header>
 
       <aside className="component-panel">
         <div className="panel-heading">
-          <div><span className="eyebrow">Vehicle</span><h1>ARC 54</h1></div>
+           <div><span className="eyebrow">{uiCopy.vehicle}</span><h1>ARC 54</h1></div>
           <button className="icon-button" aria-label="Open local project history" onClick={() => setHistoryOpen(true)}>···</button>
         </div>
         <div className="design-summary">
@@ -5711,8 +5724,8 @@ export default function Home() {
           <em>{vehicleTopology.stages.filter((stage) => stage.enabled).length} active</em>
         </div>
         <div className="component-list-heading">
-          <span>Components & stages</span>
-          <button onClick={() => setTopologyOpen(true)}>+ Add</button>
+           <span>{uiCopy.componentsAndStages}</span>
+           <button onClick={() => setTopologyOpen(true)}>{uiCopy.add}</button>
         </div>
         <nav className="component-list" aria-label="Rocket components">
           {components.map((component) => (
@@ -5738,9 +5751,9 @@ export default function Home() {
 
       <section className="workspace">
         <div className="workspace-toolbar">
-          <div className="segmented-control" aria-label="Workspace view">
-            <button className={view === "design" ? "active" : ""} onClick={() => setView("design")}>Design</button>
-            <button className={view === "flight" ? "active" : ""} onClick={() => setView("flight")}>Flight</button>
+          <div className="segmented-control" aria-label={uiCopy.workspaceView}>
+            <button className={view === "design" ? "active" : ""} onClick={() => setView("design")}>{uiCopy.design}</button>
+            <button className={view === "flight" ? "active" : ""} onClick={() => setView("flight")}>{uiCopy.flight}</button>
           </div>
           <div className="workspace-status" aria-label="Current vehicle context">
             <i className="status-pulse" aria-hidden="true" />
@@ -5758,10 +5771,10 @@ export default function Home() {
           </div>
           <div className="view-tools">
             {view === "design" ? (
-              <div className="design-view-toggle design-view-mode" role="group" aria-label="Design visualization mode">
-                <button type="button" className={designView === "2d" ? "active" : ""} aria-pressed={designView === "2d"} aria-keyshortcuts="1" onClick={() => setDesignView("2d")} title="Orthographic side profile · press 1">2D</button>
-                <button type="button" className={designView === "3d-skeleton" ? "active" : ""} aria-pressed={designView === "3d-skeleton"} aria-keyshortcuts="2" onClick={() => setDesignView("3d-skeleton")} title="Low-ink structural wireframe · press 2">3D skeleton</button>
-                <button type="button" className={designView === "3d-final" ? "active" : ""} aria-pressed={designView === "3d-final"} aria-keyshortcuts="3" onClick={() => setDesignView("3d-final")} title="Shaded display model · press 3">3D final</button>
+              <div className="design-view-toggle design-view-mode" role="group" aria-label={uiCopy.designVisualizationMode}>
+                <button type="button" className={designView === "2d" ? "active" : ""} aria-pressed={designView === "2d"} aria-keyshortcuts="1" onClick={() => setDesignView("2d")} title="Orthographic side profile · press 1">{uiCopy.twoD}</button>
+                <button type="button" className={designView === "3d-skeleton" ? "active" : ""} aria-pressed={designView === "3d-skeleton"} aria-keyshortcuts="2" onClick={() => setDesignView("3d-skeleton")} title="Low-ink structural wireframe · press 2">{uiCopy.threeDSkeleton}</button>
+                <button type="button" className={designView === "3d-final" ? "active" : ""} aria-pressed={designView === "3d-final"} aria-keyshortcuts="3" onClick={() => setDesignView("3d-final")} title="Shaded display model · press 3">{uiCopy.threeDFinal}</button>
               </div>
             ) : (
               <span>Results workspace</span>
@@ -5777,8 +5790,8 @@ export default function Home() {
               <p>Start with a template, watch the live CG/CP markers, and run a clearly qualified preview. RocketWorks will explain what each result means.</p>
             </div>
             <div className="beginner-guide-actions">
-              <button className="primary-button" onClick={() => setTemplatesOpen(true)}>Choose a template</button>
-              <button className="quiet-button" onClick={() => setGuideOpen((open) => !open)} aria-expanded={guideOpen} aria-controls="beginner-guide-detail">{guideOpen ? "Hide guide" : "How to read CG / CP"}</button>
+              <button className="primary-button" onClick={() => setTemplatesOpen(true)}>{uiCopy.chooseTemplate}</button>
+              <button className="quiet-button" onClick={() => setGuideOpen((open) => !open)} aria-expanded={guideOpen} aria-controls="beginner-guide-detail">{guideOpen ? uiCopy.hideGuide : uiCopy.showGuide}</button>
             </div>
             {guideOpen && (
               <div className="beginner-guide-detail" id="beginner-guide-detail">
@@ -5795,7 +5808,7 @@ export default function Home() {
             <div className="design-canvas design-canvas-2d">
               <div className="canvas-grid" />
               <aside className="view-azimuth-rail" aria-label="2D viewing angle">
-                <span className="view-azimuth-kicker">2D VIEW</span>
+                <span className="view-azimuth-kicker">{uiCopy.twoDView}</span>
                 <input
                   id="design-azimuth"
                   className="view-azimuth-slider"
@@ -5805,15 +5818,15 @@ export default function Home() {
                   step={1}
                   value={designAzimuthDeg}
                   onChange={(event) => setDesignAzimuthDeg(Number(event.target.value))}
-                  aria-label="2D viewing azimuth"
+                   aria-label={`${uiCopy.twoDView} ${uiCopy.azimuth.toLowerCase()}`}
                   aria-orientation="vertical"
                 />
                 <output className="view-azimuth-readout" htmlFor="design-azimuth" aria-live="polite">{designAzimuthDeg}°</output>
-                <small>AZIMUTH</small>
+                 <small>{uiCopy.azimuth}</small>
               </aside>
               <div className="dimension dimension-top"><span /><strong>{designLength} mm</strong><span /></div>
               <div className="rocket-assembly-orbit" style={{ transform: `perspective(960px) rotateY(${designAzimuthDeg}deg)` }}>
-                <div className="rocket-assembly" aria-label={`Side profile of the ARC 54 rocket at ${designAzimuthDeg} degrees azimuth`}>
+               <div className="rocket-assembly" aria-label={`${uiCopy.sideProfile} of the ARC 54 rocket at ${designAzimuthDeg} degrees ${uiCopy.azimuth.toLowerCase()}`}>
                   <div className={`rocket-nose rocket-nose-${noseProfile}`} style={{ width: `${Math.max(72, Math.min(160, noseLength * 0.66))}px` }} />
                   <div className="rocket-body" style={{ width: `${Math.min(520, 280 + length / 4)}px` }}>
                     <div className="body-label">ARC 54</div><div className="body-band" /><div className="body-seam" />
@@ -5830,7 +5843,7 @@ export default function Home() {
                 </div>
               </div>
               <div className="centerline" />
-              <div className="canvas-caption"><span>Side profile</span><span>{designAzimuthDeg}° azimuth</span><span>Dimensions in millimetres</span></div>
+               <div className="canvas-caption"><span>{uiCopy.sideProfile}</span><span>{designAzimuthDeg}° {uiCopy.azimuth.toLowerCase()}</span><span>{uiCopy.dimensionsMillimetres}</span></div>
             </div>
           ) : (
             <div className="design-canvas design-canvas-3d">
@@ -7286,18 +7299,25 @@ export default function Home() {
           >
             <div className="export-heading">
               <div>
-                <span className="eyebrow">Workbench preferences</span>
-                <h2 id="accessibility-title">Display &amp; accessibility</h2>
-                <p id="accessibility-description">Tune the presentation for your workspace. These settings stay on this device and never change engineering inputs, simulation fingerprints, or exported artifacts.</p>
+                <span className="eyebrow">{uiCopy.accessibilityEyebrow}</span>
+                <h2 id="accessibility-title">{uiCopy.accessibilityTitle}</h2>
+                <p id="accessibility-description">{uiCopy.accessibilityDescription}</p>
               </div>
               <button
                 ref={accessibilityCloseRef}
                 className="export-close"
-                aria-label="Close display and accessibility settings"
+                aria-label={`${uiCopy.close} ${uiCopy.display.toLowerCase()}`}
                 onClick={() => setAccessibilityOpen(false)}
               >
                 ×
               </button>
+            </div>
+            <div className="accessibility-language">
+              <label htmlFor="ui-locale">{uiCopy.interfaceLanguage}</label>
+              <select id="ui-locale" value={locale} onChange={(event) => setLocale(event.target.value as UiLocale)}>
+                <option value="en">{uiCopy.english}</option>
+                <option value="es">{uiCopy.spanish}</option>
+              </select>
             </div>
             <div className="accessibility-options">
               <label className="accessibility-option">
@@ -7307,8 +7327,8 @@ export default function Home() {
                   onChange={(event) => setReducedMotion(event.target.checked)}
                 />
                 <span>
-                  <strong>Reduce interface motion</strong>
-                  <small>Minimize transitions and animated feedback, independent of your operating-system preference.</small>
+                  <strong>{uiCopy.reduceMotionTitle}</strong>
+                  <small>{uiCopy.reduceMotionDescription}</small>
                 </span>
               </label>
               <label className="accessibility-option">
@@ -7318,19 +7338,19 @@ export default function Home() {
                   onChange={(event) => setHighContrast(event.target.checked)}
                 />
                 <span>
-                  <strong>High-contrast controls</strong>
-                  <small>Increase panel borders, focus rings, field contrast, and status legibility for low-light or low-vision workspaces.</small>
+                  <strong>{uiCopy.highContrastTitle}</strong>
+                  <small>{uiCopy.highContrastDescription}</small>
                 </span>
               </label>
             </div>
-            <div className="accessibility-shortcuts" aria-label="Keyboard access summary">
-              <span><kbd>⌘ K</kbd><small>Open command search</small></span>
-              <span><kbd>1</kbd><small>2D view</small></span>
-              <span><kbd>2</kbd><small>3D skeleton</small></span>
-              <span><kbd>3</kbd><small>3D final</small></span>
-              <span><kbd>Esc</kbd><small>Close dialogs</small></span>
+            <div className="accessibility-shortcuts" aria-label={uiCopy.keyboardAccess}>
+              <span><kbd>⌘ K</kbd><small>{uiCopy.searchActions}</small></span>
+              <span><kbd>1</kbd><small>{uiCopy.twoD}</small></span>
+              <span><kbd>2</kbd><small>{uiCopy.threeDSkeleton}</small></span>
+              <span><kbd>3</kbd><small>{uiCopy.threeDFinal}</small></span>
+              <span><kbd>Esc</kbd><small>{uiCopy.close}</small></span>
             </div>
-            <p className="accessibility-note">Engineering outputs remain subject to their stated model limits. A presentation preference cannot make an unvalidated estimate flight-safe.</p>
+            <p className="accessibility-note">{uiCopy.accessibilityNote}</p>
           </section>
         </div>
       )}

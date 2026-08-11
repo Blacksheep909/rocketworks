@@ -59,6 +59,7 @@ test("UI preference serialization keeps the schema envelope explicit", () => {
     designAzimuthDeg: 0,
     reducedMotion: false,
     highContrast: false,
+    locale: "en",
   });
 });
 
@@ -74,4 +75,28 @@ test("UI preferences migrate the v1 presentation record without changing enginee
     designView: "3d-final",
     designAzimuthDeg: 91,
   });
+});
+
+test("UI preferences migrate the v2 accessibility record with an English locale", () => {
+  const restored = parseUiPreferences(JSON.stringify({
+    schemaId: UI_PREFERENCES_SCHEMA_ID,
+    schemaVersion: 2,
+    designView: "2d",
+    designAzimuthDeg: 12,
+    reducedMotion: true,
+    highContrast: true,
+  }));
+  assert.deepEqual(restored, {
+    ...createDefaultUiPreferences(),
+    designAzimuthDeg: 12,
+    reducedMotion: true,
+    highContrast: true,
+  });
+});
+
+test("UI preferences reject unsupported locales", () => {
+  assert.throws(
+    () => parseUiPreferences(JSON.stringify({ ...createDefaultUiPreferences(), locale: "fr" })),
+    /locale must be en or es/,
+  );
 });
