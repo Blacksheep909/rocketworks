@@ -1,5 +1,6 @@
 export * from "./atmosphere.ts";
 export * from "./aerodynamic-coefficients.ts";
+export * from "./aerodynamic-polar.ts";
 export * from "./clustered-propulsion.ts";
 export * from "./curves.ts";
 export * from "./linear-algebra.ts";

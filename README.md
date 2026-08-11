@@ -41,6 +41,9 @@ research, standards, and original code.
   databases for the 6DOF load path; optional positive measured mass-flow
   histories can now drive live motor depletion and inertia-rate telemetry, with
   a strict optional CSV field in the browser motor library;
+- an angle-of-attack polar inspector with fixed Mach, Reynolds, and sideslip
+  sliders, direct force-volume preference, explicit legacy small-angle fallback,
+  uncertainty visibility, and out-of-domain review status;
 - atmosphere through the published 84.852 km geopotential layer boundary,
   launch-site, wind, turbulence, launch-rail, recovery, and landing-dispersion
   previews;

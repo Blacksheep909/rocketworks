@@ -25,6 +25,7 @@ import {
   analyzeRecoveryLandingDispersion,
   ASCENT_DRIFT_MODEL_VERSION,
   createAerodynamicCoefficientTable,
+  sampleAerodynamicPolar,
   computeStaticStability,
   analyzeVerticalFlightUncertainty,
   analyzeStageFlightUncertainty,
@@ -74,6 +75,7 @@ import {
   type DesignOptimizationResult,
   type AerodynamicCoefficientTableDefinition,
   type AerodynamicCoefficientTableModel,
+  type AerodynamicPolarResult,
   type CoefficientSurface,
   type LandingDispersionResult,
   type LandingAscentDriftSummary,
@@ -3050,12 +3052,105 @@ function formatAerodynamicInspectorValue(value: number, definition: AerodynamicI
   return `${value.toFixed(definition.decimals)} ${definition.unit}`;
 }
 
+function AerodynamicPolarChart({ model }: { model: AerodynamicCoefficientTableModel }) {
+  const [mach, setMach] = useState(() => 0.5 * (model.machRange[0] + model.machRange[1]));
+  const reynoldsLogMinimum = Math.log10(model.reynoldsRange[0]);
+  const reynoldsLogMaximum = Math.log10(model.reynoldsRange[1]);
+  const [reynoldsLog10, setReynoldsLog10] = useState(() => 0.5 * (reynoldsLogMinimum + reynoldsLogMaximum));
+  const sideslipRangeRad = model.sideslipRangeRad ?? [(-5 * Math.PI) / 180, (5 * Math.PI) / 180];
+  const [sideslipDeg, setSideslipDeg] = useState(() => {
+    const defaultRad = Math.max(sideslipRangeRad[0], Math.min(sideslipRangeRad[1], 0));
+    return (defaultRad * 180) / Math.PI;
+  });
+  const boundedMach = Math.max(model.machRange[0], Math.min(model.machRange[1], mach));
+  const boundedReynoldsLog10 = Math.max(reynoldsLogMinimum, Math.min(reynoldsLogMaximum, reynoldsLog10));
+  const boundedSideslipDeg = Math.max((sideslipRangeRad[0] * 180) / Math.PI, Math.min((sideslipRangeRad[1] * 180) / Math.PI, sideslipDeg));
+  const polarState = useMemo<{ result: AerodynamicPolarResult | null; error: string }>(() => {
+    try {
+      return {
+        result: sampleAerodynamicPolar(model, {
+          mach: boundedMach,
+          reynoldsNumber: 10 ** boundedReynoldsLog10,
+          sideslipRad: (boundedSideslipDeg * Math.PI) / 180,
+        }),
+        error: "",
+      };
+    } catch (error) {
+      return {
+        result: null,
+        error: error instanceof Error ? error.message : "Unable to sample aerodynamic polar.",
+      };
+    }
+  }, [boundedMach, boundedReynoldsLog10, boundedSideslipDeg, model]);
+  const polar = polarState.result;
+  const width = 620;
+  const height = 230;
+  const padding = { left: 42, right: 20, top: 22, bottom: 34 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const series = [
+    { id: "normal", label: "Normal coefficient", color: "#2f9fff", read: (point: AerodynamicPolarResult["points"][number]) => point.normalForceCoefficient },
+    { id: "drag", label: "Drag coefficient", color: "#ff9b6a", read: (point: AerodynamicPolarResult["points"][number]) => point.dragCoefficient },
+  ] as const;
+  const allValues = polar ? series.flatMap((entry) => polar.points.map(entry.read)) : [];
+  const minimumY = allValues.length > 0 ? Math.min(...allValues) : -1;
+  const maximumY = allValues.length > 0 ? Math.max(...allValues) : 1;
+  const yPadding = Math.max((maximumY - minimumY) * 0.12, 0.05);
+  const yMinimum = minimumY - yPadding;
+  const yMaximum = maximumY + yPadding;
+  const xMinimum = polar?.points[0]?.angleOfAttackRad ?? -0.2;
+  const xMaximum = polar?.points.at(-1)?.angleOfAttackRad ?? 0.2;
+  const xFor = (value: number) => padding.left + ((value - xMinimum) / Math.max(xMaximum - xMinimum, 1e-9)) * plotWidth;
+  const yFor = (value: number) => padding.top + (1 - (value - yMinimum) / Math.max(yMaximum - yMinimum, 1e-9)) * plotHeight;
+  const pathFor = (read: (point: AerodynamicPolarResult["points"][number]) => number) =>
+    polar?.points.map((point, index) => `${index === 0 ? "M" : "L"}${xFor(point.angleOfAttackRad).toFixed(2)} ${yFor(read(point)).toFixed(2)}`).join(" ") ?? "";
+  return (
+    <section className="aerodynamic-polar" aria-labelledby="aerodynamic-polar-title">
+      <div className="aerodynamic-polar-heading">
+        <div>
+          <span className="eyebrow">Coefficient polar</span>
+          <h4 id="aerodynamic-polar-title">Angle-of-attack response</h4>
+          <p>Sampled at fixed Mach, Reynolds number, and sideslip. The chart shows the supplied direct force volume when available, otherwise the declared small-angle proxy.</p>
+        </div>
+        <span className={`uncertainty-status uncertainty-status-${polar?.status ?? "not-assessed"}`}>{polar?.status === "assessed" ? "SAMPLED" : polar?.status === "review" ? "DOMAIN REVIEW" : "NOT ASSESSED"}</span>
+      </div>
+      <div className="aerodynamic-polar-controls">
+        <label htmlFor="aerodynamic-polar-mach">Mach <input id="aerodynamic-polar-mach" type="range" min={model.machRange[0]} max={model.machRange[1]} step="0.01" value={boundedMach} onChange={(event) => setMach(Number(event.target.value))} /><output>{boundedMach.toFixed(2)}</output></label>
+        <label htmlFor="aerodynamic-polar-reynolds">log10 Reynolds <input id="aerodynamic-polar-reynolds" type="range" min={reynoldsLogMinimum} max={reynoldsLogMaximum} step="0.01" value={boundedReynoldsLog10} onChange={(event) => setReynoldsLog10(Number(event.target.value))} /><output>{boundedReynoldsLog10.toFixed(2)}</output></label>
+        <label htmlFor="aerodynamic-polar-sideslip">Sideslip (deg) <input id="aerodynamic-polar-sideslip" type="range" min={(sideslipRangeRad[0] * 180) / Math.PI} max={(sideslipRangeRad[1] * 180) / Math.PI} step="0.1" value={boundedSideslipDeg} onChange={(event) => setSideslipDeg(Number(event.target.value))} /><output>{boundedSideslipDeg.toFixed(1)}°</output></label>
+      </div>
+      {polarState.error ? (
+        <p className="aerodynamic-polar-error" role="alert">{polarState.error}</p>
+      ) : (
+        <div className="aerodynamic-polar-plot" role="img" aria-label="Aerodynamic normal and drag coefficient polar">
+          <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+            <title>Normal and drag coefficient by angle of attack</title>
+            <line x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} />
+            <line x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} />
+            {polar && yMinimum < 0 && yMaximum > 0 && <line className="aerodynamic-polar-zero" x1={padding.left} y1={yFor(0)} x2={width - padding.right} y2={yFor(0)} />}
+            {polar && xMinimum < 0 && xMaximum > 0 && <line className="aerodynamic-polar-zero" x1={xFor(0)} y1={padding.top} x2={xFor(0)} y2={height - padding.bottom} />}
+            <text x={padding.left} y={13}>{yMaximum.toFixed(2)}</text>
+            <text x={padding.left} y={height - padding.bottom + 19}>{yMinimum.toFixed(2)}</text>
+            <text x={padding.left} y={height - 7}>α {((xMinimum * 180) / Math.PI).toFixed(0)}°</text>
+            <text x={width - padding.right} y={height - 7} textAnchor="end">{((xMaximum * 180) / Math.PI).toFixed(0)}°</text>
+            {polar && series.map((entry) => <path key={entry.id} d={pathFor(entry.read)} stroke={entry.color} />)}
+          </svg>
+          <div className="aerodynamic-polar-legend">{series.map((entry) => <span key={entry.id}><i style={{ background: entry.color }} />{entry.label}</span>)}</div>
+        </div>
+      )}
+      {polar?.warnings[0] && <p className="aerodynamic-polar-note">{polar.warnings[0]}</p>}
+      <small className="aerodynamic-polar-model">{polar ? `${publicModelVersion(polar.modelVersion)} / table ${publicModelVersion(polar.tableModelVersion)}` : "Polar sampling unavailable"}</small>
+    </section>
+  );
+}
+
 function AerodynamicTableInspector({ table }: { table: AerodynamicCoefficientTableDefinition }) {
   const availableSurfaces = AERODYNAMIC_INSPECTOR_SURFACES.filter(
     (definition) => definition.read(table) !== undefined,
   );
   const [surfaceId, setSurfaceId] = useState<AerodynamicInspectorSurfaceId>("dragCoefficient");
   const selectedSurface = availableSurfaces.find((definition) => definition.id === surfaceId) ?? availableSurfaces[0];
+  const tableModel = useMemo(() => createAerodynamicCoefficientTable(table), [table]);
   if (!selectedSurface) return null;
   const surface = selectedSurface.read(table);
   if (!surface) return null;
@@ -3121,6 +3216,7 @@ function AerodynamicTableInspector({ table }: { table: AerodynamicCoefficientTab
           </tbody>
         </table>
       </div>
+      <AerodynamicPolarChart model={tableModel} />
       <div className="aerodynamic-inspector-meta">
         <div><span>Mach domain</span><strong>{table.machPoints[0].toFixed(2)} → {table.machPoints.at(-1)?.toFixed(2)}</strong></div>
         <div><span>Reynolds domain</span><strong>{table.reynoldsPoints[0].toExponential(1)} → {table.reynoldsPoints.at(-1)?.toExponential(1)}</strong></div>

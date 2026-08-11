@@ -1569,6 +1569,29 @@ kbd {
 .aerodynamic-inspector-grid td { color: #e7f3fa; }
 .aerodynamic-inspector-grid td strong { display: block; font-weight: 650; }
 .aerodynamic-inspector-grid td small { display: block; margin-top: 2px; color: #8bacc0; font-size: 7px; }
+.aerodynamic-polar { margin-top: 14px; padding: 12px; border: 1px solid rgba(47,159,255,.2); border-radius: 4px; background: rgba(8,14,20,.72); }
+.aerodynamic-polar-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.aerodynamic-polar-heading h4 { margin-top: 4px; color: #e7f3fa; font-size: 11px; }
+.aerodynamic-polar-heading p { max-width: 650px; margin-top: 4px; color: #8199a8; font-size: 8px; line-height: 1.45; }
+.aerodynamic-polar-heading .uncertainty-status { flex: 0 0 auto; color: #9edcff; border-color: rgba(47,159,255,.38); background: rgba(47,159,255,.08); }
+.aerodynamic-polar-heading .uncertainty-status-review { color: #ffc477; border-color: rgba(244,163,64,.38); background: rgba(244,163,64,.08); }
+.aerodynamic-polar-heading .uncertainty-status-not-assessed { color: #a5b5bd; border-color: rgba(198,212,221,.3); background: rgba(198,212,221,.06); }
+.aerodynamic-polar-controls { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin-top: 11px; }
+.aerodynamic-polar-controls label { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 7px; min-width: 0; color: #91a8b6; font-size: 7px; text-transform: uppercase; letter-spacing: .05em; }
+.aerodynamic-polar-controls input[type="range"] { min-width: 0; accent-color: var(--accent); }
+.aerodynamic-polar-controls output { min-width: 44px; color: #d5e9f4; font: 8px var(--font-geist-mono),monospace; text-align: right; }
+.aerodynamic-polar-plot { margin-top: 10px; border: 1px solid rgba(117,153,180,.15); border-radius: 3px; background: #080e13; }
+.aerodynamic-polar-plot svg { display: block; width: 100%; height: 205px; overflow: visible; }
+.aerodynamic-polar-plot line { stroke: rgba(139,181,210,.42); stroke-width: 1; }
+.aerodynamic-polar-plot .aerodynamic-polar-zero { stroke: rgba(139,181,210,.16); stroke-dasharray: 3 4; }
+.aerodynamic-polar-plot path { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.aerodynamic-polar-plot text { fill: #7892a2; font: 9px var(--font-geist-mono),monospace; }
+.aerodynamic-polar-legend { display: flex; flex-wrap: wrap; gap: 12px; padding: 0 10px 9px; color: #9ab0bd; font: 8px var(--font-geist-mono),monospace; }
+.aerodynamic-polar-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.aerodynamic-polar-legend i { width: 18px; height: 2px; display: inline-block; }
+.aerodynamic-polar-error { margin-top: 10px; padding: 8px; border: 1px solid rgba(255,112,67,.28); color: #ffb3a1; font-size: 8px; }
+.aerodynamic-polar-note { margin: 9px 1px 0; color: #8199a8; font: 7px/1.5 var(--font-geist-mono),monospace; }
+.aerodynamic-polar-model { display: block; margin-top: 6px; color: #6f8794; font: 7px var(--font-geist-mono),monospace; }
 .aerodynamic-inspector-meta { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 7px; margin-top: 12px; }
 .aerodynamic-inspector-meta > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 8px; border: 1px solid var(--line); border-radius: 3px; background: rgba(9,14,19,.72); }
 .aerodynamic-inspector-meta span { color: var(--muted); font-size: 7px; text-transform: uppercase; letter-spacing: .06em; }
@@ -1836,6 +1859,9 @@ kbd {
   .aerodynamic-inspector { padding: 14px; }
   .aerodynamic-inspector-heading { flex-direction: column; gap: 9px; }
   .aerodynamic-inspector-controls { grid-template-columns: 1fr; }
+  .aerodynamic-polar-heading { flex-direction: column; gap: 9px; }
+  .aerodynamic-polar-controls { grid-template-columns: 1fr; }
+  .aerodynamic-polar-plot svg { height: 180px; }
   .aerodynamic-inspector-meta { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .aerodynamic-import-section { padding: 15px 14px 16px; }
   .motor-import-section { padding: 15px 14px 16px; }

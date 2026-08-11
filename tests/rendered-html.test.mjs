@@ -706,6 +706,7 @@ test("ships a provenance-aware local motor library and mission-control visual la
 test("ships a provenance-aware local aerodynamic table workflow", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const library = await readFile(new URL("../lib/project/aero-library-state.ts", import.meta.url), "utf8");
+  const polar = await readFile(new URL("../lib/physics/aerodynamic-polar.ts", import.meta.url), "utf8");
   const stageAware = await readFile(new URL("../lib/physics/stage-aware-aerodynamics.ts", import.meta.url), "utf8");
   const verticalFlight = await readFile(new URL("../lib/physics/vertical-flight.ts", import.meta.url), "utf8");
   const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
@@ -720,6 +721,8 @@ test("ships a provenance-aware local aerodynamic table workflow", async () => {
   assert.match(page, /sideslip × angle-of-attack × Reynolds × Mach/);
   assert.match(page, /Direct body-axis force\/moment coefficients/);
   assert.match(page, /Force \/ moment DB/);
+  assert.match(page, /sampleAerodynamicPolar/);
+  assert.match(page, /Angle-of-attack response/);
   assert.match(page, /absolute grid supplied/);
   assert.match(page, /aerodynamicTable: selectedAerodynamicTable/);
   assert.match(verticalFlight, /mach-reynolds-table/);
@@ -730,9 +733,12 @@ test("ships a provenance-aware local aerodynamic table workflow", async () => {
   assert.match(library, /createAerodynamicCoefficientTable/);
   assert.match(stageAware, /multiple aerodynamic tables/);
   assert.match(stageAware, /angleOfAttackRad: condition\.angleOfAttackRad/);
+  assert.match(polar, /AERODYNAMIC_POLAR_MODEL_VERSION/);
+  assert.match(polar, /small-angle normal-force slope/);
   assert.match(stylesheet, /.aerodynamic-dialog/);
   assert.match(stylesheet, /.aerodynamic-record/);
   assert.match(stylesheet, /.aerodynamic-inspector/);
+  assert.match(stylesheet, /.aerodynamic-polar/);
 });
 
 test("ships an interactive multi-stage, booster, and radial-topology editor", async () => {
