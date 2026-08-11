@@ -624,7 +624,7 @@ export function simulateVerticalFlight(
     trace,
     assumptions: [
       "One-dimensional vertical translation",
-      "U.S. Standard Atmosphere 1976 through 20 km",
+      "U.S. Standard Atmosphere 1976 hydrostatic layers through 84.852 km geopotential (about 86 km geometric)",
       config.aerodynamics
         ? config.aerodynamics.coefficientTable.angleOfAttackRangeRad === null
           ? "Drag coefficient is interpolated from the supplied Mach-Reynolds table"

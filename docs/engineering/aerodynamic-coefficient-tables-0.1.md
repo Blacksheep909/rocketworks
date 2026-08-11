@@ -26,7 +26,7 @@ live atmosphere and wind-relative flight condition.
 
 ## Atmosphere viscosity and Reynolds number
 
-Atmosphere 0.4 adds dry-air dynamic viscosity using Sutherland's relation with
+Atmosphere 0.5 adds dry-air dynamic viscosity using Sutherland's relation with
 reference values `mu0 = 1.716e-5 Pa s`, `T0 = 273.15 K`, and `S = 110.4 K`:
 
 `mu(T) = mu0 (T / T0)^(3/2) (T0 + S) / (T + S)`

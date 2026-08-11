@@ -19,8 +19,9 @@ for flight-safety decisions.
 - Translation follows Newton's second law, with thrust, weight, and axial drag.
 - Aerodynamic drag uses `D = 0.5 * rho * V_rel^2 * Cd * A`, with the reference
   area explicitly supplied by the caller.
-- Temperature, pressure, density, and speed of sound use the layer equations
-  and constants of the U.S. Standard Atmosphere, 1976, from -500 m to 20 km.
+- Temperature, pressure, density, and speed of sound use the hydrostatic layer
+  equations and constants of the U.S. Standard Atmosphere, 1976, from -500 m
+  through the 84.852 km geopotential boundary (about 86 km geometric).
 - Optional relative humidity is applied as a constant-profile ideal-mixture
   correction: water-vapor partial pressure changes virtual temperature, density,
   and speed of sound. Condensation, phase change, and humidity-dependent
@@ -44,7 +45,9 @@ Primary references:
 ## Implemented behavior
 
 - Geometric-to-geopotential altitude conversion.
-- Standard-atmosphere density and speed of sound through 20 km.
+- Standard-atmosphere density and speed of sound through the published 84.852
+  km geopotential boundary; layer anchors are regression-tested at 20, 32, 47,
+  51, 71, and 84.852 km.
 - User-supplied thrust curves and total impulse.
 - Altitude-dependent three-axis wind interpolation. Only the vertical component
   is dynamically coupled in the 1D solver; crosswind is reported with a warning.

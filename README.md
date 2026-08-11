@@ -41,8 +41,9 @@ research, standards, and original code.
   databases for the 6DOF load path; optional positive measured mass-flow
   histories can now drive live motor depletion and inertia-rate telemetry, with
   a strict optional CSV field in the browser motor library;
-- atmosphere, launch-site, wind, turbulence, launch-rail, recovery, and
-  landing-dispersion previews;
+- atmosphere through the published 84.852 km geopotential layer boundary,
+  launch-site, wind, turbulence, launch-rail, recovery, and landing-dispersion
+  previews;
 - editable launch-site name and WGS84 coordinates carried into local history,
   share links, landing-zone provenance, coupled environment providers, and
   engineering reports;

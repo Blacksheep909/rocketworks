@@ -76,6 +76,10 @@ test("ships versioned flight results and explainable model UI", async () => {
     new URL("../app/page.tsx", import.meta.url),
     "utf8",
   );
+  const atmosphereSource = await readFile(
+    new URL("../lib/physics/atmosphere.ts", import.meta.url),
+    "utf8",
+  );
   assert.match(source, /result\.modelVersion/);
   assert.match(source, /publicModelVersion/);
   assert.match(source, /RKW-01/);
@@ -110,6 +114,8 @@ test("ships versioned flight results and explainable model UI", async () => {
   assert.match(source, /launchSiteName/);
   assert.match(source, /launchLatitudeDeg/);
   assert.match(source, /launchLongitudeDeg/);
+  assert.match(atmosphereSource, /84_852/);
+  assert.match(atmosphereSource, /ATMOSPHERE_MAX_GEOMETRIC_ALTITUDE_M/);
 });
 
 test("ships a portable project import path with validated restoration warnings", async () => {

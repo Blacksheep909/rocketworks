@@ -9,7 +9,8 @@ enough to run in CI.
 
 ## Fixtures
 
-- U.S. Standard Atmosphere sea-level pressure and density;
+- U.S. Standard Atmosphere sea-level pressure and density plus 32 km and
+  84.852 km geopotential layer anchors;
 - standard gravity at sea level;
 - trapezoidal impulse of a triangular thrust curve;
 - low-speed cone center of pressure at two-thirds of the cone length;
@@ -26,7 +27,7 @@ enough to run in CI.
 
 Each case reports the observed value, public-reference expected value, absolute
 and relative error, and a declared tolerance. The suite currently contains
-fourteen cases because the atmosphere fixture checks pressure and density as
+sixteen cases because the atmosphere fixture checks pressure and density as
 separate metrics, the 6DOF conservation checks are reported independently,
 and the structural/aeroelastic equations are checked against independent
 closed-form recomputations.

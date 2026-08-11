@@ -174,5 +174,6 @@ test("invalid site, provenance, observations, turbulence, gusts, and queries fai
   assert.throws(() => createLaunchEnvironmentModel(definition({ gustEvents: [{ id: "bad-altitude", startTimeS: 0, durationS: 1, peakDeltaWindWorldMps: { x: 1, y: 0, z: 0 }, maximumAltitudeAglM: Infinity }] })), /altitude limits/);
   const model = createLaunchEnvironmentModel(definition());
   assert.throws(() => model.at({ timeS: Number.NaN, positionWorldM: { x: 0, y: 0, z: 0 } }), /must be finite/);
-  assert.throws(() => model.at({ timeS: 0, positionWorldM: { x: 0, y: 0, z: 20_000 } }), /supports altitudes/);
+  assert.doesNotThrow(() => model.at({ timeS: 0, positionWorldM: { x: 0, y: 0, z: 20_000 } }));
+  assert.throws(() => model.at({ timeS: 0, positionWorldM: { x: 0, y: 0, z: 87_000 } }), /supports geometric altitudes/);
 });

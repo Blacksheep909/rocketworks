@@ -69,8 +69,9 @@ implemented U.S. Standard Atmosphere 1976 layer model. Geometric altitude is:
 
 `hASL = launch altitude + world up position`
 
-The atmosphere currently supports `-500 m <= hASL <= 20,000 m` and throws
-outside that interval rather than silently extrapolating.
+The atmosphere currently supports `-500 m <= hASL <= 85,999.9529 m`, the
+geometric equivalent of the published `84.852 km` geopotential boundary, and
+throws outside that interval rather than silently extrapolating.
 
 Wind is linearly interpolated by altitude and represented directly in ENU. The
 air-relative velocity is:

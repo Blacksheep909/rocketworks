@@ -9,7 +9,7 @@ test("physics benchmark suite passes deterministic standards and closed-form fix
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.status, "pass");
   assert.equal(result.passedCount, result.totalCount);
-  assert.equal(result.totalCount, 14);
+  assert.equal(result.totalCount, 16);
   assert.ok(result.cases.every((benchmark) => benchmark.passed));
   assert.ok(result.cases.some((benchmark) => benchmark.id === "cone-center-of-pressure"));
   assert.ok(result.cases.some((benchmark) => benchmark.id === "six-dof-torque-free-angular-momentum"));

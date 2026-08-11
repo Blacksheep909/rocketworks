@@ -2,8 +2,9 @@
  * RocketWorks clean-room atmosphere model.
  *
  * Equations are independently implemented from the layer definitions in the
- * U.S. Standard Atmosphere, 1976. This first increment covers geometric
- * altitudes from -500 m through 20 km.
+ * U.S. Standard Atmosphere, 1976. The implemented hydrostatic layers cover
+ * geometric altitudes from -500 m through the 86 km geometric equivalent of
+ * the published 84.852 km geopotential boundary.
  */
 
 export type AtmosphereState = {
@@ -31,14 +32,21 @@ export type SurfaceAtmosphereObservation = Readonly<{
   relativeHumidityFraction?: number;
 }>;
 
-export const ATMOSPHERE_MODEL_VERSION = "kestrel-standard-atmosphere-0.4.0";
+export const ATMOSPHERE_MODEL_VERSION = "kestrel-standard-atmosphere-0.5.0";
+
+/** Upper published geopotential layer boundary used by the 1976 model. */
+export const ATMOSPHERE_MAX_GEOPOTENTIAL_ALTITUDE_M = 84_852;
 
 const EARTH_GEOPOTENTIAL_RADIUS_M = 6_356_766;
+/** Lower and upper geometric altitude limits accepted by `standardAtmosphere`. */
+export const ATMOSPHERE_MIN_GEOMETRIC_ALTITUDE_M = -500;
+export const ATMOSPHERE_MAX_GEOMETRIC_ALTITUDE_M =
+  (EARTH_GEOPOTENTIAL_RADIUS_M * ATMOSPHERE_MAX_GEOPOTENTIAL_ALTITUDE_M) /
+  (EARTH_GEOPOTENTIAL_RADIUS_M - ATMOSPHERE_MAX_GEOPOTENTIAL_ALTITUDE_M);
 const SEA_LEVEL_TEMPERATURE_K = 288.15;
 const SEA_LEVEL_PRESSURE_PA = 101_325;
 const TROPOSPHERIC_LAPSE_K_PER_M = -0.0065;
 const TROPOPAUSE_GEOPOTENTIAL_M = 11_000;
-const LOWER_STRATOSPHERE_LIMIT_M = 20_000;
 const SPECIFIC_GAS_CONSTANT_AIR = 287.05287;
 const SPECIFIC_GAS_CONSTANT_WATER_VAPOR = 461.525;
 const WATER_VAPOR_TO_DRY_AIR_GAS_CONSTANT_RATIO =
@@ -155,15 +163,27 @@ export function reynoldsNumber(input: Readonly<{
   );
 }
 
-function pressureInGradientLayer(
+function pressureInLayer(
   basePressurePa: number,
   baseTemperatureK: number,
   baseAltitudeM: number,
   altitudeM: number,
   lapseKPerM: number,
 ): number {
+  if (lapseKPerM === 0) {
+    return (
+      basePressurePa *
+      Math.exp(
+        (-STANDARD_GRAVITY_MPS2 * (altitudeM - baseAltitudeM)) /
+          (SPECIFIC_GAS_CONSTANT_AIR * baseTemperatureK),
+      )
+    );
+  }
   const temperatureK =
     baseTemperatureK + lapseKPerM * (altitudeM - baseAltitudeM);
+  if (!(temperatureK > 0)) {
+    throw new Error("Atmosphere layer temperature became non-positive.");
+  }
   return (
     basePressurePa *
     Math.pow(
@@ -173,23 +193,80 @@ function pressureInGradientLayer(
   );
 }
 
-const TROPOPAUSE_TEMPERATURE_K =
-  SEA_LEVEL_TEMPERATURE_K +
-  TROPOSPHERIC_LAPSE_K_PER_M * TROPOPAUSE_GEOPOTENTIAL_M;
-const TROPOPAUSE_PRESSURE_PA = pressureInGradientLayer(
-  SEA_LEVEL_PRESSURE_PA,
-  SEA_LEVEL_TEMPERATURE_K,
-  0,
-  TROPOPAUSE_GEOPOTENTIAL_M,
-  TROPOSPHERIC_LAPSE_K_PER_M,
-);
+type AtmosphereLayer = Readonly<{
+  lowerGeopotentialAltitudeM: number;
+  upperGeopotentialAltitudeM: number;
+  baseTemperatureK: number;
+  lapseKPerM: number;
+  basePressurePa: number;
+}>;
+
+type AtmosphereLayerDefinition = Readonly<{
+  lowerGeopotentialAltitudeM: number;
+  upperGeopotentialAltitudeM: number;
+  baseTemperatureK: number;
+  lapseKPerM: number;
+}>;
+
+const ATMOSPHERE_LAYER_DEFINITIONS: readonly AtmosphereLayerDefinition[] = [
+  { lowerGeopotentialAltitudeM: 0, upperGeopotentialAltitudeM: TROPOPAUSE_GEOPOTENTIAL_M, baseTemperatureK: SEA_LEVEL_TEMPERATURE_K, lapseKPerM: TROPOSPHERIC_LAPSE_K_PER_M },
+  { lowerGeopotentialAltitudeM: TROPOPAUSE_GEOPOTENTIAL_M, upperGeopotentialAltitudeM: 20_000, baseTemperatureK: 216.65, lapseKPerM: 0 },
+  { lowerGeopotentialAltitudeM: 20_000, upperGeopotentialAltitudeM: 32_000, baseTemperatureK: 216.65, lapseKPerM: 0.001 },
+  { lowerGeopotentialAltitudeM: 32_000, upperGeopotentialAltitudeM: 47_000, baseTemperatureK: 228.65, lapseKPerM: 0.0028 },
+  { lowerGeopotentialAltitudeM: 47_000, upperGeopotentialAltitudeM: 51_000, baseTemperatureK: 270.65, lapseKPerM: 0 },
+  { lowerGeopotentialAltitudeM: 51_000, upperGeopotentialAltitudeM: 71_000, baseTemperatureK: 270.65, lapseKPerM: -0.0028 },
+  { lowerGeopotentialAltitudeM: 71_000, upperGeopotentialAltitudeM: ATMOSPHERE_MAX_GEOPOTENTIAL_ALTITUDE_M, baseTemperatureK: 214.65, lapseKPerM: -0.002 },
+];
+
+/**
+ * Build continuous hydrostatic layer anchors from the sea-level constants.
+ * The layer boundaries and lapse rates follow the published COESA 1976
+ * table; pressures are propagated with the same perfect-gas equations used at
+ * query time so boundary values cannot drift through duplicated constants.
+ */
+const ATMOSPHERE_LAYERS: readonly AtmosphereLayer[] = (() => {
+  let basePressurePa = SEA_LEVEL_PRESSURE_PA;
+  return ATMOSPHERE_LAYER_DEFINITIONS.map((definition) => {
+    const layer: AtmosphereLayer = { ...definition, basePressurePa };
+    basePressurePa = pressureInLayer(
+      basePressurePa,
+      definition.baseTemperatureK,
+      definition.lowerGeopotentialAltitudeM,
+      definition.upperGeopotentialAltitudeM,
+      definition.lapseKPerM,
+    );
+    return layer;
+  });
+})();
 
 export function geometricToGeopotentialAltitude(
   geometricAltitudeM: number,
 ): number {
+  if (!Number.isFinite(geometricAltitudeM)) {
+    throw new Error("Geometric altitude must be finite.");
+  }
+  if (geometricAltitudeM <= -EARTH_GEOPOTENTIAL_RADIUS_M) {
+    throw new Error("Geometric altitude is outside the geopotential conversion domain.");
+  }
   return (
     (EARTH_GEOPOTENTIAL_RADIUS_M * geometricAltitudeM) /
     (EARTH_GEOPOTENTIAL_RADIUS_M + geometricAltitudeM)
+  );
+}
+
+/** Inverse of `geometricToGeopotentialAltitude` for layer-boundary tooling. */
+export function geopotentialToGeometricAltitude(
+  geopotentialAltitudeM: number,
+): number {
+  if (!Number.isFinite(geopotentialAltitudeM)) {
+    throw new Error("Geopotential altitude must be finite.");
+  }
+  if (geopotentialAltitudeM >= EARTH_GEOPOTENTIAL_RADIUS_M) {
+    throw new Error("Geopotential altitude is outside the conversion domain.");
+  }
+  return (
+    (EARTH_GEOPOTENTIAL_RADIUS_M * geopotentialAltitudeM) /
+    (EARTH_GEOPOTENTIAL_RADIUS_M - geopotentialAltitudeM)
   );
 }
 
@@ -199,40 +276,32 @@ export function standardAtmosphere(
   if (!Number.isFinite(geometricAltitudeM)) {
     throw new Error("Atmosphere altitude must be a finite number.");
   }
-  if (geometricAltitudeM < -500 || geometricAltitudeM > 20_000) {
+  if (
+    geometricAltitudeM < ATMOSPHERE_MIN_GEOMETRIC_ALTITUDE_M ||
+    geometricAltitudeM > ATMOSPHERE_MAX_GEOMETRIC_ALTITUDE_M
+  ) {
     throw new Error(
-      "RocketWorks atmosphere v0.4 supports altitudes from -500 m to 20,000 m.",
+      "RocketWorks atmosphere v0.5 supports geometric altitudes from -500 m to 86,000 m (the published model boundary is 84.852 km geopotential).",
     );
   }
 
   const geopotentialAltitudeM =
     geometricToGeopotentialAltitude(geometricAltitudeM);
-  let temperatureK: number;
-  let pressurePa: number;
-
-  if (geopotentialAltitudeM <= TROPOPAUSE_GEOPOTENTIAL_M) {
-    temperatureK =
-      SEA_LEVEL_TEMPERATURE_K +
-      TROPOSPHERIC_LAPSE_K_PER_M * geopotentialAltitudeM;
-    pressurePa = pressureInGradientLayer(
-      SEA_LEVEL_PRESSURE_PA,
-      SEA_LEVEL_TEMPERATURE_K,
-      0,
-      geopotentialAltitudeM,
-      TROPOSPHERIC_LAPSE_K_PER_M,
-    );
-  } else if (geopotentialAltitudeM <= LOWER_STRATOSPHERE_LIMIT_M) {
-    temperatureK = TROPOPAUSE_TEMPERATURE_K;
-    pressurePa =
-      TROPOPAUSE_PRESSURE_PA *
-      Math.exp(
-        (-STANDARD_GRAVITY_MPS2 *
-          (geopotentialAltitudeM - TROPOPAUSE_GEOPOTENTIAL_M)) /
-          (SPECIFIC_GAS_CONSTANT_AIR * TROPOPAUSE_TEMPERATURE_K),
-      );
-  } else {
-    throw new Error("Atmosphere layer selection failed.");
-  }
+  const layer = ATMOSPHERE_LAYERS.find(
+    (candidate) => geopotentialAltitudeM <= candidate.upperGeopotentialAltitudeM,
+  );
+  if (!layer) throw new Error("Atmosphere layer selection failed.");
+  const temperatureK =
+    layer.baseTemperatureK +
+    layer.lapseKPerM *
+      (geopotentialAltitudeM - layer.lowerGeopotentialAltitudeM);
+  const pressurePa = pressureInLayer(
+    layer.basePressurePa,
+    layer.baseTemperatureK,
+    layer.lowerGeopotentialAltitudeM,
+    geopotentialAltitudeM,
+    layer.lapseKPerM,
+  );
 
   const densityKgM3 =
     pressurePa / (SPECIFIC_GAS_CONSTANT_AIR * temperatureK);

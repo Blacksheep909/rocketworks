@@ -9,6 +9,7 @@ import {
   makeConstantThrustCurve,
   simulateVerticalFlight,
   standardAtmosphere,
+  geopotentialToGeometricAltitude,
   atmosphereFromSurfaceObservation,
   applyRelativeHumidityToAtmosphere,
   saturationVaporPressurePa,
@@ -284,6 +285,38 @@ test("standard atmosphere reproduces the 11 km geopotential boundary", () => {
   closeTo(state.temperatureK, 216.65, 0.001, "temperature");
   closeTo(state.pressurePa, 22_632.06, 0.5, "pressure");
   closeTo(state.densityKgM3, 0.36392, 0.0001, "density");
+});
+
+test("standard atmosphere reproduces the published upper-layer anchors", () => {
+  const anchors = [
+    { geopotentialM: 20_000, temperatureK: 216.65, pressurePa: 5_474.89 },
+    { geopotentialM: 32_000, temperatureK: 228.65, pressurePa: 868.02 },
+    { geopotentialM: 47_000, temperatureK: 270.65, pressurePa: 110.91 },
+    { geopotentialM: 51_000, temperatureK: 270.65, pressurePa: 66.94 },
+    { geopotentialM: 71_000, temperatureK: 214.65, pressurePa: 3.96 },
+    { geopotentialM: 84_852, temperatureK: 186.946, pressurePa: 0.3734 },
+  ];
+  for (const anchor of anchors) {
+    const state = standardAtmosphere(
+      geopotentialToGeometricAltitude(anchor.geopotentialM),
+    );
+    closeTo(state.geopotentialAltitudeM, anchor.geopotentialM, 1e-9, `${anchor.geopotentialM} m geopotential`);
+    closeTo(state.temperatureK, anchor.temperatureK, 0.001, `${anchor.geopotentialM} m temperature`);
+    closeTo(state.pressurePa, anchor.pressurePa, Math.max(anchor.pressurePa * 0.001, 0.001), `${anchor.geopotentialM} m pressure`);
+  }
+});
+
+test("atmosphere conversion limits are explicit and round-trip", () => {
+  const geometric = geopotentialToGeometricAltitude(84_852);
+  closeTo(geometric, 85_999.9529, 0.001, "upper geometric equivalent");
+  closeTo(
+    standardAtmosphere(geometric).geopotentialAltitudeM,
+    84_852,
+    1e-9,
+    "upper boundary round-trip",
+  );
+  assert.throws(() => standardAtmosphere(86_000), /supports geometric altitudes|layer selection/);
+  assert.throws(() => geopotentialToGeometricAltitude(6_356_766), /conversion domain/);
 });
 
 test("thrust curve integration preserves triangular impulse", () => {

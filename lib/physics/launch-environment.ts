@@ -1,5 +1,7 @@
 import {
   atmosphereFromSurfaceObservation,
+  ATMOSPHERE_MAX_GEOMETRIC_ALTITUDE_M,
+  ATMOSPHERE_MIN_GEOMETRIC_ALTITUDE_M,
   standardAtmosphere,
   type AtmosphereState,
   type SurfaceAtmosphereObservation,
@@ -235,7 +237,11 @@ export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefini
   if (!Number.isFinite(site.longitudeDeg) || site.longitudeDeg < -180 || site.longitudeDeg > 180) {
     throw new Error("launch-site longitude must be from -180 through 180 degrees");
   }
-  if (!Number.isFinite(site.elevationM) || site.elevationM < -500 || site.elevationM > 20_000) {
+  if (
+    !Number.isFinite(site.elevationM) ||
+    site.elevationM < ATMOSPHERE_MIN_GEOMETRIC_ALTITUDE_M ||
+    site.elevationM > ATMOSPHERE_MAX_GEOMETRIC_ALTITUDE_M
+  ) {
     throw new Error("launch-site elevation must be within the atmosphere model range");
   }
   validateProvenance(definition.provenance);

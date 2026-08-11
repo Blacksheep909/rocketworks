@@ -1,4 +1,5 @@
 import {
+  geopotentialToGeometricAltitude,
   gravityAtAltitude,
   standardAtmosphere,
 } from "./atmosphere.ts";
@@ -81,6 +82,12 @@ function compareCase(input: Readonly<{
  */
 export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
   const seaLevel = standardAtmosphere(0);
+  const atmosphere32Km = standardAtmosphere(
+    geopotentialToGeometricAltitude(32_000),
+  );
+  const atmosphereUpperBoundary = standardAtmosphere(
+    geopotentialToGeometricAltitude(84_852),
+  );
   const thrustCurveImpulse = totalImpulse([
     { timeS: 0, thrustN: 0 },
     { timeS: 1, thrustN: 10 },
@@ -293,6 +300,26 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
       expected: 1.225000018124288,
       tolerance: 1e-9,
       method: "ideal-gas density from the sea-level pressure and temperature anchors",
+    }),
+    compareCase({
+      id: "atmosphere-32km-pressure",
+      label: "U.S. Standard Atmosphere 32 km pressure",
+      metric: "pressure",
+      unit: "Pa",
+      observed: atmosphere32Km.pressurePa,
+      expected: 868.02,
+      tolerance: 0.01,
+      method: "COESA 1976 positive-lapse layer anchor at 32 km geopotential altitude",
+    }),
+    compareCase({
+      id: "atmosphere-upper-boundary-temperature",
+      label: "U.S. Standard Atmosphere 84.852 km temperature",
+      metric: "temperature",
+      unit: "K",
+      observed: atmosphereUpperBoundary.temperatureK,
+      expected: 186.946,
+      tolerance: 1e-6,
+      method: "COESA 1976 upper implemented hydrostatic layer boundary",
     }),
     compareCase({
       id: "gravity-sea-level",

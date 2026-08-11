@@ -23,6 +23,11 @@ flight-readiness claims.
   replay failures remain `not-assessed` rather than becoming a pass. This is
   numerical sensitivity evidence only, not physical validation or a
   flight-safety gate.
+- Extended the independent U.S. Standard Atmosphere layer implementation from
+  20 km to the published 84.852 km geopotential boundary (about 86 km
+  geometric). The launch-environment provider, surface-observation anchor,
+  vertical model, and coupled loads now share the extended range; upper-layer
+  anchors and geometric/geopotential conversion limits are regression-tested.
 - Added a focused vehicle presentation layer to the design workbench. The mode
   selector now distinguishes 2D, 3D skeleton, and 3D final display states; the
   skeleton is an intentionally low-ink rendering of the same independent
