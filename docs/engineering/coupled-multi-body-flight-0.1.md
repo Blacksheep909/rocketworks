@@ -1,4 +1,4 @@
-# Shared-grid coupled multi-body flight 0.2
+# Shared-grid coupled multi-body flight 0.3
 
 Status: implemented analytical component check; mathematical regression tests
 only. This model is not flight-safety, range-safety, contact, or collision
@@ -12,6 +12,14 @@ position, release velocity, and optional constant reference-area/Cd basis. A
 caller may attach an explicit world-frame velocity adjustment with a source
 event identifier; the result retains both baseline and adjusted release
 velocities.
+
+An individual body may also opt into a rigid-body state by supplying a
+body-to-world quaternion, body-frame angular velocity, and positive-definite
+body-frame inertia tensor. That state is propagated on the same shared grid.
+An optional body load callback receives the current rigid-body state and may
+return body/world forces and a body-frame moment. The shared gravity and point
+drag basis remains active; callback loads are additive and provenance remains
+with the caller.
 
 The mission end time and requested step are shared across all bodies. Release
 times are inserted as exact trace points, and each body is advanced to the same
@@ -53,23 +61,37 @@ The optional `epsilon` is a Plummer-style softening radius for close
 approaches. With `epsilon = 0`, coincident bodies are rejected as a singular
 state rather than silently inventing a force.
 
+For bodies with the rigid-body option, the state additionally follows
+
+```text
+dq/dt = 1/2 q * [0, omega]
+I d(omega)/dt + omega x (I omega) = M_body
+```
+
+where `q` is normalized after each Runge-Kutta state update, `I` is the
+supplied constant inertia tensor, and `M_body` is the optional callback moment.
+World-frame callback forces are combined with rotated body-frame forces before
+the translational acceleration is evaluated.
+
 ## Coupling boundary
 
 This is a simultaneous shared-environment and relative-motion track. The
-mutual-gravity option is still a point-mass component model, not a full
-rigid-body multi-body solver. It does not model body attitude, lift,
-aerodynamic torque, body-to-body contact forces, collision response, joint or
-spring compliance, plume interaction, wake/interference, separation mechanism
-dynamics, structural flexibility, or range-safety margins. Pairwise COM
-distance is a diagnostic, not clearance approval. Fixed spherical envelopes
-remain a separate geometry screen.
+default and mutual-gravity branches remain point-mass translation; the opt-in
+rigid-body branch adds attitude and angular-rate propagation but is not a full
+contact or structural multi-body solver. It does not infer lift, aerodynamic
+torque, body-to-body contact forces, collision response, joint or spring
+compliance, plume interaction, wake/interference, structural flexibility,
+separation mechanism dynamics, or range-safety margins. Pairwise COM distance
+is a diagnostic, not clearance approval. Fixed spherical envelopes remain a
+separate geometry screen.
 
 The stage-flight adapter applies a solved minimum-norm release correction only
 when the event-level separation allocator reports a balanced result. The
 existing detached 6DOF branches remain unchanged, so the shared-grid track is
 an explicit comparison/audit path rather than a silent state reset. The browser
-exposes the mutual-gravity choice as an advanced released-body force model; it
-remains disabled by default.
+exposes the mutual-gravity choice as an advanced released-body force model; the
+rigid-body input is currently an API-level advanced path and remains disabled
+for generated preview bodies unless explicitly supplied.
 
 ## Step budget and status
 

@@ -1929,6 +1929,7 @@ export function createEngineeringReportMarkdown(
                 "|---|---:|",
                 `| Status | ${markdownText(input.stageFlight.coupledMultiBodyFlight.status)} |`,
                 `| Bodies | ${input.stageFlight.coupledMultiBodyFlight.trajectories.length} |`,
+                `| Rigid-body states | ${input.stageFlight.coupledMultiBodyFlight.rigidBodyCount} |`,
                 `| Shared-grid steps | ${input.stageFlight.coupledMultiBodyFlight.stepCount} |`,
                 `| Effective time step | ${formatNumber(input.stageFlight.coupledMultiBodyFlight.timeStepS, 4)} s |`,
                 `| Released-body force model | ${input.stageFlight.coupledMultiBodyFlight.mutualGravity?.enabled ? `mutual point-mass gravity (softening ${formatNumber(input.stageFlight.coupledMultiBodyFlight.mutualGravity.softeningRadiusM, 6)} m)` : "shared environment only"} |`,
@@ -1939,7 +1940,7 @@ export function createEngineeringReportMarkdown(
                 ...input.stageFlight.coupledMultiBodyFlight.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
                 ...input.stageFlight.coupledMultiBodyFlight.warnings.map((warning) => `- **Shared-grid warning:** ${markdownText(warning)}`),
                 "",
-                "> This shared-grid track propagates released point masses together against common environment queries. Mutual gravity, when selected, remains a point-mass approximation; neither path models contact forces, collision response, plume interaction, aerodynamic interference, or flight safety.",
+                "> This shared-grid track propagates released bodies together against common environment queries. Rigid-body states add quaternion attitude and Euler angular momentum from supplied inertia/loads; mutual gravity remains a point-mass approximation, and neither path models contact forces, collision response, plume interaction, aerodynamic interference, or flight safety.",
               ]
             : []),
           ...((input.stageFlight.separationDynamics ?? []).length > 0

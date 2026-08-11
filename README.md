@@ -89,7 +89,9 @@ research, standards, and original code.
   failure events, retained-vehicle recovery loads, and bounded separated-body
   trajectories with optional isotropic point-drag basis and retained-versus-
   detached center-of-mass separation diagnostics, plus aggregate pairwise
-  retained/detached and detached/detached path checks; the independent 6DOF
+  retained/detached and detached/detached path checks; released-body tracks
+  can opt into an independently integrated quaternion attitude, angular-rate,
+  inertia, and caller-supplied body/world load state; the independent 6DOF
   kernel also offers opt-in adaptive RK4 step-doubling with explicit numerical
   error diagnostics while retaining fixed-step compatibility;
 - half-step numerical convergence diagnostics for the fast vertical estimate,
@@ -256,9 +258,9 @@ tests/                Deterministic physics, UI, export, and integration checks
 
 ## Roadmap
 
-Near-term work is stronger experimental/benchmark validation, a full coupled
-multi-body separation solver beyond the current point-mass gravity and impulse
-branches, validated stage-interface/load-transfer and mission-level mass-ratio
+Near-term work is stronger experimental/benchmark validation, extension of the
+new opt-in released-body rigid-state branch toward contact and relative-load
+validation, validated stage-interface/load-transfer and mission-level mass-ratio
 loss models, and validated structural/aeroelastic benchmarks beyond the
 preliminary fin flutter screen. Angular and direct force/moment coefficient
 volumes are now supported as explicit

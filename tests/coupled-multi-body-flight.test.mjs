@@ -166,3 +166,80 @@ test("mutual gravity exposes singularity and softening controls explicitly", () 
   assert.equal(softened.mutualGravity.softeningRadiusM, 0.5);
   assert.ok(softened.warnings.some((warning) => warning.includes("softening radius")));
 });
+
+test("opt-in released rigid bodies propagate attitude and body-frame torque", () => {
+  const result = simulateCoupledMultiBodyFlight({
+    bodies: [body({
+      id: "spin-body",
+      releaseTimeS: 0.25,
+      releasePositionWorldM: { x: 0, y: 0, z: 120 },
+      releaseVelocityWorldMps: { x: 0, y: 0, z: 30 },
+      rigidBody: {
+        orientationBodyToWorld: { w: 1, x: 0, y: 0, z: 0 },
+        angularVelocityBodyRadS: { x: 0, y: 0, z: 1 },
+        inertiaBodyKgM2: [
+          [2, 0, 0],
+          [0, 3, 0],
+          [0, 0, 4],
+        ],
+        loads: () => ({
+          momentBodyNm: { x: 2, y: 0, z: 0 },
+        }),
+      },
+    })],
+    durationS: 1.25,
+    timeStepS: 0.05,
+  });
+  assert.equal(result.rigidBodyCount, 1);
+  assert.equal(result.status, "assessed");
+  const releasePoint = result.trajectories[0].trace.find((point) => point.timeS === 0.25);
+  assert.ok(releasePoint?.orientationBodyToWorld);
+  const finalPoint = result.trajectories[0].trace.at(-1);
+  assert.ok(finalPoint.orientationBodyToWorld);
+  assert.ok(finalPoint.angularVelocityBodyRadS);
+  assert.ok(finalPoint.orientationBodyToWorld.z > 0.35);
+  assert.ok(finalPoint.angularVelocityBodyRadS.x > 0.9);
+  assert.ok(finalPoint.angularVelocityBodyRadS.z > 0.9);
+  assert.ok(result.warnings.some((warning) => warning.includes("rigid-body attitude state")));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("Euler angular momentum")));
+});
+
+test("rigid-body released-body inputs reject invalid inertia and non-finite loads", () => {
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({
+      bodies: [body({
+        releaseTimeS: 0,
+        rigidBody: {
+          orientationBodyToWorld: { w: 1, x: 0, y: 0, z: 0 },
+          inertiaBodyKgM2: [
+            [1, 0, 0],
+            [0, 0, 0],
+            [0, 0, 1],
+          ],
+        },
+      })],
+      durationS: 1,
+      timeStepS: 0.1,
+    }),
+    /positive definite/,
+  );
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({
+      bodies: [body({
+        releaseTimeS: 0,
+        rigidBody: {
+          orientationBodyToWorld: { w: 1, x: 0, y: 0, z: 0 },
+          inertiaBodyKgM2: [
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+          ],
+          loads: () => ({ momentBodyNm: { x: Number.NaN, y: 0, z: 0 } }),
+        },
+      })],
+      durationS: 1,
+      timeStepS: 0.1,
+    }),
+    /body moment must contain finite coordinates/,
+  );
+});

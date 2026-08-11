@@ -7263,7 +7263,7 @@ export default function Home() {
                               <div>
                                 <span className="eyebrow">Shared-grid propagation</span>
                                 <h5>Coupled detached-body flight</h5>
-                                <p>Runs every released body together on one mission-time grid with shared gravity, atmosphere, and wind queries. Balanced event-level velocity corrections are applied only to this explicit audit track; contact, plume, and aerodynamic interference remain out of scope.</p>
+                                 <p>Runs every released body together on one mission-time grid with shared gravity, atmosphere, and wind queries. Bodies may opt into an explicit quaternion/inertia state; contact, plume, and aerodynamic interference remain out of scope.</p>
                               </div>
                               <span className={`stage-coupled-multi-body-flight-status stage-coupled-multi-body-flight-status-${stageFlightResult.coupledMultiBodyFlight.status}`}>
                                 {stageFlightResult.coupledMultiBodyFlight.status}
@@ -7272,7 +7272,8 @@ export default function Home() {
                             <div className="stage-coupled-multi-body-flight-grid">
                               <div><span>Propagated bodies</span><strong>{stageFlightResult.coupledMultiBodyFlight.trajectories.length}</strong><small>shared mission track</small></div>
                               <div><span>Integration steps</span><strong>{stageFlightResult.coupledMultiBodyFlight.stepCount}</strong><small>{stageFlightResult.coupledMultiBodyFlight.timeStepS.toFixed(3)} s effective step</small></div>
-                              <div><span>Minimum COM separation</span><strong>{stageFlightResult.coupledMultiBodyFlight.minimumDistanceM === null ? "Not assessed" : `${stageFlightResult.coupledMultiBodyFlight.minimumDistanceM.toFixed(2)} m`}</strong><small>{stageFlightResult.coupledMultiBodyFlight.closestPair ? `closest at ${stageFlightResult.coupledMultiBodyFlight.closestPair.timeS.toFixed(2)} s` : "no pairwise overlap"}</small></div>
+                               <div><span>Minimum COM separation</span><strong>{stageFlightResult.coupledMultiBodyFlight.minimumDistanceM === null ? "Not assessed" : `${stageFlightResult.coupledMultiBodyFlight.minimumDistanceM.toFixed(2)} m`}</strong><small>{stageFlightResult.coupledMultiBodyFlight.closestPair ? `closest at ${stageFlightResult.coupledMultiBodyFlight.closestPair.timeS.toFixed(2)} s` : "no pairwise overlap"}</small></div>
+                               <div><span>Rigid-body states</span><strong>{stageFlightResult.coupledMultiBodyFlight.rigidBodyCount}</strong><small>{stageFlightResult.coupledMultiBodyFlight.rigidBodyCount > 0 ? "attitude + angular-rate traces" : "point-mass translation"}</small></div>
                               <div><span>Released-body force model</span><strong>{stageFlightResult.coupledMultiBodyFlight.mutualGravity.enabled ? "Mutual gravity" : "Shared environment"}</strong><small>{stageFlightResult.coupledMultiBodyFlight.mutualGravity.enabled && stageFlightResult.coupledMultiBodyFlight.mutualGravity.softeningRadiusM > 0 ? `ε ${stageFlightResult.coupledMultiBodyFlight.mutualGravity.softeningRadiusM.toFixed(3)} m` : "point-path coupling"}</small></div>
                               <div><span>Release window</span><strong>{stageFlightResult.coupledMultiBodyFlight.startTimeS.toFixed(2)} → {stageFlightResult.coupledMultiBodyFlight.endTimeS.toFixed(2)} s</strong><small>{publicModelVersion(stageFlightResult.coupledMultiBodyFlight.modelVersion)}</small></div>
                             </div>

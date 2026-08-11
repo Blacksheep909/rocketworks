@@ -318,6 +318,10 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
     new URL("../lib/physics/stage-flight-preview.ts", import.meta.url),
     "utf8",
   );
+  const pageSource = await readFile(
+    new URL("../app/page.tsx", import.meta.url),
+    "utf8",
+  );
   const stylesheet = await readFile(
     new URL("../app/globals.css", import.meta.url),
     "utf8",
@@ -337,6 +341,8 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
   assert.match(source, /separationEnvelope/);
   assert.match(source, /simulateCoupledMultiBodyFlight/);
   assert.match(source, /coupledMultiBodyFlight/);
+  assert.match(pageSource, /rigidBodyCount/);
+  assert.match(pageSource, /quaternion\/inertia state/);
   assert.match(stylesheet, /\.stage-separated-bodies/);
   assert.match(stylesheet, /\.stage-separated-body-grid/);
   assert.match(stylesheet, /\.stage-multi-body-separation/);
