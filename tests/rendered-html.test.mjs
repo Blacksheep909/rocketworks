@@ -39,6 +39,17 @@ test("server-renders the RocketWorks workbench", async () => {
   assert.doesNotMatch(html, /OpenRocket/);
 });
 
+test("keeps the Node 22 TypeScript test-loader contract explicit", async () => {
+  const packageJson = JSON.parse(
+    await readFile(new URL("../package.json", import.meta.url), "utf8"),
+  );
+  assert.match(
+    packageJson.scripts?.test ?? "",
+    /node --experimental-strip-types --test/,
+    "npm test must opt into Node 22's erasable TypeScript loader",
+  );
+});
+
 test("ships an installable browser shell without claiming offline simulation", async () => {
   const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const manifest = JSON.parse(await readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"));

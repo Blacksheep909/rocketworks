@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Fixed the CI/runtime portability failure hidden by newer local Node versions:
+  `npm test` now opts into Node 22's erasable TypeScript loader before running
+  the direct `.ts` regression imports, with a source-level contract test. This
+  changes no simulation equations or validation status and does not trigger a
+  remote workflow by itself.
 - Added a versioned device-local display-preferences record for the selected
   2D / 3D presentation mode and 2D azimuth. These preferences restore the
   user's workspace without entering the engineering project snapshot,

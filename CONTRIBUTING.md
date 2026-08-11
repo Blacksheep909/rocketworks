@@ -22,7 +22,10 @@ provenance boundary.
 
 ## Local workflow
 
-The project requires Node.js `>=22.13.0`.
+The project requires Node.js `>=22.13.0`. The regression command explicitly
+uses Node 22's `--experimental-strip-types` loader because the tests import
+the original TypeScript modules directly; this keeps local and CI runtimes
+consistent until the test harness is compiled as a separate artifact.
 
 ```bash
 npm install
