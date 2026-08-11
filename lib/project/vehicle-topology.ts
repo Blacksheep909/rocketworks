@@ -460,3 +460,81 @@ export function createStagePlan(input: Readonly<{
     failedMotorInstanceIndices: input.failedMotorInstanceIndices ?? [],
   }, 0);
 }
+
+/**
+ * Duplicate one configured stage and its authored component primitives.
+ *
+ * The first core stage is intentionally converted into a serial upper stage
+ * because a topology can contain only one leading core. All other stage roles,
+ * attachments, timing, source assignments, geometry overrides, and failure
+ * settings are retained. The returned document is validated before it leaves
+ * this helper, so callers can use it as a transactional editor operation.
+ */
+export function duplicateVehicleStageTopology(
+  topology: LocalVehicleTopology,
+  sourceStageId: string,
+): LocalVehicleTopology {
+  const current = validateVehicleTopology(topology);
+  const source = current.stages.find((stage) => stage.id === sourceStageId);
+  if (!source) throw new Error(`Cannot duplicate unknown stage ${sourceStageId}.`);
+  const role: VehicleStageRole = source.role === "core" ? "upper" : source.role;
+  const baseId = role === "booster" ? "booster" : role === "upper" ? "upper" : "payload";
+  let stageIndex = 1;
+  let id = `${baseId}-${String(stageIndex).padStart(2, "0")}`;
+  while (current.stages.some((stage) => stage.id === id)) {
+    stageIndex += 1;
+    id = `${baseId}-${String(stageIndex).padStart(2, "0")}`;
+  }
+  const coreStageId = current.stages[0]!.id;
+  const duplicatedStage = createStagePlan({
+    ...source,
+    id,
+    name: `${source.name} copy`,
+    role,
+    attachment: role === "booster" ? source.attachment : "serial",
+    parentStageId: coreStageId === source.id ? coreStageId : source.parentStageId ?? coreStageId,
+    failedMotorInstanceIndices: role === "payload" ? [] : source.failedMotorInstanceIndices,
+  });
+  const usedComponentIds = new Set(current.components.map((component) => component.id));
+  const duplicatedComponents = current.components
+    .filter((component) => component.stageId === source.id)
+    .map((component, componentIndex) => {
+      const baseComponentId = `${component.id}-copy`;
+      let suffix = componentIndex + 1;
+      let componentId = `${baseComponentId}-${String(suffix).padStart(2, "0")}`;
+      while (usedComponentIds.has(componentId)) {
+        suffix += 1;
+        componentId = `${baseComponentId}-${String(suffix).padStart(2, "0")}`;
+      }
+      usedComponentIds.add(componentId);
+      return {
+        ...component,
+        id: componentId,
+        name: `${component.name} copy`,
+        stageId: duplicatedStage.id,
+      };
+    });
+  return validateVehicleTopology({
+    ...current,
+    stages: [...current.stages, duplicatedStage],
+    components: [...current.components, ...duplicatedComponents],
+  });
+}
+
+/** Remove a non-core stage and rehome its authored primitives to the core. */
+export function removeVehicleStageTopology(
+  topology: LocalVehicleTopology,
+  stageId: string,
+): LocalVehicleTopology {
+  const current = validateVehicleTopology(topology);
+  if (stageId === current.stages[0]?.id) throw new Error("The core sustainer cannot be removed.");
+  if (!current.stages.some((stage) => stage.id === stageId)) throw new Error(`Cannot remove unknown stage ${stageId}.`);
+  const coreStageId = current.stages[0]!.id;
+  const stages = current.stages
+    .filter((stage) => stage.id !== stageId)
+    .map((stage) => stage.parentStageId === stageId ? { ...stage, parentStageId: coreStageId } : stage);
+  const components = current.components.map((component) => component.stageId === stageId
+    ? { ...component, stageId: coreStageId }
+    : component);
+  return validateVehicleTopology({ ...current, stages, components });
+}

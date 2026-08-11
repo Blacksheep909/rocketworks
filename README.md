@@ -23,6 +23,8 @@ research, standards, and original code.
 - editable topology point-mass equipment and cylindrical pod primitives with
   slider/exact-number placement controls; off-axis aerodynamic interference is
   explicitly outside this analytical preview;
+- one-click configured-stage duplication with authored-component copies and
+  safe component rehoming when a non-core stage is removed;
 - per-stage body-length, diameter, and nose-length overrides for generated
   upper-stage, booster, and payload preview geometry, with role-based defaults;
 - independent repeated-stage instance ignition, burnout, separation, and live

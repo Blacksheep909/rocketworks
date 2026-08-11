@@ -159,7 +159,9 @@ import {
   LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY,
   createDefaultVehicleTopology,
   createStagePlan,
+  duplicateVehicleStageTopology,
   parseVehicleTopology,
+  removeVehicleStageTopology,
   serializeVehicleTopology,
   stageThrustAxisBody,
   type LocalVehicleTopology,
@@ -5424,6 +5426,18 @@ export default function Home() {
       setTopologyError(error instanceof Error ? error.message : "Unable to add stage");
     }
   };
+  const duplicateTopologyStage = (sourceStageId: string) => {
+    try {
+      if (vehicleTopology.stages.length >= 8) throw new Error("Vehicle topology already contains the maximum of 8 stages.");
+      const next = duplicateVehicleStageTopology(vehicleTopology, sourceStageId);
+      const duplicated = next.stages.at(-1);
+      const copiedComponents = next.components.length - vehicleTopology.components.length;
+      persistVehicleTopology(next);
+      notify(`${duplicated?.name ?? "Stage"} duplicated${copiedComponents > 0 ? ` with ${copiedComponents} component${copiedComponents === 1 ? "" : "s"}` : ""}`);
+    } catch (error) {
+      setTopologyError(error instanceof Error ? error.message : `Unable to duplicate ${sourceStageId}`);
+    }
+  };
   const addTopologyComponent = (kind: VehicleTopologyComponentPlan["kind"]) => {
     try {
       const baseId = kind === "pointMass" ? "equipment" : "pod";
@@ -5531,16 +5545,11 @@ export default function Home() {
     }
   };
   const removeTopologyStage = (id: string) => {
-    if (id === "sustainer") {
-      setTopologyError("The core sustainer cannot be removed.");
-      return;
-    }
     try {
-      const nextStages = vehicleTopology.stages
-        .filter((stage) => stage.id !== id)
-        .map((stage) => stage.parentStageId === id ? { ...stage, parentStageId: "sustainer" } : stage);
-      persistVehicleTopology({ ...vehicleTopology, stages: nextStages });
-      notify("Stage removed from vehicle topology");
+      const removed = vehicleTopology.stages.find((stage) => stage.id === id);
+      const rehomedCount = vehicleTopology.components.filter((component) => component.stageId === id).length;
+      persistVehicleTopology(removeVehicleStageTopology(vehicleTopology, id));
+      notify(`${removed?.name ?? "Stage"} removed${rehomedCount > 0 ? ` · ${rehomedCount} component${rehomedCount === 1 ? "" : "s"} rehomed to core` : ""}`);
     } catch (error) {
       setTopologyError(error instanceof Error ? error.message : "Unable to remove stage");
     }
@@ -8520,7 +8529,7 @@ export default function Home() {
                       <label>Failed motors (1-based)<input type="text" inputMode="text" placeholder={stageMotorInstanceCount(stage) > 1 ? "e.g. 1, 3" : "none"} value={topologyFailureDrafts[stage.id] ?? stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")} disabled={stage.role === "payload"} onChange={(event) => { setTopologyFailureDrafts((current) => ({ ...current, [stage.id]: event.target.value })); setTopologyError(""); }} onBlur={() => { const value = topologyFailureDrafts[stage.id]; if (value === undefined) return; if (updateTopologyMotorFailures(stage, value)) { setTopologyFailureDrafts((current) => { const next = { ...current }; delete next[stage.id]; return next; }); } }} /></label>
                       <label className="topology-failure-toggle"><input type="checkbox" checked={stage.ignitionFailure} onChange={(event) => updateTopologyStage(stage.id, { ignitionFailure: event.target.checked })} /> Force ignition failure in preview</label>
                     </div>
-                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{(stage.separationDeltaVBodyMps ?? 0) > 0 ? ` · separation +${(stage.separationDeltaVBodyMps ?? 0).toFixed(2)} m/s` : ""}{stage.recovery?.enabled ? ` · detached recovery Ø${stage.recovery.diameterM.toFixed(2)} m · ${stage.recovery.deploymentTrigger === "altitude" ? `descent ${stage.recovery.deploymentAltitudeAglM ?? 150} m` : stage.recovery.deploymentTrigger === "time" ? `time ${stage.recovery.deploymentTimeS ?? 8} s` : "branch apogee"}` : ""}{stage.failedMotorInstanceIndices.length > 0 ? ` · failed motor${stage.failedMotorInstanceIndices.length > 1 ? "s" : ""} ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}` : ""}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>
+                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{(stage.separationDeltaVBodyMps ?? 0) > 0 ? ` · separation +${(stage.separationDeltaVBodyMps ?? 0).toFixed(2)} m/s` : ""}{stage.recovery?.enabled ? ` · detached recovery Ø${stage.recovery.diameterM.toFixed(2)} m · ${stage.recovery.deploymentTrigger === "altitude" ? `descent ${stage.recovery.deploymentAltitudeAglM ?? 150} m` : stage.recovery.deploymentTrigger === "time" ? `time ${stage.recovery.deploymentTimeS ?? 8} s` : "branch apogee"}` : ""}{stage.failedMotorInstanceIndices.length > 0 ? ` · failed motor${stage.failedMotorInstanceIndices.length > 1 ? "s" : ""} ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}` : ""}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}</span><div className="topology-stage-actions"><button className="secondary-button" onClick={() => duplicateTopologyStage(stage.id)}>Duplicate</button>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div></div>
                   </div>
                 </article>
               ))}

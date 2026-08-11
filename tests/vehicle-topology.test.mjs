@@ -7,7 +7,9 @@ import {
   MAX_VEHICLE_STAGES,
   createDefaultVehicleTopology,
   createStagePlan,
+  duplicateVehicleStageTopology,
   parseVehicleTopology,
+  removeVehicleStageTopology,
   serializeVehicleTopology,
   stageThrustAxisBody,
   validateVehicleTopology,
@@ -73,6 +75,66 @@ test("bounded equipment and cylindrical pod components validate and round-trip",
   assert.throws(() => validateVehicleTopology({ ...topology, components: [{ ...topology.components[0], id: "avionics" }, { ...topology.components[0], id: "avionics" }] }), /Duplicate topology component/);
   assert.throws(() => validateVehicleTopology({ ...topology, components: [{ ...topology.components[1], wallThicknessM: 0.04 }] }), /wallThicknessM/);
   assert.throws(() => validateVehicleTopology({ ...topology, components: Array.from({ length: MAX_VEHICLE_COMPONENTS + 1 }, (_, index) => ({ ...topology.components[0], id: `equipment-${index}` })) }), /components must contain/);
+});
+
+test("stage duplication preserves configuration and copies authored components", () => {
+  const topology = {
+    ...createDefaultVehicleTopology(),
+    stages: [
+      createStagePlan({ id: "sustainer", name: "Sustainer", role: "core", attachment: "serial" }),
+      createStagePlan({ id: "upper-01", name: "Upper stage 1", role: "upper", attachment: "serial", parentStageId: "sustainer", repeatCount: 1, ignitionDelayS: 2.5 }),
+      createStagePlan({ id: "booster-01", name: "Booster set 1", role: "booster", attachment: "parallel", parentStageId: "upper-01", repeatCount: 2, repeatRadiusM: 0.12 }),
+    ],
+    components: [{
+      id: "camera",
+      name: "Camera",
+      stageId: "upper-01",
+      enabled: true,
+      kind: "pointMass",
+      axialPositionM: 0.22,
+      radialOffsetM: 0.01,
+      azimuthDeg: 10,
+      massKg: 0.08,
+    }],
+  };
+  const duplicated = duplicateVehicleStageTopology(topology, "upper-01");
+  const duplicate = duplicated.stages.at(-1);
+  assert.equal(duplicate.role, "upper");
+  assert.equal(duplicate.parentStageId, "sustainer");
+  assert.equal(duplicate.ignitionDelayS, 2.5);
+  assert.equal(duplicated.components.length, 2);
+  assert.equal(duplicated.components[1].stageId, duplicate.id);
+  assert.notEqual(duplicated.components[1].id, "camera");
+  assert.deepEqual(parseVehicleTopology(serializeVehicleTopology(duplicated)), duplicated);
+  assert.throws(() => duplicateVehicleStageTopology(topology, "missing"), /unknown stage/);
+});
+
+test("removing a stage rehomes authored components and child stages to the core", () => {
+  const topology = {
+    ...createDefaultVehicleTopology(),
+    stages: [
+      createStagePlan({ id: "sustainer", name: "Sustainer", role: "core", attachment: "serial" }),
+      createStagePlan({ id: "upper-01", name: "Upper stage 1", role: "upper", attachment: "serial", parentStageId: "sustainer" }),
+      createStagePlan({ id: "payload-01", name: "Payload bay", role: "payload", attachment: "serial", parentStageId: "upper-01" }),
+    ],
+    components: [{
+      id: "payload-camera",
+      name: "Payload camera",
+      stageId: "upper-01",
+      enabled: true,
+      kind: "pointMass",
+      axialPositionM: 0.2,
+      radialOffsetM: 0,
+      azimuthDeg: 0,
+      massKg: 0.08,
+    }],
+  };
+  const removed = removeVehicleStageTopology(topology, "upper-01");
+  assert.deepEqual(removed.stages.map((stage) => stage.id), ["sustainer", "payload-01"]);
+  assert.equal(removed.stages[1].parentStageId, "sustainer");
+  assert.equal(removed.components[0].stageId, "sustainer");
+  assert.throws(() => removeVehicleStageTopology(topology, "sustainer"), /cannot be removed/);
+  assert.throws(() => removeVehicleStageTopology(topology, "missing"), /unknown stage/);
 });
 
 test("serial upper stages and repeated parallel boosters validate in order", () => {

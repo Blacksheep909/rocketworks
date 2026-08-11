@@ -894,6 +894,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /\+ Equipment mass/);
   assert.match(page, /\+ Cylindrical pod/);
   assert.match(page, /topologyComponentToVehicleComponent/);
+  assert.match(page, /duplicateTopologyStage/);
+  assert.match(page, /Duplicate/);
+  assert.match(page, /rehomed to core/);
   assert.match(page, /Radial offset \(m\)/);
   assert.match(page, /Wall thickness \(m\)/);
   assert.match(page, /radial placement rotates with repeated booster instances/);
@@ -904,6 +907,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(topology, /VehicleTopologyComponentPlan/);
   assert.match(topology, /cylindricalPod/);
   assert.match(topology, /unknown stage/);
+  assert.match(topology, /duplicateVehicleStageTopology/);
+  assert.match(topology, /removeVehicleStageTopology/);
   assert.match(topology, /Parallel stage/);
   assert.match(topology, /parent must appear earlier/);
   assert.match(topology, /aerodynamicTableId/);
@@ -940,6 +945,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stylesheet, /\.topology-add-actions/);
   assert.match(stylesheet, /\.topology-components/);
   assert.match(stylesheet, /\.topology-component-card/);
+  assert.match(stylesheet, /\.topology-stage-actions/);
   assert.match(stylesheet, /\.stage-flight-profile/);
   assert.match(stylesheet, /\.stage-flight-chart/);
   assert.match(stylesheet, /\.stage-flight-convergence/);

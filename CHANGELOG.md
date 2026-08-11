@@ -11,6 +11,10 @@ flight-readiness claims.
   vehicle, flow through assembly mass/CG/inertia, radial stage placement, 3D
   preview, project/share exports, and history, with explicit off-axis aero
   limitations.
+- Added configured-stage duplication to the topology editor. A duplicate keeps
+  stage settings and copies authored component plans; removing a non-core stage
+  now rehomes its components and reparents direct children to the core through
+  a validated transactional helper.
 
 - Extended the original RASP/ENG interchange parser to validate multi-record
   files. Batch imports receive deterministic local ID suffixes, preserve the
