@@ -188,7 +188,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.18.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.19.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.massRatio.overallStatus, "assessed");
   assert.equal(result.massRatio.stages.length, 2);
@@ -332,6 +332,9 @@ test("stage-flight adapter carries configured recovery into detached branches", 
           deploymentDelayS: 0,
           inflationTimeS: 0.1,
         }],
+        recoveryDeploymentTrigger: "time",
+        recoveryDeploymentAltitudeAglM: 120,
+        recoveryDeploymentTimeS: 2,
       }
     : stage);
   const result = simulateStageFlightPreview({
@@ -356,7 +359,8 @@ test("stage-flight adapter carries configured recovery into detached branches", 
 
   assert.equal(result.separatedBodies.length, 1);
   assert.equal(result.separatedBodies[0].recoveryModelVersion, "kestrel-recovery-loads-0.2.0");
-  assert.ok(result.separatedBodies[0].simulation.events.some((event) => event.id === "recovery-booster-recovery-apogee-command"));
+  assert.equal(result.separatedBodies[0].recoveryDeploymentTrigger, "time");
+  assert.ok(result.separatedBodies[0].simulation.events.some((event) => event.id === "recovery-booster-recovery-scheduled-command"));
   assert.ok(result.separatedBodies[0].trace.some((point) => point.recoveryDragN > 0));
   assert.ok(result.assumptions.some((assumption) => assumption.includes("Detached recovery commands")));
 });

@@ -31,6 +31,9 @@ import {
 export const RECOVERY_SYSTEM_MODEL_VERSION =
   "kestrel-recovery-loads-0.2.0";
 
+/** Trigger vocabulary shared by recovery event adapters. */
+export type RecoveryCommandTrigger = "apogee" | "altitude" | "time";
+
 export type RecoveryDevice = Readonly<{
   id: string;
   name: string;

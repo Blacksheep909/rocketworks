@@ -874,8 +874,13 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Nose length \(m\)/);
   assert.match(page, /stagePreviewGeometry/);
   assert.match(page, /Separation dV \(\+X, m\/s\)/);
-  assert.match(page, /Detached recovery at apogee/);
+  assert.match(page, /Detached recovery/);
   assert.match(page, /Canopy diameter \(m\)/);
+  assert.match(page, /Recovery trigger/);
+  assert.match(page, /Descending altitude/);
+  assert.match(page, /Mission time/);
+  assert.match(page, /deploymentAltitudeAglM/);
+  assert.match(page, /deploymentTimeS/);
   assert.match(page, /Recovery delay \(s\)/);
   assert.match(page, /updateTopologyRecovery/);
   assert.match(page, /thrustCantAngleDeg/);

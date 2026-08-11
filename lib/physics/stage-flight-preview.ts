@@ -79,7 +79,7 @@ import {
 } from "./stage-flight-vector-budget.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.18.0";
+  "kestrel-stage-flight-preview-0.19.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -966,6 +966,13 @@ export function simulateStageFlightPreview(
             ...(detachedRecoveryDevices && detachedRecoveryDevices.length > 0
               ? { recoveryDevices: detachedRecoveryDevices }
               : {}),
+            ...(stageDefinition?.recoveryDeploymentTrigger
+              ? {
+                  recoveryDeploymentTrigger: stageDefinition.recoveryDeploymentTrigger,
+                  recoveryDeploymentAltitudeAglM: stageDefinition.recoveryDeploymentAltitudeAglM,
+                  recoveryDeploymentTimeS: stageDefinition.recoveryDeploymentTimeS,
+                }
+              : {}),
           });
         separatedBodies.push(separatedBody);
         const bodyId = `${stageId}/${instanceId}`;
@@ -1124,7 +1131,7 @@ export function simulateStageFlightPreview(
     "Separated-body previews apply a mass-ratio equal-and-opposite linear-momentum delta-v when the separation event carries a configured retained-body delta-v; a single event releasing multiple copies uses their combined detached mass and assigns one shared detached velocity increment. Separation mechanism dynamics, angular impulse, lift, attitude-dependent aerodynamic torque, plume interaction, aerodynamic interference, and contact/collision response remain outside the model; the separate fixed spherical-envelope screen is only a potential-overlap diagnostic. Detached-stage recovery devices are propagated only when explicitly configured on that stage and remain a deterministic canopy-load approximation.",
     ...(separatedBodies.some((body) => body.recoveryModelVersion !== undefined)
       ? [
-          "Detached recovery commands are located at each branch apogee; deployment delay, inflation, and optional reefing are carried by the independent recovery-load model rather than copied from the retained vehicle.",
+          "Detached recovery commands use each stage's configured apogee, descending-altitude, or mission-time trigger; deployment delay, inflation, and optional reefing are carried by the independent recovery-load model rather than copied from the retained vehicle.",
         ]
       : []),
     ...(coupledMultiBodyFlight

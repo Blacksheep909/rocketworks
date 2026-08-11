@@ -85,8 +85,8 @@ research, standards, and original code.
   dependency, tie-group, cycle, and mutual-exclusion diagnostics carried into
   coupled traces and engineering reports;
 - optional stage-specific detached recovery plans for upper stages and booster
-  sets, with apogee command events, canopy inflation telemetry, and explicit
-  recovery-load applicability warnings;
+  sets, with apogee, descending-altitude, or mission-time command events, canopy
+  inflation telemetry, and explicit recovery-load applicability warnings;
 - a conservative spherical-envelope separation screen derived from supplied
   component geometry, with explicit potential-overlap and missing-geometry
   states; it remains outside contact and range-safety analysis;

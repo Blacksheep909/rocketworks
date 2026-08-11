@@ -7,10 +7,18 @@ export type VehicleStageRole = "core" | "upper" | "booster" | "payload";
 export type VehicleStageAttachment = "serial" | "parallel";
 
 /** Optional recovery hardware carried by a detachable stage. */
+export type VehicleStageRecoveryTrigger = "apogee" | "altitude" | "time";
+
 export type VehicleStageRecoveryPlan = Readonly<{
   enabled: boolean;
   diameterM: number;
   deploymentDelayS: number;
+  /** Defaults to branch apogee for legacy topology documents. */
+  deploymentTrigger?: VehicleStageRecoveryTrigger;
+  /** Descending AGL trigger when deploymentTrigger is altitude. */
+  deploymentAltitudeAglM?: number;
+  /** Mission-time trigger when deploymentTrigger is time. */
+  deploymentTimeS?: number;
 }>;
 
 export type VehicleStagePlan = Readonly<{
@@ -193,7 +201,36 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     ) {
       throw new Error(`Stage ${id} recovery deploymentDelayS must be a finite value from 0 through 60 s.`);
     }
-    recovery = { enabled, diameterM: recoveryDiameterM, deploymentDelayS };
+    const deploymentTrigger = recoveryObject.deploymentTrigger ?? "apogee";
+    if (deploymentTrigger !== "apogee" && deploymentTrigger !== "altitude" && deploymentTrigger !== "time") {
+      throw new Error(`Stage ${id} recovery deploymentTrigger must be apogee, altitude, or time.`);
+    }
+    const deploymentAltitudeAglM = recoveryObject.deploymentAltitudeAglM ?? 150;
+    if (
+      typeof deploymentAltitudeAglM !== "number" ||
+      !Number.isFinite(deploymentAltitudeAglM) ||
+      deploymentAltitudeAglM < 0 ||
+      deploymentAltitudeAglM > 100_000
+    ) {
+      throw new Error(`Stage ${id} recovery deploymentAltitudeAglM must be a finite value from 0 through 100000 m.`);
+    }
+    const deploymentTimeS = recoveryObject.deploymentTimeS ?? 8;
+    if (
+      typeof deploymentTimeS !== "number" ||
+      !Number.isFinite(deploymentTimeS) ||
+      deploymentTimeS < 0 ||
+      deploymentTimeS > 180
+    ) {
+      throw new Error(`Stage ${id} recovery deploymentTimeS must be a finite value from 0 through 180 s.`);
+    }
+    recovery = {
+      enabled,
+      diameterM: recoveryDiameterM,
+      deploymentDelayS,
+      deploymentTrigger,
+      deploymentAltitudeAglM,
+      deploymentTimeS,
+    };
   }
   return {
     id,

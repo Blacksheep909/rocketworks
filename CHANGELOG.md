@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extended detachable-stage recovery plans beyond the legacy branch-apogee
+  default. Topology records now validate and persist descending-altitude and
+  mission-time triggers, the detached-body 6DOF branch applies the selected
+  event path, and the browser/report surfaces disclose the command and any
+  unreached-trigger warning. This remains an analytical component check, not a
+  separation or recovery controller.
 - Added validated primary recovery trigger selection. The browser now supports
   apogee, descending-through-altitude, and mission-time commands with a shared
   post-command delay, and carries the selection through vertical and coupled

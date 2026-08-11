@@ -14,16 +14,21 @@ import {
 } from "./linear-algebra.ts";
 import type { MassProperties } from "./mass-properties.ts";
 import {
+  createAltitudeRecoveryDeploymentEvent,
   createApogeeRecoveryDeploymentEvent,
   createRecoverySystemModel,
+  createScheduledRecoveryDeploymentEvent,
+  type RecoveryCommandTrigger,
   type RecoveryDevice,
   type RecoverySystemModel,
 } from "./recovery-system.ts";
 import {
   rotateBodyToWorld,
   simulateRigidBody6D,
+  type ScheduledRigidBodyEvent,
   type RigidBodyState,
   type SixDofSimulationResult,
+  type StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
 import {
   analyzeSeparationClearance,
@@ -31,7 +36,7 @@ import {
 } from "./separation-clearance.ts";
 
 export const SEPARATED_BODY_FLIGHT_MODEL_VERSION =
-  "kestrel-separated-body-flight-0.4.0";
+  "kestrel-separated-body-flight-0.5.0";
 export const SEPARATED_BODY_FLIGHT_STATUS =
   "analytical-component-checks-only" as const;
 
@@ -70,6 +75,10 @@ export type SeparatedBodyTrajectory = Readonly<{
   impactTimeS: number | null;
   /** Recovery model identity when this detached branch carries a canopy. */
   recoveryModelVersion?: string;
+  /** Trigger used by the detached-stage recovery branch. */
+  recoveryDeploymentTrigger?: RecoveryCommandTrigger;
+  recoveryDeploymentAltitudeAglM?: number;
+  recoveryDeploymentTimeS?: number;
   /** Constant isotropic drag basis when a bounded detached-stage aero basis is available. */
   referenceAreaM2?: number;
   dragCoefficient?: number;
@@ -106,6 +115,12 @@ export type SeparatedBodyFlightInput = Readonly<{
   retainedBodyTrace?: readonly RigidBodyState[];
   /** Optional recovery devices carried by this detached stage. */
   recoveryDevices?: readonly RecoveryDevice[];
+  /** Trigger used by the detached-stage recovery branch; defaults to apogee. */
+  recoveryDeploymentTrigger?: RecoveryCommandTrigger;
+  /** Descending AGL command altitude when the trigger is altitude. */
+  recoveryDeploymentAltitudeAglM?: number;
+  /** Mission-time command when the trigger is time. */
+  recoveryDeploymentTimeS?: number;
 }>;
 
 function validateMassProperties(properties: MassProperties): void {
@@ -239,20 +254,66 @@ export function simulateSeparatedBodyFlight(
     detachedBodyDeltaVBodyMps,
   );
   validateMassProperties(input.stageMassProperties);
-  const recovery: RecoverySystemModel | null = input.recoveryDevices && input.recoveryDevices.length > 0
+  const hasRecovery = (input.recoveryDevices?.length ?? 0) > 0;
+  const recoveryTrigger = input.recoveryDeploymentTrigger ?? "apogee";
+  if (hasRecovery && recoveryTrigger !== "apogee" && recoveryTrigger !== "altitude" && recoveryTrigger !== "time") {
+    throw new Error("separated-body recovery deployment trigger must be apogee, altitude, or time");
+  }
+  const recoveryAltitudeAglM = input.recoveryDeploymentAltitudeAglM ?? 150;
+  if (hasRecovery && (!Number.isFinite(recoveryAltitudeAglM) || recoveryAltitudeAglM < 0 || recoveryAltitudeAglM > 100_000)) {
+    throw new Error("separated-body recovery deployment altitude must be finite and between 0 and 100000 m");
+  }
+  const recoveryTimeS = input.recoveryDeploymentTimeS ?? 8;
+  if (hasRecovery && (!Number.isFinite(recoveryTimeS) || recoveryTimeS < 0 || recoveryTimeS > 180)) {
+    throw new Error("separated-body recovery deployment time must be finite and between 0 and 180 s");
+  }
+  const recovery: RecoverySystemModel | null = hasRecovery
     ? createRecoverySystemModel({
-        devices: input.recoveryDevices,
+        devices: input.recoveryDevices ?? [],
         environmentAt: input.environmentAt,
         launchAltitudeM: input.environmentAt ? undefined : input.launchAltitudeM,
         centerOfMassBodyM: () => input.stageMassProperties.centerOfMassM,
-      })
+    })
     : null;
-  const recoveryEvents = input.recoveryDevices?.map((device) =>
-    createApogeeRecoveryDeploymentEvent({
+  const recoveryEvents = input.recoveryDevices?.map((device) => {
+    if (recoveryTrigger === "altitude") {
+      return createAltitudeRecoveryDeploymentEvent({
+        deviceId: device.id,
+        altitudeAglM: recoveryAltitudeAglM,
+        direction: "falling",
+        label: `${input.stageName} ${device.name} command on descent through ${recoveryAltitudeAglM.toFixed(0)} m AGL`,
+      });
+    }
+    if (recoveryTrigger === "time") {
+      const minimumScheduledTimeS = input.releaseState.timeS + Math.min(
+        1e-9,
+        (input.durationS - input.releaseState.timeS) / 2,
+      );
+      return createScheduledRecoveryDeploymentEvent({
+        deviceId: device.id,
+        timeS: Math.max(recoveryTimeS, minimumScheduledTimeS),
+        label: `${input.stageName} ${device.name} command at mission time ${recoveryTimeS.toFixed(2)} s`,
+      });
+    }
+    return createApogeeRecoveryDeploymentEvent({
       deviceId: device.id,
       label: `${input.stageName} ${device.name} command at branch apogee`,
-    }),
-  ) ?? [];
+    });
+  }) ?? [];
+  const recoveryTriggerDescription = recoveryTrigger === "altitude"
+    ? `descending through ${recoveryAltitudeAglM.toFixed(0)} m AGL`
+    : recoveryTrigger === "time"
+      ? `mission time ${recoveryTimeS.toFixed(2)} s`
+      : "branch apogee";
+  const scheduledRecoveryEvents = recoveryEvents.filter(
+    (event): event is ScheduledRigidBodyEvent =>
+      "timeS" in event &&
+      event.timeS > input.releaseState.timeS &&
+      event.timeS <= input.durationS,
+  );
+  const stateRecoveryEvents = recoveryEvents.filter(
+    (event): event is StateTriggeredRigidBodyEvent => !("timeS" in event),
+  );
   const initialState = releaseStateAtStageCenterOfMass(
     input,
     detachedBodyDeltaVWorldMps,
@@ -318,8 +379,9 @@ export function simulateSeparatedBodyFlight(
         value: (state) => state.positionWorldM.z,
         terminal: true,
       },
-      ...recoveryEvents,
+      ...stateRecoveryEvents,
     ],
+    events: scheduledRecoveryEvents,
   });
   const trace = simulation.trace.map((state): SeparatedBodyTracePoint => {
     const recoveryEvaluation = recovery?.evaluate(state);
@@ -363,7 +425,12 @@ export function simulateSeparatedBodyFlight(
     maxAltitudeAglM,
     maxSpeedMps,
     impactTimeS: simulation.termination?.timeS ?? null,
-    ...(recovery ? { recoveryModelVersion: recovery.modelVersion } : {}),
+    ...(recovery ? {
+      recoveryModelVersion: recovery.modelVersion,
+      recoveryDeploymentTrigger: recoveryTrigger,
+      recoveryDeploymentAltitudeAglM: recoveryAltitudeAglM,
+      recoveryDeploymentTimeS: recoveryTimeS,
+    } : {}),
     ...(hasReferenceArea && hasDragCoefficient
       ? {
           referenceAreaM2: input.referenceAreaM2,
@@ -384,7 +451,10 @@ export function simulateSeparatedBodyFlight(
           : "This separated-body branch is ballistic and applies gravity only; drag, plume interaction, aerodynamic interference, recovery, and collision are not modeled.",
       ...(recovery
         ? [
-            "Detached recovery devices are commanded at branch apogee and use deterministic delay, inflation, and optional reefing effective-area approximations; opening shock and canopy-line dynamics remain outside the model.",
+            `Detached recovery devices are commanded on ${recoveryTriggerDescription} and use deterministic delay, inflation, and optional reefing effective-area approximations; opening shock and canopy-line dynamics remain outside the model.`,
+            ...(recoveryEvents.some((event) => !simulation.events.some((applied) => applied.id === event.id))
+              ? [`${input.stageName} detached recovery trigger was not reached before the branch terminated; its canopy remained stowed.`]
+              : []),
           ]
         : []),
       input.detachedBodyDeltaVBodyMps
@@ -412,7 +482,7 @@ export function simulateSeparatedBodyFlight(
         : "A terminal ground-impact crossing is root-found only for the discarded body's ballistic path.",
       ...(recovery
         ? [
-            `Detached recovery loads are coupled through ${recovery.modelVersion}; each device is evaluated against the same branch atmosphere and center-of-mass frame.`,
+            `Detached recovery loads are coupled through ${recovery.modelVersion}; each device is evaluated against the same branch atmosphere and center-of-mass frame. The selected trigger is ${recoveryTriggerDescription}.`,
           ]
         : []),
       ...(clearance?.assumptions ?? []),

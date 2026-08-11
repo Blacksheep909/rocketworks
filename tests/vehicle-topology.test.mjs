@@ -80,6 +80,9 @@ test("detachable stages can carry a bounded recovery plan", () => {
     enabled: true,
     diameterM: 0.8,
     deploymentDelayS: 2.5,
+    deploymentTrigger: "apogee",
+    deploymentAltitudeAglM: 150,
+    deploymentTimeS: 8,
   });
   assert.deepEqual(parseVehicleTopology(serializeVehicleTopology(validated)), validated);
   assert.throws(
@@ -99,6 +102,51 @@ test("detachable stages can carry a bounded recovery plan", () => {
         : stage),
     }),
     /recovery deploymentDelayS/,
+  );
+  const altitudeRecovery = validateVehicleTopology({
+    ...topology,
+    stages: topology.stages.map((stage) => stage.id === "upper-01"
+      ? {
+          ...stage,
+          recovery: {
+            enabled: true,
+            diameterM: 0.8,
+            deploymentDelayS: 1,
+            deploymentTrigger: "altitude",
+            deploymentAltitudeAglM: 120,
+            deploymentTimeS: 8,
+          },
+        }
+      : stage),
+  });
+  assert.equal(altitudeRecovery.stages[1].recovery.deploymentTrigger, "altitude");
+  assert.equal(altitudeRecovery.stages[1].recovery.deploymentAltitudeAglM, 120);
+  assert.throws(
+    () => validateVehicleTopology({
+      ...topology,
+      stages: topology.stages.map((stage) => stage.id === "upper-01"
+        ? { ...stage, recovery: { enabled: true, deploymentTrigger: "bad" } }
+        : stage),
+    }),
+    /deploymentTrigger/,
+  );
+  assert.throws(
+    () => validateVehicleTopology({
+      ...topology,
+      stages: topology.stages.map((stage) => stage.id === "upper-01"
+        ? { ...stage, recovery: { enabled: true, deploymentTrigger: "altitude", deploymentAltitudeAglM: -1 } }
+        : stage),
+    }),
+    /deploymentAltitudeAglM/,
+  );
+  assert.throws(
+    () => validateVehicleTopology({
+      ...topology,
+      stages: topology.stages.map((stage) => stage.id === "upper-01"
+        ? { ...stage, recovery: { enabled: true, deploymentTrigger: "time", deploymentTimeS: 181 } }
+        : stage),
+    }),
+    /deploymentTimeS/,
   );
 });
 

@@ -36,7 +36,7 @@ import {
   type ScheduledRigidBodyEvent,
   type StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
-import type { RecoveryDevice } from "./recovery-system.ts";
+import type { RecoveryCommandTrigger, RecoveryDevice } from "./recovery-system.ts";
 
 export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.4.0";
 
@@ -78,6 +78,12 @@ export type RocketStage = Readonly<{
   separationDeltaVBodyMps?: number;
   /** Recovery hardware that deploys if this stage becomes a detached body. */
   recoveryDevices?: readonly RecoveryDevice[];
+  /** Trigger used by the detached-body recovery branch. */
+  recoveryDeploymentTrigger?: RecoveryCommandTrigger;
+  /** Descending AGL command altitude for detached recovery. */
+  recoveryDeploymentAltitudeAglM?: number;
+  /** Mission-time command for detached recovery. */
+  recoveryDeploymentTimeS?: number;
 }>;
 
 export type StagePhase =

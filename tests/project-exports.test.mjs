@@ -815,7 +815,7 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /### Motor-state diagnostics/);
   assert.match(report, /\| Booster \| 1 \/ 2 \| 1 \| 0\.200 kg \| watch \|/);
   assert.match(report, /### Separated-body trajectories/);
-  assert.match(report, /\| Booster \| 4\.20 s \| not recorded \| not recorded \| not-modeled \| gravity only \| 11\.80 s \| 182\.0 m \| 41\.60 m\/s \|/);
+  assert.match(report, /\| Booster \| 4\.20 s \| not configured \| not recorded \| not recorded \| not-modeled \| gravity only \| 11\.80 s \| 182\.0 m \| 41\.60 m\/s \|/);
   assert.match(report, /### Multi-body center-of-mass separation/);
   assert.match(report, /\| Minimum COM separation \| 0\.400 m \|/);
   assert.match(report, /Closest pair \| retained-vehicle \/ booster\/logical-1 at 4\.20 s/);

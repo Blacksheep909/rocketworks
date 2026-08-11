@@ -1858,8 +1858,8 @@ export function createEngineeringReportMarkdown(
                 "",
                 "### Separated-body trajectories",
                 "",
-                "| Stage | Release | Retained dV (+X) | Detached dV (+X) | Impulse model | Drag basis | Impact | Peak altitude | Peak speed |",
-                "|---|---:|---:|---:|---|---|---:|---:|---:|",
+                "| Stage | Release | Recovery command | Retained dV (+X) | Detached dV (+X) | Impulse model | Drag basis | Impact | Peak altitude | Peak speed |",
+                "|---|---:|---|---:|---:|---|---|---:|---:|---:|",
                 ...(input.stageFlight.separatedBodies ?? []).map(
                   (body) => {
                     const dragBasis =
@@ -1867,7 +1867,14 @@ export function createEngineeringReportMarkdown(
                         ? `Cd ${formatNumber(body.dragCoefficient, 3)} · ${formatNumber(body.referenceAreaM2, 4)} m²`
                         : "gravity only";
                     const impulseModel = body.separationImpulseModel ?? "not-modeled";
-                    return `| ${markdownText(body.stageName)} | ${formatNumber(body.releaseTimeS, 2)} s | ${body.retainedBodyDeltaVBodyMps ? `${formatNumber(body.retainedBodyDeltaVBodyMps.x, 3)} m/s` : "not recorded"} | ${body.detachedBodyDeltaVBodyMps ? `${formatNumber(body.detachedBodyDeltaVBodyMps.x, 3)} m/s` : "not recorded"} | ${markdownText(impulseModel)} | ${dragBasis} | ${body.impactTimeS === null ? "Not reached" : `${formatNumber(body.impactTimeS, 2)} s`} | ${formatNumber(body.maxAltitudeAglM, 1)} m | ${formatNumber(body.maxSpeedMps, 2)} m/s |`;
+                    const recoveryCommand = body.recoveryDeploymentTrigger === "altitude"
+                      ? `descent ${formatNumber(body.recoveryDeploymentAltitudeAglM ?? 150, 0)} m AGL`
+                      : body.recoveryDeploymentTrigger === "time"
+                        ? `mission ${formatNumber(body.recoveryDeploymentTimeS ?? 8, 2)} s`
+                        : body.recoveryDeploymentTrigger === "apogee"
+                          ? "branch apogee"
+                          : "not configured";
+                    return `| ${markdownText(body.stageName)} | ${formatNumber(body.releaseTimeS, 2)} s | ${recoveryCommand} | ${body.retainedBodyDeltaVBodyMps ? `${formatNumber(body.retainedBodyDeltaVBodyMps.x, 3)} m/s` : "not recorded"} | ${body.detachedBodyDeltaVBodyMps ? `${formatNumber(body.detachedBodyDeltaVBodyMps.x, 3)} m/s` : "not recorded"} | ${markdownText(impulseModel)} | ${dragBasis} | ${body.impactTimeS === null ? "Not reached" : `${formatNumber(body.impactTimeS, 2)} s`} | ${formatNumber(body.maxAltitudeAglM, 1)} m | ${formatNumber(body.maxSpeedMps, 2)} m/s |`;
                   },
                 ),
                 "",

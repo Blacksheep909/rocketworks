@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.18.0`.
+`kestrel-stage-flight-preview-0.19.0`.
 
 Before integration, scheduled and state-triggered declarations pass through the
 independent mission-event allocator. Semantic priorities put rail release,
@@ -224,6 +224,23 @@ The result status is
 `analytical-component-checks-only`, and the UI, project JSON, and engineering
 report retain the warning so an impact time cannot be mistaken for a range or
 flight-safety prediction.
+
+### Detached-stage recovery triggers
+
+Each detachable stage may carry a recovery canopy with the same three command
+modes exposed by the fast retained-vehicle preview: branch apogee, a
+falling-through AGL altitude, or a mission-time schedule. Legacy topology
+documents omit these fields and normalize to branch apogee. Altitude commands
+use the 6DOF state-event root finder; mission-time commands use the scheduled
+event path. If a configured mission time precedes the stage release, the
+command is clamped to an infinitesimal interval after the branch release
+boundary so an event cannot be applied to a state that no longer exists. The canopy's own deployment delay, inflation,
+and reefing schedule remain deterministic effective-area approximations.
+
+The detached branch reports the selected trigger and a warning when the command
+is not reached before ground impact or the configured horizon. Separation
+mechanism dynamics, canopy lines, opening shock, and flight-safety validation
+remain outside the model.
 
 When detached branches are available, the adapter also returns an aggregate
 pairwise center-of-mass diagnostic and, when geometry bounds are supplied, a

@@ -164,6 +164,7 @@ import {
   type LocalVehicleTopology,
   type VehicleStageAttachment,
   type VehicleStagePlan,
+  type VehicleStageRecoveryTrigger,
   type VehicleStageRole,
 } from "../lib/project/vehicle-topology.ts";
 import {
@@ -1423,7 +1424,12 @@ function createStageFlightPreviewInputs({
       motors,
       ...(physicalInstances.length > 1 ? { instances: physicalInstances } : {}),
       separationDeltaVBodyMps: stage.separationDeltaVBodyMps ?? 0,
-      ...(stageRecoveryDevices ? { recoveryDevices: stageRecoveryDevices } : {}),
+      ...(stageRecoveryDevices ? {
+        recoveryDevices: stageRecoveryDevices,
+        recoveryDeploymentTrigger: stage.recovery?.deploymentTrigger ?? "apogee",
+        recoveryDeploymentAltitudeAglM: stage.recovery?.deploymentAltitudeAglM ?? 150,
+        recoveryDeploymentTimeS: stage.recovery?.deploymentTimeS ?? 8,
+      } : {}),
     };
   });
   if (stages.length === 0) throw new Error("Enable at least one propulsive stage before running a stage preview.");
@@ -5362,6 +5368,9 @@ export default function Home() {
       enabled: stage.recovery?.enabled ?? false,
       diameterM: stage.recovery?.diameterM ?? 0.45,
       deploymentDelayS: stage.recovery?.deploymentDelayS ?? 0,
+      deploymentTrigger: stage.recovery?.deploymentTrigger ?? "apogee",
+      deploymentAltitudeAglM: stage.recovery?.deploymentAltitudeAglM ?? 150,
+      deploymentTimeS: stage.recovery?.deploymentTimeS ?? 8,
       ...patch,
     },
   });
@@ -6931,13 +6940,14 @@ export default function Home() {
                                 <div><span>Peak altitude</span><strong>{body.maxAltitudeAglM.toFixed(1)} m</strong></div>
                                 <div><span>Peak speed</span><strong>{body.maxSpeedMps.toFixed(1)} m/s</strong></div>
                                 <div><span>Drag basis</span><strong>{body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? `Cd ${body.dragCoefficient.toFixed(3)} · ${body.referenceAreaM2.toFixed(4)} m²` : "Gravity only"}</strong><small>{body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? "isotropic point drag" : "no detached-stage aero basis"}</small></div>
+                                {body.recoveryModelVersion && <div><span>Recovery command</span><strong>{body.recoveryDeploymentTrigger === "altitude" ? `Descent ${body.recoveryDeploymentAltitudeAglM ?? 150} m AGL` : body.recoveryDeploymentTrigger === "time" ? `Mission ${body.recoveryDeploymentTimeS ?? 8} s` : "Branch apogee"}</strong><small>{body.recoveryModelVersion}</small></div>}
                                 {body.clearance && (
                                   <div><span>Min COM separation</span><strong>{body.clearance.minimumDistanceM === null ? "Not assessed" : `${body.clearance.minimumDistanceM.toFixed(2)} m`}</strong><small>{body.clearance.minimumDistanceTimeS === null ? body.clearance.status : `closest at ${body.clearance.minimumDistanceTimeS.toFixed(2)} s · ${body.clearance.status}`}</small></div>
                                 )}
                                 <div><span>Spherical envelope</span><strong>{body.envelopeRadiusM === undefined ? "Not assessed" : `${body.envelopeRadiusM.toFixed(2)} m`}</strong><small>fixed conservative radius</small></div>
                                 <div><span>Model</span><strong>{body.validationStatus}</strong></div>
                               </div>
-                              <p className="stage-separated-body-note">{body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? "Isotropic point-drag path." : "Gravity-only path."} {body.separationImpulseModel === "mass-ratio-linear-momentum" ? "The detached dV uses an instantaneous equal-and-opposite linear-momentum impulse based on the event delta-v and mass ratio." : "No detached-body impulse was supplied, so the branch starts from the pre-event release velocity."} Lift, attitude-dependent aero torque, separation mechanism dynamics, plume interaction, collision, clearance, and recovery remain outside this preview.</p>
+                              <p className="stage-separated-body-note">{body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? "Isotropic point-drag path." : "Gravity-only path."} {body.separationImpulseModel === "mass-ratio-linear-momentum" ? "The detached dV uses an instantaneous equal-and-opposite linear-momentum impulse based on the event delta-v and mass ratio." : "No detached-body impulse was supplied, so the branch starts from the pre-event release velocity."} Lift, attitude-dependent aero torque, separation mechanism dynamics, plume interaction, collision, and clearance remain outside this preview. {body.recoveryModelVersion ? "The selected recovery trigger and effective-area loads are included; canopy-line and opening-shock dynamics remain outside the model." : "No detached recovery device is configured."}</p>
                             </article>
                           ))}
                         </div>
@@ -8295,21 +8305,28 @@ export default function Home() {
                       <label>Separation delay (s)<input type="number" min="0" max="120" step="0.01" value={stage.separationDelayS} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { separationDelayS: Number(event.target.value) })} /></label>
                       <label>Separation dV (+X, m/s)<input type="number" min="0" max="30" step="0.01" value={stage.separationDeltaVBodyMps ?? 0} disabled={stage.role === "core"} onChange={(event) => updateTopologyStage(stage.id, { separationDeltaVBodyMps: Number(event.target.value) })} /></label>
                       {stage.role !== "core" && stage.role !== "payload" && <>
-                        <label className="topology-failure-toggle"><input type="checkbox" checked={stage.recovery?.enabled ?? false} onChange={(event) => updateTopologyRecovery(stage, { enabled: event.target.checked })} /> Detached recovery at apogee</label>
+                        <label className="topology-failure-toggle"><input type="checkbox" checked={stage.recovery?.enabled ?? false} onChange={(event) => updateTopologyRecovery(stage, { enabled: event.target.checked })} /> Detached recovery</label>
                         <label>Canopy diameter (m)<input type="number" min="0.05" max="3" step="0.01" value={stage.recovery?.diameterM ?? 0.45} disabled={!stage.recovery?.enabled} onChange={(event) => updateTopologyRecovery(stage, { diameterM: Number(event.target.value) })} /></label>
+                        <label>Recovery trigger<select value={stage.recovery?.deploymentTrigger ?? "apogee"} disabled={!stage.recovery?.enabled} onChange={(event) => updateTopologyRecovery(stage, { deploymentTrigger: event.target.value as VehicleStageRecoveryTrigger })}>
+                          <option value="apogee">Branch apogee</option>
+                          <option value="altitude">Descending altitude</option>
+                          <option value="time">Mission time</option>
+                        </select></label>
+                        {stage.recovery?.deploymentTrigger === "altitude" && <label>Trigger altitude (m AGL)<input type="number" min="0" max="100000" step="5" value={stage.recovery.deploymentAltitudeAglM ?? 150} disabled={!stage.recovery.enabled} onChange={(event) => updateTopologyRecovery(stage, { deploymentAltitudeAglM: Number(event.target.value) })} /></label>}
+                        {stage.recovery?.deploymentTrigger === "time" && <label>Trigger mission time (s)<input type="number" min="0" max="180" step="0.1" value={stage.recovery.deploymentTimeS ?? 8} disabled={!stage.recovery.enabled} onChange={(event) => updateTopologyRecovery(stage, { deploymentTimeS: Number(event.target.value) })} /></label>}
                         <label>Recovery delay (s)<input type="number" min="0" max="60" step="0.1" value={stage.recovery?.deploymentDelayS ?? 0} disabled={!stage.recovery?.enabled} onChange={(event) => updateTopologyRecovery(stage, { deploymentDelayS: Number(event.target.value) })} /></label>
                       </>}
                       <label>Failed motors (1-based)<input type="text" inputMode="text" placeholder={stageMotorInstanceCount(stage) > 1 ? "e.g. 1, 3" : "none"} value={topologyFailureDrafts[stage.id] ?? stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")} disabled={stage.role === "payload"} onChange={(event) => { setTopologyFailureDrafts((current) => ({ ...current, [stage.id]: event.target.value })); setTopologyError(""); }} onBlur={() => { const value = topologyFailureDrafts[stage.id]; if (value === undefined) return; if (updateTopologyMotorFailures(stage, value)) { setTopologyFailureDrafts((current) => { const next = { ...current }; delete next[stage.id]; return next; }); } }} /></label>
                       <label className="topology-failure-toggle"><input type="checkbox" checked={stage.ignitionFailure} onChange={(event) => updateTopologyStage(stage.id, { ignitionFailure: event.target.checked })} /> Force ignition failure in preview</label>
                     </div>
-                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{(stage.separationDeltaVBodyMps ?? 0) > 0 ? ` · separation +${(stage.separationDeltaVBodyMps ?? 0).toFixed(2)} m/s` : ""}{stage.recovery?.enabled ? ` · detached recovery Ø${stage.recovery.diameterM.toFixed(2)} m` : ""}{stage.failedMotorInstanceIndices.length > 0 ? ` · failed motor${stage.failedMotorInstanceIndices.length > 1 ? "s" : ""} ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}` : ""}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>
+                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{(stage.separationDeltaVBodyMps ?? 0) > 0 ? ` · separation +${(stage.separationDeltaVBodyMps ?? 0).toFixed(2)} m/s` : ""}{stage.recovery?.enabled ? ` · detached recovery Ø${stage.recovery.diameterM.toFixed(2)} m · ${stage.recovery.deploymentTrigger === "altitude" ? `descent ${stage.recovery.deploymentAltitudeAglM ?? 150} m` : stage.recovery.deploymentTrigger === "time" ? `time ${stage.recovery.deploymentTimeS ?? 8} s` : "branch apogee"}` : ""}{stage.failedMotorInstanceIndices.length > 0 ? ` · failed motor${stage.failedMotorInstanceIndices.length > 1 ? "s" : ""} ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}` : ""}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}</span>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div>
                   </div>
                 </article>
               ))}
             </div>
             <div className="history-notice">
               <span>MODEL BOUNDARY</span>
-              <p>Topology changes update analytical assembly mass, centre of gravity, inertia, instance counts, and stage-level aerodynamic source assignments. Repeated physical copies can separate independently in the retained-body event model. A regime with one available table uses it; combined stages with conflicting or unavailable tables fall back to the global source with an explicit warning. Coupled separation clearance, aerodynamic interference, and flight-safety validation remain outside this retained-body model; the staged preview exposes an independent trajectory for detached bodies, carries stage recovery only when configured, and otherwise uses bounded isotropic point drag or the gravity-only fallback.</p>
+              <p>Topology changes update analytical assembly mass, centre of gravity, inertia, instance counts, and stage-level aerodynamic source assignments. Repeated physical copies can separate independently in the retained-body event model. A regime with one available table uses it; combined stages with conflicting or unavailable tables fall back to the global source with an explicit warning. Coupled separation clearance, aerodynamic interference, and flight-safety validation remain outside this retained-body model; the staged preview exposes an independent trajectory for detached bodies, carries stage recovery with an apogee, descending-altitude, or mission-time command when configured, and otherwise uses bounded isotropic point drag or the gravity-only fallback.</p>
             </div>
           </section>
         </div>
