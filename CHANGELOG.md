@@ -11,6 +11,7 @@ flight-readiness claims.
   and sideslip fixed, with direct body-axis force volumes preferred over the
   declared legacy small-angle proxy. The SVG view carries uncertainty,
   provenance, applicability warnings, and explicit out-of-domain review status;
+  the artifact center now exports its default fixed-condition samples as CSV;
   it is an analytical data-inspection surface, not CFD or flight-safety evidence.
 - Added a world-frame vector impulse budget to the coupled preview. Recorded
   thrust, aerodynamic, gravity, recovery, and discrete-event contributions are

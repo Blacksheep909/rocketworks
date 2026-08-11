@@ -4,6 +4,7 @@ import {
   createAerodynamicCoefficientTable,
   sampleAerodynamicPolar,
 } from "../lib/physics/index.ts";
+import { createAerodynamicPolarCsv } from "../lib/export/project-exports.ts";
 
 const provenance = {
   sourceName: "Polar regression surface",
@@ -98,4 +99,22 @@ test("polar sampler reports unsupported samples and rejects unsafe sample declar
     () => sampleAerodynamicPolar(model, { angleOfAttackPointsRad: [0, 0.1, 0.05] }),
     /strictly increasing/,
   );
+});
+
+test("polar CSV retains fixed-condition provenance and nullable coefficient fields", () => {
+  const result = sampleAerodynamicPolar(table(), {
+    mach: 0.25,
+    reynoldsNumber: 1e6,
+    sideslipRad: 0,
+    angleOfAttackPointsRad: [-0.1, 0, 0.1],
+  });
+  const csv = createAerodynamicPolarCsv(result);
+  assert.equal(csv, createAerodynamicPolarCsv(result));
+  assert.match(csv, /^# RocketWorks aerodynamic polar export,1\r\n/);
+  assert.match(csv, /# model_version,rocketworks-aero-polar-0\.1\.0/);
+  assert.match(csv, /# mach,0\.25/);
+  assert.match(csv, /# sideslip_deg,0/);
+  assert.match(csv, /angle_of_attack_deg,sideslip_deg,drag_coefficient,normal_force_coefficient/);
+  assert.match(csv, /-5\.729577951308232,0,0\.4,-0\.2,-0\.4,,0\.5,-0\.5,0\.01/);
+  assert.doesNotMatch(csv, /NaN|Infinity/);
 });

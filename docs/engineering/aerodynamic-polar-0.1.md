@@ -63,6 +63,13 @@ normal and drag curves, the fixed-condition controls, and domain status. It does
 not imply dynamic pressure, Reynolds transition, hysteresis, separated flow,
 control-surface deflection, plume interaction, or measured flight agreement.
 
+The artifact center can export the default sampled polar as CSV. Comment rows
+retain the polar/table model versions, validation status, fixed Mach/Reynolds/
+sideslip condition, assumptions, and warnings. Data rows retain signed angle,
+all available force coefficients, center of pressure, uncertainty, and
+applicability issue codes. The exported condition uses the table midpoint
+defaults; it does not silently claim to preserve an inspector slider state.
+
 ## Validation boundary
 
 Regression fixtures use synthetic, user-supplied provenance. Tests cover direct

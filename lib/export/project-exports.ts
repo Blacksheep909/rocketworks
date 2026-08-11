@@ -21,6 +21,7 @@ import {
   createAerodynamicCoefficientTable,
   type AerodynamicCoefficientTableDefinition,
 } from "../physics/aerodynamic-coefficients.ts";
+import type { AerodynamicPolarResult } from "../physics/aerodynamic-polar.ts";
 import {
   createMotorDataRecord,
   type MotorDataInput,
@@ -596,6 +597,87 @@ export function createUncertaintyCsv(
       .join(",");
   });
   return `${metadata.join("\r\n")}\r\n${headers.map(csvCell).join(",")}\r\n${rows.join("\r\n")}\r\n`;
+}
+
+/**
+ * Serializes a fixed-condition aerodynamic polar with its model and review
+ * envelope retained as comment metadata. Empty or non-finite samples are
+ * rejected instead of producing a misleading spreadsheet.
+ */
+export function createAerodynamicPolarCsv(
+  polar: Readonly<AerodynamicPolarResult>,
+): string {
+  if (polar.points.length < 2) {
+    throw new Error("aerodynamic polar must contain at least two points");
+  }
+  const metadata = [
+    ["# RocketWorks aerodynamic polar export", "1"],
+    ["# model_version", polar.modelVersion],
+    ["# table_model_version", polar.tableModelVersion],
+    ["# validation_status", polar.validationStatus],
+    ["# status", polar.status],
+    ["# mach", polar.mach],
+    ["# reynolds_number", polar.reynoldsNumber],
+    ["# sideslip_deg", (polar.sideslipRad * 180) / Math.PI],
+    ...polar.assumptions.map((assumption) => ["# assumption", assumption]),
+    ...polar.warnings.map((warning) => ["# warning", warning]),
+  ];
+  metadata.forEach(([, value], index) => {
+    if (typeof value === "number") assertFinite(value, `polar metadata row ${index + 1}`);
+    if (!String(value).trim()) throw new Error(`polar metadata row ${index + 1} cannot be empty`);
+  });
+  const headers = [
+    "angle_of_attack_deg",
+    "sideslip_deg",
+    "drag_coefficient",
+    "normal_force_coefficient",
+    "axial_force_coefficient",
+    "side_force_coefficient",
+    "center_of_pressure_x_m",
+    "normal_to_drag_ratio",
+    "drag_coefficient_uncertainty",
+    "force_coefficient_uncertainty_x",
+    "force_coefficient_uncertainty_y",
+    "force_coefficient_uncertainty_z",
+    "applicability_issue_count",
+    "applicability_codes",
+  ];
+  const rows = polar.points.map((point, index) => {
+    const numericValues = [
+      point.angleOfAttackRad,
+      point.sideslipRad,
+      point.dragCoefficient,
+      point.normalForceCoefficient,
+      point.axialForceCoefficient,
+      point.sideForceCoefficient,
+      point.centerOfPressureXM,
+      point.normalToDragRatio,
+      point.dragCoefficientUncertainty,
+      point.forceCoefficientUncertainty?.x ?? null,
+      point.forceCoefficientUncertainty?.y ?? null,
+      point.forceCoefficientUncertainty?.z ?? null,
+    ];
+    numericValues.forEach((value, valueIndex) => {
+      if (value !== null) assertFinite(value, `polar row ${index + 1} column ${headers[valueIndex]}`);
+    });
+    return [
+      (point.angleOfAttackRad * 180) / Math.PI,
+      (point.sideslipRad * 180) / Math.PI,
+      point.dragCoefficient,
+      point.normalForceCoefficient,
+      point.axialForceCoefficient,
+      point.sideForceCoefficient,
+      point.centerOfPressureXM,
+      point.normalToDragRatio,
+      point.dragCoefficientUncertainty,
+      point.forceCoefficientUncertainty?.x ?? null,
+      point.forceCoefficientUncertainty?.y ?? null,
+      point.forceCoefficientUncertainty?.z ?? null,
+      point.applicability.length,
+      point.applicability.map((issue) => issue.code).join("|"),
+    ].map((value) => csvCell(value === null ? "" : value)).join(",");
+  });
+  return `${metadata.map(([key, value]) => `${key},${csvCell(value)}`).join("\r\n")}\r\n${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
 }
 
 function validateCadGeometry(geometry: RocketCadGeometry): void {

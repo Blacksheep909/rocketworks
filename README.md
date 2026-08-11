@@ -43,7 +43,8 @@ research, standards, and original code.
   a strict optional CSV field in the browser motor library;
 - an angle-of-attack polar inspector with fixed Mach, Reynolds, and sideslip
   sliders, direct force-volume preference, explicit legacy small-angle fallback,
-  uncertainty visibility, and out-of-domain review status;
+  uncertainty visibility, out-of-domain review status, and a metadata-rich CSV
+  export for reproducing the default sampled condition;
 - atmosphere through the published 84.852 km geopotential layer boundary,
   launch-site, wind, turbulence, launch-rail, recovery, and landing-dispersion
   previews;

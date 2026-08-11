@@ -8,6 +8,7 @@ import { Rocket3DViewport } from "./rocket-3d-viewport.tsx";
 import type { RocketPreviewComponentInstance } from "../lib/visualization/rocket-preview-3d.ts";
 import {
   createEngineeringReportMarkdown,
+  createAerodynamicPolarCsv,
   createFlightTraceCsv,
   createParameterSweepCsv,
   createStageFlightTraceCsv,
@@ -199,7 +200,7 @@ type ViewKey = "design" | "flight";
 type DesignViewKey = UiDesignView;
 type MaterialKey = "kraft" | "fiberglass" | "carbon";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
-type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "sweep-csv" | "uncertainty-csv" | "report" | "dxf" | "stl" | "openscad";
+type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "sweep-csv" | "uncertainty-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad";
 type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
@@ -5333,6 +5334,13 @@ export default function Home() {
           stageInterfaceLoads: stageInterfaceLoadReview,
           designReview: engineeringReview,
         });
+      } else if (format === "aero-polar-csv") {
+        if (!selectedAerodynamicTable) {
+          throw new Error("Select a provenance-qualified aerodynamic table before exporting its polar.");
+        }
+        filename = "arc-54-aerodynamic-polar.csv";
+        mediaType = "text/csv;charset=utf-8";
+        content = createAerodynamicPolarCsv(sampleAerodynamicPolar(selectedAerodynamicTable));
       } else if (format === "dxf") {
         filename = "arc-54-side-profile.dxf";
         mediaType = "application/dxf;charset=utf-8";
@@ -7940,6 +7948,11 @@ export default function Home() {
                 <span><strong>Engineering report</strong><small>Assumptions-first vehicle, motor, weather, flight, event, warning, and footprint summary.</small></span>
                 <em>↓</em>
               </button>
+              {selectedAerodynamicTable && <button onClick={() => exportArtifact("aero-polar-csv")}>
+                <span className="export-extension">CSV</span>
+                <span><strong>Coefficient polar</strong><small>Fixed-condition angle-of-attack samples with model identity, uncertainty, applicability, and explicit legacy fallback metadata.</small></span>
+                <em>↓</em>
+              </button>}
               <button onClick={() => exportArtifact("dxf")}>
                 <span className="export-extension">DXF</span>
                 <span><strong>CAD side profile</strong><small>R12 millimetre airframe and fin outlines with centerline, CG, and CP layers.</small></span>
