@@ -15,6 +15,7 @@ export const DEFAULT_WEATHER_SEED = "arc54-weather-v1";
 
 export type ProjectMaterial = "kraft" | "fiberglass" | "carbon";
 export type NoseProfile = "ogive" | "conical" | "elliptical";
+export type RecoveryDeploymentTrigger = "apogee" | "altitude" | "time";
 
 /**
  * A user-supplied mean-wind layer in the local ENU frame. An empty array
@@ -78,6 +79,12 @@ export type EditableProjectInputs = Readonly<{
   launchRailAzimuthDeg: number;
   recoveryEnabled: boolean;
   recoveryDelayS: number;
+  /** Primary recovery command trigger. */
+  recoveryDeploymentTrigger: RecoveryDeploymentTrigger;
+  /** Descending AGL command altitude when the trigger is altitude. */
+  recoveryDeploymentAltitudeM: number;
+  /** Mission-time command when the trigger is time. */
+  recoveryDeploymentTimeS: number;
   recoveryDiameterM: number;
   recoveryMassKg: number;
   recoveryDeploymentSuccessProbability: number;
@@ -127,7 +134,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "windProfileLayers" | "recoveryEnabled" | "launchRailEnabled" | "recoveryReefingEnabled" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -154,6 +161,8 @@ const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material
   launchRailInclinationDeg: [0, 30],
   launchRailAzimuthDeg: [-180, 180],
   recoveryDelayS: [0, 30],
+  recoveryDeploymentAltitudeM: [0, 100_000],
+  recoveryDeploymentTimeS: [0, 180],
   recoveryDiameterM: [0.1, 3],
   recoveryMassKg: [0.005, 2],
   recoveryDeploymentSuccessProbability: [0, 1],
@@ -180,6 +189,8 @@ const numericDefaults: Readonly<Partial<Record<keyof typeof numericRanges, numbe
   surfaceTemperatureC: 15,
   windAzimuthDeg: 0,
   turbulenceScale: 1,
+  recoveryDeploymentAltitudeM: 150,
+  recoveryDeploymentTimeS: 8,
   recoveryMassKg: 0.06,
   recoveryDeploymentSuccessProbability: 0.9,
   recoveryReefingDurationS: 3,
@@ -333,6 +344,10 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   if (typeof input.recoveryEnabled !== "boolean") {
     throw new Error("recoveryEnabled must be boolean.");
   }
+  const recoveryDeploymentTrigger = input.recoveryDeploymentTrigger ?? "apogee";
+  if (recoveryDeploymentTrigger !== "apogee" && recoveryDeploymentTrigger !== "altitude" && recoveryDeploymentTrigger !== "time") {
+    throw new Error("recoveryDeploymentTrigger must be apogee, altitude, or time.");
+  }
   const recoveryReefingEnabled = input.recoveryReefingEnabled === undefined ? false : input.recoveryReefingEnabled;
   if (typeof recoveryReefingEnabled !== "boolean") {
     throw new Error("recoveryReefingEnabled must be boolean.");
@@ -381,6 +396,9 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     launchRailAzimuthDeg: validated.launchRailAzimuthDeg,
     recoveryEnabled: input.recoveryEnabled,
     recoveryDelayS: validated.recoveryDelayS,
+    recoveryDeploymentTrigger,
+    recoveryDeploymentAltitudeM: validated.recoveryDeploymentAltitudeM,
+    recoveryDeploymentTimeS: validated.recoveryDeploymentTimeS,
     recoveryDiameterM: validated.recoveryDiameterM,
     recoveryMassKg: validated.recoveryMassKg,
     recoveryDeploymentSuccessProbability: validated.recoveryDeploymentSuccessProbability,
@@ -500,6 +518,9 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   launchRailAzimuthDeg: "launch rail azimuth",
   recoveryEnabled: "recovery system",
   recoveryDelayS: "recovery delay",
+  recoveryDeploymentTrigger: "recovery deployment trigger",
+  recoveryDeploymentAltitudeM: "recovery deployment altitude",
+  recoveryDeploymentTimeS: "recovery deployment time",
   recoveryDiameterM: "canopy diameter",
   recoveryMassKg: "recovery packed mass",
   recoveryDeploymentSuccessProbability: "recovery deployment reliability assumption",

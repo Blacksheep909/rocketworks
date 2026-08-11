@@ -102,6 +102,9 @@ const portableConfiguration = {
     launchRailLengthM: 1.2,
     recoveryEnabled: true,
     recoveryDelayS: 0,
+    recoveryDeploymentTrigger: "apogee",
+    recoveryDeploymentAltitudeM: 150,
+    recoveryDeploymentTimeS: 8,
     recoveryDiameterM: 0.45,
     recoveryMassKg: 0.06,
     recoveryDeploymentSuccessProbability: 0.9,
@@ -566,6 +569,9 @@ test("engineering report leads with status and preserves calculations and limita
     },
     recovery: {
       enabled: true,
+      deploymentTrigger: "altitude",
+      deploymentAltitudeAglM: 180,
+      deploymentDelayS: 0.5,
       reefingEnabled: true,
       reefingDurationS: 2,
       reefingStartAreaFraction: 0.25,
@@ -769,6 +775,9 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Wind azimuth input: 35° ENU/);
   assert.match(report, /Relative humidity observation: 60%/);
   assert.match(report, /## Recovery configuration/);
+  assert.match(report, /Command trigger: descending altitude/);
+  assert.match(report, /Command altitude: 180\.0 m AGL/);
+  assert.match(report, /Command delay after trigger: 0\.50 s/);
   assert.match(report, /Opening schedule: 25% to 100% over 2\.0 s/);
   assert.match(report, /Propellant depletion source: measured mass-flow history/);
   assert.match(report, /Integrated measured outflow: 0\.0200 kg/);

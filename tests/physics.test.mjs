@@ -435,6 +435,93 @@ test("flight events are chronological and include recovery deployment", () => {
   assert.ok(result.impactSpeedMps < 10);
 });
 
+test("altitude recovery trigger commands on the descending crossing and preserves delay", () => {
+  const result = simulateVerticalFlight({
+    vehicle: {
+      dryMassKg: 0.5,
+      propellantMassKg: 0.08,
+      referenceAreaM2: Math.PI * Math.pow(0.054 / 2, 2),
+      dragCoefficient: 0.52,
+    },
+    motor: { thrustCurve: makeConstantThrustCurve(22, 1.65) },
+    recovery: {
+      enabled: true,
+      dragAreaM2: 0.16,
+      dragCoefficient: 0.75,
+      deploymentTrigger: "altitude",
+      deploymentAltitudeAglM: 100,
+      deploymentDelayAfterApogeeS: 0.2,
+    },
+    integration: { timeStepS: 0.02, maxTimeS: 180 },
+  });
+  const apogee = result.events.find((event) => event.type === "apogee");
+  const recovery = result.events.find((event) => event.type === "recovery_deploy");
+  assert.ok(apogee);
+  assert.ok(recovery);
+  assert.ok(recovery.timeS > apogee.timeS);
+  assert.ok(recovery.timeS - apogee.timeS > 0.2);
+  assert.match(recovery.label, /descent through 100 m AGL/);
+  assert.ok(recovery.altitudeAglM < 100);
+  assert.ok(recovery.altitudeAglM > 70);
+});
+
+test("mission-time recovery trigger schedules a deterministic command", () => {
+  const result = simulateVerticalFlight({
+    vehicle: {
+      dryMassKg: 0.5,
+      propellantMassKg: 0.08,
+      referenceAreaM2: Math.PI * Math.pow(0.054 / 2, 2),
+      dragCoefficient: 0.52,
+    },
+    motor: { thrustCurve: makeConstantThrustCurve(22, 1.65) },
+    recovery: {
+      enabled: true,
+      dragAreaM2: 0.16,
+      dragCoefficient: 0.75,
+      deploymentTrigger: "time",
+      deploymentTimeS: 2,
+      deploymentDelayAfterApogeeS: 0.25,
+    },
+    integration: { timeStepS: 0.02, maxTimeS: 180 },
+  });
+  const recovery = result.events.find((event) => event.type === "recovery_deploy");
+  assert.ok(recovery);
+  assert.ok(recovery.timeS >= 2.25 && recovery.timeS <= 2.27, `mission-time command landed at ${recovery.timeS}`);
+  assert.match(recovery.label, /at 2\.00 s/);
+  assert.equal(result.warnings.some((warning) => warning.code === "RECOVERY_TRIGGER_NOT_REACHED"), false);
+});
+
+test("recovery trigger configuration rejects invalid mode-specific values", () => {
+  const base = {
+    vehicle: {
+      dryMassKg: 0.5,
+      propellantMassKg: 0.08,
+      referenceAreaM2: Math.PI * Math.pow(0.054 / 2, 2),
+      dragCoefficient: 0.52,
+    },
+    motor: { thrustCurve: makeConstantThrustCurve(22, 1.65) },
+    recovery: {
+      enabled: true,
+      dragAreaM2: 0.16,
+      dragCoefficient: 0.75,
+      deploymentDelayAfterApogeeS: 0,
+    },
+    integration: { timeStepS: 0.02, maxTimeS: 20 },
+  };
+  assert.throws(
+    () => simulateVerticalFlight({ ...base, recovery: { ...base.recovery, deploymentTrigger: "invalid" } }),
+    /deployment trigger/,
+  );
+  assert.throws(
+    () => simulateVerticalFlight({ ...base, recovery: { ...base.recovery, deploymentTrigger: "altitude", deploymentAltitudeAglM: -1 } }),
+    /deployment altitude/,
+  );
+  assert.throws(
+    () => simulateVerticalFlight({ ...base, recovery: { ...base.recovery, deploymentTrigger: "time", deploymentTimeS: -1 } }),
+    /deployment time/,
+  );
+});
+
 test("insufficient thrust produces an explainable no-liftoff result", () => {
   const result = simulateVerticalFlight({
     vehicle: {

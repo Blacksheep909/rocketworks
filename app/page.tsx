@@ -31,6 +31,8 @@ import {
   analyzeVerticalFlightUncertainty,
   analyzeStageFlightUncertainty,
   createApogeeRecoveryDeploymentEvent,
+  createAltitudeRecoveryDeploymentEvent,
+  createScheduledRecoveryDeploymentEvent,
   createLaunchEnvironmentModel,
   addCompactPackageInertia,
   launchRailDirectionFromAngles,
@@ -137,6 +139,7 @@ import {
   type NoseProfile,
   type ProjectWindLayer,
   type ProjectUncertaintyCorrelation,
+  type RecoveryDeploymentTrigger,
 } from "../lib/project/project-state.ts";
 import {
   EXPERIENCE_MODE_STORAGE_KEY,
@@ -513,7 +516,12 @@ function componentPresetSummary(record: LocalComponentRecord): string {
   if (parameters.kind === "nose") return `${parameters.profile} · ${parameters.lengthMm.toFixed(0)} mm`;
   if (parameters.kind === "airframe") return `${parameters.diameterMm.toFixed(0)} × ${parameters.lengthMm.toFixed(0)} mm · ${parameters.material}`;
   if (parameters.kind === "fin-set") return `${parameters.count} fins · ${parameters.rootChordMm.toFixed(0)} mm root · ${parameters.spanMm.toFixed(0)} mm span`;
-  return `${(parameters.diameterM * 1000).toFixed(0)} mm canopy · ${parameters.delayS.toFixed(1)} s delay · ${parameters.reefingEnabled ? "reefed" : "full open"}`;
+  const trigger = parameters.deploymentTrigger === "altitude"
+    ? `descent ${parameters.deploymentAltitudeM.toFixed(0)} m`
+    : parameters.deploymentTrigger === "time"
+      ? `time ${parameters.deploymentTimeS.toFixed(1)} s`
+      : "apogee";
+  return `${(parameters.diameterM * 1000).toFixed(0)} mm canopy · ${trigger} · ${parameters.delayS.toFixed(1)} s delay · ${parameters.reefingEnabled ? "reefed" : "full open"}`;
 }
 
 const materialModels: Record<
@@ -1221,6 +1229,9 @@ function createStageFlightPreviewInputs({
   coupledGravitySofteningRadiusM,
   recoveryEnabled,
   recoveryDelay,
+  recoveryDeploymentTrigger,
+  recoveryDeploymentAltitudeM,
+  recoveryDeploymentTimeS,
   recoveryDiameter,
   recoveryReefingEnabled,
   recoveryReefingDurationS,
@@ -1246,6 +1257,9 @@ function createStageFlightPreviewInputs({
   coupledGravitySofteningRadiusM: number;
   recoveryEnabled: boolean;
   recoveryDelay: number;
+  recoveryDeploymentTrigger: RecoveryDeploymentTrigger;
+  recoveryDeploymentAltitudeM: number;
+  recoveryDeploymentTimeS: number;
   recoveryDiameter: number;
   recoveryReefingEnabled: boolean;
   recoveryReefingDurationS: number;
@@ -1569,12 +1583,23 @@ function createStageFlightPreviewInputs({
       ]
     : [];
   if (recoveryDevices.length > 0) {
-    stateEvents.push(
-      createApogeeRecoveryDeploymentEvent({
-        deviceId: "main",
-        label: "Main recovery command at apogee",
-      }),
-    );
+    stateEvents.push(recoveryDeploymentTrigger === "altitude"
+      ? createAltitudeRecoveryDeploymentEvent({
+          deviceId: "main",
+          altitudeAglM: recoveryDeploymentAltitudeM,
+          direction: "falling",
+          label: `Main recovery command on descent through ${recoveryDeploymentAltitudeM.toFixed(0)} m AGL`,
+        })
+      : recoveryDeploymentTrigger === "time"
+        ? createScheduledRecoveryDeploymentEvent({
+            deviceId: "main",
+            timeS: recoveryDeploymentTimeS,
+            label: `Main recovery command at ${recoveryDeploymentTimeS.toFixed(2)} s`,
+          })
+        : createApogeeRecoveryDeploymentEvent({
+            deviceId: "main",
+            label: "Main recovery command after apogee",
+          }));
   }
   return {
     retainedMassProperties,
@@ -1649,6 +1674,9 @@ function createFlightConfig({
   surfaceTemperatureC,
   recoveryEnabled,
   recoveryDelay,
+  recoveryDeploymentTrigger,
+  recoveryDeploymentAltitudeM,
+  recoveryDeploymentTimeS,
   recoveryDiameter,
   recoveryReefingEnabled,
   recoveryReefingDurationS,
@@ -1670,6 +1698,9 @@ function createFlightConfig({
   surfaceTemperatureC: number;
   recoveryEnabled: boolean;
   recoveryDelay: number;
+  recoveryDeploymentTrigger: RecoveryDeploymentTrigger;
+  recoveryDeploymentAltitudeM: number;
+  recoveryDeploymentTimeS: number;
   recoveryDiameter: number;
   recoveryReefingEnabled: boolean;
   recoveryReefingDurationS: number;
@@ -1704,6 +1735,9 @@ function createFlightConfig({
       dragAreaM2: Math.PI * Math.pow(recoveryDiameter / 2, 2),
       dragCoefficient: BROWSER_RECOVERY_DRAG_COEFFICIENT,
       deploymentDelayAfterApogeeS: recoveryDelay,
+      deploymentTrigger: recoveryDeploymentTrigger,
+      deploymentAltitudeAglM: recoveryDeploymentAltitudeM,
+      deploymentTimeS: recoveryDeploymentTimeS,
       reefingStages: createBrowserRecoveryReefingStages({
         recoveryReefingEnabled,
         recoveryReefingDurationS,
@@ -3396,6 +3430,9 @@ export default function Home() {
   const [coupledGravitySofteningRadiusM, setCoupledGravitySofteningRadiusM] = useState(0.02);
   const [recoveryEnabled, setRecoveryEnabled] = useState(true);
   const [recoveryDelay, setRecoveryDelay] = useState(0);
+  const [recoveryDeploymentTrigger, setRecoveryDeploymentTrigger] = useState<RecoveryDeploymentTrigger>("apogee");
+  const [recoveryDeploymentAltitudeM, setRecoveryDeploymentAltitudeM] = useState(150);
+  const [recoveryDeploymentTimeS, setRecoveryDeploymentTimeS] = useState(8);
   const [recoveryDiameter, setRecoveryDiameter] = useState(0.45);
   const [recoveryMass, setRecoveryMass] = useState(0.06);
   const [recoveryDeploymentSuccessProbability, setRecoveryDeploymentSuccessProbability] = useState(0.9);
@@ -3514,6 +3551,9 @@ export default function Home() {
       launchRailAzimuthDeg,
       recoveryEnabled,
       recoveryDelayS: recoveryDelay,
+      recoveryDeploymentTrigger,
+      recoveryDeploymentAltitudeM,
+      recoveryDeploymentTimeS,
       recoveryDiameterM: recoveryDiameter,
       recoveryMassKg: recoveryMass,
       recoveryDeploymentSuccessProbability,
@@ -3524,7 +3564,7 @@ export default function Home() {
       uncertaintySeed,
       uncertaintyCorrelations,
     }),
-    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, launchSiteName, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
+    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, launchSiteName, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -3743,6 +3783,9 @@ export default function Home() {
       surfaceTemperatureC,
       recoveryEnabled,
       recoveryDelay,
+      recoveryDeploymentTrigger,
+      recoveryDeploymentAltitudeM,
+      recoveryDeploymentTimeS,
       recoveryDiameter,
       recoveryReefingEnabled,
       recoveryReefingDurationS,
@@ -3792,6 +3835,9 @@ export default function Home() {
       surfaceTemperatureC,
       recoveryEnabled,
       recoveryDelay,
+      recoveryDeploymentTrigger,
+      recoveryDeploymentAltitudeM,
+      recoveryDeploymentTimeS,
       recoveryDiameter,
       recoveryReefingEnabled,
       recoveryReefingDurationS,
@@ -3824,6 +3870,9 @@ export default function Home() {
           surfaceTemperatureC,
           recoveryEnabled,
           recoveryDelay,
+          recoveryDeploymentTrigger,
+          recoveryDeploymentAltitudeM,
+          recoveryDeploymentTimeS,
           recoveryDiameter,
           recoveryReefingEnabled,
           recoveryReefingDurationS,
@@ -4297,6 +4346,9 @@ export default function Home() {
         setLaunchRailAzimuthDeg(inputs.launchRailAzimuthDeg);
         setRecoveryEnabled(inputs.recoveryEnabled);
         setRecoveryDelay(inputs.recoveryDelayS);
+        setRecoveryDeploymentTrigger(inputs.recoveryDeploymentTrigger);
+        setRecoveryDeploymentAltitudeM(inputs.recoveryDeploymentAltitudeM);
+        setRecoveryDeploymentTimeS(inputs.recoveryDeploymentTimeS);
         setRecoveryDiameter(inputs.recoveryDiameterM);
         setRecoveryMass(inputs.recoveryMassKg);
         setRecoveryDeploymentSuccessProbability(inputs.recoveryDeploymentSuccessProbability);
@@ -4416,6 +4468,9 @@ export default function Home() {
         setLaunchRailAzimuthDeg(inputs.launchRailAzimuthDeg);
         setRecoveryEnabled(inputs.recoveryEnabled);
         setRecoveryDelay(inputs.recoveryDelayS);
+        setRecoveryDeploymentTrigger(inputs.recoveryDeploymentTrigger);
+        setRecoveryDeploymentAltitudeM(inputs.recoveryDeploymentAltitudeM);
+        setRecoveryDeploymentTimeS(inputs.recoveryDeploymentTimeS);
         setRecoveryDiameter(inputs.recoveryDiameterM);
         setRecoveryMass(inputs.recoveryMassKg);
         setRecoveryDeploymentSuccessProbability(inputs.recoveryDeploymentSuccessProbability);
@@ -4875,6 +4930,9 @@ export default function Home() {
     setLaunchRailAzimuthDeg(inputs.launchRailAzimuthDeg);
     setRecoveryEnabled(inputs.recoveryEnabled);
     setRecoveryDelay(inputs.recoveryDelayS);
+    setRecoveryDeploymentTrigger(inputs.recoveryDeploymentTrigger);
+    setRecoveryDeploymentAltitudeM(inputs.recoveryDeploymentAltitudeM);
+    setRecoveryDeploymentTimeS(inputs.recoveryDeploymentTimeS);
     setRecoveryDiameter(inputs.recoveryDiameterM);
     setRecoveryMass(inputs.recoveryMassKg);
     setRecoveryDeploymentSuccessProbability(inputs.recoveryDeploymentSuccessProbability);
@@ -5024,6 +5082,9 @@ export default function Home() {
           massKg: recoveryMass,
           diameterM: recoveryDiameter,
           delayS: recoveryDelay,
+          deploymentTrigger: recoveryDeploymentTrigger,
+          deploymentAltitudeM: recoveryDeploymentAltitudeM,
+          deploymentTimeS: recoveryDeploymentTimeS,
           deploymentSuccessProbability: recoveryDeploymentSuccessProbability,
           reefingEnabled: recoveryReefingEnabled,
           reefingDurationS: recoveryReefingDurationS,
@@ -5086,6 +5147,9 @@ export default function Home() {
       setRecoveryMass(record.parameters.massKg);
       setRecoveryDiameter(record.parameters.diameterM);
       setRecoveryDelay(record.parameters.delayS);
+      setRecoveryDeploymentTrigger(record.parameters.deploymentTrigger);
+      setRecoveryDeploymentAltitudeM(record.parameters.deploymentAltitudeM);
+      setRecoveryDeploymentTimeS(record.parameters.deploymentTimeS);
       setRecoveryDeploymentSuccessProbability(record.parameters.deploymentSuccessProbability);
       setRecoveryReefingEnabled(record.parameters.reefingEnabled);
       setRecoveryReefingDurationS(record.parameters.reefingDurationS);
@@ -5628,6 +5692,10 @@ export default function Home() {
           },
           recovery: {
             enabled: recoveryEnabled,
+            deploymentTrigger: recoveryDeploymentTrigger,
+            deploymentAltitudeAglM: recoveryDeploymentAltitudeM,
+            deploymentTimeS: recoveryDeploymentTimeS,
+            deploymentDelayS: recoveryDelay,
             reefingEnabled: recoveryReefingEnabled,
             reefingDurationS: recoveryReefingDurationS,
             reefingStartAreaFraction: recoveryReefingStartAreaFraction,
@@ -5690,6 +5758,9 @@ export default function Home() {
       surfaceTemperatureC,
       recoveryEnabled,
       recoveryDelay,
+      recoveryDeploymentTrigger,
+      recoveryDeploymentAltitudeM,
+      recoveryDeploymentTimeS,
       recoveryDiameter,
       recoveryReefingEnabled,
       recoveryReefingDurationS,
@@ -5761,6 +5832,9 @@ export default function Home() {
             coupledGravitySofteningRadiusM,
             recoveryEnabled,
             recoveryDelay,
+            recoveryDeploymentTrigger,
+            recoveryDeploymentAltitudeM,
+            recoveryDeploymentTimeS,
             recoveryDiameter,
             recoveryReefingEnabled,
             recoveryReefingDurationS,
@@ -5811,6 +5885,9 @@ export default function Home() {
           coupledGravitySofteningRadiusM,
           recoveryEnabled,
           recoveryDelay,
+          recoveryDeploymentTrigger,
+          recoveryDeploymentAltitudeM,
+          recoveryDeploymentTimeS,
           recoveryDiameter,
           recoveryReefingEnabled,
           recoveryReefingDurationS,
@@ -5954,6 +6031,9 @@ export default function Home() {
           surfaceTemperatureC,
           recoveryEnabled,
           recoveryDelay,
+          recoveryDeploymentTrigger,
+          recoveryDeploymentAltitudeM,
+          recoveryDeploymentTimeS,
           recoveryDiameter,
           recoveryReefingEnabled,
           recoveryReefingDurationS,
@@ -6001,6 +6081,9 @@ export default function Home() {
           surfaceTemperatureC,
           recoveryEnabled,
           recoveryDelay,
+          recoveryDeploymentTrigger,
+          recoveryDeploymentAltitudeM,
+          recoveryDeploymentTimeS,
           recoveryDiameter,
           recoveryReefingEnabled,
           recoveryReefingDurationS,
@@ -7605,11 +7688,21 @@ export default function Home() {
             <div className="field-group">
               <label htmlFor="recovery-enabled">Recovery model</label>
               <select id="recovery-enabled" value={recoveryEnabled ? "enabled" : "disabled"} onChange={(event) => { setRecoveryEnabled(event.target.value === "enabled"); markChanged(); }}>
-                <option value="enabled">450 mm parachute at apogee</option>
+                <option value="enabled">450 mm primary parachute</option>
                 <option value="disabled">Ballistic descent</option>
               </select>
             </div>
-            {recoveryEnabled && <NumberField id="recovery-delay" label="Deployment delay" value={recoveryDelay} unit="s" min={0} max={30} step={0.1} onChange={(value) => { setRecoveryDelay(value); markChanged(); }} />}
+            {recoveryEnabled && <div className="field-group">
+              <label htmlFor="recovery-deployment-trigger">Primary recovery trigger</label>
+              <select id="recovery-deployment-trigger" value={recoveryDeploymentTrigger} onChange={(event) => { setRecoveryDeploymentTrigger(event.target.value as RecoveryDeploymentTrigger); markChanged(); }}>
+                <option value="apogee">At apogee</option>
+                <option value="altitude">Descending through altitude</option>
+                <option value="time">At mission time</option>
+              </select>
+            </div>}
+            {recoveryEnabled && recoveryDeploymentTrigger === "altitude" && <NumberField id="recovery-deployment-altitude" label="Deployment altitude" value={recoveryDeploymentAltitudeM} unit="m AGL" min={0} max={10000} step={5} slider onChange={(value) => { setRecoveryDeploymentAltitudeM(value); markChanged(); }} />}
+            {recoveryEnabled && recoveryDeploymentTrigger === "time" && <NumberField id="recovery-deployment-time" label="Deployment mission time" value={recoveryDeploymentTimeS} unit="s" min={0} max={180} step={0.1} slider onChange={(value) => { setRecoveryDeploymentTimeS(value); markChanged(); }} />}
+            {recoveryEnabled && <NumberField id="recovery-delay" label="Deployment delay after trigger" value={recoveryDelay} unit="s" min={0} max={30} step={0.1} slider onChange={(value) => { setRecoveryDelay(value); markChanged(); }} />}
             {recoveryEnabled && <NumberField id="recovery-diameter" label="Canopy diameter" value={recoveryDiameter} unit="m" min={0.1} max={3} step={0.01} onChange={(value) => { setRecoveryDiameter(value); markChanged(); }} />}
             {recoveryEnabled && <NumberField id="recovery-deployment-success" label="Deployment success assumption" value={recoveryDeploymentSuccessProbability * 100} unit="%" min={0} max={100} step={1} onChange={(value) => { setRecoveryDeploymentSuccessProbability(value / 100); markChanged(); }} />}
             {recoveryEnabled && <div className="field-group">
@@ -7624,7 +7717,7 @@ export default function Home() {
               <NumberField id="recovery-reefing-duration" label="Reefing duration" value={recoveryReefingDurationS} unit="s" min={0.1} max={30} step={0.1} onChange={(value) => { setRecoveryReefingDurationS(value); markChanged(); }} />
               <p className="recovery-provenance">The preview multiplies canopy drag area from the initial fraction to 100% with a piecewise-linear schedule after inflation. Reefing lines, fabric dynamics, loads, and hardware are not modeled.</p>
             </>}
-            {recoveryEnabled && <p className="recovery-provenance">Landing dispersion samples this as a Bernoulli outcome. A failed deployment uses ballistic descent with body drag; the percentage is a modeling assumption, not hardware reliability evidence.</p>}
+            {recoveryEnabled && <p className="recovery-provenance">The primary device can command at apogee, on descent through a target AGL altitude, or at a mission time, then waits the configured delay before inflation. Landing dispersion samples deployment as a Bernoulli outcome. A failed deployment uses ballistic descent with body drag; these are modeling assumptions, not hardware reliability evidence.</p>}
             <button className="library-button" onClick={() => setAerodynamicLibraryOpen(true)}>
               <span><strong>Aerodynamic data</strong><small>{selectedAerodynamicTable?.name ?? "Constant drag coefficient"}</small></span>
               <em>{aerodynamicTableDefinitions.length} saved · Manage</em>

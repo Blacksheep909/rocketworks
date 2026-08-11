@@ -35,6 +35,9 @@ export type FlightEventType =
   | "ground_impact"
   | "no_liftoff";
 
+/** Trigger used to command the primary recovery device in the 1D preview. */
+export type RecoveryDeploymentTrigger = "apogee" | "altitude" | "time";
+
 export type FlightEvent = {
   type: FlightEventType;
   timeS: number;
@@ -69,6 +72,12 @@ export type VerticalFlightConfig = {
     dragAreaM2: number;
     dragCoefficient: number;
     deploymentDelayAfterApogeeS: number;
+    /** Defaults to apogee for backwards-compatible callers. */
+    deploymentTrigger?: RecoveryDeploymentTrigger;
+    /** Descending AGL trigger when deploymentTrigger is altitude. */
+    deploymentAltitudeAglM?: number;
+    /** Mission-time trigger when deploymentTrigger is time. */
+    deploymentTimeS?: number;
     /** Optional effective-area schedule beginning when the recovery command is applied. */
     reefingStages?: readonly RecoveryReefingStage[];
   };
@@ -189,6 +198,16 @@ function validateConfig(config: VerticalFlightConfig) {
     if (config.recovery.deploymentDelayAfterApogeeS < 0) {
       throw new Error("Recovery deployment delay cannot be negative.");
     }
+    const deploymentTrigger = config.recovery.deploymentTrigger ?? "apogee";
+    if (deploymentTrigger !== "apogee" && deploymentTrigger !== "altitude" && deploymentTrigger !== "time") {
+      throw new Error("Recovery deployment trigger must be apogee, altitude, or time.");
+    }
+    if (deploymentTrigger === "altitude" && (!Number.isFinite(config.recovery.deploymentAltitudeAglM) || config.recovery.deploymentAltitudeAglM! < 0)) {
+      throw new Error("Recovery deployment altitude must be finite and non-negative.");
+    }
+    if (deploymentTrigger === "time" && (!Number.isFinite(config.recovery.deploymentTimeS) || config.recovery.deploymentTimeS! < 0)) {
+      throw new Error("Recovery deployment time must be finite and non-negative.");
+    }
   }
   validateRecoveryReefingStages(config.recovery?.reefingStages, "vertical recovery reefing stages");
 }
@@ -248,6 +267,12 @@ export function simulateVerticalFlight(
   let apogeeRecorded = false;
   let recoveryDeployed = false;
   let scheduledRecoveryTimeS: number | null = null;
+  const recoveryTrigger = config.recovery?.deploymentTrigger ?? "apogee";
+  const recoveryTriggerLabel = recoveryTrigger === "altitude"
+    ? `Recovery device command on descent through ${(config.recovery?.deploymentAltitudeAglM ?? 0).toFixed(0)} m AGL`
+    : recoveryTrigger === "time"
+      ? `Recovery device command at ${(config.recovery?.deploymentTimeS ?? 0).toFixed(2)} s`
+      : "Recovery device deployed after apogee";
   let apogeeM = state.altitudeAglM;
   let timeToApogeeS = 0;
   let maxSpeedMps = Math.abs(state.velocityMps);
@@ -256,6 +281,12 @@ export function simulateVerticalFlight(
   let impactSpeedMps: number | null = null;
   const aerodynamicApplicabilityWarnings = new Map<string, ModelWarning>();
   let aerodynamicFallbackWarning: string | null = null;
+
+  if (config.recovery?.enabled && recoveryTrigger === "time") {
+    scheduledRecoveryTimeS =
+      (config.recovery.deploymentTimeS ?? 0) +
+      config.recovery.deploymentDelayAfterApogeeS;
+  }
 
   const sample = (
     sampleTimeS: number,
@@ -391,7 +422,7 @@ export function simulateVerticalFlight(
         timeS,
         altitudeAglM: state.altitudeAglM,
         velocityMps: state.velocityMps,
-        label: "Recovery device deployed",
+        label: recoveryTriggerLabel,
       });
     }
 
@@ -471,18 +502,48 @@ export function simulateVerticalFlight(
         label: "Apogee",
       });
       if (config.recovery?.enabled) {
-        scheduledRecoveryTimeS =
-          timeToApogeeS + config.recovery.deploymentDelayAfterApogeeS;
-        if (scheduledRecoveryTimeS <= nextTimeS) {
-          recoveryDeployed = true;
-          events.push({
-            type: "recovery_deploy",
-            timeS: scheduledRecoveryTimeS,
-            altitudeAglM: apogeeM,
-            velocityMps: 0,
-            label: "Recovery device deployed",
-          });
+        if (recoveryTrigger === "apogee") {
+          scheduledRecoveryTimeS =
+            timeToApogeeS + config.recovery.deploymentDelayAfterApogeeS;
+          if (scheduledRecoveryTimeS <= nextTimeS) {
+            recoveryDeployed = true;
+            events.push({
+              type: "recovery_deploy",
+              timeS: scheduledRecoveryTimeS,
+              altitudeAglM: apogeeM,
+              velocityMps: 0,
+              label: recoveryTriggerLabel,
+            });
+          }
         }
+      }
+    }
+
+    if (
+      config.recovery?.enabled &&
+      recoveryTrigger === "altitude" &&
+      scheduledRecoveryTimeS === null &&
+      state.velocityMps < 0 &&
+      state.altitudeAglM >= (config.recovery.deploymentAltitudeAglM ?? 0) &&
+      nextState.altitudeAglM <= (config.recovery.deploymentAltitudeAglM ?? 0)
+    ) {
+      const targetAltitudeAglM = config.recovery.deploymentAltitudeAglM ?? 0;
+      const altitudeDeltaM = state.altitudeAglM - nextState.altitudeAglM;
+      const fraction = altitudeDeltaM > 0
+        ? Math.max(0, Math.min(1, (state.altitudeAglM - targetAltitudeAglM) / altitudeDeltaM))
+        : 0;
+      const triggerTimeS = timeS + fraction * timeStepS;
+      scheduledRecoveryTimeS =
+        triggerTimeS + config.recovery.deploymentDelayAfterApogeeS;
+      if (scheduledRecoveryTimeS <= nextTimeS) {
+        recoveryDeployed = true;
+        events.push({
+          type: "recovery_deploy",
+          timeS: scheduledRecoveryTimeS,
+          altitudeAglM: targetAltitudeAglM,
+          velocityMps: nextState.velocityMps,
+          label: recoveryTriggerLabel,
+        });
       }
     }
 
@@ -537,6 +598,14 @@ export function simulateVerticalFlight(
       title: "Low initial thrust-to-weight ratio",
       explanation:
         "Slow initial acceleration can increase sensitivity to wind and launcher geometry.",
+    });
+  }
+  if (config.recovery?.enabled && !recoveryDeployed) {
+    warnings.push({
+      code: "RECOVERY_TRIGGER_NOT_REACHED",
+      severity: "warning",
+      title: "Recovery trigger was not reached",
+      explanation: `${recoveryTriggerLabel} did not occur before the trace ended; the recovery device remained stowed.`,
     });
   }
   if (aerodynamicFallbackWarning !== null) {

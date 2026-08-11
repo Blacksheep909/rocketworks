@@ -533,6 +533,9 @@ test("ships a provenance-qualified recovery landing footprint", async () => {
   assert.match(page, /recoveryReefingEnabled/);
   assert.match(page, /recoveryReefingDurationS/);
   assert.match(page, /recoveryReefingStartAreaFraction/);
+  assert.match(page, /recoveryDeploymentTrigger/);
+  assert.match(page, /recoveryDeploymentAltitudeM/);
+  assert.match(page, /recoveryDeploymentTimeS/);
   assert.match(page, /recovery-provenance/);
   assert.match(page, /estimateAscentWindDrift/);
   assert.match(page, /landingPrediction\.ascentDrift/);
@@ -648,6 +651,9 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(page, /recoveryReefingEnabled/);
   assert.match(page, /recoveryReefingDurationS/);
   assert.match(page, /recoveryReefingStartAreaFraction/);
+  assert.match(page, /recovery-deployment-trigger/);
+  assert.match(page, /recovery-deployment-altitude/);
+  assert.match(page, /recovery-deployment-time/);
   assert.match(page, /window\.setTimeout\(\(\) => \{/);
   assert.match(page, /\}, 600\)/);
   assert.match(page, /Local project history/);
@@ -663,6 +669,9 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(projectState, /recoveryReefingEnabled/);
   assert.match(projectState, /recoveryReefingDurationS/);
   assert.match(projectState, /recoveryReefingStartAreaFraction/);
+  assert.match(projectState, /recoveryDeploymentTrigger/);
+  assert.match(projectState, /recoveryDeploymentAltitudeM/);
+  assert.match(projectState, /recoveryDeploymentTimeS/);
   assert.match(projectState, /relativeHumidityPercent/);
   assert.match(projectState, /surfacePressureHpa/);
   assert.match(projectState, /surfaceTemperatureC/);

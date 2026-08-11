@@ -33,6 +33,9 @@ export type ComponentPresetParameters =
       massKg: number;
       diameterM: number;
       delayS: number;
+      deploymentTrigger: "apogee" | "altitude" | "time";
+      deploymentAltitudeM: number;
+      deploymentTimeS: number;
       deploymentSuccessProbability: number;
       reefingEnabled: boolean;
       reefingDurationS: number;
@@ -172,6 +175,17 @@ function validateParameters(value: unknown, expectedKind: ComponentPresetKind): 
     massKg: positiveNumber(parameters.massKg, "recovery massKg", 20),
     diameterM: positiveNumber(parameters.diameterM, "recovery diameterM", 10),
     delayS: nonNegativeNumber(parameters.delayS, "recovery delayS", 60),
+    deploymentTrigger: oneOf(parameters.deploymentTrigger ?? "apogee", "recovery deploymentTrigger", [
+      "apogee",
+      "altitude",
+      "time",
+    ] as const),
+    deploymentAltitudeM: nonNegativeNumber(
+      parameters.deploymentAltitudeM ?? 150,
+      "recovery deploymentAltitudeM",
+      100_000,
+    ),
+    deploymentTimeS: nonNegativeNumber(parameters.deploymentTimeS ?? 8, "recovery deploymentTimeS", 180),
     deploymentSuccessProbability: (() => {
       const probability = finiteNumber(
         parameters.deploymentSuccessProbability,

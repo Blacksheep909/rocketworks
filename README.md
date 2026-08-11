@@ -57,8 +57,9 @@ research, standards, and original code.
 - seeded coupled-flight uncertainty runs can independently vary direct
   body-axis force and static-moment coefficient databases when those sources
   are present, with the selected factors and nominal fallbacks disclosed;
-- user-configurable recovery reefing schedules shared by the vertical preview,
-  landing descent, 6DOF recovery loads, trace telemetry, and portable inputs;
+- user-configurable recovery triggers (apogee, descending AGL altitude, or
+  mission time) and reefing schedules shared by the vertical preview, landing
+  descent, 6DOF recovery loads, trace telemetry, and portable inputs;
 - optional relative-humidity coupling with explicit water-vapor, virtual-
   temperature, density, sound-speed, and Reynolds-number diagnostics;
 - configurable local-ENU wind azimuth (0° east, +90° north) shared by the

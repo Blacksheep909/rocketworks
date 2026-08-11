@@ -44,14 +44,51 @@ const finSet = {
   provenance,
 };
 
+const recovery = {
+  id: "recovery-main",
+  name: "Main recovery",
+  kind: "recovery",
+  parameters: {
+    kind: "recovery",
+    massKg: 0.06,
+    diameterM: 0.45,
+    delayS: 0.5,
+    deploymentTrigger: "altitude",
+    deploymentAltitudeM: 180,
+    deploymentTimeS: 8,
+    deploymentSuccessProbability: 0.9,
+    reefingEnabled: true,
+    reefingDurationS: 3,
+    reefingStartAreaFraction: 0.35,
+  },
+  provenance,
+};
+
 test("component presets round-trip with an explicit schema and normalized parameters", () => {
-  const serialized = serializeLocalComponentLibrary([nose, finSet]);
+  const serialized = serializeLocalComponentLibrary([nose, finSet, recovery]);
   assert.match(serialized, new RegExp(LOCAL_COMPONENT_LIBRARY_SCHEMA_ID));
   assert.match(serialized, new RegExp(`"schemaVersion": ${LOCAL_COMPONENT_LIBRARY_SCHEMA_VERSION}`));
   assert.deepEqual(parseLocalComponentLibrary(serialized), [
     validateLocalComponentRecord(nose),
     validateLocalComponentRecord(finSet),
+    validateLocalComponentRecord(recovery),
   ]);
+});
+
+test("legacy recovery component presets receive apogee trigger defaults", () => {
+  const legacy = {
+    ...recovery,
+    parameters: {
+      ...recovery.parameters,
+      deploymentTrigger: undefined,
+      deploymentAltitudeM: undefined,
+      deploymentTimeS: undefined,
+    },
+  };
+  const normalized = validateLocalComponentRecord(legacy);
+  assert.equal(normalized.parameters.deploymentTrigger, "apogee");
+  assert.equal(normalized.parameters.deploymentAltitudeM, 150);
+  assert.equal(normalized.parameters.deploymentTimeS, 8);
 });
 
 test("component presets reject mismatched kinds, unsafe ranges, and missing provenance", () => {
@@ -70,6 +107,20 @@ test("component presets reject mismatched kinds, unsafe ranges, and missing prov
   assert.throws(
     () => validateLocalComponentRecord({ ...nose, id: "contains spaces" }),
     /unsupported characters/,
+  );
+  assert.throws(
+    () => validateLocalComponentRecord({
+      ...recovery,
+      parameters: { ...recovery.parameters, deploymentTrigger: "unknown" },
+    }),
+    /deploymentTrigger/,
+  );
+  assert.throws(
+    () => validateLocalComponentRecord({
+      ...recovery,
+      parameters: { ...recovery.parameters, deploymentAltitudeM: -1 },
+    }),
+    /deploymentAltitudeM/,
   );
 });
 

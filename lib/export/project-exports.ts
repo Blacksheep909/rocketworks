@@ -158,6 +158,10 @@ export type EngineeringReportInput = Readonly<{
   }>;
   recovery?: Readonly<{
     enabled: boolean;
+    deploymentTrigger?: "apogee" | "altitude" | "time";
+    deploymentAltitudeAglM?: number;
+    deploymentTimeS?: number;
+    deploymentDelayS?: number;
     reefingEnabled: boolean;
     reefingDurationS: number;
     reefingStartAreaFraction: number;
@@ -1528,6 +1532,28 @@ export function createEngineeringReportMarkdown(
     if (value < minimum || value > maximum) throw new Error(`${label} must be between ${minimum} and ${maximum} degrees`);
   }
   if (input.recovery) {
+    const deploymentTrigger = input.recovery.deploymentTrigger;
+    if (deploymentTrigger !== undefined && !["apogee", "altitude", "time"].includes(deploymentTrigger)) {
+      throw new Error("report recovery deployment trigger is invalid");
+    }
+    if (deploymentTrigger === "altitude" && input.recovery.deploymentAltitudeAglM === undefined) {
+      throw new Error("report recovery deployment altitude is required for an altitude trigger");
+    }
+    if (deploymentTrigger === "time" && input.recovery.deploymentTimeS === undefined) {
+      throw new Error("report recovery deployment time is required for a time trigger");
+    }
+    if (input.recovery.deploymentAltitudeAglM !== undefined) {
+      assertFinite(input.recovery.deploymentAltitudeAglM, "report recovery deployment altitude");
+      if (input.recovery.deploymentAltitudeAglM < 0) throw new Error("report recovery deployment altitude cannot be negative");
+    }
+    if (input.recovery.deploymentTimeS !== undefined) {
+      assertFinite(input.recovery.deploymentTimeS, "report recovery deployment time");
+      if (input.recovery.deploymentTimeS < 0) throw new Error("report recovery deployment time cannot be negative");
+    }
+    if (input.recovery.deploymentDelayS !== undefined) {
+      assertFinite(input.recovery.deploymentDelayS, "report recovery deployment delay");
+      if (input.recovery.deploymentDelayS < 0) throw new Error("report recovery deployment delay cannot be negative");
+    }
     assertFinite(input.recovery.reefingDurationS, "report reefing duration");
     assertFinite(input.recovery.reefingStartAreaFraction, "report reefing start area fraction");
     if (input.recovery.reefingDurationS <= 0 || input.recovery.reefingStartAreaFraction < 0 || input.recovery.reefingStartAreaFraction > 1) {
@@ -1615,6 +1641,18 @@ export function createEngineeringReportMarkdown(
           "## Recovery configuration",
           "",
           `- State: ${input.recovery.enabled ? "enabled" : "ballistic descent"}`,
+          ...(input.recovery.deploymentTrigger === undefined
+            ? []
+            : [`- Command trigger: ${input.recovery.deploymentTrigger === "altitude" ? "descending altitude" : input.recovery.deploymentTrigger}`]),
+          ...(input.recovery.deploymentTrigger === "altitude" && input.recovery.deploymentAltitudeAglM !== undefined
+            ? [`- Command altitude: ${formatNumber(input.recovery.deploymentAltitudeAglM, 1)} m AGL`]
+            : []),
+          ...(input.recovery.deploymentTrigger === "time" && input.recovery.deploymentTimeS !== undefined
+            ? [`- Command mission time: ${formatNumber(input.recovery.deploymentTimeS, 2)} s`]
+            : []),
+          ...(input.recovery.deploymentDelayS === undefined
+            ? []
+            : [`- Command delay after trigger: ${formatNumber(input.recovery.deploymentDelayS, 2)} s`]),
           `- Opening schedule: ${input.recovery.reefingEnabled ? `${formatNumber(input.recovery.reefingStartAreaFraction * 100, 0)}% to 100% over ${formatNumber(input.recovery.reefingDurationS, 1)} s` : "full open after inflation; no reefing schedule"}`,
           "- Reefing schedule basis: bounded piecewise-linear effective canopy-area multiplier; inflation hardware, opening loads, lines, and fabric dynamics are not modeled.",
           "",

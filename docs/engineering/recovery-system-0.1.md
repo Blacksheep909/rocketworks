@@ -26,6 +26,16 @@ Deployment helpers modify only the event-driven discrete state. Continuous
 position, velocity, attitude, and angular velocity remain governed by the
 Newton-Euler integration.
 
+The browser's fast 1D preview exposes the same command vocabulary: at apogee,
+on descent through a configured AGL altitude, or at a configured mission time.
+The configured deployment delay is applied after that command in every mode;
+inflation and reefing then begin from the delayed command time. The 1D altitude
+crossing is linearly interpolated within the integration step. The coupled 6DOF
+path uses its root-found altitude/apogee event helpers or exact-time scheduled
+event path, so event telemetry can be compared without silently changing the
+selected trigger. Detached-stage recovery plans remain apogee-commanded in this
+preview and are labeled separately.
+
 ## Discrete state
 
 For device identifier `id`, the recovery model uses two namespaced values:
@@ -138,6 +148,8 @@ The regression suite verifies:
 - off-center body moment signs and magnitude
 - failed-device suppression
 - root-found apogee command and exact discrete command time
+- browser 1D apogee, descending-altitude, and mission-time trigger behavior,
+  including post-command delay and unreached-trigger warnings
 - materially lower root-found impact speed than ballistic descent
 - deterministic scheduled, altitude, and failure helpers
 - duplicate/invalid device rejection and Mach-limit diagnostics

@@ -6,6 +6,13 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added validated primary recovery trigger selection. The browser now supports
+  apogee, descending-through-altitude, and mission-time commands with a shared
+  post-command delay, and carries the selection through vertical and coupled
+  previews, local projects, share links, templates, component presets, and
+  engineering reports. Unreached triggers are surfaced as warnings; this is
+  still an engineering preview, not a deployment controller or flight-safety
+  result.
 - Added persisted turbulence controls to the Flight inspector. A validated
   0–3 RMS scale and bounded weather replay seed now flow through local project
   state, templates, share links, coupled environments, landing-dispersion
