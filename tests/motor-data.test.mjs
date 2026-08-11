@@ -11,9 +11,11 @@ import {
   exportMotorRaspEng,
   exportMotorThrustCsv,
   importMotorRaspEng,
+  importMotorRaspEngBatch,
   importMotorThrustCsv,
   motorRecordToImpulseBasedMotor,
   motorRecordToMultiStageMotor,
+  parseMotorRaspEngBatch,
   parseMotorMassFlowCsv,
 } from "../lib/physics/index.ts";
 
@@ -151,6 +153,29 @@ test("RASP/ENG import derives SI metadata and round-trips a local record", () =>
   assert.deepEqual(reparsed.ejectionDelaysS, record.ejectionDelaysS);
 });
 
+test("RASP/ENG batch import validates each header block and assigns deterministic IDs", () => {
+  const text = [
+    "; two original user-supplied records",
+    "C6 18 70 0,3,5 12.0 24.0 Estes",
+    "0.000 0.000",
+    "0.500 4.000",
+    "1.000 0.000",
+    "",
+    "D12 24 95 P 18.0 36.0 Example Motors",
+    "0.000 0.000",
+    "0.250 8.000",
+    "1.250 0.000",
+  ].join("\n");
+  const parsed = parseMotorRaspEngBatch(text);
+  assert.equal(parsed.length, 2);
+  assert.equal(parsed[1].header.designation, "D12");
+  const records = importMotorRaspEngBatch(text, { idPrefix: "user.batch", provenance });
+  assert.deepEqual(records.map((record) => record.id), ["user.batch-1", "user.batch-2"]);
+  assert.deepEqual(records.map((record) => record.ejectionDelaysS), [[0, 3, 5], []]);
+  assert.equal(records[0].manufacturer, "Estes");
+  assert.equal(records[1].metrics.totalImpulseNs, 5);
+});
+
 test("motor mass properties use the declared local geometry", () => {
   const record = createMotorDataRecord(input({
     propellantGeometry: { lengthM: 0.04, aftInsetM: 0.01 },
@@ -249,4 +274,6 @@ test("invalid metadata, curves, CSV, masses, and geometry fail explicitly", () =
   assert.throws(() => importMotorRaspEng("C6 18 70 0 12 10 Estes\n0 0\n1 0", { id: "bad", provenance }), /greater than positive propellant/);
   assert.throws(() => importMotorRaspEng("C6 18 70 0,3,3 12 24 Estes\n0 0\n1 0", { id: "bad", provenance }), /delays must be unique/);
   assert.throws(() => importMotorRaspEng("C6 18 70 0 12 24 Estes\n0 nope\n1 0", { id: "bad", provenance }), /decimal number/);
+  assert.throws(() => importMotorRaspEngBatch("C6 18 70 0 12 24 Estes\n0 0\n1 0\nD12 24 95 P 18 36 Example\n0 0\n1 0", { idPrefix: "bad id", provenance }), /identifier prefix/);
+  assert.throws(() => parseMotorRaspEngBatch("C6 18 70 0 12 24 Estes\n0 0\nD12 24 95 P 18 36 Example\n0 0\n1 0"), /at least two thrust rows/);
 });

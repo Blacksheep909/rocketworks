@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extended the original RASP/ENG interchange parser to validate multi-record
+  files. Batch imports receive deterministic local ID suffixes, preserve the
+  supplied provenance, update the device-local motor library transactionally,
+  and keep measured mass-flow histories restricted to single-record imports.
 - Added paired range sliders and exact-number inputs to the stage/topology
   editor for bounded geometry, repetition, motor cant, event timing,
   separation delta-v, and detached recovery settings. Both controls update the

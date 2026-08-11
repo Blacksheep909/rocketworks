@@ -1,4 +1,4 @@
-# Local motor library 0.2
+# Local motor library 0.3
 
 Status: implemented browser workflow; engineering preview.
 
@@ -17,13 +17,17 @@ time_s,thrust_n
 
 Rows contain exactly two decimal numbers in SI units. Comments beginning with `#` and blank lines are ignored. The curve must begin at `0 s`, end at `0 N`, remain valid under the shared thrust-curve validator, and contain no more than 10,000 points. Metadata requires stable identifier, manufacturer, designation, physical dimensions, launch/dry mass, and provenance fields.
 
-The browser also accepts one public RASP/ENG motor record per import. Its header
-uses designation, diameter in millimetres, length in millimetres, delay values,
+The browser also accepts public RASP/ENG motor records. Its header uses
+designation, diameter in millimetres, length in millimetres, delay values,
 propellant mass in grams, total mass in grams, and manufacturer, followed by
-time/thrust rows. Plugged motors use `P` for the delay field. RASP metadata is
-converted into the same SI motor record and can be exported again as `.eng`.
-The parser intentionally imports one record at a time and never bundles a
-third-party database.
+time/thrust rows. Plugged motors use `P` for the delay field. A file may contain
+one or multiple header blocks; every block is validated independently and
+converted into the same SI motor record. For a batch, the typed identifier is
+kept as the prefix and deterministic `-1`, `-2`, … suffixes are assigned. A
+single record keeps the prefix unchanged. The browser can export each local
+record again as `.eng`. Measured mass-flow history remains a single-record
+attachment so it cannot be silently copied across motors. The parser never
+bundles a third-party database.
 
 The UI marks every imported record `user-supplied-unvalidated`. The record
 keeps source name, data version, license or permission identifier, attribution,

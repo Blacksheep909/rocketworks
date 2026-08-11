@@ -16,7 +16,7 @@ import type { MassProperties } from "./mass-properties.ts";
 import type { MultiStageMotor } from "./multi-stage.ts";
 import type { ImpulseBasedMotor } from "./propellant-mass.ts";
 
-export const MOTOR_DATA_MODEL_VERSION = "kestrel-motor-data-0.2.0";
+export const MOTOR_DATA_MODEL_VERSION = "kestrel-motor-data-0.3.0";
 export const MOTOR_DATA_MODEL_STATUS = "engineering-preview-unvalidated";
 
 const STANDARD_GRAVITY_MPS2 = 9.80665;
@@ -88,6 +88,14 @@ export type RaspEngImportMetadata = Readonly<{
   provenance: MotorDataProvenance;
 }>;
 
+/** Metadata for a multi-record RASP/ENG file. Each record receives a deterministic suffix. */
+export type RaspEngBatchImportMetadata = Readonly<{
+  /** Stable identifier prefix chosen by the importing project. */
+  idPrefix: string;
+  description?: string;
+  provenance: MotorDataProvenance;
+}>;
+
 export type RaspEngMotorHeader = Readonly<{
   designation: string;
   diameterMm: number;
@@ -96,6 +104,11 @@ export type RaspEngMotorHeader = Readonly<{
   propellantMassG: number;
   launchMassG: number;
   manufacturer: string;
+}>;
+
+export type RaspEngParsedMotor = Readonly<{
+  header: RaspEngMotorHeader;
+  thrustCurve: readonly ThrustPoint[];
 }>;
 
 export type MotorPerformanceMetrics = Readonly<{
@@ -414,18 +427,10 @@ function parseRaspDelays(value: string): number[] {
   return delays;
 }
 
-/**
- * Parse one motor from the public RASP/ENG interchange format. The parser is
- * intentionally single-record: callers choose the local ID and provide
- * provenance rather than silently importing a third-party database.
- */
-export function parseMotorRaspEng(text: string): Readonly<{
-  header: RaspEngMotorHeader;
-  thrustCurve: readonly ThrustPoint[];
-}> {
-  const rows = raspRows(text);
-  if (rows.length < 3) throw new Error("RASP motor file requires a header and at least two thrust rows");
-  const headerRow = rows[0]!;
+function parseRaspMotorBlock(
+  headerRow: { line: string; lineNumber: number },
+  curveRows: readonly { line: string; lineNumber: number }[],
+): RaspEngParsedMotor {
   const headerFields = headerRow.line.split(/\s+/);
   if (headerFields.length < 7) {
     throw new Error(`RASP header line ${headerRow.lineNumber} must contain designation, dimensions, delays, masses, and manufacturer`);
@@ -442,7 +447,10 @@ export function parseMotorRaspEng(text: string): Readonly<{
   if (!(propellantMassG > 0) || !(launchMassG > propellantMassG)) {
     throw new Error("RASP total mass must be greater than positive propellant mass");
   }
-  const thrustCurve = rows.slice(1).map((row): ThrustPoint => {
+  if (curveRows.length < 2) {
+    throw new Error(`RASP motor ${designation} requires a header and at least two thrust rows`);
+  }
+  const thrustCurve = curveRows.map((row): ThrustPoint => {
     const fields = row.line.split(/\s+/);
     if (fields.length !== 2) throw new Error(`RASP curve line ${row.lineNumber} must contain time and thrust`);
     return {
@@ -464,13 +472,57 @@ export function parseMotorRaspEng(text: string): Readonly<{
   };
 }
 
-export function importMotorRaspEng(
-  text: string,
-  metadata: RaspEngImportMetadata,
+/**
+ * Parse one or more motors from the public RASP/ENG interchange format. A
+ * header starts a block and its following two-column rows belong to that
+ * motor; comments and blank lines are ignored. This parser handles the
+ * interchange grammar only and never supplies or bundles a motor database.
+ */
+export function parseMotorRaspEngBatch(text: string): readonly RaspEngParsedMotor[] {
+  const rows = raspRows(text);
+  if (rows.length < 3) throw new Error("RASP motor file requires a header and at least two thrust rows");
+  const parsed: RaspEngParsedMotor[] = [];
+  let headerRow: { line: string; lineNumber: number } | null = null;
+  let curveRows: Array<{ line: string; lineNumber: number }> = [];
+  for (const row of rows) {
+    const fields = row.line.split(/\s+/);
+    const isHeader = fields.length >= 7 || (fields.length !== 2 && !fields.every((field) => NUMBER_PATTERN.test(field)));
+    if (isHeader) {
+      if (headerRow) parsed.push(parseRaspMotorBlock(headerRow, curveRows));
+      headerRow = row;
+      curveRows = [];
+      continue;
+    }
+    if (!headerRow) {
+      throw new Error(`RASP header line ${row.lineNumber} must contain designation, dimensions, delays, masses, and manufacturer`);
+    }
+    curveRows.push(row);
+  }
+  if (headerRow) parsed.push(parseRaspMotorBlock(headerRow, curveRows));
+  if (parsed.length === 0) throw new Error("RASP motor file did not contain a motor header");
+  return parsed;
+}
+
+/** Parse exactly one RASP/ENG motor, retaining the legacy single-record API. */
+export function parseMotorRaspEng(text: string): RaspEngParsedMotor {
+  const parsed = parseMotorRaspEngBatch(text);
+  if (parsed.length !== 1) {
+    throw new Error(`RASP motor file contains ${parsed.length} records; use the batch importer for multi-record files`);
+  }
+  return parsed[0]!;
+}
+
+function importParsedRaspMotor(
+  parsed: RaspEngParsedMotor,
+  id: string,
+  metadata: Readonly<{
+    description?: string;
+    massFlowHistoryKgS?: readonly MassFlowPoint[];
+    provenance: MotorDataProvenance;
+  }>,
 ): MotorDataRecord {
-  const parsed = parseMotorRaspEng(text);
   return createMotorDataRecord({
-    id: metadata.id,
+    id,
     manufacturer: parsed.header.manufacturer,
     designation: parsed.header.designation,
     description: metadata.description,
@@ -485,6 +537,34 @@ export function importMotorRaspEng(
     ejectionDelaysS: parsed.header.ejectionDelaysS,
     provenance: metadata.provenance,
   });
+}
+
+export function importMotorRaspEng(
+  text: string,
+  metadata: RaspEngImportMetadata,
+): MotorDataRecord {
+  const parsed = parseMotorRaspEng(text);
+  return importParsedRaspMotor(parsed, metadata.id, metadata);
+}
+
+/**
+ * Import every validated motor in a RASP/ENG file. With one record the
+ * supplied prefix is kept unchanged; batches receive `-1`, `-2`, … suffixes
+ * so the local IDs are deterministic without guessing a global catalog key.
+ */
+export function importMotorRaspEngBatch(
+  text: string,
+  metadata: RaspEngBatchImportMetadata,
+): MotorDataRecord[] {
+  if (!ID_PATTERN.test(metadata.idPrefix)) {
+    throw new Error("RASP batch identifier prefix may contain only letters, numbers, dots, underscores, and hyphens");
+  }
+  const parsed = parseMotorRaspEngBatch(text);
+  return parsed.map((motor, index) => importParsedRaspMotor(
+    motor,
+    parsed.length === 1 ? metadata.idPrefix : `${metadata.idPrefix}-${index + 1}`,
+    metadata,
+  ));
 }
 
 export function exportMotorThrustCsv(record: MotorDataRecord): string {

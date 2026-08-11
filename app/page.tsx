@@ -47,6 +47,7 @@ import {
   exportMotorMassFlowCsv,
   exportMotorThrustCsv,
   importMotorRaspEng,
+  importMotorRaspEngBatch,
   importMotorThrustCsv,
   parseMotorMassFlowCsv,
   combineMassProperties,
@@ -5226,8 +5227,9 @@ export default function Home() {
         .split(/\r?\n/)
         .map((line) => line.trim())
         .find((line) => line && !line.startsWith("#") && !line.startsWith(";")) ?? "";
-      const record = /^time_s\s*,\s*thrust_n$/i.test(firstContentLine)
-        ? importMotorThrustCsv(draft.csv, {
+      const isThrustCsv = /^time_s\s*,\s*thrust_n$/i.test(firstContentLine);
+      const records = isThrustCsv
+        ? [importMotorThrustCsv(draft.csv, {
             id: draft.id.trim(),
             manufacturer: draft.manufacturer.trim(),
             designation: draft.designation.trim(),
@@ -5238,19 +5240,34 @@ export default function Home() {
             dryMassKg: Number(draft.dryMassKg),
             ...measuredMassFlow,
             provenance,
-          })
-        : importMotorRaspEng(draft.csv, {
-            id: draft.id.trim(),
-            description: draft.description.trim() || undefined,
-            ...measuredMassFlow,
-            provenance,
-          });
-      const nextRecords = upsertLocalMotorRecord(userMotorRecords, record);
+          })]
+        : (() => {
+            const batch = importMotorRaspEngBatch(draft.csv, {
+              idPrefix: draft.id.trim(),
+              description: draft.description.trim() || undefined,
+              provenance,
+            });
+            if (!massFlowHistoryKgS) return batch;
+            if (batch.length !== 1) {
+              throw new Error("Measured mass-flow CSV can only be attached to one RASP/ENG record; clear it before importing a batch.");
+            }
+            return [importMotorRaspEng(draft.csv, {
+              id: draft.id.trim(),
+              description: draft.description.trim() || undefined,
+              ...measuredMassFlow,
+              provenance,
+            })];
+          })();
+      let nextRecords = userMotorRecords;
+      for (const record of records) nextRecords = upsertLocalMotorRecord(nextRecords, record);
       persistMotorRecords(nextRecords);
-      setSelectedMotorId(record.id);
-      window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, record.id);
+      const selectedRecord = records[0]!;
+      setSelectedMotorId(selectedRecord.id);
+      window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, selectedRecord.id);
       setMotorError("");
-      notify(`${record.manufacturer} ${record.designation} imported; rerun the estimate`);
+      notify(records.length === 1
+        ? `${selectedRecord.manufacturer} ${selectedRecord.designation} imported; rerun the estimate`
+        : `${records.length} RASP motors imported; ${selectedRecord.designation} selected; rerun the estimate`);
     } catch (error) {
       setMotorError(error instanceof Error ? error.message : "Unable to import motor curve");
     }
@@ -8129,7 +8146,7 @@ export default function Home() {
             <div className="motor-import-section">
               <div className="motor-import-heading"><div><span className="eyebrow">User-supplied data</span><h3>Import a thrust curve</h3></div><span>{userMotorRecords.length} / 24 saved</span></div>
               <div className="motor-import-fields">
-                <label>Identifier<input value={motorImportDraft.id} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, id: event.target.value }))} /></label>
+                <label>Identifier / batch prefix<input value={motorImportDraft.id} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, id: event.target.value }))} /></label>
                 <label>Manufacturer<input value={motorImportDraft.manufacturer} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, manufacturer: event.target.value }))} /></label>
                 <label>Designation<input value={motorImportDraft.designation} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, designation: event.target.value }))} /></label>
                 <label>Diameter (mm)<input inputMode="decimal" value={motorImportDraft.diameterMm} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, diameterMm: event.target.value }))} /></label>
@@ -8145,10 +8162,10 @@ export default function Home() {
                 <label>Source URL (optional)<input inputMode="url" value={motorImportDraft.sourceUrl} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, sourceUrl: event.target.value }))} /></label>
               </div>
               <label className="motor-description-field">Description (optional)<input value={motorImportDraft.description} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, description: event.target.value }))} /></label>
-              <label className="motor-csv-field">Thrust curve CSV or RASP .eng <small>CSV Required header: time_s,thrust_n · RASP header: designation diameter_mm length_mm delays propellant_g total_g manufacturer · SI thrust rows</small><textarea value={motorImportDraft.csv} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, csv: event.target.value }))} spellCheck={false} /></label>
+              <label className="motor-csv-field">Thrust curve CSV or RASP .eng <small>CSV Required header: time_s,thrust_n · RASP accepts one or multiple header blocks: designation diameter_mm length_mm delays propellant_g total_g manufacturer · SI thrust rows</small><textarea value={motorImportDraft.csv} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, csv: event.target.value }))} spellCheck={false} /></label>
               <label className="motor-csv-field motor-mass-flow-field">Measured mass-flow CSV (optional) <small>Header: time_s,mass_flow_kg_s · positive propellant outflow in kg/s · independent from thrust</small><textarea value={motorImportDraft.massFlowCsv} onChange={(event) => setMotorImportDraft((draft) => ({ ...draft, massFlowCsv: event.target.value }))} spellCheck={false} placeholder="time_s,mass_flow_kg_s\n0,0\n0.50,0.12\n1.00,0" /></label>
               {motorError && <p className="motor-import-error" role="alert">{motorError}</p>}
-              <div className="motor-import-actions"><button className="primary-button" onClick={importUserMotor}>Validate and save motor</button><span>Strict parser · max 2 MB · user-supplied-unvalidated</span></div>
+              <div className="motor-import-actions"><button className="primary-button" onClick={importUserMotor}>Validate and save motor(s)</button><span>Strict parser · max 2 MB · batch IDs use the prefix with numeric suffixes · user-supplied-unvalidated</span></div>
             </div>
             <div className="history-notice">
               <span>DATA BOUNDARY</span>

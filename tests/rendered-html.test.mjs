@@ -714,7 +714,11 @@ test("ships a provenance-aware local motor library and mission-control visual la
   const motorState = await readFile(new URL("../lib/project/motor-library-state.ts", import.meta.url), "utf8");
   const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(page, /Motor library/);
-  assert.match(page, /Validate and save motor/);
+  assert.match(page, /Validate and save motor\(s\)/);
+  assert.match(page, /RASP accepts one or multiple header blocks/);
+  assert.match(page, /importMotorRaspEngBatch/);
+  assert.match(page, /batch IDs use the prefix/);
+  assert.match(page, /Measured mass-flow CSV can only be attached to one RASP\/ENG record/);
   assert.match(page, /Required header: time_s,thrust_n/);
   assert.match(page, /user-supplied-unvalidated/);
   assert.match(page, /Selected motor/);
