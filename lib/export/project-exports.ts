@@ -16,6 +16,7 @@ import type {
 import type { StructuralScreenResult } from "../physics/structural-screen.ts";
 import type { EngineeringDesignReviewResult } from "../physics/engineering-design-review.ts";
 import type { StageStructuralReviewResult } from "../physics/stage-structural-review.ts";
+import type { StageInterfaceLoadResult } from "../physics/stage-interface-loads.ts";
 import {
   createAerodynamicCoefficientTable,
   type AerodynamicCoefficientTableDefinition,
@@ -159,6 +160,7 @@ export type EngineeringReportInput = Readonly<{
   landing?: LandingDispersionResult | null;
   structural?: StructuralScreenResult | null;
   stageStructural?: StageStructuralReviewResult | null;
+  stageInterfaceLoads?: StageInterfaceLoadResult | null;
   designReview?: EngineeringDesignReviewResult | null;
 }>;
 
@@ -1880,6 +1882,33 @@ export function createEngineeringReportMarkdown(
           ...input.stageStructural.warnings.map((warning) => `- **Stage structural warning:** ${markdownText(warning)}`),
           "",
           "> Stage-aware review aggregates independent component screens. It does not solve stage interfaces, load transfer, joint failure, cluster imbalance, or flight safety.",
+          "",
+        ]
+      : []),
+    ...(input.stageInterfaceLoads
+      ? [
+          "## Stage-interface axial load path",
+          "",
+          `Model: \`${markdownText(input.stageInterfaceLoads.modelVersion)}\`  `,
+          `Status: \`${markdownText(input.stageInterfaceLoads.validationStatus)}\`  `,
+          `Overall review: **${markdownText(input.stageInterfaceLoads.overallStatus).toUpperCase()}**`,
+          "",
+          `- Stack mass: ${formatNumber(input.stageInterfaceLoads.totalStackMassKg, 3)} kg (retained mass ${formatNumber(input.stageInterfaceLoads.retainedMassKg, 3)} kg).`,
+          `- Peak configured thrust: ${formatNumber(input.stageInterfaceLoads.peakThrustN, 2)} N.`,
+          `- Effective axial acceleration: ${input.stageInterfaceLoads.effectiveAxialAccelerationMps2 === null ? "not assessed" : `${formatNumber(input.stageInterfaceLoads.effectiveAxialAccelerationMps2, 3)} m/s²`}.`,
+          `- Interface rows: ${input.stageInterfaceLoads.interfaces.length}; pass ${input.stageInterfaceLoads.counts.pass}, review ${input.stageInterfaceLoads.counts.review}, unavailable ${input.stageInterfaceLoads.counts.unavailable}.`,
+          "",
+          "| Interface | Attachment | Downstream mass | Axial demand | Capacity | Factor of safety | Status |",
+          "|---|---|---:|---:|---:|---:|---|",
+          ...input.stageInterfaceLoads.interfaces.map(
+            (interfaceLoad) =>
+              `| ${markdownText(`${interfaceLoad.parentLabel ?? "Missing parent"} → ${interfaceLoad.childLabel}`)} | ${markdownText(interfaceLoad.attachment)} | ${interfaceLoad.downstreamMassKg === null ? "not assessed" : `${formatNumber(interfaceLoad.downstreamMassKg, 3)} kg`} | ${interfaceLoad.axialDemandN === null ? "not assessed" : `${formatNumber(interfaceLoad.axialDemandN, 2)} N`} | ${interfaceLoad.capacityN === null ? "not assessed" : `${formatNumber(interfaceLoad.capacityN, 2)} N`} | ${interfaceLoad.factorOfSafety === null ? "not assessed" : `${formatNumber(interfaceLoad.factorOfSafety, 2)}×`} | ${markdownText(interfaceLoad.status)} |`,
+          ),
+          "",
+          ...input.stageInterfaceLoads.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+          ...input.stageInterfaceLoads.warnings.map((warning) => `- **Interface load warning:** ${markdownText(warning)}`),
+          "",
+          "> This is a first-order axial serial load-path proxy. It does not model connector geometry, fasteners, joints, bending, transient loads, radial interfaces, separation impulse, or flight safety.",
           "",
         ]
       : []),

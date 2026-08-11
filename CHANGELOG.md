@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a bounded stage-interface axial load-path review. Serial topology
+  edges now expose downstream mass, common-acceleration demand, parent/child
+  section capacity proxies, and factor-of-safety status in the browser,
+  project JSON, engineering report, and design-review finding. Parallel/radial
+  interfaces and incomplete connector evidence remain visibly unavailable;
+  this is not a connector, contact, transient, or flight-safety solver.
 - Added a stage mass-ratio diagnostic to the coupled preview. Each logical
   propulsive stage now exposes structural, motor-dry, propellant, full, and
   burnout masses, mass ratio, effective specific impulse, and a stage-only

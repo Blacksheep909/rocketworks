@@ -716,6 +716,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const topology = await readFile(new URL("../lib/project/vehicle-topology.ts", import.meta.url), "utf8");
   const stagePreview = await readFile(new URL("../lib/physics/stage-flight-preview.ts", import.meta.url), "utf8");
+  const stageInterfaceLoads = await readFile(new URL("../lib/physics/stage-interface-loads.ts", import.meta.url), "utf8");
   const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(page, /Stages, boosters & clusters/);
   assert.match(page, /\+ Upper stage/);
@@ -761,6 +762,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /formatSignedMetric/);
   assert.match(page, /stage-flight-comparison/);
   assert.match(page, /Stage flight profile/);
+  assert.match(page, /createStageInterfaceLoadReview/);
+  assert.match(page, /STAGE-INTERFACE AXIAL LOAD PATH/);
+  assert.match(page, /stageInterfaceLoadReview/);
   assert.match(page, /Dynamic pressure/);
   assert.match(page, /key: "angleOfAttack", label: "AoA"/);
   assert.match(page, /key: "sideslip", label: "Sideslip"/);
@@ -828,6 +832,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stagePreview, /half the integration step/);
   assert.match(stagePreview, /separated bodies/);
   assert.match(stagePreview, /coupledMultiBodyGravity/);
+  assert.match(stageInterfaceLoads, /analytical-axial-load-path-proxy/);
+  assert.match(stageInterfaceLoads, /Parallel\/radial interface solver/);
+  assert.match(stageInterfaceLoads, /downstream mass/);
   assert.match(stylesheet, /\.stage-flight-model-options/);
   assert.match(stylesheet, /\.topology-stage/);
   assert.match(stylesheet, /\.topology-stage-events/);
@@ -844,6 +851,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Spherical-envelope clearance/);
   assert.match(page, /separationEnvelope/);
   assert.match(stylesheet, /\.stage-separation-envelope/);
+  assert.match(stylesheet, /\.stage-interface-load-card/);
+  assert.match(stylesheet, /\.stage-interface-load-row-unavailable/);
 });
 
 test("ships a bounded parameter-sweep workflow with inspectable exports", async () => {

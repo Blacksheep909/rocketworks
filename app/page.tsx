@@ -66,6 +66,7 @@ import {
   analyzeVerticalFlightConvergence,
   createEngineeringDesignReview,
   createStageStructuralReview,
+  createStageInterfaceLoadReview,
   computeStructuralScreen,
   estimateRecoveryOpeningLoad,
   estimateSphericalEnvelopeRadiusM,
@@ -102,6 +103,7 @@ import {
   type StructuralMaterialModel,
   type StructuralScreenResult,
   type StageStructuralReviewResult,
+  type StageInterfaceLoadResult,
   type SeparationDynamicsResult,
   type CoupledSeparationImpulseResult,
   type RecoveryReefingStage,
@@ -3754,6 +3756,50 @@ export default function Home() {
       });
     return createStageStructuralReview(stages);
   }, [assembly.componentInstances, flutterFlightCondition, material, previewMotor, result.maxDynamicPressurePa, resultIsCurrent, stageFlightComponents, staticStability.staticMarginCalibers, userMotorRecords, vehicleTopology.stages]);
+  const stageInterfaceLoadReview = useMemo<StageInterfaceLoadResult>(() => {
+    const stageById = new Map(vehicleTopology.stages.map((stage) => [stage.id, stage]));
+    const isRetainedComponent = (instance: VehicleAssemblyEvaluation["componentInstances"][number]) =>
+      instance.sourceComponentId === "recovery" || instance.sourceComponentId === "payload";
+    const retainedMassKg = assembly.componentInstances.reduce((total, instance) => {
+      const stage = stageById.get(instance.stageId);
+      return stage?.role === "core" && isRetainedComponent(instance)
+        ? total + instance.massProperties.massKg
+        : total;
+    }, 0);
+    const stages = vehicleTopology.stages
+      .filter((stage) => stage.enabled)
+      .map((stage) => {
+        const stageInstances = assembly.componentInstances.filter(
+          (instance) => instance.stageId === stage.id,
+        );
+        const stageMassKg = stageInstances.reduce((total, instance) => {
+          if (stage.role === "core" && isRetainedComponent(instance)) return total;
+          return total + instance.massProperties.massKg;
+        }, 0);
+        const motorMountCount = stageInstances.filter(
+          (instance) => instance.sourceComponentId === "motor" || instance.sourceComponentId.endsWith("-motor"),
+        ).length;
+        const stageMotor = userMotorRecords.find((record) => record.id === stage.motorId) ?? previewMotor;
+        const structuralStage = stageStructuralReview.stages.find(
+          (candidate) => candidate.id === stage.id,
+        );
+        const screen = structuralStage?.screen ?? null;
+        return {
+          id: stage.id,
+          label: stage.name,
+          parentStageId: stage.parentStageId ?? null,
+          attachment: stage.attachment,
+          stageMassKg,
+          peakThrustN: stage.role === "payload"
+            ? 0
+            : stageMotor.metrics.peakThrustN * motorMountCount,
+          sectionAreaM2: screen?.geometry.minimumSectionAreaM2 ?? null,
+          allowableCompressionPa: screen?.material.allowableCompressionPa ?? null,
+          requiredFactorOfSafety: screen?.loads.requiredFactorOfSafety ?? 1.5,
+        };
+      });
+    return createStageInterfaceLoadReview({ stages, retainedMassKg });
+  }, [assembly.componentInstances, previewMotor, stageStructuralReview, userMotorRecords, vehicleTopology.stages]);
   const engineeringReview = useMemo<EngineeringDesignReviewResult>(() => {
     const stageFlightConfigured =
       vehicleTopology.stages.filter((stage) => stage.enabled).length > 1;
@@ -3766,6 +3812,7 @@ export default function Home() {
       staticAerodynamicsModelVersion: staticStability.modelVersion,
       structural: structuralScreen,
       stageStructural: stageFlightConfigured ? stageStructuralReview : null,
+      stageInterfaceLoads: stageFlightConfigured ? stageInterfaceLoadReview : null,
       stageMassRatio: stageFlightConfigured && stageFlightIsCurrent
         ? stageFlightResult?.massRatio ?? null
         : null,
@@ -3790,6 +3837,7 @@ export default function Home() {
     resultIsCurrent,
     stageFlightIsCurrent,
     stageFlightResult,
+    stageInterfaceLoadReview,
     staticStability.modelVersion,
     staticStability.staticMarginCalibers,
     structuralScreen,
@@ -4992,6 +5040,7 @@ export default function Home() {
             uncertainty,
             structural: structuralScreen,
             stageStructural: stageStructuralReview,
+            stageInterfaceLoads: stageInterfaceLoadReview,
             optimization: optimization
               ? {
                   modelVersion: optimization.result.modelVersion,
@@ -5134,6 +5183,7 @@ export default function Home() {
           landing: landingPrediction,
           structural: structuralScreen,
           stageStructural: stageStructuralReview,
+          stageInterfaceLoads: stageInterfaceLoadReview,
           designReview: engineeringReview,
         });
       } else if (format === "dxf") {
@@ -6832,6 +6882,40 @@ export default function Home() {
                   ))}
                 </div>
                 <p className="stage-structural-review-note">Independent stage rows use the current component screen and a first-instance mass/thrust proxy. Stage interfaces, load transfer, fasteners, local joints, cluster imbalance, and manufacturing allowables remain outside scope.</p>
+              </div>
+            )}
+            {stageInterfaceLoadReview.interfaces.length > 0 && (
+              <div className={`stage-interface-load-card stage-interface-load-${stageInterfaceLoadReview.overallStatus}`}>
+                <div className="stage-interface-load-heading">
+                  <div>
+                    <span>STAGE-INTERFACE AXIAL LOAD PATH</span>
+                    <strong>{stageInterfaceLoadReview.overallStatus === "assessed" ? "SERIAL PROXY ASSESSED" : "LOAD PATH REVIEW REQUIRED"}</strong>
+                  </div>
+                  <small>{publicModelVersion(stageInterfaceLoadReview.modelVersion)}</small>
+                </div>
+                <div className="stage-interface-load-counts">
+                  <div><span>Interfaces</span><strong>{stageInterfaceLoadReview.interfaces.length}</strong></div>
+                  <div><span>Pass</span><strong>{stageInterfaceLoadReview.counts.pass}</strong></div>
+                  <div><span>Review / missing</span><strong>{stageInterfaceLoadReview.counts.review + stageInterfaceLoadReview.counts.unavailable}</strong></div>
+                </div>
+                <div className="stage-interface-load-summary">
+                  <span>Stack {stageInterfaceLoadReview.totalStackMassKg.toFixed(3)} kg</span>
+                  <span>Peak {stageInterfaceLoadReview.peakThrustN.toFixed(1)} N</span>
+                  <span>Axial {stageInterfaceLoadReview.effectiveAxialAccelerationMps2 === null ? "—" : `${stageInterfaceLoadReview.effectiveAxialAccelerationMps2.toFixed(2)} m/s²`}</span>
+                </div>
+                <div className="stage-interface-load-list">
+                  {stageInterfaceLoadReview.interfaces.map((interfaceLoad) => (
+                    <div className={`stage-interface-load-row stage-interface-load-row-${interfaceLoad.status}`} key={interfaceLoad.id}>
+                      <span>{interfaceLoad.status === "pass" ? "✓" : interfaceLoad.status === "review" ? "!" : "—"}</span>
+                      <div>
+                        <strong>{interfaceLoad.parentLabel ?? "Missing parent"} → {interfaceLoad.childLabel}</strong>
+                        <small>{interfaceLoad.attachment} · {interfaceLoad.axialDemandN === null ? "demand unavailable" : `demand ${interfaceLoad.axialDemandN.toFixed(1)} N`} · {interfaceLoad.detail}</small>
+                      </div>
+                      <em>{interfaceLoad.factorOfSafety === null ? "Unavailable" : `FoS ${interfaceLoad.factorOfSafety.toFixed(2)}×`}</em>
+                    </div>
+                  ))}
+                </div>
+                <p className="stage-interface-load-note">Bounded common-acceleration screen only. Connector geometry, fasteners, bending, transient loads, radial joints, staging impulse, and local failure modes are not modeled.</p>
               </div>
             )}
             <div className={`engineering-review-card engineering-review-${engineeringReview.overallStatus}`}>

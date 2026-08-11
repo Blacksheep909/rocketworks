@@ -115,6 +115,9 @@ research, standards, and original code.
 - an inspectable stage mass-ratio branch using supplied impulse and propellant
   mass to expose stage-only ideal rocket-equation delta-v trends with explicit
   downstream-payload and loss-model limits;
+- a bounded stage-interface axial load-path review that transfers downstream
+  mass across serial topology edges, compares supplied parent/child section
+  proxies, and keeps parallel/radial interfaces visibly unavailable;
 - deterministic structural and aeroelastic benchmark anchors for thin-wall
   section area, axial stress, Euler critical load, fin-root bending, and the
   preliminary fin-flutter equation, kept separate from experimental validation;
@@ -210,9 +213,8 @@ Near-term work is stronger experimental/benchmark validation, a full coupled
 multi-body separation solver beyond the current point-mass gravity and impulse
 branches, validated stage-interface/load-transfer and mission-level mass-ratio
 loss models, and validated structural/aeroelastic benchmarks beyond the
-preliminary fin flutter screen, and a stage-interface/load-transfer solver.
-Angular and
-direct force/moment coefficient volumes are now supported as explicit
+preliminary fin flutter screen. Angular and direct force/moment coefficient
+volumes are now supported as explicit
 interpolation sources, and seeded event-factor dispersion now covers timing,
 separation impulse, and launch alignment; benchmarked data packages,
 relative-body separation databases, and unsteady models remain future work.

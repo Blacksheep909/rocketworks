@@ -4,6 +4,7 @@ import type {
 } from "./structural-screen.ts";
 import type { StageStructuralReviewResult } from "./stage-structural-review.ts";
 import type { StageMassRatioResult } from "./stage-mass-ratio.ts";
+import type { StageInterfaceLoadResult } from "./stage-interface-loads.ts";
 
 export const ENGINEERING_DESIGN_REVIEW_MODEL_VERSION =
   "rocketworks-engineering-design-review-0.1.0";
@@ -33,6 +34,7 @@ export type EngineeringDesignReviewInput = Readonly<{
   staticAerodynamicsModelVersion?: string | null;
   structural?: StructuralScreenResult | null;
   stageStructural?: StageStructuralReviewResult | null;
+  stageInterfaceLoads?: StageInterfaceLoadResult | null;
   stageMassRatio?: StageMassRatioResult | null;
   verticalFlightCurrent?: boolean | null;
   verticalFlightModelVersion?: string | null;
@@ -291,6 +293,52 @@ export function createEngineeringDesignReview(
         threshold: 0,
         unit: "stage rows needing review",
         modelVersion: stageStructural.modelVersion,
+      }),
+    );
+  }
+
+  if (input.stageInterfaceLoads) {
+    const stageInterfaceLoads = input.stageInterfaceLoads;
+    const needsReview =
+      stageInterfaceLoads.counts.review + stageInterfaceLoads.counts.unavailable;
+    const status: EngineeringReviewFindingStatus =
+      stageInterfaceLoads.overallStatus === "assessed"
+        ? "pass"
+        : stageInterfaceLoads.overallStatus === "not-assessed"
+          ? "unavailable"
+          : "review";
+    findings.push(
+      makeFinding({
+        id: "structural-stage-interface",
+        category: "structural",
+        label: "Stage-interface axial load path",
+        status,
+        severity:
+          status === "pass"
+            ? "info"
+            : status === "unavailable"
+              ? "warning"
+              : stageInterfaceLoads.counts.review > 0
+                ? "critical"
+                : "warning",
+        summary:
+          stageInterfaceLoads.overallStatus === "assessed"
+            ? `${stageInterfaceLoads.counts.pass} stage interface${stageInterfaceLoads.counts.pass === 1 ? "" : "s"} pass the axial load-path proxy.`
+            : stageInterfaceLoads.overallStatus === "not-assessed"
+              ? "Stage-interface axial load path is not assessed."
+              : `${needsReview} stage interface${needsReview === 1 ? "" : "s"} need load-path review or evidence.`,
+        detail:
+          "The analytical axial load-path proxy transfers downstream mass across serial topology edges using supplied shell-section capacity; connector geometry and radial joints remain outside scope.",
+        action:
+          status === "pass"
+            ? "No immediate action from this bounded axial proxy."
+            : status === "unavailable"
+              ? "Supply current parent/child section and allowable evidence, then rerun the interface review."
+              : "Review the weakest interface, connector design, transient loads, and parallel attachment load paths before interpreting the result.",
+        value: needsReview,
+        threshold: 0,
+        unit: "interfaces needing review",
+        modelVersion: stageInterfaceLoads.modelVersion,
       }),
     );
   }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createEngineeringDesignReview,
+  createStageInterfaceLoadReview,
   createStageStructuralReview,
 } from "../lib/physics/index.ts";
 
@@ -246,4 +247,89 @@ test("engineering design review keeps incomplete mass-ratio evidence visible", (
   assert.ok(finding);
   assert.equal(finding.status, "review");
   assert.match(finding.action, /incomplete stage mass/);
+});
+
+test("stage interface load review computes serial downstream demand and reserve", () => {
+  const result = createStageInterfaceLoadReview({
+    retainedMassKg: 0.2,
+    stages: [
+      {
+        id: "core",
+        label: "Core",
+        attachment: "serial",
+        stageMassKg: 1,
+        peakThrustN: 30,
+        sectionAreaM2: 0.002,
+        allowableCompressionPa: 1e6,
+      },
+      {
+        id: "upper",
+        label: "Upper",
+        parentStageId: "core",
+        attachment: "serial",
+        stageMassKg: 0.5,
+        peakThrustN: 10,
+        sectionAreaM2: 0.001,
+        allowableCompressionPa: 2e6,
+      },
+    ],
+  });
+
+  assert.equal(result.modelVersion, "rocketworks-stage-interface-loads-0.1.0");
+  assert.equal(result.validationStatus, "analytical-axial-load-path-proxy");
+  assert.equal(result.overallStatus, "assessed");
+  assert.deepEqual(result.counts, { pass: 1, review: 0, unavailable: 0 });
+  assert.equal(result.totalStackMassKg, 1.7);
+  assert.equal(result.interfaces.length, 1);
+  assert.equal(result.interfaces[0].downstreamMassKg, 0.7);
+  assert.equal(result.interfaces[0].sectionAreaM2, 0.001);
+  assert.equal(result.interfaces[0].allowableCompressionPa, 1e6);
+  assert.ok((result.interfaces[0].factorOfSafety ?? 0) > 1.5);
+  assert.ok((result.interfaces[0].axialDemandN ?? 0) > 0);
+  assert.match(result.warnings.join(" "), /does not model connector geometry/);
+});
+
+test("stage interface load review keeps parallel and missing capacity evidence unavailable", () => {
+  const parallel = createStageInterfaceLoadReview({
+    stages: [
+      { id: "core", label: "Core", attachment: "serial", stageMassKg: 1, peakThrustN: 20 },
+      { id: "booster", label: "Booster", parentStageId: "core", attachment: "parallel", stageMassKg: 0.5, peakThrustN: 10 },
+    ],
+  });
+  assert.equal(parallel.overallStatus, "review");
+  assert.equal(parallel.interfaces[0].status, "unavailable");
+  assert.match(parallel.interfaces[0].reason ?? "", /radial/);
+
+  const missingCapacity = createStageInterfaceLoadReview({
+    stages: [
+      { id: "core", label: "Core", attachment: "serial", stageMassKg: 1, peakThrustN: 20, sectionAreaM2: 0.001 },
+      { id: "upper", label: "Upper", parentStageId: "core", attachment: "serial", stageMassKg: 0.5, peakThrustN: 10, sectionAreaM2: 0.001 },
+    ],
+  });
+  assert.equal(missingCapacity.interfaces[0].status, "unavailable");
+  assert.match(missingCapacity.interfaces[0].reason ?? "", /compression allowable/);
+});
+
+test("stage interface load review rejects malformed topology and surfaces a review finding", () => {
+  assert.throws(
+    () => createStageInterfaceLoadReview({
+      stages: [
+        { id: "a", label: "A", parentStageId: "b", attachment: "serial", stageMassKg: 1, peakThrustN: 0 },
+        { id: "b", label: "B", parentStageId: "a", attachment: "serial", stageMassKg: 1, peakThrustN: 0 },
+      ],
+    }),
+    /cycle/,
+  );
+
+  const stageInterfaceLoads = createStageInterfaceLoadReview({
+    stages: [
+      { id: "core", label: "Core", attachment: "serial", stageMassKg: 1, peakThrustN: 20 },
+      { id: "upper", label: "Upper", parentStageId: "core", attachment: "serial", stageMassKg: 0.5, peakThrustN: 10 },
+    ],
+  });
+  const review = createEngineeringDesignReview({ stageInterfaceLoads });
+  const finding = review.findings.find((candidate) => candidate.id === "structural-stage-interface");
+  assert.ok(finding);
+  assert.equal(finding.status, "review");
+  assert.match(finding.detail, /axial load-path proxy/);
 });
