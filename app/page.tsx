@@ -52,6 +52,9 @@ import {
   parseMotorMassFlowCsv,
   combineMassProperties,
   determinant,
+  multiplyMatrices,
+  rotationAboutX,
+  transpose,
   transformMassProperties,
   createVehicleAssemblyModel,
   simulateStageFlightPreview,
@@ -93,6 +96,7 @@ import {
   type PhysicsBenchmarkSuiteResult,
   type EngineeringDesignReviewResult,
   type VehicleComponent,
+  type Matrix3,
   type MotorDataRecord,
   type StageFlightPreviewResult,
   type StageFlightUncertaintyResult,
@@ -531,7 +535,10 @@ function componentPresetSummary(record: LocalComponentRecord): string {
   if (parameters.kind === "nose") return `${parameters.profile} · ${parameters.lengthMm.toFixed(0)} mm`;
   if (parameters.kind === "airframe") return `${parameters.diameterMm.toFixed(0)} × ${parameters.lengthMm.toFixed(0)} mm · ${parameters.material}`;
   if (parameters.kind === "fin-set") return `${parameters.count} fins · ${parameters.rootChordMm.toFixed(0)} mm root · ${parameters.spanMm.toFixed(0)} mm span`;
-  if (parameters.kind === "point-mass") return `${parameters.massKg.toFixed(3)} kg · X ${parameters.axialPositionM.toFixed(2)} m · radial ${parameters.radialOffsetM.toFixed(3)} m`;
+  if (parameters.kind === "point-mass") {
+    const inertiaLabel = parameters.inertiaAtCenterKgM2 === undefined ? "" : " · local inertia";
+    return `${parameters.massKg.toFixed(3)} kg · X ${parameters.axialPositionM.toFixed(2)} m · radial ${parameters.radialOffsetM.toFixed(3)} m${inertiaLabel}`;
+  }
   if (parameters.kind === "cylindrical-pod") return `${(parameters.diameterM * 1000).toFixed(0)} × ${(parameters.lengthM * 1000).toFixed(0)} mm · ${parameters.densityKgM3.toFixed(0)} kg/m³`;
   const trigger = parameters.deploymentTrigger === "altitude"
     ? `descent ${parameters.deploymentAltitudeM.toFixed(0)} m`
@@ -968,6 +975,11 @@ function createCadStageParts(
   });
 }
 
+function rotateInertiaAboutX(inertia: Matrix3, angleRad: number): Matrix3 {
+  const rotation = rotationAboutX(angleRad);
+  return multiplyMatrices(multiplyMatrices(rotation, inertia), transpose(rotation));
+}
+
 function topologyComponentToVehicleComponent(
   plan: VehicleTopologyComponentPlan,
 ): VehicleComponent {
@@ -979,6 +991,17 @@ function topologyComponentToVehicleComponent(
   };
   const id = `topology-${plan.id}`;
   if (plan.kind === "pointMass") {
+    const localInertia = plan.inertiaAtCenterKgM2;
+    const inertiaAtCenterKgM2: Matrix3 | undefined = localInertia === undefined
+      ? undefined
+      : [
+          [localInertia.x, 0, 0],
+          [0, localInertia.y, 0],
+          [0, 0, localInertia.z],
+        ];
+    const rotatedInertia = inertiaAtCenterKgM2 === undefined
+      ? undefined
+      : rotateInertiaAboutX(inertiaAtCenterKgM2, azimuthRad);
     return {
       id,
       name: plan.name,
@@ -987,6 +1010,7 @@ function topologyComponentToVehicleComponent(
       enabled: plan.enabled,
       massKg: plan.massKg!,
       positionM,
+      ...(rotatedInertia === undefined ? {} : { inertiaAtCenterKgM2: rotatedInertia }),
     };
   }
   const radiusM = plan.diameterM! / 2;
@@ -1047,6 +1071,9 @@ function placeStageComponent(
     };
   }
   const localTransverse = rotateLocalTransverse(component.positionM);
+  const rotatedInertia = component.inertiaAtCenterKgM2 === undefined
+    ? undefined
+    : rotateInertiaAboutX(component.inertiaAtCenterKgM2, angle);
   return {
     ...component,
     id: `${component.id}${idSuffix}`,
@@ -1055,6 +1082,7 @@ function placeStageComponent(
       y: localTransverse.y + radialTranslation.y,
       z: localTransverse.z + radialTranslation.z,
     },
+    ...(rotatedInertia === undefined ? {} : { inertiaAtCenterKgM2: rotatedInertia }),
   };
 }
 
@@ -5209,6 +5237,7 @@ export default function Home() {
           axialPositionM: topologyComponent.axialPositionM,
           radialOffsetM: topologyComponent.radialOffsetM,
           azimuthDeg: topologyComponent.azimuthDeg,
+          ...(topologyComponent.inertiaAtCenterKgM2 === undefined ? {} : { inertiaAtCenterKgM2: topologyComponent.inertiaAtCenterKgM2 }),
         },
       };
     }
@@ -5599,6 +5628,7 @@ export default function Home() {
             radialOffsetM: parameters.radialOffsetM,
             azimuthDeg: parameters.azimuthDeg,
             massKg: parameters.massKg,
+            ...(parameters.inertiaAtCenterKgM2 === undefined ? {} : { inertiaAtCenterKgM2: parameters.inertiaAtCenterKgM2 }),
           }
         : {
             id: `${baseId}-${String(index).padStart(2, "0")}`,
@@ -5631,6 +5661,18 @@ export default function Home() {
       setTopologyError(error instanceof Error ? error.message : "Unable to update custom component");
       return false;
     }
+  };
+  const updateTopologyComponentInertia = (
+    id: string,
+    axis: "x" | "y" | "z",
+    value: number,
+  ): boolean => {
+    const component = vehicleTopology.components.find((candidate) => candidate.id === id);
+    if (!component || component.kind !== "pointMass") return false;
+    const current = component.inertiaAtCenterKgM2 ?? { x: 0, y: 0, z: 0 };
+    return updateTopologyComponent(id, {
+      inertiaAtCenterKgM2: { ...current, [axis]: value },
+    });
   };
   const removeTopologyComponent = (id: string) => {
     try {
@@ -8669,7 +8711,18 @@ export default function Home() {
                         <TopologyNumberField id={`${component.id}-radial`} label="Radial offset (m)" value={component.radialOffsetM} min={0} max={2} step={0.005} disabled={!component.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyComponent(component.id, { radialOffsetM: value }); }} />
                         <TopologyNumberField id={`${component.id}-azimuth`} label="Azimuth (deg)" value={component.azimuthDeg} min={-180} max={180} step={1} disabled={!component.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyComponent(component.id, { azimuthDeg: value }); }} />
                         {component.kind === "pointMass" ? (
-                          <TopologyNumberField id={`${component.id}-mass`} label="Mass (kg)" value={component.massKg ?? 0.2} min={0.001} max={100} step={0.001} disabled={!component.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyComponent(component.id, { massKg: value }); }} />
+                          <>
+                            <TopologyNumberField id={`${component.id}-mass`} label="Mass (kg)" value={component.massKg ?? 0.2} min={0.001} max={100} step={0.001} disabled={!component.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyComponent(component.id, { massKg: value }); }} />
+                            <details className="topology-component-inertia">
+                              <summary>Advanced local inertia (kg m²)</summary>
+                              <div className="topology-component-inertia-fields">
+                                <TopologyNumberField id={`${component.id}-inertia-x`} label="Ixx local" value={component.inertiaAtCenterKgM2?.x ?? 0} min={0} max={100} step={0.0001} disabled={!component.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyComponentInertia(component.id, "x", value); }} />
+                                <TopologyNumberField id={`${component.id}-inertia-y`} label="Iyy local" value={component.inertiaAtCenterKgM2?.y ?? 0} min={0} max={100} step={0.0001} disabled={!component.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyComponentInertia(component.id, "y", value); }} />
+                                <TopologyNumberField id={`${component.id}-inertia-z`} label="Izz local" value={component.inertiaAtCenterKgM2?.z ?? 0} min={0} max={100} step={0.0001} disabled={!component.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyComponentInertia(component.id, "z", value); }} />
+                              </div>
+                              <small>Principal moments at the equipment CG; products of inertia are assumed zero.</small>
+                            </details>
+                          </>
                         ) : (
                           <>
                             <TopologyNumberField id={`${component.id}-length`} label="Pod length (m)" value={component.lengthM ?? 0.25} min={0.01} max={5} step={0.01} disabled={!component.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyComponent(component.id, { lengthM: value }); }} />

@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added optional bounded principal local inertia (`Ixx`, `Iyy`, `Izz`) for
+  authored equipment point masses. Values persist through topology and
+  component-library records, rotate with azimuth and repeated instances, and
+  remain explicitly zero-inertia by default for legacy records.
 - Added an explicit topology-editor selection control for custom components so
   equipment and pod plans can be saved to the component library without first
   finding them in a canvas view.

@@ -74,6 +74,7 @@ const equipmentMass = {
     axialPositionM: 0.4,
     radialOffsetM: 0.01,
     azimuthDeg: 45,
+    inertiaAtCenterKgM2: { x: 0.00002, y: 0.0014, z: 0.0018 },
   },
   provenance,
 };
@@ -175,6 +176,13 @@ test("component presets reject mismatched kinds, unsafe ranges, and missing prov
       parameters: { ...cylindricalPod.parameters, wallThicknessM: 0.031 },
     }),
     /wallThicknessM/,
+  );
+  assert.throws(
+    () => validateLocalComponentRecord({
+      ...equipmentMass,
+      parameters: { ...equipmentMass.parameters, inertiaAtCenterKgM2: { x: -0.1, y: 0, z: 0 } },
+    }),
+    /inertia x/,
   );
 });
 

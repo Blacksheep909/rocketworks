@@ -24,8 +24,9 @@ research, standards, and original code.
   calculations with model versions and assumptions;
 - serial, parallel, radial, clustered, and multi-stage vehicle topology;
 - editable topology point-mass equipment and cylindrical pod primitives with
-  slider/exact-number placement controls; off-axis aerodynamic interference is
-  explicitly outside this analytical preview;
+  slider/exact-number placement controls and optional principal local inertia
+  for equipment; off-axis aerodynamic interference is explicitly outside this
+  analytical preview;
 - a device-local, provenance-aware component library for reusable core,
   recovery, equipment-mass, and cylindrical-pod presets, with strict bounds and
   portable-project import/export;

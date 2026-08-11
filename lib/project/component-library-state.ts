@@ -47,6 +47,11 @@ export type ComponentPresetParameters =
       axialPositionM: number;
       radialOffsetM: number;
       azimuthDeg: number;
+      inertiaAtCenterKgM2?: Readonly<{
+        x: number;
+        y: number;
+        z: number;
+      }>;
     }>
   | Readonly<{
       kind: "cylindrical-pod";
@@ -234,12 +239,23 @@ function validateParameters(value: unknown, expectedKind: ComponentPresetKind): 
     throw new Error(`${kind} azimuthDeg must be between -180 and 180.`);
   }
   if (kind === "point-mass") {
+    const inertiaValue = parameters.inertiaAtCenterKgM2;
+    let inertiaAtCenterKgM2: Readonly<{ x: number; y: number; z: number }> | undefined;
+    if (inertiaValue !== undefined) {
+      const inertia = objectValue(inertiaValue, "point-mass inertiaAtCenterKgM2");
+      inertiaAtCenterKgM2 = {
+        x: nonNegativeNumber(inertia.x, "point-mass inertia x", 100),
+        y: nonNegativeNumber(inertia.y, "point-mass inertia y", 100),
+        z: nonNegativeNumber(inertia.z, "point-mass inertia z", 100),
+      };
+    }
     return {
       kind,
       massKg: positiveNumber(parameters.massKg, "point-mass massKg", 100),
       axialPositionM,
       radialOffsetM,
       azimuthDeg,
+      ...(inertiaAtCenterKgM2 === undefined ? {} : { inertiaAtCenterKgM2 }),
     };
   }
   const lengthM = positiveNumber(parameters.lengthM, "cylindrical-pod lengthM", 5);

@@ -1681,6 +1681,11 @@ kbd {
 .topology-component-fields .topology-slider::-moz-range-track { height: 3px; border-radius: 99px; background: linear-gradient(90deg,var(--launch-orange),rgba(198,212,221,.2)); }
 .topology-component-fields .topology-slider::-moz-range-thumb { width: 9px; height: 9px; border: 2px solid #081016; border-radius: 50%; background: var(--launch-orange); box-shadow: 0 0 0 1px rgba(255,112,67,.46); }
 .topology-component-fields .topology-slider:disabled { opacity: .45; }
+.topology-component-inertia { grid-column: 1 / -1; margin-top: 2px; padding-top: 8px; border-top: 1px solid rgba(117,153,180,.12); }
+.topology-component-inertia summary { width: fit-content; color: #9eb8c8; font: 650 8px var(--font-geist-mono),monospace; cursor: pointer; }
+.topology-component-inertia summary:hover, .topology-component-inertia summary:focus-visible { color: #e8f5fb; }
+.topology-component-inertia-fields { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; margin-top: 8px; }
+.topology-component-inertia > small { display: block; margin-top: 7px; color: #718895; font-size: 7px; line-height: 1.4; }
 .topology-component-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 9px; color: #708391; font: 7px var(--font-geist-mono),monospace; }
 .topology-component-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; }
 .topology-component-actions .secondary-button, .topology-component-actions .danger-button { min-height: 27px; padding: 0 8px; font-size: 8px; }

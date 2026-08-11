@@ -49,6 +49,7 @@ test("bounded equipment and cylindrical pod components validate and round-trip",
         radialOffsetM: 0.018,
         azimuthDeg: 45,
         massKg: 0.24,
+        inertiaAtCenterKgM2: { x: 0.00002, y: 0.0014, z: 0.0018 },
       },
       {
         id: "camera-pod",
@@ -68,12 +69,15 @@ test("bounded equipment and cylindrical pod components validate and round-trip",
   };
   const validated = validateVehicleTopology(topology);
   assert.equal(validated.components[0].massKg, 0.24);
+  assert.deepEqual(validated.components[0].inertiaAtCenterKgM2, { x: 0.00002, y: 0.0014, z: 0.0018 });
   assert.equal(validated.components[1].diameterM, 0.06);
   assert.deepEqual(parseVehicleTopology(serializeVehicleTopology(validated)), validated);
   assert.deepEqual(validateVehicleTopology({ ...topology, components: undefined }).components, []);
   assert.throws(() => validateVehicleTopology({ ...topology, components: [{ ...topology.components[0], stageId: "missing" }] }), /unknown stage/);
   assert.throws(() => validateVehicleTopology({ ...topology, components: [{ ...topology.components[0], id: "avionics" }, { ...topology.components[0], id: "avionics" }] }), /Duplicate topology component/);
   assert.throws(() => validateVehicleTopology({ ...topology, components: [{ ...topology.components[1], wallThicknessM: 0.04 }] }), /wallThicknessM/);
+  assert.throws(() => validateVehicleTopology({ ...topology, components: [{ ...topology.components[0], inertiaAtCenterKgM2: { x: -1, y: 0, z: 0 } }] }), /inertia x/);
+  assert.throws(() => validateVehicleTopology({ ...topology, components: [{ ...topology.components[0], inertiaAtCenterKgM2: { x: 0, y: 101, z: 0 } }] }), /inertia y/);
   assert.throws(() => validateVehicleTopology({ ...topology, components: Array.from({ length: MAX_VEHICLE_COMPONENTS + 1 }, (_, index) => ({ ...topology.components[0], id: `equipment-${index}` })) }), /components must contain/);
 });
 

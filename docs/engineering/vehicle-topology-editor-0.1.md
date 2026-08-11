@@ -48,9 +48,11 @@ the same topology snapshot stale and does not bypass validation.
 
 Custom component coordinates use metres in the owning stage frame: `+X` points
 noseward, radial offset is measured from the stage axis, and azimuth is measured
-from `+Y` toward `+Z`. Point masses accept 0.001--100 kg. Cylindrical pods accept
-0.01--5 m length, 0.005--2 m diameter, a wall thickness no greater than the
-radius, and 1--20,000 kg/m³ density. These primitives contribute mass, CG,
+from `+Y` toward `+Z`. Point masses accept 0.001--100 kg and may optionally
+declare principal local inertia values `Ixx`, `Iyy`, and `Izz` from 0--100 kg m²
+at the equipment CG; products of inertia are assumed zero. Cylindrical pods
+accept 0.01--5 m length, 0.005--2 m diameter, a wall thickness no greater than
+the radius, and 1--20,000 kg/m³ density. These primitives contribute mass, CG,
 inertia, assembly instance identity, preview geometry, and portable exports.
 They do not add pod interference, shielding, wake, or structural-joint
 aerodynamics; the assembly model emits the existing off-axis limitation.

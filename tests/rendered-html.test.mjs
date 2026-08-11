@@ -920,6 +920,12 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /stage profiles/);
   assert.match(page, /Radial offset \(m\)/);
   assert.match(page, /Wall thickness \(m\)/);
+  assert.match(page, /Advanced local inertia/);
+  assert.match(page, /Principal moments at the equipment CG/);
+  assert.match(page, /local inertia/);
+  assert.match(page, /updateTopologyComponentInertia/);
+  assert.match(page, /rotateInertiaAboutX/);
+  assert.match(topology, /inertiaAtCenterKgM2/);
   assert.match(page, /radial placement rotates with repeated booster instances/);
   assert.match(page, /value=\{sliderValue\}/);
   assert.match(page, /raw === "" \? "" : Number\(raw\)/);

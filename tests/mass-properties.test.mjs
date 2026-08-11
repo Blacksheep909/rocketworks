@@ -180,3 +180,26 @@ test("stage filtering excludes inactive-stage components", () => {
   assert.equal(result.componentCount, 1);
   assert.deepEqual(result.activeStageIds, ["sustainer"]);
 });
+
+test("known point-mass principal inertia is retained in the composite model", () => {
+  const result = computeVehicleMassProperties([
+    {
+      id: "avionics",
+      name: "Avionics",
+      stageId: "sustainer",
+      kind: "pointMass",
+      massKg: 0.2,
+      positionM: { x: 0.4, y: 0.01, z: -0.02 },
+      inertiaAtCenterKgM2: [
+        [0.00002, 0, 0],
+        [0, 0.0014, 0],
+        [0, 0, 0.0018],
+      ],
+    },
+  ]);
+  assert.deepEqual(result.inertiaAtCenterKgM2, [
+    [0.00002, 0, 0],
+    [0, 0.0014, 0],
+    [0, 0, 0.0018],
+  ]);
+});

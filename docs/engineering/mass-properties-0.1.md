@@ -49,6 +49,11 @@ axis, and composes the set with the same tensor pipeline.
 Motors, recovery hardware, payloads, and ballast can be represented by a known
 mass and three-dimensional location. A measured or supplier-provided local
 inertia tensor can be supplied; otherwise the part is treated as a point mass.
+The topology editor exposes an optional diagonal principal tensor for authored
+equipment (`Ixx`, `Iyy`, `Izz` at the equipment CG). Its local x/y/z axes are
+rotated with the authored azimuth and repeated booster-instance placement;
+products of inertia are assumed zero unless a lower-level component supplies a
+full tensor.
 
 ### Stages
 

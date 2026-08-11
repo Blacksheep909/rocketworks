@@ -27,6 +27,12 @@ export type VehicleTopologyComponentPlan = Readonly<{
   azimuthDeg: number;
   /** Point-mass equipment payload, kilograms. */
   massKg?: number;
+  /** Optional principal inertia at the equipment center, kg m², in local x/y/z axes. */
+  inertiaAtCenterKgM2?: Readonly<{
+    x: number;
+    y: number;
+    z: number;
+  }>;
   /** Cylindrical pod profile length, metres. */
   lengthM?: number;
   /** Cylindrical pod outside diameter, metres. */
@@ -318,6 +324,16 @@ function validTopologyComponent(
   const radialOffsetM = finiteRange(component.radialOffsetM ?? 0, `Topology component ${id} radialOffsetM`, 0, 2);
   const azimuthDeg = finiteRange(component.azimuthDeg ?? 0, `Topology component ${id} azimuthDeg`, -180, 180);
   if (kind === "pointMass") {
+    const inertiaValue = component.inertiaAtCenterKgM2;
+    let inertiaAtCenterKgM2: VehicleTopologyComponentPlan["inertiaAtCenterKgM2"];
+    if (inertiaValue !== undefined) {
+      const inertia = objectValue(inertiaValue, `Topology component ${id} inertiaAtCenterKgM2`);
+      inertiaAtCenterKgM2 = {
+        x: finiteRange(inertia.x, `Topology component ${id} inertia x`, 0, 100),
+        y: finiteRange(inertia.y, `Topology component ${id} inertia y`, 0, 100),
+        z: finiteRange(inertia.z, `Topology component ${id} inertia z`, 0, 100),
+      };
+    }
     return {
       id,
       name,
@@ -328,6 +344,7 @@ function validTopologyComponent(
       radialOffsetM,
       azimuthDeg,
       massKg: finiteRange(component.massKg, `Topology component ${id} massKg`, 0.001, 100),
+      ...(inertiaAtCenterKgM2 === undefined ? {} : { inertiaAtCenterKgM2 }),
     };
   }
   const lengthM = finiteRange(component.lengthM, `Topology component ${id} lengthM`, 0.01, 5);

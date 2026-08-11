@@ -12,6 +12,11 @@ changing an existing component. The library is an original RocketWorks data
 model; it does not contain third-party CAD, OpenRocket content, or a simulation
 engine.
 
+Equipment presets may carry optional diagonal principal inertia at the
+equipment centre of gravity. The values are local `Ixx`, `Iyy`, and `Izz` inputs;
+products of inertia remain zero by assumption and omitted values preserve the
+legacy point-mass model.
+
 ## Record and validation boundary
 
 Every record has a stable local identifier, bounded display metadata, a
