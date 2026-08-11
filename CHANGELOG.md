@@ -6,6 +6,9 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added an explicit topology-editor selection control for custom components so
+  equipment and pod plans can be saved to the component library without first
+  finding them in a canvas view.
 - Fixed the browser recovery-event adapter so mission-time commands enter the
   scheduled-event queue instead of the state-triggered queue; TypeScript now
   checks the full event definition and stage-interface review path without

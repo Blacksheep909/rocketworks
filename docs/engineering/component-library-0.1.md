@@ -30,6 +30,11 @@ applying a topology preset creates a bounded new plan and selects it for
 editing. The normal project autosave and simulation-freshness paths then mark
 the design as changed.
 
+The topology editor exposes the same selection explicitly, so a user can mark
+an equipment or pod plan for library capture without relying on canvas hit
+testing. The selected plan is shown in the component-library dialog before a
+save is accepted.
+
 ## Persistence and exchange
 
 Records are stored under a versioned local-storage envelope and can be removed,

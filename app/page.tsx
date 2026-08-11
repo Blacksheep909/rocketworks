@@ -8657,7 +8657,7 @@ export default function Home() {
               ) : (
                 <div className="topology-components-list" aria-label="Custom topology components">
                   {vehicleTopology.components.map((component, index) => (
-                    <article className={component.enabled ? "topology-component-card active" : "topology-component-card"} key={component.id}>
+                    <article className={selectedTopologyComponentId === component.id ? "topology-component-card active selected" : component.enabled ? "topology-component-card active" : "topology-component-card"} key={component.id}>
                       <div className="topology-component-heading">
                         <div><span className="topology-component-index">C{String(index + 1).padStart(2, "0")}</span><strong>{component.name}</strong><small>{component.kind === "pointMass" ? "POINT MASS" : "CYLINDRICAL POD"} · {vehicleTopology.stages.find((stage) => stage.id === component.stageId)?.name ?? "Unknown stage"}</small></div>
                         <label className="topology-enabled"><input type="checkbox" checked={component.enabled} onChange={(event) => updateTopologyComponent(component.id, { enabled: event.target.checked })} /> Enabled</label>
@@ -8679,7 +8679,7 @@ export default function Home() {
                           </>
                         )}
                       </div>
-                      <div className="topology-component-footer"><span>Local stage frame · X forward · radial placement rotates with repeated booster instances</span><button className="danger-button" onClick={() => removeTopologyComponent(component.id)}>Remove</button></div>
+                      <div className="topology-component-footer"><span>Local stage frame · X forward · radial placement rotates with repeated booster instances</span><div className="topology-component-actions"><button className="secondary-button" type="button" aria-pressed={selectedTopologyComponentId === component.id} onClick={() => { setSelectedTopologyComponentId(component.id); notify(`${component.name} selected for component library`); }}>{selectedTopologyComponentId === component.id ? "Selected for library" : "Select for library"}</button><button className="danger-button" type="button" onClick={() => removeTopologyComponent(component.id)}>Remove</button></div></div>
                     </article>
                   ))}
                 </div>
