@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a provenance-aware motor performance view to the browser library. The
+  selected thrust curve is rendered with its trapezoidal impulse metrics, peak,
+  burn time, source status, and separate measured-mass-flow disclosure before
+  simulation. It is a visual inspection aid, not motor certification or a
+  pressure-corrected test reconstruction.
 - Added an original aerodynamic coefficient polar inspector. Users can sample
   supplied tables across angle of attack while holding Mach, Reynolds number,
   and sideslip fixed, with direct body-axis force volumes preferred over the

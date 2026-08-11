@@ -3053,6 +3053,57 @@ function formatAerodynamicInspectorValue(value: number, definition: AerodynamicI
   return `${value.toFixed(definition.decimals)} ${definition.unit}`;
 }
 
+function MotorThrustCurveChart({ record }: { record: MotorDataRecord }) {
+  const width = 620;
+  const height = 232;
+  const padding = { left: 46, right: 20, top: 24, bottom: 34 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const points = record.thrustCurve;
+  const maximumTime = Math.max(points.at(-1)?.timeS ?? 1, 1e-9);
+  const maximumThrust = Math.max(...points.map((point) => point.thrustN), 1e-9);
+  const xFor = (value: number) => padding.left + (value / maximumTime) * plotWidth;
+  const yFor = (value: number) => padding.top + (1 - value / maximumThrust) * plotHeight;
+  const linePath = points.map((point, index) => `${index === 0 ? "M" : "L"}${xFor(point.timeS).toFixed(2)} ${yFor(point.thrustN).toFixed(2)}`).join(" ");
+  const areaPath = `${linePath} L${xFor(points.at(-1)?.timeS ?? maximumTime).toFixed(2)} ${yFor(0).toFixed(2)} L${xFor(points[0]?.timeS ?? 0).toFixed(2)} ${yFor(0).toFixed(2)} Z`;
+  const peak = points.reduce((candidate, point) => point.thrustN > candidate.thrustN ? point : candidate, points[0]!);
+  const sourceStatus = record.provenance.validationStatus === "certified-test-data" ? "SOURCE-LABELED" : "REVIEW REQUIRED";
+  return (
+    <section className="motor-performance" aria-labelledby="motor-performance-title">
+      <div className="motor-performance-heading">
+        <div>
+          <span className="eyebrow">Performance view</span>
+          <h3 id="motor-performance-title">Thrust profile</h3>
+          <p>{record.manufacturer} - {record.designation}. The curve is linearly interpolated for the preview and integrated with the trapezoidal rule; this view does not certify a motor or reproduce its test conditions.</p>
+        </div>
+        <span className={`motor-performance-status ${record.provenance.validationStatus === "certified-test-data" ? "source" : "review"}`}>{sourceStatus}</span>
+      </div>
+      <div className="motor-performance-metrics">
+        <div><span>Impulse</span><strong>{record.metrics.totalImpulseNs.toFixed(1)} <small>N s</small></strong></div>
+        <div><span>Peak thrust</span><strong>{record.metrics.peakThrustN.toFixed(1)} <small>N</small></strong></div>
+        <div><span>Burn time</span><strong>{record.metrics.burnDurationS.toFixed(2)} <small>s</small></strong></div>
+        <div><span>Specific impulse</span><strong>{record.metrics.specificImpulseS.toFixed(1)} <small>s</small></strong></div>
+      </div>
+      <div className="motor-performance-plot" role="img" aria-label={`${record.designation} thrust from ignition to burnout`}>
+        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+          <title>{record.designation} thrust curve</title>
+          <line x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} />
+          <line x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} />
+          <line className="motor-performance-zero" x1={padding.left} y1={yFor(0)} x2={width - padding.right} y2={yFor(0)} />
+          <path className="motor-performance-area" d={areaPath} />
+          <path className="motor-performance-line" d={linePath} />
+          <circle className="motor-performance-peak" cx={xFor(peak.timeS)} cy={yFor(peak.thrustN)} r="3" />
+          <text x={padding.left} y={13}>{maximumThrust.toFixed(1)} N</text>
+          <text x={padding.left} y={height - padding.bottom + 19}>0 s</text>
+          <text x={width - padding.right} y={height - padding.bottom + 19} textAnchor="end">{maximumTime.toFixed(2)} s</text>
+          <text x={xFor(peak.timeS)} y={Math.max(18, yFor(peak.thrustN) - 9)} textAnchor="middle">peak</text>
+        </svg>
+      </div>
+      <small className="motor-performance-note">{record.massFlowHistoryKgS ? "Measured mass-flow history is retained separately from thrust and is not inferred from this curve. " : "No measured mass-flow history is attached. "}{record.provenance.sourceName} / {record.provenance.licenseIdentifier} / {record.provenance.validationStatus}</small>
+    </section>
+  );
+}
+
 function AerodynamicPolarChart({ model }: { model: AerodynamicCoefficientTableModel }) {
   const [mach, setMach] = useState(() => 0.5 * (model.machRange[0] + model.machRange[1]));
   const reynoldsLogMinimum = Math.log10(model.reynoldsRange[0]);
@@ -7592,6 +7643,7 @@ export default function Home() {
                 ×
               </button>
             </div>
+            <MotorThrustCurveChart record={previewMotor} />
             <div className="motor-library-list" aria-label="Available motors">
               <article className={selectedMotorId === "synthetic" ? "motor-record active" : "motor-record"}>
                 <div className="motor-record-main">

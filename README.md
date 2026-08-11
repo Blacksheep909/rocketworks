@@ -41,6 +41,9 @@ research, standards, and original code.
   databases for the 6DOF load path; optional positive measured mass-flow
   histories can now drive live motor depletion and inertia-rate telemetry, with
   a strict optional CSV field in the browser motor library;
+- a provenance-aware motor performance view that plots the selected thrust
+  curve, highlights derived impulse/peak/burn metrics, and keeps source status
+  and measured-mass-flow boundaries visible before simulation;
 - an angle-of-attack polar inspector with fixed Mach, Reynolds, and sideslip
   sliders, direct force-volume preference, explicit legacy small-angle fallback,
   uncertainty visibility, out-of-domain review status, and a metadata-rich CSV

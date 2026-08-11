@@ -342,6 +342,10 @@ test("shows provenance-qualified derived motor metrics", async () => {
     new URL("../app/page.tsx", import.meta.url),
     "utf8",
   );
+  const stylesheet = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
   assert.match(source, /createMotorDataRecord/);
   assert.match(source, /Motor data/);
   assert.match(source, /previewMotor\.metrics\.impulseClassEstimate/);
@@ -353,6 +357,11 @@ test("shows provenance-qualified derived motor metrics", async () => {
   assert.match(source, /exportMotorMassFlowCsv/);
   assert.match(source, /Synthetic preview curve/);
   assert.match(source, /not motor certification/);
+  assert.match(source, /MotorThrustCurveChart/);
+  assert.match(source, /Thrust profile/);
+  assert.match(source, /The curve is linearly interpolated/);
+  assert.match(stylesheet, /\.motor-performance/);
+  assert.match(stylesheet, /\.motor-performance-plot/);
 });
 
 test("shows a deterministic provenance-qualified launch environment", async () => {
