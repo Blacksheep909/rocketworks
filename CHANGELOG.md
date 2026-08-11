@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added an opt-in adaptive RK4 step-doubling mode to the shared released-body
+  grid. Point and rigid released bodies retain exact output/release boundaries,
+  while accepted/rejected internal steps and scaled truncation diagnostics are
+  exposed in the result, browser inspector, and engineering report. Fixed RK4
+  remains the default and adaptive error is not model validation.
 - Added an opt-in rigid-body branch to the shared released-body flight track.
   Released bodies can now carry quaternion attitude, angular velocity, a
   positive-definite inertia tensor, and caller-supplied body/world loads while

@@ -28,6 +28,12 @@ trajectory for each body, terminal ground-crossing time, peak altitude and
 speed, and a continuous pairwise center-of-mass diagnostic over overlapping
 trace windows.
 
+The optional `integration.method = "adaptive-rk4-step-doubling"` setting keeps
+those output boundaries but subdivides each shared-grid interval internally.
+Accepted/rejected internal steps, accepted-step range, and the maximum scaled
+truncation estimate are returned in `result.integration`. Fixed RK4 remains the
+default for compatibility.
+
 ## Equations and numerical method
 
 The translational state is integrated with explicit fourth-order Runge–Kutta:
@@ -73,6 +79,13 @@ supplied constant inertia tensor, and `M_body` is the optional callback moment.
 World-frame callback forces are combined with rotated body-frame forces before
 the translational acceleration is evaluated.
 
+Adaptive intervals compare one full RK4 step with two half RK4 steps. For each
+active body's position, velocity, quaternion, and angular-rate components, the
+refined/full difference is divided by Richardson's fourth-order factor of 15
+and scaled by the configured absolute plus relative tolerance. An interval is
+accepted only when the maximum normalized component error is at most one; a
+minimum-step failure is reported rather than silently relaxing the tolerance.
+
 ## Coupling boundary
 
 This is a simultaneous shared-environment and relative-motion track. The
@@ -93,6 +106,10 @@ exposes the mutual-gravity choice as an advanced released-body force model. The
 stage-flight adapter forwards each detached stage's release attitude, angular
 rate, and center-of-mass inertia into the shared audit track; it intentionally
 does not duplicate the detached recovery/aerodynamic-moment loads there.
+
+Adaptive step diagnostics describe numerical truncation only. They do not
+validate the environment, supplied loads, geometry, separation mechanism, or
+contact behavior.
 
 ## Step budget and status
 

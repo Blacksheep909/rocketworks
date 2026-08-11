@@ -1045,6 +1045,7 @@ export function simulateStageFlightPreview(
         launchAltitudeM: input.launchAltitudeM,
         environmentAt: input.environmentAt,
         mutualGravity: input.coupledMultiBodyGravity,
+        integration: input.integration,
       });
     } catch (error) {
       separatedBodyWarnings.push(

@@ -343,6 +343,8 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
   assert.match(source, /coupledMultiBodyFlight/);
   assert.match(pageSource, /rigidBodyCount/);
   assert.match(pageSource, /quaternion\/inertia state/);
+  assert.match(pageSource, /Coupled integrator/);
+  assert.match(pageSource, /integration\.acceptedStepCount/);
   assert.match(stylesheet, /\.stage-separated-bodies/);
   assert.match(stylesheet, /\.stage-separated-body-grid/);
   assert.match(stylesheet, /\.stage-multi-body-separation/);

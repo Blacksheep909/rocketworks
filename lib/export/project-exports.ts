@@ -1930,6 +1930,9 @@ export function createEngineeringReportMarkdown(
                 `| Status | ${markdownText(input.stageFlight.coupledMultiBodyFlight.status)} |`,
                 `| Bodies | ${input.stageFlight.coupledMultiBodyFlight.trajectories.length} |`,
                 `| Rigid-body states | ${input.stageFlight.coupledMultiBodyFlight.rigidBodyCount} |`,
+                `| Coupled integrator | ${input.stageFlight.coupledMultiBodyFlight.integration
+                  ? `${markdownText(input.stageFlight.coupledMultiBodyFlight.integration.method)} (${input.stageFlight.coupledMultiBodyFlight.integration.acceptedStepCount} accepted, ${input.stageFlight.coupledMultiBodyFlight.integration.rejectedStepCount} rejected)`
+                  : "fixed-rk4 (legacy result; diagnostics unavailable)"} |`,
                 `| Shared-grid steps | ${input.stageFlight.coupledMultiBodyFlight.stepCount} |`,
                 `| Effective time step | ${formatNumber(input.stageFlight.coupledMultiBodyFlight.timeStepS, 4)} s |`,
                 `| Released-body force model | ${input.stageFlight.coupledMultiBodyFlight.mutualGravity?.enabled ? `mutual point-mass gravity (softening ${formatNumber(input.stageFlight.coupledMultiBodyFlight.mutualGravity.softeningRadiusM, 6)} m)` : "shared environment only"} |`,

@@ -24,8 +24,10 @@ import {
   normalizeQuaternion,
   rotateBodyToWorld,
   rigidBodyPropertiesAt,
+  type AdaptiveRigidBodyIntegrationOptions,
   type Quaternion,
   type RigidBodyLoads,
+  type RigidBodyIntegrationMethod,
   type RigidBodyState,
 } from "./six-dof.ts";
 
@@ -50,6 +52,13 @@ export type CoupledMultiBodyGravityOptions = Readonly<{
   enabled?: boolean;
   /** Optional Plummer-style softening radius for close approaches. */
   softeningRadiusM?: number;
+}>;
+
+export type CoupledMultiBodyIntegrationOptions = Readonly<{
+  /** Fixed RK4 remains the backwards-compatible shared-grid default. */
+  method?: RigidBodyIntegrationMethod;
+  /** Optional scaled step-doubling controls for adaptive mode. */
+  adaptive?: AdaptiveRigidBodyIntegrationOptions;
 }>;
 
 export type CoupledMultiBodyVelocityAdjustment = Readonly<{
@@ -134,6 +143,7 @@ export type CoupledMultiBodyFlightInput = Readonly<{
   launchAltitudeM?: number;
   environmentAt?: LaunchEnvironmentProvider;
   maximumSteps?: number;
+  integration?: CoupledMultiBodyIntegrationOptions;
 }>;
 
 export type CoupledMultiBodyFlightResult = Readonly<{
@@ -149,6 +159,14 @@ export type CoupledMultiBodyFlightResult = Readonly<{
     gravitationalConstantM3KgS2: typeof STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2;
   }>;
   rigidBodyCount: number;
+  integration: Readonly<{
+    method: RigidBodyIntegrationMethod;
+    acceptedStepCount: number;
+    rejectedStepCount: number;
+    maximumNormalizedError: number | null;
+    minimumAcceptedStepS: number | null;
+    maximumAcceptedStepS: number | null;
+  }>;
   trajectories: readonly CoupledMultiBodyFlightTrajectory[];
   pairwise: MultiBodySeparationResult | null;
   minimumDistanceM: number | null;
@@ -194,6 +212,33 @@ type CoupledGroupDerivative = Readonly<{
 const ZERO_VECTOR: Vector3 = { x: 0, y: 0, z: 0 };
 const TIME_TOLERANCE_S = 1e-9;
 const DEFAULT_MAXIMUM_STEPS = 200_000;
+const DEFAULT_ADAPTIVE_RELATIVE_TOLERANCE = 1e-7;
+const DEFAULT_ADAPTIVE_ABSOLUTE_TOLERANCE = 1e-9;
+const DEFAULT_ADAPTIVE_MINIMUM_STEP_S = 1e-8;
+const DEFAULT_ADAPTIVE_SAFETY_FACTOR = 0.9;
+
+type CoupledIntegrationConfig = Readonly<{
+  method: RigidBodyIntegrationMethod;
+  adaptive?: Required<AdaptiveRigidBodyIntegrationOptions>;
+}>;
+
+type MutableCoupledIntegrationDiagnostics = {
+  method: RigidBodyIntegrationMethod;
+  acceptedStepCount: number;
+  rejectedStepCount: number;
+  maximumNormalizedError: number;
+  minimumAcceptedStepS: number;
+  maximumAcceptedStepS: number;
+};
+
+type CoupledAdaptiveStepResult = Readonly<{
+  state: CoupledGroupState;
+  acceptedStepCount: number;
+  rejectedStepCount: number;
+  maximumNormalizedError: number;
+  minimumAcceptedStepS: number;
+  maximumAcceptedStepS: number;
+}>;
 
 function assertFiniteVector(value: Vector3, label: string): void {
   if (![value.x, value.y, value.z].every(Number.isFinite)) {
@@ -211,6 +256,45 @@ function assertNonNegativeFinite(value: number, label: string): void {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${label} must be non-negative and finite`);
   }
+}
+
+function validateCoupledAdaptiveOptions(
+  durationS: number,
+  options: AdaptiveRigidBodyIntegrationOptions,
+): Required<AdaptiveRigidBodyIntegrationOptions> {
+  const relativeTolerance =
+    options.relativeTolerance ?? DEFAULT_ADAPTIVE_RELATIVE_TOLERANCE;
+  const absoluteTolerance =
+    options.absoluteTolerance ?? DEFAULT_ADAPTIVE_ABSOLUTE_TOLERANCE;
+  const minimumStepS =
+    options.minimumStepS ?? Math.min(DEFAULT_ADAPTIVE_MINIMUM_STEP_S, durationS);
+  const maximumStepS = options.maximumStepS ?? durationS;
+  const safetyFactor = options.safetyFactor ?? DEFAULT_ADAPTIVE_SAFETY_FACTOR;
+  if (!Number.isFinite(relativeTolerance) || relativeTolerance <= 0) {
+    throw new Error("coupled adaptive relative tolerance must be positive and finite");
+  }
+  if (!Number.isFinite(absoluteTolerance) || absoluteTolerance <= 0) {
+    throw new Error("coupled adaptive absolute tolerance must be positive and finite");
+  }
+  if (!Number.isFinite(minimumStepS) || minimumStepS <= 0) {
+    throw new Error("coupled adaptive minimum step must be positive and finite");
+  }
+  if (!Number.isFinite(maximumStepS) || maximumStepS <= 0) {
+    throw new Error("coupled adaptive maximum step must be positive and finite");
+  }
+  if (minimumStepS > maximumStepS) {
+    throw new Error("coupled adaptive minimum step cannot exceed maximum step");
+  }
+  if (!Number.isFinite(safetyFactor) || safetyFactor < 0.1 || safetyFactor > 1) {
+    throw new Error("coupled adaptive safety factor must be finite and between 0.1 and 1");
+  }
+  return {
+    relativeTolerance,
+    absoluteTolerance,
+    minimumStepS,
+    maximumStepS,
+    safetyFactor,
+  };
 }
 
 function normalizeMutualGravityOptions(
@@ -688,6 +772,292 @@ function integrateCoupledGroupRungeKutta4(
   };
 }
 
+function adaptiveComponentError(
+  fullValue: number,
+  refinedValue: number,
+  relativeTolerance: number,
+  absoluteTolerance: number,
+): number {
+  const scale =
+    absoluteTolerance +
+    relativeTolerance * Math.max(Math.abs(fullValue), Math.abs(refinedValue));
+  const error = Math.abs(refinedValue - fullValue) / 15 / scale;
+  if (!Number.isFinite(error)) {
+    throw new Error("coupled adaptive error estimate is non-finite");
+  }
+  return error;
+}
+
+function adaptiveVectorError(
+  fullValue: Vector3,
+  refinedValue: Vector3,
+  relativeTolerance: number,
+  absoluteTolerance: number,
+): number {
+  return Math.max(
+    adaptiveComponentError(fullValue.x, refinedValue.x, relativeTolerance, absoluteTolerance),
+    adaptiveComponentError(fullValue.y, refinedValue.y, relativeTolerance, absoluteTolerance),
+    adaptiveComponentError(fullValue.z, refinedValue.z, relativeTolerance, absoluteTolerance),
+  );
+}
+
+function adaptiveQuaternionError(
+  fullValue: Quaternion,
+  refinedValue: Quaternion,
+  relativeTolerance: number,
+  absoluteTolerance: number,
+): number {
+  const sign =
+    fullValue.w * refinedValue.w +
+      fullValue.x * refinedValue.x +
+      fullValue.y * refinedValue.y +
+      fullValue.z * refinedValue.z <
+    0
+      ? -1
+      : 1;
+  return Math.max(
+    adaptiveComponentError(fullValue.w, sign * refinedValue.w, relativeTolerance, absoluteTolerance),
+    adaptiveComponentError(fullValue.x, sign * refinedValue.x, relativeTolerance, absoluteTolerance),
+    adaptiveComponentError(fullValue.y, sign * refinedValue.y, relativeTolerance, absoluteTolerance),
+    adaptiveComponentError(fullValue.z, sign * refinedValue.z, relativeTolerance, absoluteTolerance),
+  );
+}
+
+function adaptiveCoupledStateErrorNorm(
+  fullStep: CoupledGroupState,
+  refinedStep: CoupledGroupState,
+  relativeTolerance: number,
+  absoluteTolerance: number,
+): number {
+  let maximumError = 0;
+  for (let index = 0; index < fullStep.positionsWorldM.length; index += 1) {
+    if (!fullStep.active[index]) continue;
+    maximumError = Math.max(
+      maximumError,
+      adaptiveVectorError(
+        fullStep.positionsWorldM[index]!,
+        refinedStep.positionsWorldM[index]!,
+        relativeTolerance,
+        absoluteTolerance,
+      ),
+      adaptiveVectorError(
+        fullStep.velocitiesWorldMps[index]!,
+        refinedStep.velocitiesWorldMps[index]!,
+        relativeTolerance,
+        absoluteTolerance,
+      ),
+    );
+    const fullOrientation = fullStep.orientationsBodyToWorld[index];
+    const refinedOrientation = refinedStep.orientationsBodyToWorld[index];
+    if (fullOrientation || refinedOrientation) {
+      if (!fullOrientation || !refinedOrientation) {
+        throw new Error("coupled adaptive rigid-body orientation state is inconsistent");
+      }
+      maximumError = Math.max(
+        maximumError,
+        adaptiveQuaternionError(
+          fullOrientation,
+          refinedOrientation,
+          relativeTolerance,
+          absoluteTolerance,
+        ),
+      );
+    }
+    const fullAngularVelocity = fullStep.angularVelocitiesBodyRadS[index];
+    const refinedAngularVelocity = refinedStep.angularVelocitiesBodyRadS[index];
+    if (fullAngularVelocity || refinedAngularVelocity) {
+      if (!fullAngularVelocity || !refinedAngularVelocity) {
+        throw new Error("coupled adaptive angular-rate state is inconsistent");
+      }
+      maximumError = Math.max(
+        maximumError,
+        adaptiveVectorError(
+          fullAngularVelocity,
+          refinedAngularVelocity,
+          relativeTolerance,
+          absoluteTolerance,
+        ),
+      );
+    }
+  }
+  return maximumError;
+}
+
+function integrateCoupledGroupAdaptive(
+  bodies: readonly CoupledMultiBodyFlightBodyInput[],
+  input: CoupledMultiBodyFlightInput,
+  state: CoupledGroupState,
+  durationS: number,
+  mutualGravity: Required<CoupledMultiBodyGravityOptions>,
+  options: Required<AdaptiveRigidBodyIntegrationOptions>,
+): CoupledAdaptiveStepResult {
+  if (!Number.isFinite(durationS) || durationS <= 0) {
+    throw new Error("coupled adaptive integration duration must be positive and finite");
+  }
+  const maximumStepS = Math.min(options.maximumStepS, durationS);
+  if (options.minimumStepS > maximumStepS) {
+    throw new Error("coupled adaptive minimum step cannot exceed the requested duration");
+  }
+  const timeTolerance = Number.EPSILON * Math.max(1, Math.abs(durationS)) * 16;
+  let current: CoupledGroupState = state;
+  let elapsedS = 0;
+  let stepS = maximumStepS;
+  let acceptedStepCount = 0;
+  let rejectedStepCount = 0;
+  let maximumNormalizedError = 0;
+  let minimumAcceptedStepS = Number.POSITIVE_INFINITY;
+  let maximumAcceptedStepS = 0;
+  let attempts = 0;
+  const maximumInternalAttempts = 1_000_000;
+  while (elapsedS < durationS - timeTolerance) {
+    attempts += 1;
+    if (attempts > maximumInternalAttempts) {
+      throw new Error("coupled adaptive integration exceeded the internal step-attempt limit");
+    }
+    const remainingS = durationS - elapsedS;
+    const candidateStepS = Math.min(stepS, remainingS);
+    const fullStep = integrateCoupledGroupRungeKutta4(
+      bodies,
+      input,
+      current,
+      candidateStepS,
+      mutualGravity,
+    );
+    const halfStep = integrateCoupledGroupRungeKutta4(
+      bodies,
+      input,
+      current,
+      candidateStepS / 2,
+      mutualGravity,
+    );
+    const refinedStep = integrateCoupledGroupRungeKutta4(
+      bodies,
+      input,
+      halfStep,
+      candidateStepS / 2,
+      mutualGravity,
+    );
+    const normalizedError = adaptiveCoupledStateErrorNorm(
+      fullStep,
+      refinedStep,
+      options.relativeTolerance,
+      options.absoluteTolerance,
+    );
+    const minimumStepBoundary = options.minimumStepS * (1 + Number.EPSILON * 32);
+    if (normalizedError <= 1) {
+      maximumNormalizedError = Math.max(maximumNormalizedError, normalizedError);
+      current = {
+        ...refinedStep,
+        timeS: state.timeS + elapsedS + candidateStepS,
+      };
+      elapsedS += candidateStepS;
+      acceptedStepCount += 1;
+      minimumAcceptedStepS = Math.min(minimumAcceptedStepS, candidateStepS);
+      maximumAcceptedStepS = Math.max(maximumAcceptedStepS, candidateStepS);
+      const growth = normalizedError === 0
+        ? 2.5
+        : Math.min(2.5, Math.max(0.2, options.safetyFactor * normalizedError ** -0.2));
+      stepS = Math.min(
+        maximumStepS,
+        Math.max(options.minimumStepS, candidateStepS * growth),
+      );
+      continue;
+    }
+    if (candidateStepS <= minimumStepBoundary) {
+      throw new Error(
+        `coupled adaptive integration reached its minimum step (${options.minimumStepS} s) before meeting the requested tolerance`,
+      );
+    }
+    rejectedStepCount += 1;
+    const reduction = Math.min(
+      0.5,
+      Math.max(0.1, options.safetyFactor * normalizedError ** -0.2),
+    );
+    stepS = Math.max(options.minimumStepS, candidateStepS * reduction);
+  }
+  return {
+    state: { ...current, timeS: state.timeS + durationS },
+    acceptedStepCount,
+    rejectedStepCount,
+    maximumNormalizedError,
+    minimumAcceptedStepS,
+    maximumAcceptedStepS,
+  };
+}
+
+function recordCoupledAcceptedSteps(
+  diagnostics: MutableCoupledIntegrationDiagnostics,
+  acceptedStepCount: number,
+  rejectedStepCount: number,
+  maximumNormalizedError: number | null,
+  minimumAcceptedStepS: number,
+  maximumAcceptedStepS: number,
+): void {
+  diagnostics.acceptedStepCount += acceptedStepCount;
+  diagnostics.rejectedStepCount += rejectedStepCount;
+  if (maximumNormalizedError !== null) {
+    diagnostics.maximumNormalizedError = Math.max(
+      diagnostics.maximumNormalizedError,
+      maximumNormalizedError,
+    );
+  }
+  diagnostics.minimumAcceptedStepS = Math.min(
+    diagnostics.minimumAcceptedStepS,
+    minimumAcceptedStepS,
+  );
+  diagnostics.maximumAcceptedStepS = Math.max(
+    diagnostics.maximumAcceptedStepS,
+    maximumAcceptedStepS,
+  );
+}
+
+function integrateCoupledGroupInterval(
+  bodies: readonly CoupledMultiBodyFlightBodyInput[],
+  input: CoupledMultiBodyFlightInput,
+  state: CoupledGroupState,
+  durationS: number,
+  mutualGravity: Required<CoupledMultiBodyGravityOptions>,
+  integration: CoupledIntegrationConfig,
+  diagnostics: MutableCoupledIntegrationDiagnostics,
+): CoupledGroupState {
+  if (durationS <= 0) return state;
+  if (integration.method === "fixed-rk4") {
+    const nextState = integrateCoupledGroupRungeKutta4(
+      bodies,
+      input,
+      state,
+      durationS,
+      mutualGravity,
+    );
+    recordCoupledAcceptedSteps(
+      diagnostics,
+      1,
+      0,
+      null,
+      durationS,
+      durationS,
+    );
+    return nextState;
+  }
+  const adaptiveStep = integrateCoupledGroupAdaptive(
+    bodies,
+    input,
+    state,
+    durationS,
+    mutualGravity,
+    integration.adaptive!,
+  );
+  recordCoupledAcceptedSteps(
+    diagnostics,
+    adaptiveStep.acceptedStepCount,
+    adaptiveStep.rejectedStepCount,
+    adaptiveStep.maximumNormalizedError,
+    adaptiveStep.minimumAcceptedStepS,
+    adaptiveStep.maximumAcceptedStepS,
+  );
+  return adaptiveStep.state;
+}
+
 function derivativeAt(
   body: CoupledMultiBodyFlightBodyInput,
   input: CoupledMultiBodyFlightInput,
@@ -927,6 +1297,8 @@ function propagateCoupledBodies(
   grid: readonly number[],
   integrationStepS: number,
   mutualGravity: Required<CoupledMultiBodyGravityOptions>,
+  integration: CoupledIntegrationConfig,
+  diagnostics: MutableCoupledIntegrationDiagnostics,
 ): CoupledMultiBodyFlightTrajectory[] {
   const traces: CoupledMultiBodyTracePoint[][] = bodies.map(() => []);
   const impactTimes: (number | null)[] = bodies.map(() => null);
@@ -1012,12 +1384,14 @@ function propagateCoupledBodies(
     while (state.timeS < targetTimeS - TIME_TOLERANCE_S) {
       const stepS = Math.min(integrationStepS, targetTimeS - state.timeS);
       const previousState = state;
-      const nextState = integrateCoupledGroupRungeKutta4(
+      const nextState = integrateCoupledGroupInterval(
         bodies,
         input,
         previousState,
         stepS,
         mutualGravity,
+        integration,
+        diagnostics,
       );
       const nextActive = [...nextState.active];
       for (let index = 0; index < bodies.length; index += 1) {
@@ -1160,6 +1534,26 @@ export function simulateCoupledMultiBodyFlight(
   if (!Number.isInteger(maximumSteps) || maximumSteps < 2) {
     throw new Error("coupled multi-body flight maximum steps must be an integer >= 2");
   }
+  const integrationMethod = input.integration?.method ?? "fixed-rk4";
+  if (
+    integrationMethod !== "fixed-rk4" &&
+    integrationMethod !== "adaptive-rk4-step-doubling"
+  ) {
+    throw new Error("coupled integration method must be fixed-rk4 or adaptive-rk4-step-doubling");
+  }
+  const adaptiveIntegrationOptions = integrationMethod === "adaptive-rk4-step-doubling"
+    ? validateCoupledAdaptiveOptions(
+        input.durationS,
+        {
+          ...(input.integration?.adaptive ?? {}),
+          maximumStepS: input.integration?.adaptive?.maximumStepS ?? input.timeStepS,
+        },
+      )
+    : undefined;
+  const integration: CoupledIntegrationConfig = {
+    method: integrationMethod,
+    ...(adaptiveIntegrationOptions ? { adaptive: adaptiveIntegrationOptions } : {}),
+  };
   const mutualGravity = normalizeMutualGravityOptions(input.mutualGravity);
   const ids = new Set<string>();
   input.bodies.forEach((body) => {
@@ -1178,7 +1572,11 @@ export function simulateCoupledMultiBodyFlight(
     ? Math.min(input.timeStepS, (input.durationS - startTimeS) / Math.max(Math.min(nominalStepCount, maximumSteps - 1), 1))
     : input.timeStepS;
   let grid: number[];
-  if (mutualGravity.enabled || rigidBodyCount > 0) {
+  if (
+    mutualGravity.enabled ||
+    rigidBodyCount > 0 ||
+    integrationMethod === "adaptive-rk4-step-doubling"
+  ) {
     const requestedGrid = createMissionTimeGrid(
       startTimeS,
       input.durationS,
@@ -1187,7 +1585,7 @@ export function simulateCoupledMultiBodyFlight(
     );
     if (requestedGrid.length - 1 > maximumSteps - 1) {
       throw new Error(
-        `coupled multi-body mutual gravity grid exceeds the maximum step budget (${maximumSteps}); increase maximumSteps or timeStepS`,
+        `coupled multi-body grid exceeds the maximum step budget (${maximumSteps}); increase maximumSteps or timeStepS`,
       );
     }
     effectiveTimeStepS = input.timeStepS;
@@ -1199,11 +1597,41 @@ export function simulateCoupledMultiBodyFlight(
       : input.timeStepS;
     grid = createMissionTimeGrid(startTimeS, input.durationS, effectiveTimeStepS);
   }
-  const trajectories = mutualGravity.enabled || rigidBodyCount > 0
-    ? propagateCoupledBodies(input.bodies, input, grid, effectiveTimeStepS, mutualGravity)
+  const integrationDiagnostics: MutableCoupledIntegrationDiagnostics = {
+    method: integrationMethod,
+    acceptedStepCount: 0,
+    rejectedStepCount: 0,
+    maximumNormalizedError: 0,
+    minimumAcceptedStepS: Number.POSITIVE_INFINITY,
+    maximumAcceptedStepS: 0,
+  };
+  const usesCoupledGroup =
+    mutualGravity.enabled ||
+    rigidBodyCount > 0 ||
+    integrationMethod === "adaptive-rk4-step-doubling";
+  const trajectories = usesCoupledGroup
+    ? propagateCoupledBodies(
+        input.bodies,
+        input,
+        grid,
+        effectiveTimeStepS,
+        mutualGravity,
+        integration,
+        integrationDiagnostics,
+      )
     : input.bodies.map((body) =>
         propagateBody(body, input, grid, effectiveTimeStepS),
       );
+  if (!usesCoupledGroup) {
+    recordCoupledAcceptedSteps(
+      integrationDiagnostics,
+      Math.max(grid.length - 1, 0),
+      0,
+      null,
+      effectiveTimeStepS,
+      effectiveTimeStepS,
+    );
+  }
   const pairwise: MultiBodySeparationResult | null = trajectories.length > 1
     ? analyzeMultiBodySeparation({
         bodies: trajectories.map((trajectory) => ({
@@ -1242,6 +1670,9 @@ export function simulateCoupledMultiBodyFlight(
     ...(budgetAdjusted
       ? [`The requested ${input.timeStepS.toFixed(4)} s step would exceed the maximum step budget (${maximumSteps}); the shared grid was coarsened to ${effectiveTimeStepS.toFixed(4)} s to reach the mission end.`]
       : []),
+    ...(integrationMethod === "adaptive-rk4-step-doubling"
+      ? [`Adaptive RK4 step-doubling accepted ${integrationDiagnostics.acceptedStepCount} internal steps and rejected ${integrationDiagnostics.rejectedStepCount}; the reported error is numerical truncation only, not model validation.`]
+      : []),
     ...(pairwise?.warnings ?? []),
   ];
   const assumptions = [
@@ -1260,6 +1691,12 @@ export function simulateCoupledMultiBodyFlight(
       ? [
           "Rigid-body attitude uses quaternion kinematics and Euler angular momentum with the supplied constant inertia tensor; flexible-body, contact, plume, and unprovided aerodynamic moment models remain outside the solver.",
           "Rigid-body loads are caller-supplied additions to the shared gravity/drag force basis; omitted moments are zero and no contact or aerodynamic-interference force is inferred.",
+        ]
+      : []),
+    ...(integrationMethod === "adaptive-rk4-step-doubling"
+      ? [
+          "Adaptive step-doubling compares one full RK4 step with two half RK4 steps over each shared-grid interval; refined states are accepted only when the scaled component error is at most one.",
+          `Adaptive tolerances are relative ${adaptiveIntegrationOptions!.relativeTolerance} and absolute ${adaptiveIntegrationOptions!.absoluteTolerance}; internal steps are bounded from ${adaptiveIntegrationOptions!.minimumStepS} s to ${adaptiveIntegrationOptions!.maximumStepS} s with safety factor ${adaptiveIntegrationOptions!.safetyFactor}.`,
         ]
       : []),
   ];
@@ -1281,6 +1718,20 @@ export function simulateCoupledMultiBodyFlight(
       gravitationalConstantM3KgS2: STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2,
     },
     rigidBodyCount,
+    integration: {
+      method: integrationDiagnostics.method,
+      acceptedStepCount: integrationDiagnostics.acceptedStepCount,
+      rejectedStepCount: integrationDiagnostics.rejectedStepCount,
+      maximumNormalizedError: integrationMethod === "adaptive-rk4-step-doubling"
+        ? integrationDiagnostics.maximumNormalizedError
+        : null,
+      minimumAcceptedStepS: Number.isFinite(integrationDiagnostics.minimumAcceptedStepS)
+        ? integrationDiagnostics.minimumAcceptedStepS
+        : null,
+      maximumAcceptedStepS: integrationDiagnostics.maximumAcceptedStepS > 0
+        ? integrationDiagnostics.maximumAcceptedStepS
+        : null,
+    },
     trajectories,
     pairwise,
     minimumDistanceM: pairwise?.minimumDistanceM ?? null,

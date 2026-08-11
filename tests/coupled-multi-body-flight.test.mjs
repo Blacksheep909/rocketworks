@@ -243,3 +243,81 @@ test("rigid-body released-body inputs reject invalid inertia and non-finite load
     /body moment must contain finite coordinates/,
   );
 });
+
+test("adaptive shared-grid integration converges and reports internal step diagnostics", () => {
+  const makeAdaptiveBody = () => body({
+    id: "adaptive-body",
+    releaseTimeS: 0,
+    releasePositionWorldM: { x: 0, y: 0, z: 120 },
+    releaseVelocityWorldMps: { x: 0, y: 0, z: 30 },
+    rigidBody: {
+      orientationBodyToWorld: { w: 1, x: 0, y: 0, z: 0 },
+      angularVelocityBodyRadS: { x: 0, y: 0, z: 0.3 },
+      inertiaBodyKgM2: [
+        [2, 0, 0],
+        [0, 3, 0],
+        [0, 0, 4],
+      ],
+      loads: (state) => ({
+        forceBodyN: { x: 4 * Math.sin(5 * state.timeS), y: 0, z: 0 },
+        momentBodyNm: { x: 1.5 * Math.cos(3 * state.timeS), y: 0, z: 0 },
+      }),
+    },
+  });
+  const adaptive = simulateCoupledMultiBodyFlight({
+    bodies: [makeAdaptiveBody()],
+    durationS: 1.2,
+    timeStepS: 0.2,
+    integration: {
+      method: "adaptive-rk4-step-doubling",
+      adaptive: {
+        relativeTolerance: 1e-8,
+        absoluteTolerance: 1e-10,
+        minimumStepS: 1e-7,
+        maximumStepS: 0.2,
+      },
+    },
+  });
+  const reference = simulateCoupledMultiBodyFlight({
+    bodies: [makeAdaptiveBody()],
+    durationS: 1.2,
+    timeStepS: 0.002,
+  });
+  const adaptiveFinal = adaptive.trajectories[0].trace.at(-1);
+  const referenceFinal = reference.trajectories[0].trace.at(-1);
+  assert.equal(adaptive.integration.method, "adaptive-rk4-step-doubling");
+  assert.ok(adaptive.integration.acceptedStepCount > 0);
+  assert.ok(adaptive.integration.rejectedStepCount > 0);
+  assert.ok(adaptive.integration.maximumNormalizedError <= 1);
+  assert.equal(adaptive.endTimeS, 1.2);
+  assert.ok(Math.abs(adaptiveFinal.positionWorldM.x - referenceFinal.positionWorldM.x) < 1e-6);
+  assert.ok(Math.abs(adaptiveFinal.angularVelocityBodyRadS.x - referenceFinal.angularVelocityBodyRadS.x) < 1e-6);
+  assert.ok(adaptive.warnings.some((warning) => warning.includes("truncation only")));
+  assert.ok(adaptive.assumptions.some((assumption) => assumption.includes("full RK4 step")));
+});
+
+test("adaptive shared-grid integration preserves exact delayed release boundaries", () => {
+  const result = simulateCoupledMultiBodyFlight({
+    bodies: [
+      body({
+        id: "adaptive-late",
+        releaseTimeS: 0.25,
+        rigidBody: {
+          orientationBodyToWorld: { w: 1, x: 0, y: 0, z: 0 },
+          inertiaBodyKgM2: [
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+          ],
+        },
+      }),
+      body({ id: "adaptive-early", releaseTimeS: 0 }),
+    ],
+    durationS: 1,
+    timeStepS: 0.3,
+    integration: { method: "adaptive-rk4-step-doubling" },
+  });
+  assert.ok(result.trajectories[0].trace.some((point) => point.timeS === 0.25));
+  assert.equal(result.integration.method, "adaptive-rk4-step-doubling");
+  assert.ok(result.integration.minimumAcceptedStepS > 0);
+});

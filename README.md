@@ -95,7 +95,9 @@ research, standards, and original code.
   now forwards detached-stage release attitude/rate/inertia into this audit;
   the independent 6DOF
   kernel also offers opt-in adaptive RK4 step-doubling with explicit numerical
-  error diagnostics while retaining fixed-step compatibility;
+  error diagnostics while retaining fixed-step compatibility, and the shared
+  released-body grid exposes the same opt-in step-doubling diagnostics without
+  changing its fixed-grid default;
 - half-step numerical convergence diagnostics for the fast vertical estimate,
   with explicit metric/event thresholds and stale-result handling;
 - deterministic mission-event allocation for simultaneous rail, separation,
