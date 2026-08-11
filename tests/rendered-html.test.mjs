@@ -48,6 +48,13 @@ test("keeps the Node 22 TypeScript test-loader contract explicit", async () => {
     /node --experimental-strip-types --test/,
     "npm test must opt into Node 22's erasable TypeScript loader",
   );
+  assert.match(
+    packageJson.scripts?.typecheck ?? "",
+    /tsc --noEmit --incremental false/,
+    "the repository must expose a no-emit TypeScript gate",
+  );
+  const ci = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+  assert.match(ci, /run: npm run typecheck/);
 });
 
 test("ships an installable browser shell without claiming offline simulation", async () => {

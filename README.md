@@ -217,11 +217,13 @@ available with:
 
 ```bash
 npm run lint
+npm run typecheck
 npm run build
 npm test
 ```
 
-`npm test` builds the app and runs the physics, state, export, UI-source, and
+`npm run typecheck` checks the complete TypeScript surface without emitting
+build files. `npm test` builds the app and runs the physics, state, export, UI-source, and
 rendered-HTML regression suites.
 
 ## Public-project guardrails

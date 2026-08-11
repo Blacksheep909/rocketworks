@@ -30,11 +30,13 @@ consistent until the test harness is compiled as a separate artifact.
 ```bash
 npm install
 npm run lint
+npm run typecheck
 npm test
 npm run build
 ```
 
-`npm test` builds the browser app and runs deterministic physics, state,
+`npm run typecheck` verifies the complete TypeScript surface without emitting
+build files. `npm test` builds the browser app and runs deterministic physics, state,
 export, UI-source, and rendered-HTML checks. Changes that affect a model or
 export should include a focused regression test and an update to the matching
 engineering note.

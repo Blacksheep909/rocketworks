@@ -5,6 +5,7 @@
 ## Verification
 
 - [ ] `npm run lint`
+- [ ] `npm run typecheck`
 - [ ] `npm test`
 - [ ] I added or updated regression coverage for behavior changes.
 
