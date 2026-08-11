@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added an independent stage-aware structural review aggregate. Enabled upper,
+  booster, and payload rows now retain their own component-screen status,
+  repeated-instance count, check totals, weakest factor-of-safety trend, and
+  missing-evidence reason in the browser card, project JSON, engineering
+  report, and design-review finding. Stage interfaces, load transfer, and
+  cluster imbalance remain explicitly outside scope.
 - Added an opt-in mutual point-mass gravity path to the shared released-body
   flight track, including exact release-time grid points, close-approach
   softening metadata, singular-state rejection, and browser force-model

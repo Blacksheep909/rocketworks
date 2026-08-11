@@ -109,6 +109,9 @@ research, standards, and original code.
   fin-root bending/shear, and static-margin review with explicit assumptions;
 - a preliminary equivalent-beam first bending-mode frequency trend with
   explicit boundary-condition, shell-stiffness, mass, and dynamic-model limits;
+- a stage-aware structural review that preserves independent stage rows,
+  repeated-instance counts, weakest factors, and missing evidence without
+  pretending to solve stage interfaces or load transfer;
 - deterministic structural and aeroelastic benchmark anchors for thin-wall
   section area, axial stress, Euler critical load, fin-root bending, and the
   preliminary fin-flutter equation, kept separate from experimental validation;
@@ -204,7 +207,8 @@ Near-term work is stronger experimental/benchmark validation, a full coupled
 multi-body separation solver beyond the current point-mass gravity and impulse
 branches, event allocator,
 and mass-ratio branch, validated structural/aeroelastic benchmarks beyond the
-preliminary fin flutter screen, and more stage-aware design review. Angular and
+preliminary fin flutter screen, and a stage-interface/load-transfer solver.
+Angular and
 direct force/moment coefficient volumes are now supported as explicit
 interpolation sources, and seeded event-factor dispersion now covers timing,
 separation impulse, and launch alignment; benchmarked data packages,

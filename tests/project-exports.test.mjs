@@ -15,7 +15,7 @@ import {
   createRocketProfileDxf,
   createRocketStl,
 } from "../lib/export/project-exports.ts";
-import { analyzeLandingFootprint, computeStructuralScreen, createEngineeringDesignReview, runUncertaintyAnalysis } from "../lib/physics/index.ts";
+import { analyzeLandingFootprint, computeStructuralScreen, createEngineeringDesignReview, createStageStructuralReview, runUncertaintyAnalysis } from "../lib/physics/index.ts";
 
 const trace = [
   {
@@ -487,6 +487,10 @@ test("engineering report leads with status and preserves calculations and limita
     stageConvergenceStatus: "watch",
     separationImpulseReviewCount: 1,
   });
+  const stageStructural = createStageStructuralReview([
+    { id: "core", label: "Core", role: "core", screen: structural },
+    { id: "booster", label: "Booster pair", role: "booster", instanceCount: 2, screen: null, unavailableReason: "Fixture geometry omitted." },
+  ]);
   const report = createEngineeringReportMarkdown({
     projectName: "ARC 54",
     generatedAtIso: "2026-08-01T00:00:00.000Z",
@@ -671,6 +675,7 @@ test("engineering report leads with status and preserves calculations and limita
     },
     uncertainty,
     structural,
+    stageStructural,
     designReview,
     landing: {
       modelVersion: "landing-fixture",
@@ -713,6 +718,9 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /\| Static margin \| 2\.93 calibres \|/);
   assert.match(report, /## Recovery landing footprint/);
   assert.match(report, /## Preliminary structural screen/);
+  assert.match(report, /## Stage-aware structural review/);
+  assert.match(report, /Booster pair/);
+  assert.match(report, /Fixture geometry omitted/);
   assert.match(report, /Euler column buckling/);
   assert.match(report, /Fin flutter margin/);
   assert.match(report, /## Engineering design review/);

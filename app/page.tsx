@@ -65,6 +65,7 @@ import {
   runPhysicsBenchmarkSuite,
   analyzeVerticalFlightConvergence,
   createEngineeringDesignReview,
+  createStageStructuralReview,
   computeStructuralScreen,
   estimateRecoveryOpeningLoad,
   estimateSphericalEnvelopeRadiusM,
@@ -100,6 +101,7 @@ import {
   type RocketStageInstance,
   type StructuralMaterialModel,
   type StructuralScreenResult,
+  type StageStructuralReviewResult,
   type SeparationDynamicsResult,
   type CoupledSeparationImpulseResult,
   type RecoveryReefingStage,
@@ -3664,6 +3666,94 @@ export default function Home() {
       flightResultCurrent: resultIsCurrent,
     });
   }, [flutterFlightCondition, mass, material, previewMotor, result.maxDynamicPressurePa, resultIsCurrent, staticStability.staticMarginCalibers, structuralBody, structuralFins]);
+  const stageStructuralReview = useMemo<StageStructuralReviewResult>(() => {
+    const stages = vehicleTopology.stages
+      .filter((stage) => stage.enabled)
+      .map((stage) => {
+        const stageComponentsForFirstInstance = stageFlightComponents.filter((component) => {
+          if (component.stageId !== stage.id) return false;
+          return !/-instance-\d+$/.test(component.id) || /-instance-1$/.test(component.id);
+        });
+        const body = stageComponentsForFirstInstance.find(
+          (component): component is Extract<VehicleComponent, { kind: "axisymmetric" }> => {
+            const baseId = component.id.replace(/-instance-\d+$/, "");
+            return component.kind === "axisymmetric" && (baseId === "body" || baseId.endsWith("-body"));
+          },
+        ) ?? null;
+        const fins = stageComponentsForFirstInstance.find(
+          (component): component is Extract<VehicleComponent, { kind: "finSet" }> => {
+            const baseId = component.id.replace(/-instance-\d+$/, "");
+            return component.kind === "finSet" && (baseId === "fins" || baseId.endsWith("-fins"));
+          },
+        ) ?? null;
+        const stageInstances = assembly.componentInstances.filter(
+          (instance) => instance.stageId === stage.id && instance.stageInstanceIndex === 0,
+        );
+        const totalMassKg = stageInstances.reduce(
+          (total, instance) => total + instance.massProperties.massKg,
+          0,
+        );
+        const motorInstances = stageInstances.filter(
+          (instance) => instance.sourceComponentId === "motor" || instance.sourceComponentId.endsWith("-motor"),
+        ).length;
+        const stageMotor = userMotorRecords.find((record) => record.id === stage.motorId) ?? previewMotor;
+        const peakThrustN = stage.role === "payload"
+          ? 0
+          : stageMotor.metrics.peakThrustN * Math.max(1, motorInstances);
+        const instanceCount = stage.attachment === "parallel" ? stage.repeatCount : 1;
+        if (!body) {
+          return {
+            id: stage.id,
+            label: stage.name,
+            role: stage.role,
+            instanceCount,
+            screen: null,
+            unavailableReason: "No axisymmetric body geometry was available for the first physical instance.",
+          };
+        }
+        if (!(totalMassKg > 0)) {
+          return {
+            id: stage.id,
+            label: stage.name,
+            role: stage.role,
+            instanceCount,
+            screen: null,
+            unavailableReason: "No positive assembly mass was available for the first physical instance.",
+          };
+        }
+        try {
+          return {
+            id: stage.id,
+            label: stage.name,
+            role: stage.role,
+            instanceCount,
+            screen: computeStructuralScreen({
+              body,
+              fins,
+              totalMassKg,
+              peakThrustN,
+              maxDynamicPressurePa: result.maxDynamicPressurePa,
+              maxAirspeedMps: flutterFlightCondition.maxAirspeedMps,
+              flutterAtmosphere: flutterFlightCondition.atmosphere,
+              flutterSafetyFactor: 1.25,
+              staticMarginCalibers: stage.role === "core" ? staticStability.staticMarginCalibers : null,
+              material: materialModels[material],
+              flightResultCurrent: resultIsCurrent,
+            }),
+          };
+        } catch (error) {
+          return {
+            id: stage.id,
+            label: stage.name,
+            role: stage.role,
+            instanceCount,
+            screen: null,
+            unavailableReason: error instanceof Error ? error.message : "The stage structural screen failed to evaluate.",
+          };
+        }
+      });
+    return createStageStructuralReview(stages);
+  }, [assembly.componentInstances, flutterFlightCondition, material, previewMotor, result.maxDynamicPressurePa, resultIsCurrent, stageFlightComponents, staticStability.staticMarginCalibers, userMotorRecords, vehicleTopology.stages]);
   const engineeringReview = useMemo<EngineeringDesignReviewResult>(() => {
     const stageFlightConfigured =
       vehicleTopology.stages.filter((stage) => stage.enabled).length > 1;
@@ -3675,6 +3765,7 @@ export default function Home() {
       staticMarginCalibers: staticStability.staticMarginCalibers,
       staticAerodynamicsModelVersion: staticStability.modelVersion,
       structural: structuralScreen,
+      stageStructural: stageFlightConfigured ? stageStructuralReview : null,
       verticalFlightCurrent: resultIsCurrent,
       verticalFlightModelVersion: result.modelVersion,
       stageFlightConfigured,
@@ -3699,6 +3790,7 @@ export default function Home() {
     staticStability.modelVersion,
     staticStability.staticMarginCalibers,
     structuralScreen,
+    stageStructuralReview,
     vehicleTopology.stages,
   ]);
 
@@ -4896,6 +4988,7 @@ export default function Home() {
           analyses: {
             uncertainty,
             structural: structuralScreen,
+            stageStructural: stageStructuralReview,
             optimization: optimization
               ? {
                   modelVersion: optimization.result.modelVersion,
@@ -5037,6 +5130,7 @@ export default function Home() {
           uncertainty,
           landing: landingPrediction,
           structural: structuralScreen,
+          stageStructural: stageStructuralReview,
           designReview: engineeringReview,
         });
       } else if (format === "dxf") {
@@ -6676,6 +6770,35 @@ export default function Home() {
                   ))}
                 </div>
                 <p className="structural-screen-note">Analytical component checks only. The first bending mode is a uniform Euler–Bernoulli equivalent-beam trend, and the NACA-TN-4197-style fin flutter screen is preliminary; body-fin coupling, transonic effects, joints, local buckling, axial-load softening, damping, and manufacturing effects are not modeled{resultIsCurrent ? "." : "; rerun the flight estimate before using dynamic-pressure and flutter trends."}</p>
+              </div>
+            )}
+            {stageStructuralReview.stages.length > 1 && (
+              <div className={`stage-structural-review-card stage-structural-review-${stageStructuralReview.overallStatus}`}>
+                <div className="stage-structural-review-heading">
+                  <div>
+                    <span>STAGE-AWARE STRUCTURAL REVIEW</span>
+                    <strong>{stageStructuralReview.overallStatus === "pass" ? "ALL STAGES NOMINAL" : "STAGE REVIEW REQUIRED"}</strong>
+                  </div>
+                  <small>{publicModelVersion(stageStructuralReview.modelVersion)}</small>
+                </div>
+                <div className="stage-structural-review-counts">
+                  <div><span>Stage rows</span><strong>{stageStructuralReview.stages.length}</strong></div>
+                  <div><span>Pass</span><strong>{stageStructuralReview.counts.pass}</strong></div>
+                  <div><span>Review / missing</span><strong>{stageStructuralReview.counts.review + stageStructuralReview.counts.unavailable}</strong></div>
+                </div>
+                <div className="stage-structural-review-list">
+                  {stageStructuralReview.stages.map((stage) => (
+                    <div className={`stage-structural-review-row stage-structural-review-row-${stage.status}`} key={stage.id}>
+                      <span>{stage.status === "pass" ? "✓" : stage.status === "review" ? "!" : "—"}</span>
+                      <div>
+                        <strong>{stage.label}</strong>
+                        <small>{stage.role ?? "stage"} · {stage.instanceCount} instance{stage.instanceCount === 1 ? "" : "s"} · checks {stage.checkCounts.pass}/{stage.checkCounts.review}/{stage.checkCounts.unavailable} pass/review/missing</small>
+                      </div>
+                      <em>{stage.weakestFactorOfSafety === null ? "Not assessed" : `FoS ${stage.weakestFactorOfSafety.toFixed(2)}×`}</em>
+                    </div>
+                  ))}
+                </div>
+                <p className="stage-structural-review-note">Independent stage rows use the current component screen and a first-instance mass/thrust proxy. Stage interfaces, load transfer, fasteners, local joints, cluster imbalance, and manufacturing allowables remain outside scope.</p>
               </div>
             )}
             <div className={`engineering-review-card engineering-review-${engineeringReview.overallStatus}`}>

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createEngineeringDesignReview } from "../lib/physics/index.ts";
+import {
+  createEngineeringDesignReview,
+  createStageStructuralReview,
+} from "../lib/physics/index.ts";
 
 const structural = {
   modelVersion: "structural-test-0.1.0",
@@ -166,3 +169,62 @@ test("engineering design review rejects invalid numeric inputs", () => {
   );
 });
 
+test("stage structural review preserves stage-level gaps and ranks the weakest row", () => {
+  const result = createStageStructuralReview([
+    {
+      id: "core",
+      label: "Core stage",
+      role: "core",
+      instanceCount: 1,
+      screen: structural,
+    },
+    {
+      id: "booster",
+      label: "Booster pair",
+      role: "booster",
+      instanceCount: 2,
+      screen: null,
+      unavailableReason: "No independent booster body screen was generated.",
+    },
+  ]);
+
+  assert.equal(result.overallStatus, "review");
+  assert.deepEqual(result.counts, { pass: 0, review: 1, unavailable: 1 });
+  assert.equal(result.checkCounts.review, 1);
+  assert.equal(result.checkCounts.unavailable, 2);
+  assert.equal(result.weakestStage?.id, "core");
+  assert.equal(result.stages.find((stage) => stage.id === "booster")?.instanceCount, 2);
+  assert.match(result.warnings.join(" "), /interfaces/);
+});
+
+test("stage structural review validates stage identifiers and instance counts", () => {
+  assert.throws(
+    () => createStageStructuralReview([
+      { id: "", label: "Bad", screen: null },
+    ]),
+    /id must be non-empty/,
+  );
+  assert.throws(
+    () => createStageStructuralReview([
+      { id: "stage", label: "Bad", instanceCount: 0, screen: null },
+    ]),
+    /instance count must be a positive integer/,
+  );
+});
+
+test("engineering design review surfaces stage structural aggregate as a finding", () => {
+  const stageStructural = createStageStructuralReview([
+    { id: "core", label: "Core", role: "core", screen: structural },
+  ]);
+  const result = createEngineeringDesignReview({
+    thrustToWeight: 4,
+    staticMarginCalibers: 1.5,
+    verticalFlightCurrent: true,
+    stageStructural,
+  });
+
+  const finding = result.findings.find((candidate) => candidate.id === "structural-stage-review");
+  assert.ok(finding);
+  assert.equal(finding.status, "review");
+  assert.match(finding.detail, /stage interfaces/);
+});

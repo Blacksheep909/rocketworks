@@ -2,6 +2,7 @@ import type {
   StructuralCheck,
   StructuralScreenResult,
 } from "./structural-screen.ts";
+import type { StageStructuralReviewResult } from "./stage-structural-review.ts";
 
 export const ENGINEERING_DESIGN_REVIEW_MODEL_VERSION =
   "rocketworks-engineering-design-review-0.1.0";
@@ -30,6 +31,7 @@ export type EngineeringDesignReviewInput = Readonly<{
   staticMarginCalibers?: number | null;
   staticAerodynamicsModelVersion?: string | null;
   structural?: StructuralScreenResult | null;
+  stageStructural?: StageStructuralReviewResult | null;
   verticalFlightCurrent?: boolean | null;
   verticalFlightModelVersion?: string | null;
   stageFlightConfigured?: boolean;
@@ -245,6 +247,52 @@ export function createEngineeringDesignReview(
     }
   }
 
+  if (input.stageStructural) {
+    const stageStructural = input.stageStructural;
+    const stageNeedsReview =
+      stageStructural.counts.review + stageStructural.counts.unavailable;
+    const status: EngineeringReviewFindingStatus =
+      stageStructural.overallStatus === "pass"
+        ? "pass"
+        : stageStructural.overallStatus === "not-assessed"
+          ? "unavailable"
+          : "review";
+    findings.push(
+      makeFinding({
+        id: "structural-stage-review",
+        category: "structural",
+        label: "Stage-aware structural review",
+        status,
+        severity:
+          status === "pass"
+            ? "info"
+            : status === "unavailable"
+              ? "warning"
+              : stageStructural.counts.review > 0
+                ? "critical"
+                : "warning",
+        summary:
+          stageStructural.overallStatus === "pass"
+            ? `${stageStructural.counts.pass} stage${stageStructural.counts.pass === 1 ? "" : "s"} pass the supplied component screen.`
+            : stageStructural.overallStatus === "not-assessed"
+              ? "Stage-aware structural review is not assessed."
+              : `${stageNeedsReview} stage row${stageNeedsReview === 1 ? "" : "s"} need structural review or evidence.`,
+        detail:
+          "Each enabled stage is reviewed independently with the current simplified component screen; stage interfaces and load transfer remain outside scope.",
+        action:
+          status === "pass"
+            ? "No stage-level action from this analytical aggregate."
+            : status === "unavailable"
+              ? "Supply enabled stage geometry and rerun the stage-aware screen."
+              : "Inspect the weakest stage, interfaces, motor attachment, and load-path assumptions before interpreting the aggregate.",
+        value: stageNeedsReview,
+        threshold: 0,
+        unit: "stage rows needing review",
+        modelVersion: stageStructural.modelVersion,
+      }),
+    );
+  }
+
   const verticalFlightCurrent = input.verticalFlightCurrent ?? null;
   findings.push(
     makeFinding({
@@ -435,4 +483,3 @@ export function createEngineeringDesignReview(
     ],
   };
 }
-

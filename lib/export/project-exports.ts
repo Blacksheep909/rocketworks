@@ -15,6 +15,7 @@ import type {
 } from "../physics/uncertainty-analysis.ts";
 import type { StructuralScreenResult } from "../physics/structural-screen.ts";
 import type { EngineeringDesignReviewResult } from "../physics/engineering-design-review.ts";
+import type { StageStructuralReviewResult } from "../physics/stage-structural-review.ts";
 import {
   createAerodynamicCoefficientTable,
   type AerodynamicCoefficientTableDefinition,
@@ -157,6 +158,7 @@ export type EngineeringReportInput = Readonly<{
   uncertainty?: UncertaintyAnalysisResult | null;
   landing?: LandingDispersionResult | null;
   structural?: StructuralScreenResult | null;
+  stageStructural?: StageStructuralReviewResult | null;
   designReview?: EngineeringDesignReviewResult | null;
 }>;
 
@@ -1832,6 +1834,29 @@ export function createEngineeringReportMarkdown(
           ...input.structural.warnings.map((warning) => `- **Structural screen warning:** ${markdownText(warning)}`),
           "",
           "> This screen uses representative material properties and simplified component loads. It is not a structural certification, manufacturing release, or flight-safety decision.",
+          "",
+        ]
+      : []),
+    ...(input.stageStructural
+      ? [
+          "## Stage-aware structural review",
+          "",
+          `Model: \`${markdownText(input.stageStructural.modelVersion)}\`  `,
+          `Status: \`${markdownText(input.stageStructural.validationStatus)}\`  `,
+          `Overall review: **${markdownText(input.stageStructural.overallStatus).toUpperCase()}**`,
+          "",
+          "| Stage | Role | Instances | Status | Pass / review / missing checks | Weakest factor |",
+          "|---|---|---:|---|---:|---:|",
+          ...input.stageStructural.stages.map(
+            (stage) =>
+              `| ${markdownText(stage.label)} | ${markdownText(stage.role ?? "stage")} | ${stage.instanceCount} | ${markdownText(stage.status)} | ${stage.checkCounts.pass} / ${stage.checkCounts.review} / ${stage.checkCounts.unavailable} | ${stage.weakestFactorOfSafety === null ? "not assessed" : `${formatNumber(stage.weakestFactorOfSafety, 2)}×`} |`,
+          ),
+          "",
+          `- Logical stage rows: ${input.stageStructural.stages.length}; pass ${input.stageStructural.counts.pass}, review ${input.stageStructural.counts.review}, unavailable ${input.stageStructural.counts.unavailable}.`,
+          ...input.stageStructural.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+          ...input.stageStructural.warnings.map((warning) => `- **Stage structural warning:** ${markdownText(warning)}`),
+          "",
+          "> Stage-aware review aggregates independent component screens. It does not solve stage interfaces, load transfer, joint failure, cluster imbalance, or flight safety.",
           "",
         ]
       : []),
