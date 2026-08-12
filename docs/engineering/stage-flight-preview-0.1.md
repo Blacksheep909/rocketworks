@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.20.0`.
+`kestrel-stage-flight-preview-0.21.0`.
 
 The result also carries a `rocketworks-mission-mass-ratio-0.1.0` serial-stack
 composition preview. The adapter passes the topology's serial stage IDs in
@@ -115,10 +115,13 @@ independent evidence.
 The adapter also returns a `clusterDiagnostics` list for multi-motor stages or
 any stage with a configured ignition failure. Each entry reports the active and
 failed motor counts, attached propellant mass, propellant retained by failed
-motors, and a `nominal`, `watch`, or `failed` status. A partial failure is a
-`watch` condition because the retained body can experience asymmetric thrust
-and changing mass properties; an all-motor failure is `failed` for powered
-flight while still retaining its hardware and propellant in the mass model.
+motors, individual peak thrust-curve ordinates, available peak-curve sum, and
+the spread between available motor peaks. A partial failure is a `watch`
+condition because the retained body can experience asymmetric thrust and
+changing mass properties; an all-motor failure is `failed` for powered flight
+while still retaining its hardware and propellant in the mass model. Peak
+spread is a curve-level comparison only: it does not synchronize motor timing
+or resolve net force, thrust-axis error, transient response, or flight safety.
 These are deterministic configuration diagnostics, not probabilities or
 hardware-health measurements.
 

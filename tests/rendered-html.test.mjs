@@ -903,6 +903,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /point\.sideslipRad/);
   assert.match(page, /Motor-state diagnostics/);
   assert.match(page, /clusterDiagnostics/);
+  assert.match(page, /peakCurveSpread/);
+  assert.match(page, /motorPeakThrusts/);
   assert.match(page, /estimateRecoveryOpeningLoad/);
   assert.match(page, /Opening-load estimate/);
   assert.match(page, /Peak quasi-steady drag/);
@@ -998,6 +1000,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stagePreview, /sideslipRad/);
   assert.match(stagePreview, /StageFlightClusterDiagnostic/);
   assert.match(stagePreview, /clusterDiagnostics/);
+  assert.match(stagePreview, /peakCurveSpreadFraction/);
   assert.match(stagePreview, /launchRailMaximumSteps/);
   assert.match(stagePreview, /mathematical-regression-tests-only/);
   assert.match(stagePreview, /STAGE_FLIGHT_CONVERGENCE_RELATIVE_TOLERANCE/);
@@ -1016,6 +1019,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stageForceBudget, /analytical-trace-integral-only/);
   assert.match(stageForceBudget, /velocity-equivalent accounting/);
   assert.match(stylesheet, /\.stage-flight-model-options/);
+  assert.match(stylesheet, /\.stage-flight-cluster-motor-peaks/);
   assert.match(stylesheet, /\.topology-stage/);
   assert.match(stylesheet, /\.topology-stage-events/);
   assert.match(stylesheet, /\.topology-slider/);

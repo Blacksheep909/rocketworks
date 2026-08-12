@@ -10,6 +10,10 @@ flight-readiness claims.
   The browser derives one bounded factor per declared motor identifier, so
   clustered stages can expose deterministic thrust spread and net-force/moment
   imbalance while preserving explicit clean-room and qualification limits.
+- Extend staged motor-state diagnostics with individual peak-curve ordinates,
+  available peak sum, and explicit peak spread telemetry in the Flight card and
+  engineering report. The spread is a curve-level comparison, not a
+  synchronized net-force, hardware-health, or flight-safety determination.
 - Route trace-scrubber labels and empty-selection guidance through the typed
   English/Spanish shell catalog while leaving engineering units and model
   explanations explicit.

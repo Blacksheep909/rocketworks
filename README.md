@@ -43,7 +43,8 @@ research, standards, and original code.
 - bounded retained-body separation delta-v controls with body/world-frame event
   telemetry and explicit discarded-body limitations;
 - staged motor-state diagnostics in the Flight workspace and engineering
-  report, including active/failed counts and retained failed propellant;
+  report, including active/failed counts, retained failed propellant, and
+  explicit per-motor peak-curve spread telemetry;
 - bounded launch-rail inclination and ENU azimuth controls with aligned 6DOF
   handoff;
 - motor and aerodynamic coefficient libraries for user-supplied,

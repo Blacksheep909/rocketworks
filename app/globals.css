@@ -698,6 +698,10 @@ kbd {
 .stage-flight-cluster-grid div { min-width: 0; padding: 6px; background: rgba(17,24,30,.92); }
 .stage-flight-cluster-grid span { display: block; color: #768b98; font-size: 7px; }
 .stage-flight-cluster-grid strong { display: block; margin-top: 3px; overflow: hidden; color: #d5eaf5; font: 700 9px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-flight-cluster-motor-peaks { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1px; margin-top: 8px; background: rgba(117,153,180,.12); }
+.stage-flight-cluster-motor-peaks div { min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 7px; padding: 5px 6px; background: rgba(17,24,30,.78); }
+.stage-flight-cluster-motor-peaks span { overflow: hidden; color: #8297a4; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.stage-flight-cluster-motor-peaks strong { flex: 0 0 auto; color: #b9dff1; font: 700 7px var(--font-geist-mono),monospace; white-space: nowrap; }
 .stage-flight-cluster p { margin-top: 8px; color: #a2b1ba; font-size: 7px; line-height: 1.45; }
 .stage-flight-events { display: flex; flex-direction: column; gap: 5px; margin-top: 11px; }
 .stage-flight-events > div, .stage-flight-events > button { display: grid; grid-template-columns: 52px minmax(0,1fr) minmax(130px,auto); align-items: center; gap: 9px; padding: 7px 8px; border-left: 2px solid var(--accent); background: rgba(47,159,255,.045); }

@@ -1,5 +1,10 @@
 import type { LaunchEnvironmentProvider } from "./launch-environment.ts";
-import { createMultiStageVehicleModel, initializeMultiStageState, type RocketStage } from "./multi-stage.ts";
+import {
+  createMultiStageVehicleModel,
+  initializeMultiStageState,
+  type MultiStageMotor,
+  type RocketStage,
+} from "./multi-stage.ts";
 import type { StageAerodynamicRegime } from "./stage-aware-aerodynamics.ts";
 import { createStageAwareAerodynamicsModel } from "./stage-aware-aerodynamics.ts";
 import {
@@ -83,7 +88,7 @@ import {
 } from "./stage-flight-vector-budget.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.20.0";
+  "kestrel-stage-flight-preview-0.21.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -160,6 +165,13 @@ export type StageFlightTracePoint = Readonly<{
   attachedStageIds: readonly string[];
 }>;
 
+export type StageFlightClusterMotorPeak = Readonly<{
+  id: string;
+  name: string;
+  peakThrustN: number;
+  ignitionFailure: boolean;
+}>;
+
 export type StageFlightClusterDiagnostic = Readonly<{
   stageId: string;
   stageName: string;
@@ -168,6 +180,13 @@ export type StageFlightClusterDiagnostic = Readonly<{
   activeMotorCount: number;
   attachedPropellantMassKg: number;
   failedPropellantMassKg: number;
+  /** Sum of each available motor's individual thrust-curve peak ordinate. */
+  peakCurveThrustN: number;
+  /** Difference between the largest and smallest available individual peak ordinates. */
+  peakCurveSpreadN: number | null;
+  /** Peak spread divided by the mean available individual peak ordinate. */
+  peakCurveSpreadFraction: number | null;
+  motorPeakThrusts: readonly StageFlightClusterMotorPeak[];
   status: "nominal" | "watch" | "failed";
   note: string;
 }>;
@@ -272,6 +291,26 @@ function uniqueStrings(values: readonly string[], label: string): string[] {
   if (normalized.some((value) => !value)) throw new Error(`${label} cannot contain empty identifiers`);
   if (new Set(normalized).size !== normalized.length) throw new Error(`${label} must be unique`);
   return normalized;
+}
+
+function configuredPhysicalMotors(stage: RocketStage): readonly MultiStageMotor[] {
+  return stage.instances
+    ? stage.instances.flatMap((instance) => instance.motors)
+    : stage.motors;
+}
+
+function motorPeakThrustN(motor: MultiStageMotor): number {
+  return Math.max(0, ...motor.thrustCurve.map((point) => point.thrustN));
+}
+
+function peakSpreadFraction(
+  peakThrustsN: readonly number[],
+): number | null {
+  if (peakThrustsN.length < 2) return null;
+  const minimum = Math.min(...peakThrustsN);
+  const maximum = Math.max(...peakThrustsN);
+  const mean = peakThrustsN.reduce((sum, value) => sum + value, 0) / peakThrustsN.length;
+  return mean > 0 ? (maximum - minimum) / mean : null;
 }
 
 function defaultInitialState(
@@ -654,6 +693,7 @@ export function simulateStageFlightPreview(
     initiallyIgnitedStageIds,
   );
   const initialEvaluation = staging.evaluate(initialState);
+  const configuredStageById = new Map(input.stages.map((stage) => [stage.id, stage]));
   const clusterDiagnostics: readonly StageFlightClusterDiagnostic[] =
     initialEvaluation.stages
       .filter(
@@ -666,19 +706,45 @@ export function simulateStageFlightPreview(
           (motor) => motor.phase === "ignition-failed",
         );
         const failedMotorCount = failedMotors.length;
+        const configuredStage = configuredStageById.get(stage.id);
+        const configuredMotors = configuredStage
+          ? configuredPhysicalMotors(configuredStage)
+          : [];
+        const motorPeakThrusts = configuredMotors.map((motor, index) => ({
+          id: motor.id,
+          name: motor.name,
+          peakThrustN: motorPeakThrustN(motor),
+          ignitionFailure:
+            motor.ignitionFailure === true ||
+            stage.motors[index]?.phase === "ignition-failed",
+        }));
+        const availablePeakThrustsN = motorPeakThrusts
+          .filter((motor) => !motor.ignitionFailure)
+          .map((motor) => motor.peakThrustN);
+        const peakCurveThrustN = availablePeakThrustsN.reduce(
+          (sum, thrustN) => sum + thrustN,
+          0,
+        );
+        const peakCurveSpreadN = availablePeakThrustsN.length > 1
+          ? Math.max(...availablePeakThrustsN) - Math.min(...availablePeakThrustsN)
+          : null;
+        const peakCurveSpreadFraction = peakSpreadFraction(availablePeakThrustsN);
         const status: StageFlightClusterDiagnostic["status"] =
           failedMotorCount === 0
             ? "nominal"
             : failedMotorCount === stage.motors.length
               ? "failed"
               : "watch";
-        const note = stage.ignitionFailed
+        const baseNote = stage.ignitionFailed
           ? "Stage-level ignition failure is armed; all motor propellant remains attached."
           : failedMotorCount === stage.motors.length
             ? "All motor instances are ignition-failed; the stage retains its propellant and has no powered thrust."
             : failedMotorCount > 0
               ? "A partial cluster failure is configured; retained propellant and off-axis imbalance remain in scope."
               : "All motor instances are available at pad initialization; no deterministic cluster failure is configured.";
+        const note = peakCurveSpreadFraction === null
+          ? baseNote
+          : `${baseNote} Available individual thrust-curve peaks span ${(peakCurveSpreadFraction * 100).toFixed(1)}%; this is not a synchronized net-force or flight-safety margin.`;
         return {
           stageId: stage.id,
           stageName: stage.name,
@@ -690,6 +756,10 @@ export function simulateStageFlightPreview(
             (sum, motor) => sum + motor.propellantMassKg,
             0,
           ),
+          peakCurveThrustN,
+          peakCurveSpreadN,
+          peakCurveSpreadFraction,
+          motorPeakThrusts,
           status,
           note,
         };

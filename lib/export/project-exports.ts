@@ -1876,11 +1876,11 @@ export function createEngineeringReportMarkdown(
                 "",
                 "### Motor-state diagnostics",
                 "",
-                "| Stage | Available motors | Failed motors | Retained failed propellant | Status |",
-                "|---|---:|---:|---:|---|",
+                "| Stage | Available motors | Failed motors | Retained failed propellant | Status | Available peak sum | Peak spread | Spread fraction |",
+                "|---|---:|---:|---:|---|---:|---:|---:|",
                 ...(input.stageFlight.clusterDiagnostics ?? []).map(
                   (diagnostic) =>
-                    `| ${markdownText(diagnostic.stageName)} | ${diagnostic.activeMotorCount} / ${diagnostic.motorCount} | ${diagnostic.failedMotorCount} | ${formatNumber(diagnostic.failedPropellantMassKg, 3)} kg | ${markdownText(diagnostic.status)} |`,
+                    `| ${markdownText(diagnostic.stageName)} | ${diagnostic.activeMotorCount} / ${diagnostic.motorCount} | ${diagnostic.failedMotorCount} | ${formatNumber(diagnostic.failedPropellantMassKg, 3)} kg | ${markdownText(diagnostic.status)} | ${formatNumber(diagnostic.peakCurveThrustN, 1)} N | ${diagnostic.peakCurveSpreadN === null ? "not assessed" : `${formatNumber(diagnostic.peakCurveSpreadN, 1)} N`} | ${diagnostic.peakCurveSpreadFraction === null ? "not assessed" : `${formatNumber(diagnostic.peakCurveSpreadFraction * 100, 1)}%`} |`,
                 ),
                 "",
                 "> Motor-state diagnostics are deterministic configuration checks; they do not estimate ignition probability, hardware health, or flight safety.",

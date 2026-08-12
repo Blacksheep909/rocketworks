@@ -191,7 +191,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.20.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.21.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.simulation?.integration.method, "adaptive-rk4-step-doubling");
   assert.ok((result.simulation?.integration.acceptedStepCount ?? 0) > 0);
@@ -819,7 +819,34 @@ test("stage-flight adapter exposes configured cluster failure diagnostics", () =
   assert.equal(result.clusterDiagnostics[0].failedMotorCount, 1);
   assert.equal(result.clusterDiagnostics[0].status, "watch");
   assert.equal(result.clusterDiagnostics[0].failedPropellantMassKg, 0.2);
+  assert.equal(result.clusterDiagnostics[0].peakCurveThrustN, 30);
+  assert.equal(result.clusterDiagnostics[0].peakCurveSpreadN, null);
+  assert.equal(result.clusterDiagnostics[0].peakCurveSpreadFraction, null);
+  assert.equal(result.clusterDiagnostics[0].motorPeakThrusts.length, 2);
   assert.match(result.clusterDiagnostics[0].note, /partial cluster failure/i);
+});
+
+test("stage-flight cluster diagnostics expose available motor peak spread", () => {
+  const lowerPeakMotor = {
+    ...motor("booster-motor-2", 1.3),
+    thrustCurve: thrustCurve.map((point) => ({ ...point, thrustN: point.thrustN * 0.8 })),
+  };
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components: components.filter((component) => component.stageId === "booster"),
+    stages: [{ ...stages[0], motors: [motor("booster-motor-1", 1.3), lowerPeakMotor] }],
+    regimes: [{ id: "cluster-only", label: "Cluster only", activeStageIds: ["booster"], dragCoefficient: 0.65 }],
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 0.5,
+    timeStepS: 0.05,
+    launchAltitudeM: 0,
+  });
+
+  assert.equal(result.clusterDiagnostics.length, 1);
+  assert.equal(result.clusterDiagnostics[0].peakCurveThrustN, 54);
+  assert.equal(result.clusterDiagnostics[0].peakCurveSpreadN, 6);
+  assert.ok(Math.abs(result.clusterDiagnostics[0].peakCurveSpreadFraction - (6 / 27)) < 1e-12);
+  assert.match(result.clusterDiagnostics[0].note, /thrust-curve peaks span 22\.2%/);
 });
 
 test("stage-flight adapter supports a single-stage coupled 6DOF preview", () => {

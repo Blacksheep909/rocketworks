@@ -693,7 +693,7 @@ test("engineering report leads with status and preserves calculations and limita
         warnings: [],
         assumptions: ["Fixture event allocation."],
       },
-      clusterDiagnostics: [{ stageName: "Booster", activeMotorCount: 1, motorCount: 2, failedMotorCount: 1, failedPropellantMassKg: 0.2, status: "watch" }],
+      clusterDiagnostics: [{ stageName: "Booster", activeMotorCount: 1, motorCount: 2, failedMotorCount: 1, failedPropellantMassKg: 0.2, peakCurveThrustN: 30, peakCurveSpreadN: null, peakCurveSpreadFraction: null, motorPeakThrusts: [], status: "watch" }],
       convergence: {
         status: "watch",
         baseTimeStepS: 0.02,

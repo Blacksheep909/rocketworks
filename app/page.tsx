@@ -7287,7 +7287,7 @@ export default function Home() {
                           <div>
                             <span className="eyebrow">Propulsion readiness</span>
                             <h4 id="stage-flight-clusters-title">Motor-state diagnostics</h4>
-                            <p>Configured cluster availability and retained failed-motor propellant at pad initialization. This is a deterministic preview check, not a hardware-health or ignition-probability estimate.</p>
+                            <p>Configured cluster availability, retained failed-motor propellant, and individual thrust-curve peak spread at pad initialization. This is a deterministic preview check, not a hardware-health, synchronized net-force, or ignition-probability estimate.</p>
                           </div>
                           <span className="stage-flight-clusters-count">{stageFlightResult.clusterDiagnostics.length} cluster{stageFlightResult.clusterDiagnostics.length === 1 ? "" : "s"}</span>
                         </div>
@@ -7302,7 +7302,20 @@ export default function Home() {
                                 <div><span>Failed</span><strong>{diagnostic.failedMotorCount}</strong></div>
                                 <div><span>Attached propellant</span><strong>{diagnostic.attachedPropellantMassKg.toFixed(3)} kg</strong></div>
                                 <div><span>Retained by failures</span><strong>{diagnostic.failedPropellantMassKg.toFixed(3)} kg</strong></div>
+                                <div><span>Available peak sum</span><strong>{diagnostic.peakCurveThrustN.toFixed(1)} N</strong></div>
+                                <div><span>Peak spread</span><strong>{diagnostic.peakCurveSpreadN === null ? "not assessed" : `${diagnostic.peakCurveSpreadN.toFixed(1)} N`}</strong></div>
+                                <div><span>Spread fraction</span><strong>{diagnostic.peakCurveSpreadFraction === null ? "not assessed" : `${(diagnostic.peakCurveSpreadFraction * 100).toFixed(1)}%`}</strong></div>
                               </div>
+                              {diagnostic.motorPeakThrusts.length > 1 && (
+                                <div className="stage-flight-cluster-motor-peaks" aria-label={`${diagnostic.stageName} individual thrust-curve peaks`}>
+                                  {diagnostic.motorPeakThrusts.map((motor, index) => (
+                                    <div key={`${diagnostic.stageId}-${motor.id}-${index}`}>
+                                      <span>{motor.name}</span>
+                                      <strong>{motor.peakThrustN.toFixed(1)} N{motor.ignitionFailure ? " · failed" : ""}</strong>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                               <p>{diagnostic.note}</p>
                             </article>
                           ))}
