@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a provenance-labeled WGS84 GeoJSON flight-path export to the artifact
+  center. Retained and released ENU traces preserve sample times and event
+  markers for GIS review; the local tangent conversion, ellipsoidal-height
+  interpretation, terrain/geoid omissions, and engineering-preview status are
+  explicit, so this artifact is not a range-safety or surveying product.
 - Add an original world-frame flight-path view to the staged Flight workspace.
   Retained and released-body traces can be orbited, zoomed, and scrubbed with
   the existing event timeline; rail and staging markers remain nearest-sample

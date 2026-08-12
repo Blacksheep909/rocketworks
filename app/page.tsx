@@ -23,6 +23,7 @@ import {
   type RocketCadGeometry,
   type RocketCadStageGeometry,
 } from "../lib/export/project-exports.ts";
+import { createFlightPathGeoJson } from "../lib/export/flight-path-geojson.ts";
 import {
   analyzeRecoveryLandingDispersion,
   createPlanarTerrainSurface,
@@ -231,7 +232,7 @@ type ViewKey = "design" | "flight";
 type DesignViewKey = UiDesignView;
 type MaterialKey = "kraft" | "fiberglass" | "carbon";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
-type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "sweep-csv" | "uncertainty-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad";
+type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad";
 type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
@@ -6092,7 +6093,7 @@ export default function Home() {
       if ((format === "flight-csv" || format === "uncertainty-csv" || format === "report") && !resultIsCurrent) {
         throw new Error("Run the vertical estimate again before exporting simulation results for this design.");
       }
-      if (format === "stage-flight-csv" && !stageFlightIsCurrent) {
+      if ((format === "stage-flight-csv" || format === "flight-path-geojson") && !stageFlightIsCurrent) {
         throw new Error("Rerun the coupled 6DOF preview before exporting its trace for this design.");
       }
       const generatedAtIso = new Date().toISOString();
@@ -6242,6 +6243,42 @@ export default function Home() {
         filename = `${fileStem}-stage-flight-trace.csv`;
         mediaType = "text/csv;charset=utf-8";
         content = createStageFlightTraceCsv(stageFlightResult.trace);
+      } else if (format === "flight-path-geojson") {
+        if (!stageFlightResult) throw new Error("Run the staged preview before exporting its flight path.");
+        filename = `${fileStem}-flight-path.geojson`;
+        mediaType = "application/geo+json;charset=utf-8";
+        content = createFlightPathGeoJson({
+          projectName,
+          generatedAtIso,
+          sourceModelVersion: stageFlightResult.modelVersion,
+          launchSite: {
+            name: previewEnvironment.definition.site.name,
+            latitudeDeg: previewEnvironment.definition.site.latitudeDeg,
+            longitudeDeg: previewEnvironment.definition.site.longitudeDeg,
+            elevationM: previewEnvironment.definition.site.elevationM,
+          },
+          series: stageFlightTrajectorySeries.map((entry) => ({
+            id: entry.id,
+            label: entry.label,
+            trace: entry.trace.map((sample) => ({
+              timeS: sample.timeS,
+              positionWorldM: sample.positionWorldM,
+              ...("speedMps" in sample && typeof sample.speedMps === "number" ? { speedMps: sample.speedMps } : {}),
+              ...("altitudeAglM" in sample && typeof sample.altitudeAglM === "number" ? { altitudeAglM: sample.altitudeAglM } : {}),
+            })),
+            ...(entry.id === "retained-vehicle" ? {} : {
+              releaseTimeS: stageFlightResult.coupledMultiBodyFlight?.trajectories.find(
+                (trajectory) => trajectory.id === entry.id,
+              )?.releaseTimeS,
+            }),
+          })),
+          events: stageFlightResult.events.map((event) => ({
+            id: event.id,
+            label: event.label,
+            timeS: event.timeS,
+            kind: event.kind,
+          })),
+        });
       } else if (format === "sweep-csv") {
         if (!sweepResult) throw new Error("Run a parameter sweep before exporting its table.");
         filename = `${fileStem}-parameter-sweep.csv`;
@@ -9396,6 +9433,11 @@ export default function Home() {
               {stageFlightResult && <button onClick={() => exportArtifact("stage-flight-csv")}>
                 <span className="export-extension">CSV</span>
                 <span><strong>Staged 6DOF trace</strong><small>Attached-stage topology, mass, thrust, altitude, and speed at each integration sample; convergence is retained in project JSON and the engineering report.</small></span>
+                <em>↓</em>
+              </button>}
+              {stageFlightResult && <button onClick={() => exportArtifact("flight-path-geojson")}>
+                <span className="export-extension">GEO</span>
+                <span><strong>Flight path</strong><small>WGS84 GeoJSON with retained/released paths, sample times, and event markers for GIS review.</small></span>
                 <em>↓</em>
               </button>}
               {sweepResult && <button onClick={() => exportArtifact("sweep-csv")}>

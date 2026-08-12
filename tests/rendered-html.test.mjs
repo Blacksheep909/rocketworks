@@ -342,6 +342,10 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
     new URL("../lib/visualization/flight-trajectory.ts", import.meta.url),
     "utf8",
   );
+  const flightPathExport = await readFile(
+    new URL("../lib/export/flight-path-geojson.ts", import.meta.url),
+    "utf8",
+  );
   assert.match(source, /simulateSeparatedBodyFlight/);
   assert.match(source, /createRecoverySystemModel/);
   assert.match(source, /recoveryDevices/);
@@ -363,6 +367,11 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
   assert.match(trajectoryViewport, /onSelectionChange/);
   assert.match(trajectoryProjection, /display-projection-only/);
   assert.match(trajectoryProjection, /projectFlightTrajectory/);
+  assert.match(pageSource, /createFlightPathGeoJson/);
+  assert.match(pageSource, /flight-path-geojson/);
+  assert.match(flightPathExport, /FeatureCollection/);
+  assert.match(flightPathExport, /local tangent approximation/);
+  assert.match(flightPathExport, /WGS84/);
   assert.match(pageSource, /rigidBodyCount/);
   assert.match(pageSource, /quaternion\/inertia state/);
   assert.match(pageSource, /Coupled integrator/);
@@ -632,6 +641,9 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(page, /event\.key === "Escape"/);
   assert.match(page, /createKestrelProjectJson/);
   assert.match(page, /createFlightTraceCsv/);
+  assert.match(page, /createFlightPathGeoJson/);
+  assert.match(page, /exportArtifact\("flight-path-geojson"\)/);
+  assert.match(page, /WGS84 GeoJSON/);
   assert.match(page, /createUncertaintyCsv/);
   assert.match(page, /createAerodynamicPolarCsv/);
   assert.match(page, /exportArtifact\("aero-polar-csv"\)/);
