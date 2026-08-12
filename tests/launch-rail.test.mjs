@@ -110,6 +110,66 @@ test("constant acceleration exits at the analytical time and hands off exactly",
   close(result.finalState.velocityWorldMps.z, 4, 2e-11, "free-flight velocity");
 });
 
+test("effective guide friction reduces rail exit speed and exposes its force", () => {
+  const result = launch({
+    rail: {
+      directionWorld: { x: 0, y: 0, z: 1 },
+      lengthM: 1,
+      guideFrictionAccelerationMps2: 0.5,
+    },
+  });
+  const exit = result.events.find((event) => event.type === "rail_exit");
+  close(exit.timeS, Math.sqrt(2 / 1.5), 2e-11, "friction rail-exit time");
+  close(exit.speedAlongRailMps, Math.sqrt(3), 2e-11, "friction rail-exit speed");
+  close(result.railTrace[0].guideFrictionForceN, 1, 1e-15, "guide friction force");
+  close(result.railTrace[0].railReactionWorldN.z, -1, 1e-15, "friction reaction");
+});
+
+test("effective guide friction can hold a low-force vehicle on the pad", () => {
+  const result = launch({
+    loads: () => ({ forceWorldN: { x: 0, y: 0, z: 0.5 } }),
+    rail: {
+      directionWorld: { x: 0, y: 0, z: 1 },
+      lengthM: 1,
+      guideFrictionAccelerationMps2: 0.5,
+    },
+    durationS: 1,
+  });
+  assert.equal(result.events.at(-1).type, "no_liftoff");
+  close(result.finalState.positionWorldM.z, 0, 1e-15, "friction pad position");
+  close(result.finalState.velocityWorldMps.z, 0, 1e-15, "friction pad velocity");
+});
+
+test("rail-exit tip-off rate is handed to free flight without changing rail attitude", () => {
+  const tipOff = { x: 0, y: 0.4, z: -0.2 };
+  const result = launch({
+    rail: {
+      directionWorld: { x: 0, y: 0, z: 1 },
+      lengthM: 1,
+      tipOffAngularVelocityBodyRadS: tipOff,
+    },
+  });
+  const exit = result.events.find((event) => event.type === "rail_exit");
+  assert.deepEqual(exit.state.angularVelocityBodyRadS, tipOff);
+  assert.deepEqual(result.freeFlight.trace[0].angularVelocityBodyRadS, tipOff);
+  assert.deepEqual(result.railTrace.at(-1).state.angularVelocityBodyRadS, tipOff);
+  assert.deepEqual(
+    result.railTrace.at(-1).state.orientationBodyToWorld,
+    verticalLaunchOrientationBodyToEnu(),
+  );
+});
+
+test("rail release inputs reject unsafe friction and tip-off values", () => {
+  assert.throws(
+    () => launch({ rail: { directionWorld: { x: 0, y: 0, z: 1 }, lengthM: 1, guideFrictionAccelerationMps2: -1 } }),
+    /guide friction acceleration/,
+  );
+  assert.throws(
+    () => launch({ rail: { directionWorld: { x: 0, y: 0, z: 1 }, lengthM: 1, tipOffAngularVelocityBodyRadS: { x: 21, y: 0, z: 0 } } }),
+    /tip-off angular velocity/,
+  );
+});
+
 test("rail reaction cancels transverse force without changing axial acceleration", () => {
   const result = launch({
     loads: () => ({ forceWorldN: { x: 3, y: -2, z: 4 } }),

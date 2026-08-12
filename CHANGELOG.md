@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add bounded launch-rail guide-loss and rail-exit tip-off inputs. The coupled
+  release now applies an authored effective axial friction acceleration and
+  body-frame pitch/yaw angular rate, exposes guide-loss telemetry, carries both
+  inputs through project persistence and staged uncertainty, and keeps
+  guide-button geometry, binding, transient torque, and launcher motion outside
+  the analytical preview.
 - Add authored recovery canopy inflation timing across vertical, staged, and
   detached recovery paths. The browser, topology documents, landing dispersion,
   uncertainty variants, trace CSV, and engineering report now preserve the

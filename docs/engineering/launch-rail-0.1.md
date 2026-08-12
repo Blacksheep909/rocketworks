@@ -1,4 +1,4 @@
-# Launch-rail constraint, angled handoff, and free-flight transition 0.2
+# Launch-rail constraint, angled handoff, guide loss, and tip-off 0.3
 
 Status: analytical component checks only. This model is not validated for
 flight-safety decisions.
@@ -24,16 +24,22 @@ allows translation only along a unit world-frame direction `e`. For distance
 
 `s_dot = u`
 
-`u_dot = (F dot e) / m`
+`u_dot = (F dot e) / m - a_g`
+
+where `a_g` is the authored effective guide-friction acceleration while the
+vehicle is moving forward. At the pad, the same value is used as a bounded
+static-loss threshold: a positive axial acceleration that does not exceed it
+does not produce liftoff. This is an effective scenario input, not a derivation
+from guide normal force, button geometry, or a friction coefficient.
 
 The reaction reported by the guide while moving is:
 
-`R = e (F dot e) - F`
+`R = e (F dot e - m a_g) - F`
 
 This cancels transverse applied force without changing the axial component.
-At the pad origin, non-positive axial force is canceled by support and the
-vehicle remains stationary. Liftoff occurs at the first positive axial-force
-crossing.
+At the pad origin, axial force below the effective static-loss threshold is
+canceled by support and the vehicle remains stationary. Liftoff occurs at the
+first crossing above that threshold.
 
 ## ENU rail direction
 
@@ -56,8 +62,10 @@ the preview retains the vertical launch attitude.
   supported on the pad.
 - Rail exit is located by bisection within the first integration step whose
   distance reaches the effective rail length.
-- The exit position, velocity, fixed orientation, zero angular rate, and exact
-  event time become the free-flight initial state without an interpolation gap.
+- The exit position, velocity, fixed orientation, authored tip-off angular rate,
+  and exact event time become the free-flight initial state without an
+  interpolation gap. The tip-off rate is a bounded body-frame release
+  condition; no transient guide torque is reconstructed.
 - Scheduled state resets and one-shot state-triggered events are carried across
   the handoff. Stage ignition, burnout, separation, and failure events therefore
   keep the same discrete state whether they occur on the rail or after release.
@@ -80,6 +88,8 @@ The regression suite checks:
 - fixed attitude and angular rate before release, followed by torque response
 - root-found liftoff under a smoothly increasing load
 - exact treatment of a scheduled step from zero to positive force
+- effective guide-friction loss, static threshold, and friction telemetry
+- authored pitch/yaw tip-off rate continuity at the rail-exit handoff
 - scheduled and root-found discrete event continuity through rail release
 - explicit rail-reversal stop without returning a negative guide position
 - rejection of misaligned attitude and off-axis initial position
@@ -90,15 +100,17 @@ a real launcher or vehicle.
 
 ## Assumptions and limitations
 
-- The rail is straight, rigid, fixed in the world frame, frictionless, and has
-  no clearance or compliance.
+- The rail is straight, rigid, fixed in the world frame, with effective axial
+  guide-loss and no resolved clearance or compliance.
 - The configured length is effective travel of the propagated reference point.
   It is not automatically the physical rail length or rail-button release
   distance.
-- Rail-button spacing, binding, local loads, structural flexibility, launcher
-  motion, and tip-off dynamics are not modeled.
+- Rail-button spacing, binding, local normal loads, structural flexibility, and
+  launcher motion are not modeled. The friction input is not a physical
+  coefficient and the tip-off input is not a measured impulse or torque.
 - The rail holds attitude and zero angular velocity until release; moments are
-  reacted but the reaction moment is not separately reported.
+  reacted but the reaction moment is not separately reported. A configured
+  body-frame pitch/yaw rate is applied only at the release boundary.
 - Premature contact loss, partial guide engagement, reversal into the pad after
   liftoff, and re-contact are absent.
 - Smooth liftoff detection assumes a crossing remains visible across an
@@ -109,8 +121,9 @@ a real launcher or vehicle.
   adapter stops at the guide origin and emits a `rail_reversal` event and
   warning; it does not fabricate a negative rail position or re-contact model.
 - State resets on the rail must preserve the rail-aligned attitude, zero angular
-  rate, and on-axis position/velocity; arbitrary impulses or tip-off resets are
-  rejected until a finite-guide model is added.
+  rate, and on-axis position/velocity; arbitrary impulses and off-axis release
+  states remain rejected. The bounded tip-off rate is the sole authored release
+  exception.
 - A real safety assessment needs measured propulsion, mass properties,
   geometry, wind, guide geometry, structural limits, uncertainty, and
   correlation against test data.
@@ -131,7 +144,9 @@ a real launcher or vehicle.
 
 ## Next work
 
-The next launcher increment should represent finite guide-button separation,
-tip-off, rail friction/binding, and uncertainty. The broader flight engine still
-needs aerodynamic damping, recovery, terrain/ground contact, and validated
-propulsion and mass-state models.
+Future launcher work should represent finite guide-button separation, binding
+and normal-load mechanics, and calibration against measured rail-exit data. The
+current coupled uncertainty adapter already scales the effective guide-loss and
+tip-off scenario inputs, but those factors are not hardware distributions. The
+broader flight engine still needs relative guide-body aerodynamics, terrain/
+ground contact, and validated propulsion and mass-state models.

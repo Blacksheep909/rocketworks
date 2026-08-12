@@ -27,7 +27,7 @@ import {
 } from "./six-dof.ts";
 import { inferMissionEventKind } from "./event-allocator.ts";
 
-export const LAUNCH_RAIL_MODEL_VERSION = "kestrel-launch-rail-0.2.0";
+export const LAUNCH_RAIL_MODEL_VERSION = "kestrel-launch-rail-0.3.0";
 
 /**
  * Resolves a launch-rail vector from ENU launch-site angles. Inclination is
@@ -84,6 +84,10 @@ export type LaunchRailConfig = Readonly<{
   lengthM: number;
   originWorldM?: Vector3;
   alignmentToleranceRad?: number;
+  /** Effective kinetic guide-loss acceleration while the vehicle moves forward. */
+  guideFrictionAccelerationMps2?: number;
+  /** Body-frame angular rate applied at rail exit to represent bounded tip-off. */
+  tipOffAngularVelocityBodyRadS?: Vector3;
 }>;
 
 export type RailGuidedLaunchInput = Readonly<{
@@ -119,6 +123,8 @@ export type RailTracePoint = Readonly<{
   axialForceN: number;
   unconstrainedAxialAccelerationMps2: number;
   constrainedAxialAccelerationMps2: number;
+  /** Magnitude of the effective guide-friction force applied along the rail. */
+  guideFrictionForceN: number;
   railReactionWorldN: Vector3;
   onPad: boolean;
 }>;
@@ -126,6 +132,8 @@ export type RailTracePoint = Readonly<{
 export type RailGuidedLaunchResult = Readonly<{
   modelVersion: string;
   validationStatus: "analytical-component-checks-only";
+  guideFrictionAccelerationMps2: number;
+  tipOffAngularVelocityBodyRadS: Vector3;
   events: readonly RailFlightEvent[];
   railTrace: readonly RailTracePoint[];
   freeFlight: SixDofSimulationResult | null;
@@ -227,6 +235,21 @@ export function simulateRailGuidedLaunch(
   );
   if (alignmentAngleRad > alignmentToleranceRad) {
     throw new Error("initial body nose direction must align with the launch rail");
+  }
+  const guideFrictionAccelerationMps2 = input.rail.guideFrictionAccelerationMps2 ?? 0;
+  if (
+    !Number.isFinite(guideFrictionAccelerationMps2) ||
+    guideFrictionAccelerationMps2 < 0 ||
+    guideFrictionAccelerationMps2 > 50
+  ) {
+    throw new Error("guide friction acceleration must be finite from 0 through 50 m/s²");
+  }
+  const tipOffAngularVelocityBodyRadS = input.rail.tipOffAngularVelocityBodyRadS ?? ZERO_VECTOR;
+  if (!finiteVector(tipOffAngularVelocityBodyRadS)) {
+    throw new Error("rail tip-off angular velocity must contain finite components");
+  }
+  if (magnitude(tipOffAngularVelocityBodyRadS) > 20) {
+    throw new Error("rail tip-off angular velocity must not exceed 20 rad/s");
   }
   if (magnitude(input.initialState.angularVelocityBodyRadS) > 1e-10) {
     throw new Error("initial angular velocity must be zero while constrained to the rail");
@@ -339,6 +362,11 @@ export function simulateRailGuidedLaunch(
     discreteState: railState.discreteState,
   });
 
+  const releaseState = (railState: RailState): RigidBodyState => ({
+    ...constrainedState(railState),
+    angularVelocityBodyRadS: tipOffAngularVelocityBodyRadS,
+  });
+
   const evaluate = (
     railState: RailState,
     leftLimitTimeS?: number,
@@ -367,11 +395,21 @@ export function simulateRailGuidedLaunch(
     const onPad =
       railState.distanceM <= 1e-12 &&
       railState.speedMps <= 1e-12 &&
-      unconstrainedAxialAccelerationMps2 <= 0;
+      unconstrainedAxialAccelerationMps2 <= guideFrictionAccelerationMps2;
+    const movingForward = railState.speedMps > 1e-10 || unconstrainedAxialAccelerationMps2 >= 0;
+    const guideFrictionAccelerationAppliedMps2 = onPad
+      ? 0
+      : movingForward
+        ? guideFrictionAccelerationMps2
+        : -guideFrictionAccelerationMps2;
     const constrainedAxialAccelerationMps2 = onPad
       ? 0
-      : unconstrainedAxialAccelerationMps2;
-    const permittedAxialForceN = onPad ? 0 : axialForceN;
+      : unconstrainedAxialAccelerationMps2 - guideFrictionAccelerationAppliedMps2;
+    const guideFrictionForceN =
+      Math.abs(guideFrictionAccelerationAppliedMps2 * body.massKg);
+    const permittedAxialForceN = onPad
+      ? 0
+      : axialForceN - guideFrictionAccelerationAppliedMps2 * body.massKg;
     const railReactionWorldN = subtractVectors(
       scaleVector(railDirection, permittedAxialForceN),
       totalForceWorldN,
@@ -383,6 +421,7 @@ export function simulateRailGuidedLaunch(
       axialForceN,
       unconstrainedAxialAccelerationMps2,
       constrainedAxialAccelerationMps2,
+      guideFrictionForceN,
       railReactionWorldN,
       onPad,
     };
@@ -568,7 +607,11 @@ export function simulateRailGuidedLaunch(
 
   if (railState.distanceM >= input.rail.lengthM) {
     railState = { ...railState, distanceM: input.rail.lengthM };
-    railExitState = constrainedState(railState);
+    railExitState = releaseState(railState);
+    railTrace[railTrace.length - 1] = {
+      ...railTrace[railTrace.length - 1]!,
+      state: railExitState,
+    };
   }
 
   while (!railExitState && !termination && railState.timeS < finalTimeS - 1e-13) {
@@ -606,7 +649,7 @@ export function simulateRailGuidedLaunch(
       !liftoffRecorded &&
       railState.distanceM <= 1e-12 &&
       railState.speedMps <= 1e-12 &&
-      currentPoint.unconstrainedAxialAccelerationMps2 <= 0
+      currentPoint.unconstrainedAxialAccelerationMps2 <= guideFrictionAccelerationMps2
     ) {
       const endPadState: RailState = {
         ...railState,
@@ -616,7 +659,7 @@ export function simulateRailGuidedLaunch(
       };
       const endAcceleration = evaluate(endPadState, leftLimitTimeS)
         .unconstrainedAxialAccelerationMps2;
-      if (endAcceleration <= 0) {
+      if (endAcceleration <= guideFrictionAccelerationMps2) {
         railState = endPadState;
         if (endsAtBoundary) {
           applyScheduledEventsAtCurrentTime();
@@ -636,7 +679,7 @@ export function simulateRailGuidedLaunch(
           distanceM: 0,
           speedMps: 0,
         }).unconstrainedAxialAccelerationMps2;
-        if (middleAcceleration > 0) upperTimeS = middleTimeS;
+        if (middleAcceleration > guideFrictionAccelerationMps2) upperTimeS = middleTimeS;
         else lowerTimeS = middleTimeS;
       }
       railState = { ...railState, timeS: upperTimeS, distanceM: 0, speedMps: 0 };
@@ -654,7 +697,7 @@ export function simulateRailGuidedLaunch(
       railStepCount += 1;
       continue;
     }
-    if (!liftoffRecorded && currentPoint.unconstrainedAxialAccelerationMps2 > 0) {
+    if (!liftoffRecorded && currentPoint.unconstrainedAxialAccelerationMps2 > guideFrictionAccelerationMps2) {
       liftoffRecorded = true;
       events.push({
         type: "liftoff",
@@ -787,9 +830,9 @@ export function simulateRailGuidedLaunch(
         applyScheduledEventsAtCurrentTime();
         boundaryIndex += 1;
       }
-      railExitState = constrainedState(railState);
+      railExitState = releaseState(railState);
       const exitPoint = evaluate(railState);
-      railTrace.push(exitPoint);
+      railTrace.push({ ...exitPoint, state: railExitState });
       events.push({
         type: "rail_exit",
         label: "Vehicle reference point cleared launch rail",
@@ -870,6 +913,8 @@ export function simulateRailGuidedLaunch(
   return {
     modelVersion: LAUNCH_RAIL_MODEL_VERSION,
     validationStatus: "analytical-component-checks-only",
+    guideFrictionAccelerationMps2,
+    tipOffAngularVelocityBodyRadS,
     events,
     railTrace,
     freeFlight,
@@ -880,14 +925,20 @@ export function simulateRailGuidedLaunch(
     assumptions: [
       "Rigid straight rail with a fixed world direction",
       "Vehicle reference point moves only along the rail until release",
-      "Rail holds initial attitude and zero angular velocity without compliance or friction",
-      "Pad support cancels non-positive axial force at the rail origin",
+      "Rail holds initial attitude and zero angular velocity until the configured release tip-off rate",
+      guideFrictionAccelerationMps2 > 0
+        ? `Guide friction is represented as a constant ${guideFrictionAccelerationMps2.toFixed(3)} m/s² effective axial loss; normal-load and binding mechanics are not inferred.`
+        : "Guide friction is disabled in the effective rail model",
+      "Pad support cancels axial force that does not exceed the configured effective static guide-loss threshold",
       "Rail release occurs when the vehicle reference point reaches the configured rail length",
       "Scheduled and state-triggered events are applied at exact rail or free-flight boundaries",
     ],
     warnings: [
       "This constrained launcher model has analytical checks only and is not flight-safety validated.",
-      "Rail-button spacing, guide clearance, friction, binding, structural flexibility, and launcher motion are not modeled.",
+      "Rail-button spacing, guide clearance, normal-load friction, binding, structural flexibility, and launcher motion are not modeled; the configured friction is an effective axial scenario input.",
+      ...(magnitude(tipOffAngularVelocityBodyRadS) > 0
+        ? ["A commanded body-frame angular rate is applied at rail exit as a bounded tip-off approximation; guide-button separation and transient torque are not modeled."]
+        : []),
       "The configured rail length is effective travel of the propagated reference point, not automatically the physical rail-button release distance.",
       "State-dependent contact loss and re-contact after release are not modeled; pre-release reversal is detected and stops the preview.",
       ...railWarnings,

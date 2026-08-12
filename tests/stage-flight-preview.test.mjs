@@ -247,7 +247,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.22.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.23.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.simulation?.integration.method, "adaptive-rk4-step-doubling");
   assert.ok((result.simulation?.integration.acceptedStepCount ?? 0) > 0);
@@ -512,7 +512,7 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
     sampleCount: 6,
   });
 
-  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-0.9.0");
+  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-1.0.0");
   assert.equal(first.requestedSampleCount, 6);
   assert.equal(first.successfulSampleCount, 6);
   assert.deepEqual(first.samples, second.samples);
@@ -556,6 +556,12 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
 
   const recoveryBase = {
     ...baseInput,
+    launchRail: {
+      directionWorld: { x: 0, y: 0, z: 1 },
+      lengthM: 1,
+      guideFrictionAccelerationMps2: 2,
+      tipOffAngularVelocityBodyRadS: { x: 0, y: 0.1, z: -0.2 },
+    },
     recoveryDevices: [
       {
         id: "main",
@@ -569,9 +575,14 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
   const recoveryVariant = createStageFlightVariant(recoveryBase, {
     recoveryAreaScale: 1.25,
     recoveryInflationTimeScale: 1.4,
+    railFrictionScale: 1.25,
+    railTipOffScale: 1.5,
   });
   assert.equal(recoveryVariant.recoveryDevices[0].referenceAreaM2, 0.25);
   assert.equal(recoveryVariant.recoveryDevices[0].inflationTimeS, 2.8);
+  assert.equal(recoveryVariant.launchRail.guideFrictionAccelerationMps2, 2.5);
+  assert.ok(Math.abs(recoveryVariant.launchRail.tipOffAngularVelocityBodyRadS.y - 0.15) < 1e-12);
+  assert.ok(Math.abs(recoveryVariant.launchRail.tipOffAngularVelocityBodyRadS.z + 0.3) < 1e-12);
   assert.equal(recoveryBase.recoveryDevices[0].referenceAreaM2, 0.2);
   const failedRecoveryVariant = createStageFlightVariant(recoveryBase, {
     recoveryDeploymentSuccess: 0,

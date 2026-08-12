@@ -63,6 +63,11 @@ step-size convergence diagnostic, and the Markdown report includes the same
 status, metric deltas, assumptions, and warnings. These are numerical
 sensitivity checks, not physical validation or flight-safety evidence.
 
+The coupled report also records the launch-rail guide-loss acceleration,
+body-frame rail-exit tip-off rate, exact handoff speed/time, model version,
+assumptions, and warnings when a rail run is present. The guide-loss and
+tip-off values are authored scenario inputs, not guide-hardware measurements.
+
 Explicitly separated stages are also retained as ballistic analytical
 component checks, including release state, peak altitude/speed, impact time,
 and the gravity-only model warnings. These traces do not imply aerodynamic

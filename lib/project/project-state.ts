@@ -84,6 +84,12 @@ export type EditableProjectInputs = Readonly<{
   launchRailLengthM: number;
   launchRailInclinationDeg: number;
   launchRailAzimuthDeg: number;
+  /** Effective axial guide-loss acceleration used by the rail preview. */
+  launchRailFrictionAccelerationMps2: number;
+  /** Body-frame pitch tip-off rate applied at rail exit, in degrees per second. */
+  launchRailTipOffPitchRateDegS: number;
+  /** Body-frame yaw tip-off rate applied at rail exit, in degrees per second. */
+  launchRailTipOffYawRateDegS: number;
   recoveryEnabled: boolean;
   recoveryDelayS: number;
   /** Seconds from recovery command to fully inflated effective area. */
@@ -171,6 +177,9 @@ const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material
   launchRailLengthM: [0.25, 12],
   launchRailInclinationDeg: [0, 30],
   launchRailAzimuthDeg: [-180, 180],
+  launchRailFrictionAccelerationMps2: [0, 50],
+  launchRailTipOffPitchRateDegS: [-1145.9, 1145.9],
+  launchRailTipOffYawRateDegS: [-1145.9, 1145.9],
   recoveryDelayS: [0, 30],
   recoveryInflationTimeS: [0, 30],
   recoveryDeploymentAltitudeM: [0, 100_000],
@@ -194,6 +203,9 @@ const numericDefaults: Readonly<Partial<Record<keyof typeof numericRanges, numbe
   launchRailLengthM: 1.2,
   launchRailInclinationDeg: 0,
   launchRailAzimuthDeg: 0,
+  launchRailFrictionAccelerationMps2: 0,
+  launchRailTipOffPitchRateDegS: 0,
+  launchRailTipOffYawRateDegS: 0,
   relativeHumidityPercent: 60,
   launchLatitudeDeg: -36.85,
   launchLongitudeDeg: 174.76,
@@ -416,6 +428,9 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     launchRailLengthM: validated.launchRailLengthM,
     launchRailInclinationDeg: validated.launchRailInclinationDeg,
     launchRailAzimuthDeg: validated.launchRailAzimuthDeg,
+    launchRailFrictionAccelerationMps2: validated.launchRailFrictionAccelerationMps2,
+    launchRailTipOffPitchRateDegS: validated.launchRailTipOffPitchRateDegS,
+    launchRailTipOffYawRateDegS: validated.launchRailTipOffYawRateDegS,
     recoveryEnabled: input.recoveryEnabled,
     recoveryDelayS: validated.recoveryDelayS,
     recoveryInflationTimeS: validated.recoveryInflationTimeS,
@@ -542,6 +557,9 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   launchRailLengthM: "effective rail travel",
   launchRailInclinationDeg: "launch rail inclination",
   launchRailAzimuthDeg: "launch rail azimuth",
+  launchRailFrictionAccelerationMps2: "effective guide friction acceleration",
+  launchRailTipOffPitchRateDegS: "rail-exit pitch tip-off rate",
+  launchRailTipOffYawRateDegS: "rail-exit yaw tip-off rate",
   recoveryEnabled: "recovery system",
   recoveryDelayS: "recovery delay",
   recoveryInflationTimeS: "recovery inflation time",

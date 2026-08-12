@@ -63,6 +63,9 @@ test("local project snapshots round-trip through a strict versioned schema", () 
   assert.equal(source.inputs.launchRailLengthM, 1.2);
   assert.equal(source.inputs.launchRailInclinationDeg, 0);
   assert.equal(source.inputs.launchRailAzimuthDeg, 0);
+  assert.equal(source.inputs.launchRailFrictionAccelerationMps2, 0);
+  assert.equal(source.inputs.launchRailTipOffPitchRateDegS, 0);
+  assert.equal(source.inputs.launchRailTipOffYawRateDegS, 0);
   assert.equal(source.inputs.windAzimuthDeg, 0);
   assert.equal(source.inputs.launchSiteName, "ARC 54 synthetic range");
   assert.equal(source.inputs.launchLatitudeDeg, -36.85);
@@ -239,6 +242,14 @@ test("invalid, unsupported, and out-of-range snapshots fail explicitly", () => {
   assert.throws(
     () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, launchRailAzimuthDeg: 180.1 } }),
     /launchRailAzimuthDeg/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, launchRailFrictionAccelerationMps2: 50.1 } }),
+    /launchRailFrictionAccelerationMps2/,
+  );
+  assert.throws(
+    () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, launchRailTipOffPitchRateDegS: 1146 } }),
+    /launchRailTipOffPitchRateDegS/,
   );
   assert.throws(
     () => createLocalProjectSnapshot({ ...snapshot(1), inputs: { ...inputs, windAzimuthDeg: 180.1 } }),

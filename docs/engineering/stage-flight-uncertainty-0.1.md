@@ -6,7 +6,7 @@ rigid-body models. It does not import or reuse an external rocket simulator.
 
 ## Contract
 
-- Adapter version: `kestrel-stage-flight-uncertainty-0.9.0`
+- Adapter version: `kestrel-stage-flight-uncertainty-1.0.0`
 - Sampling: seeded Latin hypercube through the shared uncertainty model
   (`kestrel-uncertainty-0.4.0`)
 - Default browser ensemble: 16 samples, retained as individual input/output or
@@ -25,7 +25,8 @@ stages can expose thrust spread and net-force/moment imbalance. When the
 selected topology source exposes direct body-axis force or static-moment
 volumes, the browser also exposes separate direct-force and direct-moment
 coefficient scales. The coupled browser additionally samples an ignition-delay
-offset, a separation-impulse scale, and a small launch-alignment offset. The
+offset, a separation-impulse scale, a small launch-alignment offset, and (when
+the rail is enabled) bounded guide-friction and rail-exit tip-off scales. The
 variant builder scales structural and dry motor mass properties with the
 dry-mass factor, initial propellant mass properties with the propellant factor,
 every thrust-curve ordinate with the global thrust factor and its declared
@@ -39,7 +40,8 @@ events with the event factors. Motor-local ignition delays and
 ignition-after-burnout triggers receive the sampled delay offset; annotated
 separation events receive the sampled impulse scale, including measured
 body-frame impulse vectors; the initial body attitude receives a body-`+Y`
-pitch perturbation for alignment uncertainty.
+pitch perturbation for alignment uncertainty; the rail variant rescales the
+effective axial guide-loss acceleration and authored body-frame release rate.
 
 When any selected aerodynamic table declares absolute uncertainty cells, the
 browser adds `coefficientUncertaintyScale` as a bounded normal factor (−2 to

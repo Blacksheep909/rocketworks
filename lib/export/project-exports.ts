@@ -1754,6 +1754,22 @@ export function createEngineeringReportMarkdown(
           `| Apogee timing difference | ${input.stageFlight.convergence.apogeeTimeDifferenceS === null ? "not available" : `${formatNumber(input.stageFlight.convergence.apogeeTimeDifferenceS, 4)} s`} |`,
           `| Event timing difference | ${input.stageFlight.convergence.maximumEventTimeDifferenceS === null ? "not available" : `${formatNumber(input.stageFlight.convergence.maximumEventTimeDifferenceS, 4)} s`} |`,
           "",
+          ...(input.stageFlight.rail
+            ? [
+                "### Launch-rail handoff",
+                "",
+                `| Guide-loss acceleration | ${formatNumber(input.stageFlight.rail.guideFrictionAccelerationMps2, 3)} m/s² |`,
+                `| Tip-off body rate | ${formatNumber(input.stageFlight.rail.tipOffAngularVelocityBodyRadS.x, 4)}, ${formatNumber(input.stageFlight.rail.tipOffAngularVelocityBodyRadS.y, 4)}, ${formatNumber(input.stageFlight.rail.tipOffAngularVelocityBodyRadS.z, 4)} rad/s |`,
+                `| Rail exit | ${input.stageFlight.rail.events.find((event) => event.type === "rail_exit") ? `${formatNumber(input.stageFlight.rail.events.find((event) => event.type === "rail_exit")!.timeS, 3)} s at ${formatNumber(input.stageFlight.rail.events.find((event) => event.type === "rail_exit")!.speedAlongRailMps, 3)} m/s` : "not reached"} |`,
+                `| Model | \`${markdownText(input.stageFlight.rail.modelVersion)}\` |`,
+                "",
+                ...input.stageFlight.rail.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+                ...input.stageFlight.rail.warnings.map((warning) => `- **Rail warning:** ${markdownText(warning)}`),
+                "",
+                "> Guide friction is an effective axial scenario input and tip-off is an authored release condition; guide-button geometry, binding, transient torque, and launcher motion remain outside this analytical preview.",
+                "",
+              ]
+            : []),
           ...(input.stageFlight.massRatio
             ? [
                 "### Stage mass-ratio diagnostic",

@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.22.0`.
+`kestrel-stage-flight-preview-0.23.0`.
 
 The result also carries a `rocketworks-mission-mass-ratio-0.1.0` serial-stack
 composition preview. The adapter passes the topology's serial stage IDs in
@@ -64,7 +64,8 @@ retained-body delta-v annotation and its attitude-rotated world-frame vector,
 plus optional measured body-frame/world-frame retained impulse vectors and the
 detached logical-stage IDs. This keeps the timeline and exported result numerically
 traceable instead of relying on event-label text. When `launchRail` is present,
-the result includes rail liftoff and release events, the effective travel distance, and the exact free-flight
+the result includes rail liftoff and release events, the effective travel distance,
+the guide-loss acceleration, the authored tip-off rate, and the exact free-flight
 handoff state. It does not invent ignition delays, separation impulses, failure
 probabilities, or clearance trajectories.
 
@@ -330,9 +331,10 @@ explicitly approximate; it is not a substitute for retained CAD geometry.
 - The supplied aerodynamic regime table must contain an exact regime for every
   attached-stage topology reached by the event sequence.
 - The optional launch rail is straight, fixed, angled by bounded ENU controls in
-  the browser adapter, and frictionless; guide-button spacing, tip-off, flexure,
-  and launcher motion are not modeled. Rail-phase state resets must preserve the
-  constrained axis and attitude.
+  the browser adapter, and may use an authored effective guide-loss acceleration
+  and rail-exit tip-off rate; guide-button spacing, binding, normal-load
+  friction, flexure, transient torque, and launcher motion are not modeled.
+  Rail-phase state resets must preserve the constrained axis and attitude.
 - Results inherit every applicability warning from the staging, aerodynamic,
   load, recovery, environment, launch-rail, and six-degree-of-freedom models.
 - The half-step convergence rerun can be unavailable when a caller imposes a

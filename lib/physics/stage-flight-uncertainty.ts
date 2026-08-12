@@ -37,7 +37,7 @@ import {
 } from "./stage-flight-preview.ts";
 
 export const STAGE_FLIGHT_UNCERTAINTY_ADAPTER_VERSION =
-  "kestrel-stage-flight-uncertainty-0.9.0";
+  "kestrel-stage-flight-uncertainty-1.0.0";
 
 /** Prefix used for independent thrust multipliers keyed by motor identifier. */
 export const MOTOR_THRUST_SCALE_FACTOR_PREFIX = "motorThrustScale:";
@@ -65,6 +65,8 @@ export type StageFlightUncertaintyFactorKey =
   | "ignitionDelayOffsetS"
   | "separationImpulseScale"
   | "alignmentOffsetRad"
+  | "railFrictionScale"
+  | "railTipOffScale"
   | `motorThrustScale:${string}`;
 
 export type StageFlightUncertaintyFactor = {
@@ -412,12 +414,22 @@ export function createStageFlightVariant(
     values.alignmentOffsetRad ?? 0,
     "alignment offset",
   );
+  const railFrictionScale = positiveScale(
+    values.railFrictionScale ?? 1,
+    "rail friction scale",
+  );
+  const railTipOffScale = positiveScale(
+    values.railTipOffScale ?? 1,
+    "rail tip-off scale",
+  );
   const motorThrustScales = resolveMotorThrustScales(base.stages, values);
   const hasMotorFactors = Object.keys(motorThrustScales).length > 0;
   const hasEventFactors =
     Object.prototype.hasOwnProperty.call(values, "ignitionDelayOffsetS") ||
     Object.prototype.hasOwnProperty.call(values, "separationImpulseScale") ||
-    Object.prototype.hasOwnProperty.call(values, "alignmentOffsetRad");
+    Object.prototype.hasOwnProperty.call(values, "alignmentOffsetRad") ||
+    Object.prototype.hasOwnProperty.call(values, "railFrictionScale") ||
+    Object.prototype.hasOwnProperty.call(values, "railTipOffScale");
   const hasCoefficientUncertaintyFactor = Object.prototype.hasOwnProperty.call(
     values,
     "coefficientUncertaintyScale",
@@ -458,6 +470,25 @@ export function createStageFlightVariant(
     })),
     environmentAt: base.environmentAt
       ? scaleEnvironmentProvider(base.environmentAt, windScale)
+      : undefined,
+    launchRail: base.launchRail
+      ? {
+          ...base.launchRail,
+          ...(base.launchRail.guideFrictionAccelerationMps2 !== undefined
+            ? {
+                guideFrictionAccelerationMps2:
+                  base.launchRail.guideFrictionAccelerationMps2 * railFrictionScale,
+              }
+            : {}),
+          ...(base.launchRail.tipOffAngularVelocityBodyRadS
+            ? {
+                tipOffAngularVelocityBodyRadS: scaleVector(
+                  base.launchRail.tipOffAngularVelocityBodyRadS,
+                  railTipOffScale,
+                ),
+              }
+            : {}),
+        }
       : undefined,
     recoveryDevices: base.recoveryDevices?.map((device) => ({
       ...device,
@@ -512,6 +543,16 @@ export function createStageFlightVariant(
             ...(alignmentOffsetRad !== 0
               ? [
                   "Sampled launch-alignment uncertainty is a body-frame pitch perturbation; launch-rail tolerance may reject out-of-alignment scenarios.",
+                ]
+              : []),
+            ...(railFrictionScale !== 1
+              ? [
+                  "Sampled rail-friction uncertainty rescales the effective guide-loss acceleration; normal-load, binding, and launcher compliance distributions remain outside the model.",
+                ]
+              : []),
+            ...(railTipOffScale !== 1
+              ? [
+                  "Sampled rail tip-off uncertainty rescales the authored release angular rate; transient guide torque and measured tip-off distributions remain outside the model.",
                 ]
               : []),
             ...(hasCoefficientUncertaintyFactor

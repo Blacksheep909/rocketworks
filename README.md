@@ -49,7 +49,9 @@ research, standards, and original code.
   report, including active/failed counts, retained failed propellant, and
   explicit per-motor peak-curve spread telemetry;
 - bounded launch-rail inclination and ENU azimuth controls with aligned 6DOF
-  handoff;
+  handoff, effective guide-friction loss, and authored pitch/yaw tip-off rates
+  at release; guide-button geometry, binding, and transient launcher mechanics
+  remain explicit limitations;
 - motor and aerodynamic coefficient libraries for user-supplied,
   provenance-qualified data, including single- and multi-record RASP/ENG motor interchange and
   an accessible Mach/Reynolds coefficient-grid inspector with optional signed

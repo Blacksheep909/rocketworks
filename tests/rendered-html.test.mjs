@@ -481,6 +481,9 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(page, /id="drag".*slider/);
   assert.match(page, /id="wind-speed".*slider/);
   assert.match(page, /id="launch-rail-length".*slider/);
+  assert.match(page, /id="launch-rail-friction".*slider/);
+  assert.match(page, /id="launch-rail-tipoff-pitch".*slider/);
+  assert.match(page, /id="launch-rail-tipoff-yaw".*slider/);
   assert.match(page, /id="recovery-diameter".*slider/);
   assert.match(page, /id="correlation-coefficient".*slider/);
   assert.match(page, /UI_PREFERENCES_STORAGE_KEY/);
@@ -694,6 +697,9 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(page, /launchRailLengthM/);
   assert.match(page, /launchRailInclinationDeg/);
   assert.match(page, /launchRailAzimuthDeg/);
+  assert.match(page, /launchRailFrictionAccelerationMps2/);
+  assert.match(page, /launchRailTipOffPitchRateDegS/);
+  assert.match(page, /launchRailTipOffYawRateDegS/);
   assert.match(page, /recoveryDeploymentSuccessProbability/);
   assert.match(page, /recoveryReefingEnabled/);
   assert.match(page, /recoveryReefingDurationS/);
@@ -712,6 +718,9 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(projectState, /launchRailLengthM/);
   assert.match(projectState, /launchRailInclinationDeg/);
   assert.match(projectState, /launchRailAzimuthDeg/);
+  assert.match(projectState, /launchRailFrictionAccelerationMps2/);
+  assert.match(projectState, /launchRailTipOffPitchRateDegS/);
+  assert.match(projectState, /launchRailTipOffYawRateDegS/);
   assert.match(projectState, /recoveryDeploymentSuccessProbability/);
   assert.match(projectState, /recoveryReefingEnabled/);
   assert.match(projectState, /recoveryReefingDurationS/);
@@ -1010,6 +1019,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stagePreview, /clusterDiagnostics/);
   assert.match(stagePreview, /peakCurveSpreadFraction/);
   assert.match(stagePreview, /launchRailMaximumSteps/);
+  assert.match(stagePreview, /RailGuidedLaunchResult/);
   assert.match(stagePreview, /mathematical-regression-tests-only/);
   assert.match(stagePreview, /STAGE_FLIGHT_CONVERGENCE_RELATIVE_TOLERANCE/);
   assert.match(stagePreview, /eventAllocation/);

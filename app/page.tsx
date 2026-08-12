@@ -54,6 +54,7 @@ import {
   parseMotorMassFlowCsv,
   combineMassProperties,
   determinant,
+  magnitude,
   multiplyMatrices,
   rotationAboutX,
   transpose,
@@ -354,6 +355,8 @@ const UNCERTAINTY_CORRELATION_DEFINITIONS: readonly UncertaintyCorrelationDefini
   { key: "ignitionDelayOffsetS", label: "Ignition delay", scope: "coupled" },
   { key: "separationImpulseScale", label: "Separation impulse", scope: "coupled" },
   { key: "alignmentOffsetRad", label: "Launch alignment", scope: "coupled" },
+  { key: "railFrictionScale", label: "Guide friction", scope: "coupled" },
+  { key: "railTipOffScale", label: "Rail-exit tip-off", scope: "coupled" },
   { key: "recoveryDragAreaScale", label: "Vertical recovery area", scope: "vertical" },
   { key: "recoveryInflationTimeScale", label: "Recovery inflation time", scope: "vertical + coupled" },
   { key: "recoveryAreaScale", label: "Coupled recovery area", scope: "coupled + landing" },
@@ -1340,6 +1343,9 @@ function createStageFlightPreviewInputs({
   launchRailLengthM,
   launchRailInclinationDeg,
   launchRailAzimuthDeg,
+  launchRailFrictionAccelerationMps2,
+  launchRailTipOffPitchRateDegS,
+  launchRailTipOffYawRateDegS,
   coupledMutualGravityEnabled,
   coupledGravitySofteningRadiusM,
   recoveryEnabled,
@@ -1370,6 +1376,9 @@ function createStageFlightPreviewInputs({
   launchRailLengthM: number;
   launchRailInclinationDeg: number;
   launchRailAzimuthDeg: number;
+  launchRailFrictionAccelerationMps2: number;
+  launchRailTipOffPitchRateDegS: number;
+  launchRailTipOffYawRateDegS: number;
   coupledMutualGravityEnabled: boolean;
   coupledGravitySofteningRadiusM: number;
   recoveryEnabled: boolean;
@@ -1768,6 +1777,12 @@ function createStageFlightPreviewInputs({
       ? {
           directionWorld: launchRailDirectionFromAngles(launchRailInclinationDeg, launchRailAzimuthDeg),
           lengthM: launchRailLengthM,
+          guideFrictionAccelerationMps2: launchRailFrictionAccelerationMps2,
+          tipOffAngularVelocityBodyRadS: {
+            x: 0,
+            y: (launchRailTipOffPitchRateDegS * Math.PI) / 180,
+            z: (launchRailTipOffYawRateDegS * Math.PI) / 180,
+          },
         }
       : undefined,
     launchRailMaximumSteps: 250_000,
@@ -3667,6 +3682,9 @@ export default function Home() {
   const [launchRailLengthM, setLaunchRailLengthM] = useState(1.2);
   const [launchRailInclinationDeg, setLaunchRailInclinationDeg] = useState(0);
   const [launchRailAzimuthDeg, setLaunchRailAzimuthDeg] = useState(0);
+  const [launchRailFrictionAccelerationMps2, setLaunchRailFrictionAccelerationMps2] = useState(0);
+  const [launchRailTipOffPitchRateDegS, setLaunchRailTipOffPitchRateDegS] = useState(0);
+  const [launchRailTipOffYawRateDegS, setLaunchRailTipOffYawRateDegS] = useState(0);
   const [coupledMutualGravityEnabled, setCoupledMutualGravityEnabled] = useState(false);
   const [coupledGravitySofteningRadiusM, setCoupledGravitySofteningRadiusM] = useState(0.02);
   const [sixDofIntegrationMethod, setSixDofIntegrationMethod] = useState<RigidBodyIntegrationMethod>("fixed-rk4");
@@ -3795,6 +3813,9 @@ export default function Home() {
       launchRailLengthM,
       launchRailInclinationDeg,
       launchRailAzimuthDeg,
+      launchRailFrictionAccelerationMps2,
+      launchRailTipOffPitchRateDegS,
+      launchRailTipOffYawRateDegS,
       recoveryEnabled,
       recoveryDelayS: recoveryDelay,
       recoveryInflationTimeS: recoveryInflationTime,
@@ -3811,7 +3832,7 @@ export default function Home() {
       uncertaintySeed,
       uncertaintyCorrelations,
     }),
-    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, launchSiteName, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
+    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -4670,6 +4691,9 @@ export default function Home() {
         setLaunchRailLengthM(inputs.launchRailLengthM);
         setLaunchRailInclinationDeg(inputs.launchRailInclinationDeg);
         setLaunchRailAzimuthDeg(inputs.launchRailAzimuthDeg);
+        setLaunchRailFrictionAccelerationMps2(inputs.launchRailFrictionAccelerationMps2);
+        setLaunchRailTipOffPitchRateDegS(inputs.launchRailTipOffPitchRateDegS);
+        setLaunchRailTipOffYawRateDegS(inputs.launchRailTipOffYawRateDegS);
         setRecoveryEnabled(inputs.recoveryEnabled);
         setRecoveryDelay(inputs.recoveryDelayS);
         setRecoveryInflationTime(inputs.recoveryInflationTimeS);
@@ -4796,6 +4820,9 @@ export default function Home() {
         setLaunchRailLengthM(inputs.launchRailLengthM);
         setLaunchRailInclinationDeg(inputs.launchRailInclinationDeg);
         setLaunchRailAzimuthDeg(inputs.launchRailAzimuthDeg);
+        setLaunchRailFrictionAccelerationMps2(inputs.launchRailFrictionAccelerationMps2);
+        setLaunchRailTipOffPitchRateDegS(inputs.launchRailTipOffPitchRateDegS);
+        setLaunchRailTipOffYawRateDegS(inputs.launchRailTipOffYawRateDegS);
         setRecoveryEnabled(inputs.recoveryEnabled);
         setRecoveryDelay(inputs.recoveryDelayS);
         setRecoveryInflationTime(inputs.recoveryInflationTimeS);
@@ -5264,6 +5291,9 @@ export default function Home() {
     setLaunchRailLengthM(inputs.launchRailLengthM);
     setLaunchRailInclinationDeg(inputs.launchRailInclinationDeg);
     setLaunchRailAzimuthDeg(inputs.launchRailAzimuthDeg);
+    setLaunchRailFrictionAccelerationMps2(inputs.launchRailFrictionAccelerationMps2);
+    setLaunchRailTipOffPitchRateDegS(inputs.launchRailTipOffPitchRateDegS);
+    setLaunchRailTipOffYawRateDegS(inputs.launchRailTipOffYawRateDegS);
     setRecoveryEnabled(inputs.recoveryEnabled);
     setRecoveryDelay(inputs.recoveryDelayS);
     setRecoveryInflationTime(inputs.recoveryInflationTimeS);
@@ -6402,6 +6432,9 @@ export default function Home() {
             launchRailLengthM,
             launchRailInclinationDeg,
             launchRailAzimuthDeg,
+            launchRailFrictionAccelerationMps2,
+            launchRailTipOffPitchRateDegS,
+            launchRailTipOffYawRateDegS,
             coupledMutualGravityEnabled,
             coupledGravitySofteningRadiusM,
             recoveryEnabled,
@@ -6458,6 +6491,9 @@ export default function Home() {
           launchRailLengthM,
           launchRailInclinationDeg,
           launchRailAzimuthDeg,
+          launchRailFrictionAccelerationMps2,
+          launchRailTipOffPitchRateDegS,
+          launchRailTipOffYawRateDegS,
           coupledMutualGravityEnabled,
           coupledGravitySofteningRadiusM,
           recoveryEnabled,
@@ -6579,6 +6615,20 @@ export default function Home() {
             label: "Launch alignment",
             distribution: { kind: "normal" as const, mean: 0, standardDeviation: 0.0015, minimum: -0.005, maximum: 0.005 },
           },
+          ...(launchRailEnabled
+            ? [
+                {
+                  key: "railFrictionScale" as const,
+                  label: "Guide friction",
+                  distribution: { kind: "triangular" as const, minimum: 0.5, mode: 1, maximum: 1.5 },
+                },
+                {
+                  key: "railTipOffScale" as const,
+                  label: "Rail-exit tip-off",
+                  distribution: { kind: "triangular" as const, minimum: 0.5, mode: 1, maximum: 1.5 },
+                },
+              ]
+            : []),
         ];
         const nextResult = analyzeStageFlightUncertainty({
           baseInput,
@@ -7403,6 +7453,8 @@ export default function Home() {
                     {stageFlightResult.rail && (
                       <div className="stage-flight-rail" aria-label="Launch rail handoff">
                         <div><span>RAIL CONSTRAINT</span><strong>{stageFlightResult.rail.freeFlight ? "Released to free flight" : "No rail exit"}</strong></div>
+                        <div><span>GUIDE LOSS</span><strong>{stageFlightResult.rail.guideFrictionAccelerationMps2.toFixed(2)} m/s²</strong><small>effective axial</small></div>
+                        <div><span>TIP-OFF RATE</span><strong>{(magnitude(stageFlightResult.rail.tipOffAngularVelocityBodyRadS) * 180 / Math.PI).toFixed(2)} deg/s</strong><small>release boundary</small></div>
                         <div><span>TRAVEL</span><strong>{stageFlightResult.rail.events.find((event) => event.type === "rail_exit")?.distanceAlongRailM.toFixed(2) ?? launchRailLengthM.toFixed(2)} m</strong></div>
                         <div><span>EXIT SPEED</span><strong>{stageFlightResult.rail.events.find((event) => event.type === "rail_exit")?.speedAlongRailMps.toFixed(1) ?? "—"} m/s</strong></div>
                         <div><span>HANDOFF</span><strong>{stageFlightResult.rail.events.find((event) => event.type === "rail_exit")?.timeS.toFixed(2) ?? "—"} s</strong></div>
@@ -8468,7 +8520,10 @@ export default function Home() {
               <NumberField id="launch-rail-length" label="Effective rail travel" value={launchRailLengthM} unit="m" min={0.25} max={12} step={0.05} slider onChange={(value) => { setLaunchRailLengthM(value); markChanged(); }} />
               <NumberField id="launch-rail-inclination" label="Inclination from vertical" value={launchRailInclinationDeg} unit="deg" min={0} max={30} step={0.1} slider onChange={(value) => { setLaunchRailInclinationDeg(value); markChanged(); }} />
               <NumberField id="launch-rail-azimuth" label="Azimuth · east toward north" value={launchRailAzimuthDeg} unit="deg" min={-180} max={180} step={1} slider onChange={(value) => { setLaunchRailAzimuthDeg(value); markChanged(); }} />
-              <p className="rail-provenance">The staged preview holds attitude and lateral motion on a fixed ENU rail, then hands the exact release state to free flight. Inclination is measured from +up; azimuth is 0° east and 90° north. Guide hardware, friction, tip-off, and launcher motion are not modeled.</p>
+              <NumberField id="launch-rail-friction" label="Effective guide friction" value={launchRailFrictionAccelerationMps2} unit="m/s²" min={0} max={50} step={0.1} slider onChange={(value) => { setLaunchRailFrictionAccelerationMps2(value); markChanged(); }} />
+              <NumberField id="launch-rail-tipoff-pitch" label="Rail-exit pitch tip-off" value={launchRailTipOffPitchRateDegS} unit="deg/s" min={-180} max={180} step={1} slider onChange={(value) => { setLaunchRailTipOffPitchRateDegS(value); markChanged(); }} />
+              <NumberField id="launch-rail-tipoff-yaw" label="Rail-exit yaw tip-off" value={launchRailTipOffYawRateDegS} unit="deg/s" min={-180} max={180} step={1} slider onChange={(value) => { setLaunchRailTipOffYawRateDegS(value); markChanged(); }} />
+              <p className="rail-provenance">The staged preview holds attitude and lateral motion on a fixed ENU rail, then hands the exact release state to free flight. Inclination is measured from +up; azimuth is 0° east and 90° north. Friction is an effective axial loss, while tip-off is an authored body-frame angular-rate approximation; guide-button geometry, binding, transient torque, and launcher motion remain outside scope.</p>
             </>}
             <div className="field-group">
               <label htmlFor="recovery-enabled">Recovery model</label>
@@ -9503,7 +9558,7 @@ function StageFlightUncertaintyCard({
         <div>
           <span className="eyebrow">Coupled dispersion</span>
           <h4 id="stage-flight-uncertainty-title">6DOF uncertainty envelope</h4>
-          <p>Propagates bounded mass, thrust, drag, recovery-area, wind, ignition-delay, separation-impulse, and launch-alignment assumptions through staging, launch-rail constraints, topology aerodynamics, and the coupled rigid-body run.{hasDirectForceMomentDatabase ? " Direct force and static-moment coefficient databases receive separate bounded scales when present." : ""}</p>
+          <p>Propagates bounded mass, thrust, drag, recovery-area, wind, ignition-delay, separation-impulse, launch-alignment, guide-friction, and rail-exit tip-off assumptions through staging, launch-rail constraints, topology aerodynamics, and the coupled rigid-body run.{hasDirectForceMomentDatabase ? " Direct force and static-moment coefficient databases receive separate bounded scales when present." : ""}</p>
         </div>
         <button className="secondary-button" type="button" onClick={onRun} disabled={running || !current}>
           {running ? "Sampling…" : result ? "Rerun dispersion" : "Run dispersion"}
