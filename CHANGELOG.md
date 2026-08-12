@@ -6,6 +6,8 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Keep the public CI workflow on the Node 24-compatible checkout and setup-node
+  action releases so green builds do not carry the retired Node 20 annotation.
 - Added a versioned local-ENU terrain contact surface to recovery descent and
   landing dispersion. Flat-ground compatibility remains the default; an
   optional planar slope now root-finds impact clearance, carries terrain
