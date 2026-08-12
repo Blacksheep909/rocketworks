@@ -59,6 +59,13 @@ CP `xCP(k)`, and instantaneous CG `xCG(t)`:
 
 `M = rCP-CG cross N`
 
+An optional relation-only drag polar adds `C_D,i = k C_N^2` to the selected
+`CD(k)`. The per-regime factor is caller-authored and bounded; direct
+body-axis force tables bypass it. This is a transparent drag-due-to-normal-
+force trend, not a fin-interference or wave-drag solver. See
+`docs/engineering/induced-drag-polar-0.1.md` for the equation, public NASA
+references, and limits.
+
 The existing static-aerodynamics 0.1 model derives `CNa` and `xCP` from active
 axisymmetric profile changes and trapezoidal fin sets. The stage-aware adapter
 does not increase that method's fidelity; it ensures the correct geometry and
@@ -89,6 +96,7 @@ The regression suite verifies:
 - explicit unsupported status inside the separation transition window
 - topology-specific dynamic rocket-load diagnostics
 - drag-force scaling with topology `CD S`
+- relation induced-drag provenance and direct-force-table precedence
 - exact pre/post regimes at a scheduled 6-DOF separation event
 - failure when an attached-stage topology has no exact regime
 - always-retained geometry behavior

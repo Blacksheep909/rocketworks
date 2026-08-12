@@ -576,6 +576,8 @@ test("engineering report leads with status and preserves calculations and limita
       surfaceTemperatureC: 15,
       relativeHumidityPercent: 60,
       normalForceModel: "low-speed",
+      inducedDragModel: "quadratic-normal-force",
+      inducedDragFactor: 0.75,
       modelVersion: "environment-fixture",
       validationStatus: "synthetic-unvalidated",
       provenance: "Synthetic fixture",
@@ -812,6 +814,7 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Wind azimuth input: 35° ENU/);
   assert.match(report, /Relative humidity observation: 60%/);
   assert.match(report, /Relation normal-force model: `low-speed`/);
+  assert.match(report, /Relation induced-drag polar: `quadratic-normal-force` \(k = 0\.750\)/);
   assert.match(report, /## Recovery configuration/);
   assert.match(report, /Command trigger: descending altitude/);
   assert.match(report, /Command altitude: 180\.0 m AGL/);

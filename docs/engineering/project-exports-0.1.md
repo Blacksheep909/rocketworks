@@ -42,7 +42,10 @@ For coupled previews, the report also records the selected relation-based
 normal-force model (`low-speed`, `prandtl-glauert`, `supersonic-linearized`, or
 `mixed` when stage regimes differ). Direct force/moment coefficient tables
 remain authoritative; the relation selector is an engineering-preview trend
-with an explicit transonic applicability gap.
+with an explicit transonic applicability gap. It also records the selected
+relation induced-drag polar and its caller-authored `k` factor when present;
+that term is documented in `docs/engineering/induced-drag-polar-0.1.md` and is
+bypassed by direct force tables.
 
 ## RocketWorks project JSON
 

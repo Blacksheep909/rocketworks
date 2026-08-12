@@ -24,7 +24,13 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.23.0`.
+`kestrel-stage-flight-preview-0.24.0`.
+
+Relation-based aerodynamics retain both the selected normal-force trend and
+the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions
+and factors. Direct force/moment tables remain authoritative, and stage
+regimes with differing selections are reported as `mixed` rather than
+silently collapsed.
 
 The result also carries a `rocketworks-mission-mass-ratio-0.1.0` serial-stack
 composition preview. The adapter passes the topology's serial stage IDs in

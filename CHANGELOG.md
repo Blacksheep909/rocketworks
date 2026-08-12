@@ -15,6 +15,10 @@ flight-readiness claims.
   Prandtl-Glauert subsonic and normalized Ackeret supersonic trends, an explicit
   transonic gap, direct-table precedence, persisted browser selection, and
   versioned diagnostics.
+- Add an opt-in relation induced-drag polar using the caller-authored
+  `C_D,i = k C_N²` form. The default remains disabled; direct force/moment
+  tables bypass the term, and project state, staged provenance, reports, and
+  load diagnostics retain the selected model and factor.
 - Add an opt-in clean-room WGS84 Earth-rate correction to the launch
   environment. The local ENU Coriolis acceleration now flows through rocket
   loads and shared released-body propagation, with an explicit browser control,

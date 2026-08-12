@@ -25,6 +25,10 @@ import {
   type NormalForceModelKind,
 } from "./normal-force-compressibility.ts";
 import {
+  evaluateInducedDrag,
+  type InducedDragModelKind,
+} from "./induced-drag.ts";
+import {
   ZERO_VECTOR,
   addVectors,
   cross,
@@ -45,7 +49,7 @@ import {
 } from "./six-dof.ts";
 
 export const PRELIMINARY_ROCKET_LOAD_MODEL_VERSION =
-  "kestrel-rocket-loads-0.3.1";
+  "kestrel-rocket-loads-0.4.0";
 
 export type RocketLoadApplicabilityCode =
   | "LOW_AIRSPEED"
@@ -61,7 +65,8 @@ export type RocketLoadApplicabilityCode =
   | "AERODYNAMIC_TABLE_ANGLE_RANGE"
   | "AERODYNAMIC_FORCE_MOMENT_DATABASE"
   | "COEFFICIENT_UNCERTAINTY_PRESENT"
-  | "NORMAL_FORCE_MODEL_DOMAIN";
+  | "NORMAL_FORCE_MODEL_DOMAIN"
+  | "INDUCED_DRAG_MODEL";
 
 export type RocketLoadApplicabilityIssue = Readonly<{
   code: RocketLoadApplicabilityCode;
@@ -78,6 +83,8 @@ export type PreliminaryAerodynamicState = Readonly<{
   maximumNormalForceAngleRad?: number;
   minimumNormalForceAirspeedMps?: number;
   normalForceModel?: NormalForceModelKind;
+  inducedDragModel?: InducedDragModelKind;
+  inducedDragFactor?: number;
   modelVersion?: string;
   activeStageIds?: readonly string[];
   centerOfPressureXM?: number;
@@ -135,6 +142,8 @@ export type PreliminaryRocketLoadConfig = Readonly<{
   maximumNormalForceAngleRad?: number;
   minimumNormalForceAirspeedMps?: number;
   normalForceModel?: NormalForceModelKind;
+  inducedDragModel?: InducedDragModelKind;
+  inducedDragFactor?: number;
 }>;
 
 export type PreliminaryRocketLoadDiagnostics = Readonly<{
@@ -170,6 +179,11 @@ export type PreliminaryRocketLoadDiagnostics = Readonly<{
   normalForceModelVersion: string;
   normalForceModelRegime: string;
   normalForceModelFactor: number;
+  inducedDragModel: InducedDragModelKind;
+  inducedDragModelVersion: string;
+  inducedDragFactor: number;
+  inducedDragCoefficient: number;
+  effectiveDragCoefficient: number;
   dragN: number;
   normalForceN: number;
   normalForceApplied: boolean;
@@ -408,6 +422,15 @@ export function createPreliminaryRocketLoadModel(
       model: normalForceModel,
       mach,
     });
+    const inducedDragModel =
+      aerodynamics.inducedDragModel ?? config.inducedDragModel ?? "disabled";
+    const inducedDragFactor =
+      aerodynamics.inducedDragFactor ?? config.inducedDragFactor ?? 0;
+    const initialInducedDragEvaluation = evaluateInducedDrag({
+      model: inducedDragModel,
+      factor: inducedDragFactor,
+      normalForceCoefficient: 0,
+    });
     assertPositive(maximumNormalForceMach, "dynamic maximum normal-force Mach number");
     assertPositive(maximumNormalForceAngleRad, "dynamic maximum normal-force angle");
     assertPositive(minimumNormalForceAirspeedMps, "dynamic minimum normal-force airspeed");
@@ -468,6 +491,15 @@ export function createPreliminaryRocketLoadModel(
         explanation: normalForceModelEvaluation.issue.explanation,
       });
     }
+    if (inducedDragModel !== "disabled") {
+      applicability.push({
+        code: "INDUCED_DRAG_MODEL",
+        severity: "info",
+        explanation: hasDirectForceCoefficients
+          ? "The quadratic normal-force drag polar is bypassed because direct body-axis force coefficients are authoritative."
+          : `The relation path adds C_D,i = k C_N² with k = ${inducedDragFactor.toFixed(3)}; this is an engineering-preview approximation.`,
+      });
+    }
 
     const directForceCoefficientBody = aerodynamics.forceCoefficientBody;
     const directMomentCoefficientBody = aerodynamics.momentCoefficientBody;
@@ -521,6 +553,8 @@ export function createPreliminaryRocketLoadModel(
     let dragBodyN: Vector3;
     let normalForceApplied: boolean;
     let normalForceN: number;
+    let inducedDragEvaluation = initialInducedDragEvaluation;
+    let effectiveDragCoefficient = aerodynamics.dragCoefficient;
     let normalBodyN: Vector3;
     let aerodynamicForceBodyN: Vector3;
     if (directForceApplied) {
@@ -542,15 +576,11 @@ export function createPreliminaryRocketLoadModel(
       normalForceN = magnitude(normalBodyN);
       normalForceApplied = true;
       aerodynamicForceBodyN = directForceBodyN;
+      effectiveDragCoefficient =
+        dynamicPressurePa * aerodynamics.referenceAreaM2 > 0
+          ? dragN / (dynamicPressurePa * aerodynamics.referenceAreaM2)
+          : aerodynamics.dragCoefficient;
     } else {
-      dragN =
-        dynamicPressurePa *
-        aerodynamics.dragCoefficient *
-        aerodynamics.referenceAreaM2;
-      dragBodyN =
-        airspeedMps > 1e-12
-          ? scaleVector(airRelativeVelocityBodyMps, -dragN / airspeedMps)
-          : ZERO_VECTOR;
       normalForceApplied =
         airspeedMps >= minimumNormalForceAirspeedMps &&
         forwardAirspeedBodyMps > 0 &&
@@ -561,6 +591,24 @@ export function createPreliminaryRocketLoadModel(
         angleOfAttackRad,
         maximumNormalForceAngleRad,
       );
+      const normalForceCoefficient = normalForceApplied
+        ? aerodynamics.normalForceSlopePerRad *
+          normalForceModelEvaluation.factor *
+          boundedAngleRad
+        : 0;
+      inducedDragEvaluation = evaluateInducedDrag({
+        model: inducedDragModel,
+        factor: inducedDragFactor,
+        normalForceCoefficient,
+      });
+      effectiveDragCoefficient =
+        aerodynamics.dragCoefficient + inducedDragEvaluation.inducedDragCoefficient;
+      dragN =
+        dynamicPressurePa * effectiveDragCoefficient * aerodynamics.referenceAreaM2;
+      dragBodyN =
+        airspeedMps > 1e-12
+          ? scaleVector(airRelativeVelocityBodyMps, -dragN / airspeedMps)
+          : ZERO_VECTOR;
       normalForceN = normalForceApplied
         ? dynamicPressurePa *
           aerodynamics.referenceAreaM2 *
@@ -766,6 +814,11 @@ export function createPreliminaryRocketLoadModel(
         normalForceModelVersion: normalForceModelEvaluation.modelVersion,
         normalForceModelRegime: normalForceModelEvaluation.regime,
         normalForceModelFactor: normalForceModelEvaluation.factor,
+        inducedDragModel: inducedDragEvaluation.model,
+        inducedDragModelVersion: inducedDragEvaluation.modelVersion,
+        inducedDragFactor: inducedDragEvaluation.factor,
+        inducedDragCoefficient: inducedDragEvaluation.inducedDragCoefficient,
+        effectiveDragCoefficient,
         dragN,
         normalForceN,
         normalForceApplied,
@@ -821,6 +874,7 @@ export function createPreliminaryRocketLoadModel(
         ? "Low-speed, small-angle normal force with a state-dependent CP-to-CG lever arm"
         : "Low-speed, small-angle normal force with a fixed CP-to-CG lever arm",
       "The selected normal-force compressibility trend is applied only to the relation fallback; direct force-coefficient tables remain authoritative.",
+      "The selected quadratic normal-force drag polar is applied only to the relation fallback; direct force-coefficient tables remain authoritative.",
       config.aerodynamicsAt
         ? "Rotational damping is applied only when the aerodynamic provider supplies derivative and reference-length data"
         : "Rigid vehicle with no aerodynamic damping or launch constraint",
@@ -828,6 +882,7 @@ export function createPreliminaryRocketLoadModel(
     warnings: [
       "This coupling is not a validated flight simulation.",
       "Normal force is disabled outside the selected forward-flow, angle, airspeed, and compressibility domain; transonic flow remains an explicit gap.",
+      "The optional induced-drag polar is a caller-authored C_D,i = k C_N² approximation; it is not inferred from fin geometry or validated against a vehicle-specific drag polar.",
       "Atmosphere version 0.5 uses U.S. Standard Atmosphere 1976 hydrostatic layers through 84.852 km geopotential (about 86 km geometric); moist-air corrections remain bounded ideal-mixture approximations.",
       "No ground contact, terrain, curvature, or geodesy is included; an opt-in local ENU Earth-rotation acceleration is consumed only when the supplied environment provider exposes it. Launch rail, recovery, and staging require explicitly composed providers.",
     ],

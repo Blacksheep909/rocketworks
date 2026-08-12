@@ -3,6 +3,7 @@ import {
   type LocalVehicleTopology,
 } from "./vehicle-topology.ts";
 import type { NormalForceModelKind } from "../physics/normal-force-compressibility.ts";
+import type { InducedDragModelKind } from "../physics/induced-drag.ts";
 
 export const LOCAL_PROJECT_SCHEMA_ID = "dev.kestrel-lab.local-project";
 export const LOCAL_PROJECT_SCHEMA_VERSION = 1;
@@ -70,6 +71,10 @@ export type EditableProjectInputs = Readonly<{
   normalGravityEnabled?: boolean;
   /** Relation-based 6DOF normal-force compressibility trend. */
   normalForceModel?: NormalForceModelKind;
+  /** Optional relation-based quadratic drag-due-to-normal-force polar. */
+  inducedDragModel?: InducedDragModelKind;
+  /** Caller-authored dimensionless factor in C_D,i = k C_N². */
+  inducedDragFactor?: number;
   /** Local ENU terrain contact model used by landing-dispersion descent. */
   terrainModel: ProjectTerrainModel;
   /** Planar terrain rise per metre moving east, expressed as percent. */
@@ -156,7 +161,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -416,6 +421,16 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   ) {
     throw new Error("normalForceModel must be low-speed, prandtl-glauert, or supersonic-linearized.");
   }
+  const inducedDragModel = input.inducedDragModel === undefined
+    ? "disabled"
+    : input.inducedDragModel;
+  if (inducedDragModel !== "disabled" && inducedDragModel !== "quadratic-normal-force") {
+    throw new Error("inducedDragModel must be disabled or quadratic-normal-force.");
+  }
+  const inducedDragFactor = input.inducedDragFactor === undefined ? 0 : input.inducedDragFactor;
+  if (typeof inducedDragFactor !== "number" || !Number.isFinite(inducedDragFactor) || inducedDragFactor < 0 || inducedDragFactor > 10) {
+    throw new Error("inducedDragFactor must be a finite number from 0 through 10.");
+  }
   const uncertaintySeed = input.uncertaintySeed === undefined
     ? DEFAULT_UNCERTAINTY_SEED
     : nonEmptyString(input.uncertaintySeed, "uncertaintySeed", 80);
@@ -445,6 +460,8 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     ...(input.earthRotationEnabled === undefined ? {} : { earthRotationEnabled }),
     ...(input.normalGravityEnabled === undefined ? {} : { normalGravityEnabled }),
     ...(input.normalForceModel === undefined ? {} : { normalForceModel }),
+    ...(input.inducedDragModel === undefined ? {} : { inducedDragModel }),
+    ...(input.inducedDragFactor === undefined ? {} : { inducedDragFactor }),
     terrainModel,
     terrainEastSlopePercent: validated.terrainEastSlopePercent,
     terrainNorthSlopePercent: validated.terrainNorthSlopePercent,
@@ -577,6 +594,8 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   earthRotationEnabled: "Earth rotation correction",
   normalGravityEnabled: "WGS84 normal gravity",
   normalForceModel: "relation normal-force model",
+  inducedDragModel: "induced-drag polar model",
+  inducedDragFactor: "induced-drag factor",
   terrainModel: "terrain contact model",
   terrainEastSlopePercent: "terrain east slope",
   terrainNorthSlopePercent: "terrain north slope",

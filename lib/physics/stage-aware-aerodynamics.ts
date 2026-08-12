@@ -28,6 +28,11 @@ import {
   NORMAL_FORCE_COMPRESSIBILITY_MODEL_VERSION,
   type NormalForceModelKind,
 } from "./normal-force-compressibility.ts";
+import {
+  evaluateInducedDrag,
+  INDUCED_DRAG_MODEL_VERSION,
+  type InducedDragModelKind,
+} from "./induced-drag.ts";
 
 export const STAGE_AWARE_AERODYNAMICS_MODEL_VERSION =
   "kestrel-stage-aware-aero-0.3.0";
@@ -50,6 +55,8 @@ export type StageAerodynamicRegime = Readonly<{
   maximumNormalForceAngleRad?: number;
   minimumNormalForceAirspeedMps?: number;
   normalForceModel?: NormalForceModelKind;
+  inducedDragModel?: InducedDragModelKind;
+  inducedDragFactor?: number;
 }>;
 
 export type StageAerodynamicTableAssignment = Readonly<{
@@ -83,6 +90,9 @@ export type StageAwareAerodynamicEvaluation = Readonly<{
   centerOfPressureMinusCenterOfMassM: number;
   normalForceModel: NormalForceModelKind;
   normalForceModelVersion: string;
+  inducedDragModel: InducedDragModelKind;
+  inducedDragModelVersion: string;
+  inducedDragFactor: number;
   applicability: readonly RocketLoadApplicabilityIssue[];
 }>;
 
@@ -375,6 +385,13 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
         `regime ${regime.id} minimum normal-force airspeed`,
       );
     }
+    const inducedDragModel = regime.inducedDragModel ?? "disabled";
+    const inducedDragFactor = regime.inducedDragFactor ?? 0;
+    evaluateInducedDrag({
+      model: inducedDragModel,
+      factor: inducedDragFactor,
+      normalForceCoefficient: 0,
+    });
     return { ...regime, activeStageIds: [...regime.activeStageIds] };
   });
   if (new Set(regimes.map((regime) => regime.id)).size !== regimes.length) {
@@ -575,6 +592,9 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
         centerOfPressureXM - staticStability.centerOfMassXM,
       normalForceModel: regime.normalForceModel ?? "low-speed",
       normalForceModelVersion: NORMAL_FORCE_COMPRESSIBILITY_MODEL_VERSION,
+      inducedDragModel: regime.inducedDragModel ?? "disabled",
+      inducedDragModelVersion: INDUCED_DRAG_MODEL_VERSION,
+      inducedDragFactor: regime.inducedDragFactor ?? 0,
       applicability,
     };
   };
@@ -596,6 +616,8 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       maximumNormalForceAngleRad: regime.maximumNormalForceAngleRad,
       minimumNormalForceAirspeedMps: regime.minimumNormalForceAirspeedMps,
       normalForceModel: regime.normalForceModel,
+      inducedDragModel: regime.inducedDragModel,
+      inducedDragFactor: regime.inducedDragFactor,
       modelVersion: STAGE_AWARE_AERODYNAMICS_MODEL_VERSION,
       activeStageIds: result.activeStageIds,
       centerOfPressureXM: result.centerOfPressureXM,
@@ -664,6 +686,7 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       "Coefficient data are supplied externally and must use the same axes, signs, and reference conventions as the selected topology.",
       "The static aerodynamic method remains low-speed, small-angle, slender-body preliminary analysis.",
       "The selected compressibility trend applies only to relation-based normal force; transonic flow remains an explicit unsupported gap and direct coefficient tables remain authoritative.",
+      "The optional quadratic normal-force drag polar applies only to the relation path; direct force coefficient tables remain authoritative and the caller-authored factor is not inferred from fin geometry.",
       "Lateral booster interference, asymmetric crossflow, and radial fin-to-fin flow are not modeled.",
       "Proximity flow, plume interaction, and multi-body aerodynamics are explicitly unsupported around separation.",
       ...(coefficientUncertaintyScale !== 0 && !anyCoefficientUncertaintyAvailable

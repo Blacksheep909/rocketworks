@@ -285,6 +285,45 @@ test("Prandtl-Glauert normal-force trend extends the relation path below transon
   );
 });
 
+test("quadratic induced-drag polar increases relation drag and preserves direct-table authority", () => {
+  const relation = loadModel({
+    normalForceModel: "prandtl-glauert",
+    inducedDragModel: "quadratic-normal-force",
+    inducedDragFactor: 0.8,
+  }).evaluate(
+    state({ velocityWorldMps: { x: -200, y: 8, z: 0 } }),
+  );
+  assert.equal(relation.diagnostics.inducedDragModel, "quadratic-normal-force");
+  assert.ok(relation.diagnostics.inducedDragCoefficient > 0);
+  assert.ok(relation.diagnostics.effectiveDragCoefficient > relation.diagnostics.dragCoefficient);
+  assert.ok(relation.diagnostics.applicability.some((issue) => issue.code === "INDUCED_DRAG_MODEL"));
+
+  const direct = createPreliminaryRocketLoadModel({
+    body,
+    thrustAtTimeS: () => 0,
+    inducedDragModel: "quadratic-normal-force",
+    inducedDragFactor: 0.8,
+    aerodynamicsAt: () => ({
+      referenceAreaM2: 0.01,
+      dragCoefficient: 0.5,
+      normalForceSlopePerRad: 2,
+      centerOfPressureMinusCenterOfMassM: 0.2,
+      coefficientBasis: "mach-reynolds-force-moment-table",
+      forceCoefficientBody: { x: 1, y: -0.2, z: 0.1 },
+      momentCoefficientBody: { x: 0.01, y: -0.02, z: 0.03 },
+      momentReferenceLengthBodyM: { x: 0.1, y: 1, z: 1 },
+    }),
+  }).evaluate(state({ velocityWorldMps: { x: -50, y: 5, z: 0 } }));
+  assert.equal(direct.diagnostics.inducedDragCoefficient, 0);
+  close(
+    direct.diagnostics.effectiveDragCoefficient,
+    direct.diagnostics.dragN / (direct.diagnostics.dynamicPressurePa * direct.diagnostics.referenceAreaM2),
+    1e-12,
+    "direct effective drag coefficient",
+  );
+  assert.ok(direct.diagnostics.applicability.some((issue) => issue.code === "INDUCED_DRAG_MODEL" && /authoritative/.test(issue.explanation)));
+});
+
 test("linearized supersonic normal-force trend remains explicit and leaves transonic flow unsupported", () => {
   const supersonic = loadModel({ normalForceModel: "supersonic-linearized" }).evaluate(
     state({ velocityWorldMps: { x: -700, y: 14, z: 0 } }),

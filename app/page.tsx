@@ -126,6 +126,7 @@ import {
   type TerrainSurface,
   type WindLayer,
   type NormalForceModelKind,
+  type InducedDragModelKind,
 } from "../lib/physics/index.ts";
 import {
   createPreviewWindProfile,
@@ -1369,6 +1370,8 @@ function createStageFlightPreviewInputs({
   recoveryReefingStartAreaFraction,
   sixDofIntegrationMethod,
   normalForceModel,
+  inducedDragModel,
+  inducedDragFactor,
   aerodynamicTable,
   aerodynamicTableModels,
 }: {
@@ -1403,6 +1406,8 @@ function createStageFlightPreviewInputs({
   recoveryReefingStartAreaFraction: number;
   sixDofIntegrationMethod: RigidBodyIntegrationMethod;
   normalForceModel: NormalForceModelKind;
+  inducedDragModel: InducedDragModelKind;
+  inducedDragFactor: number;
   aerodynamicTable?: AerodynamicCoefficientTableModel | null;
   aerodynamicTableModels?: Readonly<Record<string, AerodynamicCoefficientTableModel>>;
 }): Parameters<typeof simulateStageFlightPreview>[0] {
@@ -1628,6 +1633,8 @@ function createStageFlightPreviewInputs({
       label: activeStageIds.length > 0 ? `${activeStageIds.join(" + ")} topology` : "Retained payload topology",
       activeStageIds,
       normalForceModel,
+      inducedDragModel,
+      inducedDragFactor,
       ...(regimeTable
         ? {
             coefficientTable: regimeTable,
@@ -3686,6 +3693,8 @@ export default function Home() {
   const [earthRotationEnabled, setEarthRotationEnabled] = useState(false);
   const [normalGravityEnabled, setNormalGravityEnabled] = useState(false);
   const [normalForceModel, setNormalForceModel] = useState<NormalForceModelKind>("low-speed");
+  const [inducedDragModel, setInducedDragModel] = useState<InducedDragModelKind>("disabled");
+  const [inducedDragFactor, setInducedDragFactor] = useState(0);
   const [terrainModel, setTerrainModel] = useState<ProjectTerrainModel>("flat");
   const [terrainEastSlopePercent, setTerrainEastSlopePercent] = useState(0);
   const [terrainNorthSlopePercent, setTerrainNorthSlopePercent] = useState(0);
@@ -3820,6 +3829,8 @@ export default function Home() {
       earthRotationEnabled,
       normalGravityEnabled,
       normalForceModel,
+      inducedDragModel,
+      inducedDragFactor,
       terrainModel,
       terrainEastSlopePercent,
       terrainNorthSlopePercent,
@@ -3854,7 +3865,7 @@ export default function Home() {
       uncertaintySeed,
       uncertaintyCorrelations,
     }),
-    [burnTime, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalForceModel, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
+    [burnTime, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, inducedDragFactor, inducedDragModel, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalForceModel, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -4718,6 +4729,8 @@ export default function Home() {
         setEarthRotationEnabled(inputs.earthRotationEnabled ?? false);
         setNormalGravityEnabled(inputs.normalGravityEnabled ?? false);
         setNormalForceModel(inputs.normalForceModel ?? "low-speed");
+        setInducedDragModel(inputs.inducedDragModel ?? "disabled");
+        setInducedDragFactor(inputs.inducedDragFactor ?? 0);
         setTerrainModel(inputs.terrainModel);
         setTerrainEastSlopePercent(inputs.terrainEastSlopePercent);
         setTerrainNorthSlopePercent(inputs.terrainNorthSlopePercent);
@@ -4850,6 +4863,8 @@ export default function Home() {
         setEarthRotationEnabled(inputs.earthRotationEnabled ?? false);
         setNormalGravityEnabled(inputs.normalGravityEnabled ?? false);
         setNormalForceModel(inputs.normalForceModel ?? "low-speed");
+        setInducedDragModel(inputs.inducedDragModel ?? "disabled");
+        setInducedDragFactor(inputs.inducedDragFactor ?? 0);
         setTerrainModel(inputs.terrainModel);
         setTerrainEastSlopePercent(inputs.terrainEastSlopePercent);
         setTerrainNorthSlopePercent(inputs.terrainNorthSlopePercent);
@@ -5324,6 +5339,8 @@ export default function Home() {
     setEarthRotationEnabled(inputs.earthRotationEnabled ?? false);
     setNormalGravityEnabled(inputs.normalGravityEnabled ?? false);
     setNormalForceModel(inputs.normalForceModel ?? "low-speed");
+    setInducedDragModel(inputs.inducedDragModel ?? "disabled");
+    setInducedDragFactor(inputs.inducedDragFactor ?? 0);
     setTerrainModel(inputs.terrainModel);
     setTerrainEastSlopePercent(inputs.terrainEastSlopePercent);
     setTerrainNorthSlopePercent(inputs.terrainNorthSlopePercent);
@@ -6371,6 +6388,12 @@ export default function Home() {
             normalForceModel: stageFlightIsCurrent
               ? stageFlightResult?.normalForceModel ?? normalForceModel
               : normalForceModel,
+            inducedDragModel: stageFlightIsCurrent
+              ? stageFlightResult?.inducedDragModel ?? inducedDragModel
+              : inducedDragModel,
+            inducedDragFactor: stageFlightIsCurrent
+              ? stageFlightResult?.inducedDragFactor ?? inducedDragFactor
+              : inducedDragFactor,
             modelVersion: previewEnvironment.modelVersion,
             validationStatus: previewEnvironment.validationStatus,
             provenance: `${previewEnvironment.definition.provenance.sourceName} · ${previewEnvironment.definition.provenance.licenseIdentifier} · ${previewEnvironment.definition.provenance.validationStatus}`,
@@ -6525,6 +6548,8 @@ export default function Home() {
             coupledMutualGravityEnabled,
             coupledGravitySofteningRadiusM,
             normalForceModel,
+            inducedDragModel,
+            inducedDragFactor,
             recoveryEnabled,
             recoveryDelay,
             recoveryInflationTime,
@@ -6585,6 +6610,8 @@ export default function Home() {
           coupledMutualGravityEnabled,
           coupledGravitySofteningRadiusM,
           normalForceModel,
+          inducedDragModel,
+          inducedDragFactor,
           recoveryEnabled,
           recoveryDelay,
           recoveryInflationTime,
@@ -7896,7 +7923,7 @@ export default function Home() {
                     <div className="stage-flight-status">
                       <span>MODEL STATUS</span>
                       <strong>{stageFlightResult.validationStatus}</strong>
-                      <small>{publicModelVersion(stageFlightResult.stagingModelVersion)} · {publicModelVersion(stageFlightResult.aerodynamicsModelVersion)} · normal force {stageFlightResult.normalForceModel}{stageFlightResult.recoveryModelVersion ? ` · ${publicModelVersion(stageFlightResult.recoveryModelVersion)}` : ""}{stageFlightResult.rail ? ` · ${publicModelVersion(stageFlightResult.rail.modelVersion)}` : ""}</small>
+                      <small>{publicModelVersion(stageFlightResult.stagingModelVersion)} · {publicModelVersion(stageFlightResult.aerodynamicsModelVersion)} · normal force {stageFlightResult.normalForceModel} · induced drag {stageFlightResult.inducedDragModel}{stageFlightResult.recoveryModelVersion ? ` · ${publicModelVersion(stageFlightResult.recoveryModelVersion)}` : ""}{stageFlightResult.rail ? ` · ${publicModelVersion(stageFlightResult.rail.modelVersion)}` : ""}</small>
                     </div>
                     <div className="stage-flight-warnings" role="note">
                       <span>WARNINGS</span>
@@ -8575,6 +8602,15 @@ export default function Home() {
               </select>
             </div>
             <p className="field-help">This affects relation-based normal force in the coupled 6DOF preview only. User force/moment tables remain authoritative; the analytical trend leaves a deliberate transonic gap and is not flight validated.</p>
+            <div className="field-group induced-drag-model-control-group">
+              <label htmlFor="induced-drag-model">Relation induced-drag polar</label>
+              <select id="induced-drag-model" value={inducedDragModel} onChange={(event) => { setInducedDragModel(event.target.value as InducedDragModelKind); markChanged(); }}>
+                <option value="disabled">Disabled - compatibility</option>
+                <option value="quadratic-normal-force">Quadratic normal-force drag</option>
+              </select>
+            </div>
+            {inducedDragModel === "quadratic-normal-force" && <NumberField id="induced-drag-factor" label="Induced-drag factor (k)" value={inducedDragFactor} unit="k" min={0} max={10} step={0.01} slider onChange={(value) => { setInducedDragFactor(value); markChanged(); }} />}
+            <p className="field-help">Optional relation-only drag polar: C<sub>D</sub> = C<sub>D0</sub> + k C<sub>N</sub><sup>2</sup>. The factor is caller-authored because fin interference and reference-area conventions need vehicle-specific evidence. Direct force/moment tables bypass this term; it remains an unvalidated engineering preview.</p>
             <div className="field-group terrain-control-group">
               <label htmlFor="terrain-model">Landing surface</label>
               <select id="terrain-model" value={terrainModel} onChange={(event) => { setTerrainModel(event.target.value as ProjectTerrainModel); markChanged(); }}>

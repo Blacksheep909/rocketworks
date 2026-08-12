@@ -42,6 +42,10 @@ import {
   NORMAL_FORCE_COMPRESSIBILITY_MODEL_VERSION,
   type NormalForceModelKind,
 } from "./normal-force-compressibility.ts";
+import {
+  INDUCED_DRAG_MODEL_VERSION,
+  type InducedDragModelKind,
+} from "./induced-drag.ts";
 import type { MassProperties } from "./mass-properties.ts";
 import {
   allocateMissionEventPlan,
@@ -93,7 +97,7 @@ import {
 } from "./stage-flight-vector-budget.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.23.0";
+  "kestrel-stage-flight-preview-0.24.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -242,6 +246,9 @@ export type StageFlightPreviewResult = Readonly<{
   loadsModelVersion: string;
   normalForceModel: NormalForceModelKind | "mixed";
   normalForceModelVersion: string;
+  inducedDragModel: InducedDragModelKind | "mixed";
+  inducedDragModelVersion: string;
+  inducedDragFactor: number | "mixed";
   recoveryModelVersion: string | null;
   simulation: SixDofSimulationResult | null;
   rail: RailGuidedLaunchResult | null;
@@ -724,6 +731,16 @@ export function simulateStageFlightPreview(
   ];
   const normalForceModel: StageFlightPreviewResult["normalForceModel"] =
     normalForceModels.length === 1 ? normalForceModels[0]! : "mixed";
+  const inducedDragModels = [
+    ...new Set(input.regimes.map((regime) => regime.inducedDragModel ?? "disabled")),
+  ];
+  const inducedDragModel: StageFlightPreviewResult["inducedDragModel"] =
+    inducedDragModels.length === 1 ? inducedDragModels[0]! : "mixed";
+  const inducedDragFactors = [
+    ...new Set(input.regimes.map((regime) => regime.inducedDragFactor ?? 0)),
+  ];
+  const inducedDragFactor: StageFlightPreviewResult["inducedDragFactor"] =
+    inducedDragFactors.length === 1 ? inducedDragFactors[0]! : "mixed";
   const loads = createPreliminaryRocketLoadModel({
     body: staging.body,
     propulsion: staging.propulsion,
@@ -1311,6 +1328,7 @@ export function simulateStageFlightPreview(
     ...aerodynamics.assumptions,
     ...loads.assumptions,
     `Relation normal-force model: ${normalForceModel}; model version ${NORMAL_FORCE_COMPRESSIBILITY_MODEL_VERSION}. Direct force/moment tables remain authoritative and the transonic domain gap is not interpolated.`,
+    `Induced-drag polar: ${inducedDragModel}; k = ${inducedDragFactor}; model version ${INDUCED_DRAG_MODEL_VERSION}. The caller-authored C_D,i = k C_N² relation remains an engineering-preview approximation and direct force tables remain authoritative.`,
     ...(recovery?.assumptions ?? []),
     ...(primaryRun.rail?.assumptions ?? primaryRun.simulation?.assumptions ?? []),
     ...(primaryRun.rail?.freeFlight?.assumptions ?? []),
@@ -1353,6 +1371,9 @@ export function simulateStageFlightPreview(
     loadsModelVersion: loads.modelVersion,
     normalForceModel,
     normalForceModelVersion: NORMAL_FORCE_COMPRESSIBILITY_MODEL_VERSION,
+    inducedDragModel,
+    inducedDragModelVersion: INDUCED_DRAG_MODEL_VERSION,
+    inducedDragFactor,
     recoveryModelVersion: recovery?.modelVersion ?? null,
     simulation: primaryRun.simulation,
     rail: primaryRun.rail,

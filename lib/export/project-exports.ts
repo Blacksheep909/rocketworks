@@ -18,6 +18,7 @@ import type { EngineeringDesignReviewResult } from "../physics/engineering-desig
 import type { StageStructuralReviewResult } from "../physics/stage-structural-review.ts";
 import type { StageInterfaceLoadResult } from "../physics/stage-interface-loads.ts";
 import type { NormalForceModelKind } from "../physics/normal-force-compressibility.ts";
+import type { InducedDragModelKind } from "../physics/induced-drag.ts";
 import {
   createAerodynamicCoefficientTable,
   type AerodynamicCoefficientTableDefinition,
@@ -155,6 +156,10 @@ export type EngineeringReportInput = Readonly<{
     relativeHumidityPercent?: number;
     /** Relation-based normal-force trend selected for coupled previews. */
     normalForceModel?: NormalForceModelKind | "mixed";
+    /** Relation-based quadratic drag-due-to-normal-force model. */
+    inducedDragModel?: InducedDragModelKind | "mixed";
+    /** Caller-authored dimensionless factor in C_D,i = k C_N². */
+    inducedDragFactor?: number | "mixed";
     modelVersion: string;
     validationStatus: string;
     provenance: string;
@@ -1541,6 +1546,17 @@ export function createEngineeringReportMarkdown(
   if (input.environment.normalForceModel !== undefined && !input.environment.normalForceModel.trim()) {
     throw new Error("report normal-force model cannot be empty");
   }
+  if (input.environment.inducedDragModel !== undefined && !input.environment.inducedDragModel.trim()) {
+    throw new Error("report induced-drag model cannot be empty");
+  }
+  if (input.environment.inducedDragFactor !== undefined) {
+    if (input.environment.inducedDragFactor !== "mixed") {
+      assertFinite(input.environment.inducedDragFactor, "report induced-drag factor");
+      if (input.environment.inducedDragFactor < 0 || input.environment.inducedDragFactor > 10) {
+        throw new Error("report induced-drag factor must be between 0 and 10");
+      }
+    }
+  }
   for (const [label, value, minimum, maximum] of [
     ["report latitude", input.environment.latitudeDeg, -90, 90],
     ["report longitude", input.environment.longitudeDeg, -180, 180],
@@ -1657,6 +1673,9 @@ export function createEngineeringReportMarkdown(
     ...(input.environment.normalForceModel === undefined
       ? []
       : [`- Relation normal-force model: \`${markdownText(input.environment.normalForceModel)}\``]),
+    ...(input.environment.inducedDragModel === undefined
+      ? []
+      : [`- Relation induced-drag polar: \`${markdownText(input.environment.inducedDragModel)}\` (k = ${input.environment.inducedDragFactor === "mixed" ? "mixed" : formatNumber(input.environment.inducedDragFactor ?? 0, 3)})`]),
     `- Model: \`${markdownText(input.environment.modelVersion)}\``,
     `- Status: \`${markdownText(input.environment.validationStatus)}\``,
     `- Provenance: ${markdownText(input.environment.provenance)}`,

@@ -82,6 +82,9 @@ research, standards, and original code.
 - an opt-in relation normal-force compressibility selector with a bounded
   Prandtl-Glauert subsonic trend, normalized Ackeret supersonic trend, explicit
   transonic gap, persisted project state, and direct-table precedence;
+- an opt-in relation induced-drag polar using the explicit `C_D,i = k C_N²`
+  form, with a caller-authored bounded factor, direct force-table precedence,
+  persisted provenance, and staged-report diagnostics;
 - seeded coupled-flight uncertainty runs can independently vary declared motor
   thrust scales plus direct body-axis force and static-moment coefficient
   databases when those sources are present, with selected factors and nominal

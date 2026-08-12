@@ -2,6 +2,7 @@ export * from "./atmosphere.ts";
 export * from "./earth-rotation.ts";
 export * from "./normal-gravity.ts";
 export * from "./normal-force-compressibility.ts";
+export * from "./induced-drag.ts";
 export * from "./aerodynamic-coefficients.ts";
 export * from "./aerodynamic-polar.ts";
 export * from "./clustered-propulsion.ts";

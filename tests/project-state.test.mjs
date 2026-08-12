@@ -220,6 +220,32 @@ test("project snapshots preserve the relation normal-force model", () => {
   );
 });
 
+test("project snapshots preserve the opt-in induced-drag polar", () => {
+  const projectInputs = {
+    ...inputs,
+    inducedDragModel: "quadratic-normal-force",
+    inducedDragFactor: 0.75,
+  };
+  const source = createLocalProjectSnapshot({
+    projectId: "arc54",
+    projectName: "Induced drag fixture",
+    revision: 1,
+    savedAtIso: "2026-01-01T00:00:00.000Z",
+    inputs: projectInputs,
+  });
+  const parsed = parseLocalProjectSnapshot(serializeLocalProjectSnapshot(source));
+  assert.equal(parsed.inputs.inducedDragModel, "quadratic-normal-force");
+  assert.equal(parsed.inputs.inducedDragFactor, 0.75);
+  assert.throws(
+    () => validateEditableProjectInputs({ ...projectInputs, inducedDragModel: "unknown" }),
+    /inducedDragModel must/,
+  );
+  assert.throws(
+    () => validateEditableProjectInputs({ ...projectInputs, inducedDragFactor: 10.1 }),
+    /inducedDragFactor must/,
+  );
+});
+
 test("project snapshots persist bounded uncertainty dependence assumptions", () => {
   const source = snapshot(1, {
     uncertaintyCorrelations: [

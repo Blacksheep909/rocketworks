@@ -1,4 +1,4 @@
-# Preliminary rocket force and moment coupling 0.3.1
+# Preliminary rocket force and moment coupling 0.4.0
 
 Status: analytical component checks only. This coupling is not a validated
 flight simulation.
@@ -49,6 +49,11 @@ trends are documented independently in
 `docs/engineering/normal-force-compressibility-0.1.md`; direct force/moment
 coefficient tables remain authoritative. The transonic interval is an explicit
 unsupported gap rather than a silently extrapolated coefficient.
+
+Version 0.4.0 also adds an opt-in relation induced-drag polar. The caller-
+authored factor applies `C_D,i = k C_N^2` only to the relation fallback; direct
+body-axis force/moment tables remain authoritative. The independent scope and
+limits are documented in `docs/engineering/induced-drag-polar-0.1.md`.
 
 The returned loads can drive the independent rigid-body integrator. The model
 does not yet implement a launch rail, ground contact, recovery, or a complete
