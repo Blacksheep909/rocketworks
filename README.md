@@ -38,6 +38,9 @@ research, standards, and original code.
   mass-property diagnostics with logical-stage topology preserved for aero
   regimes;
 - bounded canted-motor configuration with radial instance alignment;
+- bounded motor-local gimbal schedules with piecewise-linear thrust-axis
+  interpolation, per-instance radial basis mapping, and explicit actuator-model
+  limitations;
 - deterministic per-motor cluster-failure preview with retained failed-motor
   propellant and explicit imbalance warnings;
 - bounded retained-body separation delta-v controls with body/world-frame event

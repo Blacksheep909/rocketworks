@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add bounded motor-local gimbal schedules. Stage-authored pitch/yaw points now
+  interpolate thrust direction and feed the live 6DOF force/moment path, while
+  actuator dynamics, rate limits, flexure, plume effects, and control-loop
+  coupling remain explicit limitations.
 - Propagate declared aerodynamic-table absolute uncertainty through staged
   dispersion with a bounded common signed-sigma factor. Drag, normal-force,
   CP, direct force/moment, and damping cells now participate explicitly while

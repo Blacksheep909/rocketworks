@@ -173,6 +173,7 @@ import {
   removeVehicleStageTopology,
   serializeVehicleTopology,
   stageThrustAxisBody,
+  stageThrustAxisWithGimbal,
   type LocalVehicleTopology,
   type VehicleStageAttachment,
   type VehicleStagePlan,
@@ -1482,6 +1483,19 @@ function createStageFlightPreviewInputs({
         ),
         thrustApplicationPointBodyM: originBodyM,
         thrustAxisBody: stageThrustAxisBody(stage, instance.stageInstanceIndex),
+        ...(stage.gimbalSchedule && stage.gimbalSchedule.length > 0
+          ? {
+              thrustAxisSchedule: stage.gimbalSchedule.map((point) => ({
+                timeS: point.timeS,
+                axisBody: stageThrustAxisWithGimbal(
+                  stage,
+                  instance.stageInstanceIndex,
+                  point.pitchDeg,
+                  point.yawDeg,
+                ),
+              })),
+            }
+          : {}),
         ignitionFailure: stage.failedMotorInstanceIndices.includes(instance.stageInstanceIndex),
       };
     };
@@ -5825,6 +5839,41 @@ export default function Home() {
     }
     return updateTopologyStage(id, { [key]: numericValue });
   };
+  const addTopologyGimbalPoint = (stage: VehicleStagePlan): boolean => {
+    const schedule = stage.gimbalSchedule ?? [];
+    if (schedule.length >= 32) {
+      setTopologyError("A gimbal schedule may contain at most 32 points.");
+      return false;
+    }
+    const lastTimeS = schedule.at(-1)?.timeS ?? -1;
+    return updateTopologyStage(stage.id, {
+      gimbalSchedule: [
+        ...schedule,
+        { timeS: Math.max(0, lastTimeS + 1), pitchDeg: 0, yawDeg: 0 },
+      ],
+    });
+  };
+  const updateTopologyGimbalPoint = (
+    stage: VehicleStagePlan,
+    index: number,
+    patch: Partial<NonNullable<VehicleStagePlan["gimbalSchedule"]>[number]>,
+  ): boolean => {
+    const schedule = stage.gimbalSchedule ?? [];
+    if (!schedule[index]) return false;
+    return updateTopologyStage(stage.id, {
+      gimbalSchedule: schedule.map((point, pointIndex) =>
+        pointIndex === index ? { ...point, ...patch } : point,
+      ),
+    });
+  };
+  const removeTopologyGimbalPoint = (stage: VehicleStagePlan, index: number): boolean => {
+    const schedule = stage.gimbalSchedule ?? [];
+    if (!schedule[index]) return false;
+    const nextSchedule = schedule.filter((_, pointIndex) => pointIndex !== index);
+    return updateTopologyStage(stage.id, {
+      ...(nextSchedule.length > 0 ? { gimbalSchedule: nextSchedule } : { gimbalSchedule: undefined }),
+    });
+  };
   const updateTopologyRecovery = (
     stage: VehicleStagePlan,
     patch: Partial<NonNullable<VehicleStagePlan["recovery"]>>,
@@ -9026,6 +9075,18 @@ export default function Home() {
                       <TopologyNumberField id={`${stage.id}-repeat-radius`} label="Radial radius (m)" value={stage.repeatRadiusM} min={0} max={2} step={0.01} onChange={(value) => { if (typeof value === "number") updateTopologyStage(stage.id, { repeatRadiusM: value }); }} />
                       <TopologyNumberField id={`${stage.id}-motor-cant`} label="Motor cant (deg)" value={stage.thrustCantAngleDeg} min={0} max={15} step={0.1} disabled={stage.role === "payload"} onChange={(value) => { if (typeof value === "number") updateTopologyStage(stage.id, { thrustCantAngleDeg: value }); }} />
                       <TopologyNumberField id={`${stage.id}-cant-azimuth`} label="Cant azimuth (deg)" value={stage.thrustCantAzimuthDeg} min={-180} max={180} step={1} disabled={stage.role === "payload"} onChange={(value) => { if (typeof value === "number") updateTopologyStage(stage.id, { thrustCantAzimuthDeg: value }); }} />
+                      {stage.role !== "payload" && <details className="topology-gimbal-editor">
+                        <summary>Gimbal schedule {stage.gimbalSchedule && stage.gimbalSchedule.length > 0 ? `· ${stage.gimbalSchedule.length} points` : "· fixed axis"}</summary>
+                        <p>Motor-local commanded offsets are linearly interpolated between points. Pitch and yaw are bounded to ±15°; actuator dynamics are not modeled.</p>
+                        {(stage.gimbalSchedule ?? []).map((point, pointIndex) => <div className="topology-gimbal-point" key={`${stage.id}-gimbal-${pointIndex}`}>
+                          <span className="topology-gimbal-index">{String(pointIndex + 1).padStart(2, "0")}</span>
+                          <TopologyNumberField id={`${stage.id}-gimbal-${pointIndex}-time`} label="Time (s)" value={point.timeS} min={0} max={120} step={0.01} onChange={(value) => { if (typeof value === "number") updateTopologyGimbalPoint(stage, pointIndex, { timeS: value }); }} />
+                          <TopologyNumberField id={`${stage.id}-gimbal-${pointIndex}-pitch`} label="Pitch offset (°)" value={point.pitchDeg} min={-15} max={15} step={0.1} onChange={(value) => { if (typeof value === "number") updateTopologyGimbalPoint(stage, pointIndex, { pitchDeg: value }); }} />
+                          <TopologyNumberField id={`${stage.id}-gimbal-${pointIndex}-yaw`} label="Yaw offset (°)" value={point.yawDeg} min={-15} max={15} step={0.1} onChange={(value) => { if (typeof value === "number") updateTopologyGimbalPoint(stage, pointIndex, { yawDeg: value }); }} />
+                          <button className="danger-button topology-gimbal-remove" type="button" onClick={() => removeTopologyGimbalPoint(stage, pointIndex)}>Remove</button>
+                        </div>)}
+                        <button className="secondary-button" type="button" onClick={() => addTopologyGimbalPoint(stage)}>Add gimbal point</button>
+                      </details>}
                     </div>
                     <div className="topology-stage-events">
                       <TopologyNumberField id={`${stage.id}-ignition-delay`} label="Ignition delay (s)" value={stage.ignitionDelayS} min={0} max={120} step={0.01} onChange={(value) => { if (typeof value === "number") updateTopologyStage(stage.id, { ignitionDelayS: value }); }} />
@@ -9046,7 +9107,7 @@ export default function Home() {
                       <label>Failed motors (1-based)<input type="text" inputMode="text" placeholder={stageMotorInstanceCount(stage) > 1 ? "e.g. 1, 3" : "none"} value={topologyFailureDrafts[stage.id] ?? stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")} disabled={stage.role === "payload"} onChange={(event) => { setTopologyFailureDrafts((current) => ({ ...current, [stage.id]: event.target.value })); setTopologyError(""); }} onBlur={() => { const value = topologyFailureDrafts[stage.id]; if (value === undefined) return; if (updateTopologyMotorFailures(stage, value)) { setTopologyFailureDrafts((current) => { const next = { ...current }; delete next[stage.id]; return next; }); } }} /></label>
                       <label className="topology-failure-toggle"><input type="checkbox" checked={stage.ignitionFailure} onChange={(event) => updateTopologyStage(stage.id, { ignitionFailure: event.target.checked })} /> Force ignition failure in preview</label>
                     </div>
-                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{(stage.separationDeltaVBodyMps ?? 0) > 0 ? ` · separation +${(stage.separationDeltaVBodyMps ?? 0).toFixed(2)} m/s` : ""}{stage.recovery?.enabled ? ` · detached recovery Ø${stage.recovery.diameterM.toFixed(2)} m · ${stage.recovery.deploymentTrigger === "altitude" ? `descent ${stage.recovery.deploymentAltitudeAglM ?? 150} m` : stage.recovery.deploymentTrigger === "time" ? `time ${stage.recovery.deploymentTimeS ?? 8} s` : "branch apogee"}` : ""}{stage.failedMotorInstanceIndices.length > 0 ? ` · failed motor${stage.failedMotorInstanceIndices.length > 1 ? "s" : ""} ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}` : ""}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}</span><div className="topology-stage-actions"><button className="secondary-button" onClick={() => duplicateTopologyStage(stage.id)}>Duplicate</button>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div></div>
+                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{(stage.separationDeltaVBodyMps ?? 0) > 0 ? ` · separation +${(stage.separationDeltaVBodyMps ?? 0).toFixed(2)} m/s` : ""}{stage.recovery?.enabled ? ` · detached recovery Ø${stage.recovery.diameterM.toFixed(2)} m · ${stage.recovery.deploymentTrigger === "altitude" ? `descent ${stage.recovery.deploymentAltitudeAglM ?? 150} m` : stage.recovery.deploymentTrigger === "time" ? `time ${stage.recovery.deploymentTimeS ?? 8} s` : "branch apogee"}` : ""}{stage.failedMotorInstanceIndices.length > 0 ? ` · failed motor${stage.failedMotorInstanceIndices.length > 1 ? "s" : ""} ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}` : ""}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}{stage.gimbalSchedule && stage.gimbalSchedule.length > 0 ? ` · gimbal ${stage.gimbalSchedule.length} points` : ""}</span><div className="topology-stage-actions"><button className="secondary-button" onClick={() => duplicateTopologyStage(stage.id)}>Duplicate</button>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div></div>
                   </div>
                 </article>
               ))}

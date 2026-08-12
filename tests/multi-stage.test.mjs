@@ -16,6 +16,7 @@ import {
   stageInstanceSeparationKey,
   stageIgnitionTimeKey,
   stageSeparationKey,
+  magnitude,
 } from "../lib/physics/index.ts";
 
 function close(actual, expected, tolerance, label) {
@@ -234,6 +235,57 @@ test("multiple motors support delayed ignition and off-axis moments", () => {
   assert.equal(result.stages[0].motors[0].phase, "burning");
   assert.equal(result.stages[0].motors[1].phase, "waiting");
   assert.ok(result.netThrustMomentBodyNm.z > 0);
+});
+
+test("motor-local gimbal schedules interpolate thrust direction and moment", () => {
+  const gimballedStage = stage("gimbal", 1, 1, {
+    thrustAxisSchedule: [
+      { timeS: 0, axisBody: { x: -1, y: 0, z: 0 } },
+      { timeS: 1, axisBody: { x: -1, y: 1, z: 0 } },
+    ],
+  });
+  const staging = createMultiStageVehicleModel({
+    retainedMassProperties: properties(1, 0),
+    stages: [gimballedStage],
+  });
+  const midpoint = staging.evaluate(ignitedAtZero(0.5, "gimbal"));
+  const motorState = midpoint.stages[0].motors[0];
+  // Schedule samples are normalized first, then the interpolated direction is
+  // normalized again so each commanded sample remains a unit thrust axis.
+  const normalizedEndpoint = { x: -1 / Math.sqrt(2), y: 1 / Math.sqrt(2), z: 0 };
+  const midpointAxis = {
+    x: (-1 + normalizedEndpoint.x) / 2,
+    y: normalizedEndpoint.y / 2,
+    z: 0,
+  };
+  const midpointMagnitude = Math.sqrt(
+    midpointAxis.x ** 2 + midpointAxis.y ** 2 + midpointAxis.z ** 2,
+  );
+  const expectedAxis = {
+    x: midpointAxis.x / midpointMagnitude,
+    y: midpointAxis.y / midpointMagnitude,
+    z: 0,
+  };
+  close(magnitude(motorState.thrustAxisBody), 1, 1e-15, "gimbal axis magnitude");
+  close(motorState.thrustAxisBody.x, expectedAxis.x, 1e-12, "interpolated gimbal x");
+  close(motorState.thrustAxisBody.y, expectedAxis.y, 1e-12, "interpolated gimbal y");
+  close(motorState.forceBodyN.x, 5 * expectedAxis.x, 1e-12, "gimballed force x");
+  close(motorState.forceBodyN.y, 5 * expectedAxis.y, 1e-12, "gimballed force y");
+  assert.ok(Math.abs(midpoint.netThrustMomentBodyNm.z) > 0);
+  assert.ok(staging.assumptions.some((assumption) => assumption.includes("thrust-axis schedules")));
+  assert.ok(staging.warnings.some((warning) => warning.includes("actuator dynamics")));
+  assert.throws(
+    () => createMultiStageVehicleModel({
+      retainedMassProperties: properties(1, 0),
+      stages: [stage("invalid-gimbal", 1, 1, {
+        thrustAxisSchedule: [
+          { timeS: 1, axisBody: { x: -1, y: 0, z: 0 } },
+          { timeS: 1, axisBody: { x: -1, y: 1, z: 0 } },
+        ],
+      })],
+    }),
+    /strictly increasing/,
+  );
 });
 
 test("ignition failure leaves propellant intact and suppresses thrust", () => {

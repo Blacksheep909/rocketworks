@@ -12,6 +12,7 @@ import {
   removeVehicleStageTopology,
   serializeVehicleTopology,
   stageThrustAxisBody,
+  stageThrustAxisWithGimbal,
   validateVehicleTopology,
 } from "../lib/project/vehicle-topology.ts";
 
@@ -172,6 +173,53 @@ test("serial upper stages and repeated parallel boosters validate in order", () 
   });
   assert.equal(deltaVTopology.stages[1].separationDeltaVBodyMps, 2.5);
   assert.deepEqual(validated.stages[2].failedMotorInstanceIndices, [0, 2]);
+});
+
+test("gimbal schedules validate, round-trip, and follow radial thrust bases", () => {
+  const topology = {
+    ...createDefaultVehicleTopology(),
+    stages: [
+      createStagePlan({ id: "sustainer", name: "Sustainer", role: "core", attachment: "serial" }),
+      createStagePlan({
+        id: "booster-01",
+        name: "Booster set",
+        role: "booster",
+        attachment: "parallel",
+        parentStageId: "sustainer",
+        repeatCount: 2,
+        repeatRadiusM: 0.12,
+        gimbalSchedule: [
+          { timeS: 0, pitchDeg: 0, yawDeg: 0 },
+          { timeS: 1.5, pitchDeg: 4, yawDeg: -2 },
+        ],
+      }),
+    ],
+  };
+  const validated = validateVehicleTopology(topology);
+  assert.deepEqual(validated.stages[1].gimbalSchedule, topology.stages[1].gimbalSchedule);
+  assert.deepEqual(parseVehicleTopology(serializeVehicleTopology(validated)), validated);
+  const nominal = stageThrustAxisBody(validated.stages[1], 0);
+  const gimballed = stageThrustAxisWithGimbal(validated.stages[1], 0, 4, -2);
+  assert.ok(Math.abs(Math.hypot(gimballed.x, gimballed.y, gimballed.z) - 1) < 1e-12);
+  assert.ok(gimballed.y !== nominal.y || gimballed.z !== nominal.z);
+  assert.throws(
+    () => validateVehicleTopology({
+      ...topology,
+      stages: topology.stages.map((stage) => stage.id === "booster-01"
+        ? { ...stage, gimbalSchedule: [{ timeS: 1, pitchDeg: 0, yawDeg: 0 }, { timeS: 1, pitchDeg: 1, yawDeg: 0 }] }
+        : stage),
+    }),
+    /strictly increasing/,
+  );
+  assert.throws(
+    () => validateVehicleTopology({
+      ...topology,
+      stages: topology.stages.map((stage) => stage.id === "booster-01"
+        ? { ...stage, gimbalSchedule: [{ timeS: 0, pitchDeg: 16, yawDeg: 0 }] }
+        : stage),
+    }),
+    /pitchDeg/,
+  );
 });
 
 test("detachable stages can carry a bounded recovery plan", () => {

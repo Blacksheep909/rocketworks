@@ -38,7 +38,15 @@ import {
 } from "./six-dof.ts";
 import type { RecoveryCommandTrigger, RecoveryDevice } from "./recovery-system.ts";
 
-export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.4.0";
+export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.5.0";
+
+/** A motor-local body-frame thrust direction sample for deterministic gimbal interpolation. */
+export type MotorGimbalPoint = Readonly<{
+  /** Seconds after this motor's local ignition (before any stage-level event offset). */
+  timeS: number;
+  /** Body-frame thrust direction at the sample; it is normalized by the model. */
+  axisBody: Vector3;
+}>;
 
 export type MultiStageMotor = Readonly<{
   id: string;
@@ -51,6 +59,8 @@ export type MultiStageMotor = Readonly<{
   initialPropellantMassProperties: MassProperties;
   thrustApplicationPointBodyM: Vector3;
   thrustAxisBody?: Vector3;
+  /** Optional strictly time-ordered motor-local thrust-axis schedule. */
+  thrustAxisSchedule?: readonly MotorGimbalPoint[];
   /** A configured ignition failure leaves this motor attached with its propellant intact. */
   ignitionFailure?: boolean;
 }>;
@@ -106,6 +116,7 @@ export type MultiStageMotorEvaluation = Readonly<{
   propellantMassKg: number;
   propellantMassRateKgS: number;
   depletionSource: "impulse-proportional" | "measured-mass-flow";
+  thrustAxisBody: Vector3;
   forceBodyN: Vector3;
   momentBodyNm: Vector3;
 }>;
@@ -198,6 +209,7 @@ type PreparedMotor = MultiStageMotor & Readonly<{
   massFlowHistoryKgS?: readonly MassFlowPoint[];
   totalMassFlowKg?: number;
   normalizedThrustAxisBody: Vector3;
+  normalizedThrustAxisSchedule?: readonly MotorGimbalPoint[];
   totalImpulseNs: number;
 }>;
 
@@ -239,6 +251,72 @@ function assertNonNegative(value: number, label: string): void {
 
 function finiteVector(vector: Vector3): boolean {
   return [vector.x, vector.y, vector.z].every(Number.isFinite);
+}
+
+const MAX_MOTOR_GIMBAL_POINTS = 64;
+
+function normalizeThrustAxis(value: Vector3, label: string): Vector3 {
+  if (!finiteVector(value)) {
+    throw new Error(`${label} must be finite`);
+  }
+  const axisMagnitude = magnitude(value);
+  if (!(axisMagnitude > 0) || !Number.isFinite(axisMagnitude)) {
+    throw new Error(`${label} must be a finite non-zero vector`);
+  }
+  return scaleVector(value, 1 / axisMagnitude);
+}
+
+function prepareThrustAxisSchedule(
+  schedule: readonly MotorGimbalPoint[] | undefined,
+  label: string,
+): readonly MotorGimbalPoint[] | undefined {
+  if (schedule === undefined) return undefined;
+  if (schedule.length === 0) {
+    throw new Error(`${label} cannot be empty`);
+  }
+  if (schedule.length > MAX_MOTOR_GIMBAL_POINTS) {
+    throw new Error(`${label} cannot contain more than ${MAX_MOTOR_GIMBAL_POINTS} points`);
+  }
+  let previousTimeS = -1;
+  return schedule.map((point, index) => {
+    if (!Number.isFinite(point.timeS) || point.timeS < 0 || point.timeS <= previousTimeS) {
+      throw new Error(`${label}[${index}] time must be finite, non-negative, and strictly increasing`);
+    }
+    previousTimeS = point.timeS;
+    return {
+      timeS: point.timeS,
+      axisBody: normalizeThrustAxis(point.axisBody, `${label}[${index}] axis`),
+    };
+  });
+}
+
+function thrustAxisAtLocalTime(
+  motor: PreparedMotor,
+  localTimeS: number | null,
+): Vector3 {
+  const schedule = motor.normalizedThrustAxisSchedule;
+  if (!schedule || schedule.length === 0 || localTimeS === null) {
+    return motor.normalizedThrustAxisBody;
+  }
+  const timeS = Math.max(0, localTimeS);
+  if (timeS <= schedule[0]!.timeS) return schedule[0]!.axisBody;
+  const last = schedule.at(-1)!;
+  if (timeS >= last.timeS) return last.axisBody;
+  for (let index = 1; index < schedule.length; index += 1) {
+    const right = schedule[index]!;
+    const left = schedule[index - 1]!;
+    if (timeS <= right.timeS) {
+      const fraction = (timeS - left.timeS) / (right.timeS - left.timeS);
+      return normalizeThrustAxis(
+        addVectors(
+          left.axisBody,
+          scaleVector(subtractVectors(right.axisBody, left.axisBody), fraction),
+        ),
+        `motor ${motor.id} interpolated thrust axis`,
+      );
+    }
+  }
+  return last.axisBody;
 }
 
 function validateMassProperties(
@@ -663,10 +741,11 @@ export function createMultiStageVehicleModel(input: Readonly<{
         throw new Error(`motor ${motor.id} thrust application point must be finite`);
       }
       const axis = motor.thrustAxisBody ?? { x: -1, y: 0, z: 0 };
-      const axisMagnitude = magnitude(axis);
-      if (!(axisMagnitude > 0) || !Number.isFinite(axisMagnitude)) {
-        throw new Error(`motor ${motor.id} thrust axis must be a finite non-zero vector`);
-      }
+      const normalizedThrustAxisBody = normalizeThrustAxis(axis, `motor ${motor.id} thrust axis`);
+      const normalizedThrustAxisSchedule = prepareThrustAxisSchedule(
+        motor.thrustAxisSchedule,
+        `motor ${motor.id} thrust-axis schedule`,
+      );
       const ignitionFailure = motor.ignitionFailure ?? false;
       if (typeof ignitionFailure !== "boolean") {
         throw new Error(`motor ${motor.id} ignition failure must be boolean`);
@@ -676,7 +755,10 @@ export function createMultiStageVehicleModel(input: Readonly<{
         ignitionFailure,
         thrustCurve,
         ...(massFlowHistoryKgS ? { massFlowHistoryKgS, totalMassFlowKg } : {}),
-        normalizedThrustAxisBody: scaleVector(axis, 1 / axisMagnitude),
+        normalizedThrustAxisBody,
+        ...(normalizedThrustAxisSchedule
+          ? { normalizedThrustAxisSchedule }
+          : {}),
         totalImpulseNs,
       };
     });
@@ -759,6 +841,11 @@ export function createMultiStageVehicleModel(input: Readonly<{
       (motor.totalMassFlowKg ?? motor.initialPropellantMassProperties.massKg) <
       motor.initialPropellantMassProperties.massKg * (1 - 1e-9),
   );
+  const gimbalMotors = stages.flatMap((stage) => [
+    ...stage.motors,
+    ...stage.instances.flatMap((instance) => instance.motors),
+  ]).filter((motor) => motor.normalizedThrustAxisSchedule);
+  const hasGimbalSchedule = gimbalMotors.length > 0;
 
   const evaluate = (state: RigidBodyState): MultiStageVehicleEvaluation => {
     if (!Number.isFinite(state.timeS)) throw new Error("staging state time must be finite");
@@ -878,7 +965,8 @@ export function createMultiStageVehicleModel(input: Readonly<{
                 ? (-motor.initialPropellantMassProperties.massKg * thrustN) /
                   motor.totalImpulseNs
                 : 0;
-          const forceBodyN = scaleVector(motor.normalizedThrustAxisBody, thrustN);
+          const thrustAxisBody = thrustAxisAtLocalTime(motor, localTimeS);
+          const forceBodyN = scaleVector(thrustAxisBody, thrustN);
           const momentBodyNm = cross(
             subtractVectors(motor.thrustApplicationPointBodyM, massProperties.centerOfMassM),
             forceBodyN,
@@ -928,6 +1016,7 @@ export function createMultiStageVehicleModel(input: Readonly<{
             depletionSource: motor.massFlowHistoryKgS
               ? "measured-mass-flow"
               : "impulse-proportional",
+            thrustAxisBody,
             forceBodyN,
             momentBodyNm,
           };
@@ -1220,6 +1309,11 @@ export function createMultiStageVehicleModel(input: Readonly<{
     assumptions: [
       "Stages are rigidly attached until an explicit separation event",
       "Stage ignition commands establish motor-local time; each motor may add a deterministic delay",
+      ...(hasGimbalSchedule
+        ? [
+            "Motor thrust-axis schedules are linearly interpolated in motor-local time and normalized before force and moment evaluation",
+          ]
+        : []),
       ...(hasMeasuredMassFlow
         ? [
             "When supplied, positive measured mass-flow history directly drives motor propellant depletion while thrust remains an independent curve",
@@ -1233,6 +1327,11 @@ export function createMultiStageVehicleModel(input: Readonly<{
       "This staging model has analytical component checks only and is not flight-safety validated.",
       "Pyrotechnic mechanism, spring forces, joint constraints, plume impingement, collision risk, equal-and-opposite discarded-stage impulse, and coupled discarded-stage trajectories are not modeled; the browser adapter may expose a separate ballistic component check.",
       "Stage separation is an instantaneous topology change; use a dedicated multi-body model for separation-clearance analysis.",
+      ...(hasGimbalSchedule
+        ? [
+            "Gimbal schedules are deterministic commanded-axis previews; actuator dynamics, rate limits, flexure, plume effects, and control-loop coupling are not modeled.",
+          ]
+        : []),
       ...(hasMeasuredMassFlow
         ? [
             "Measured mass-flow history is accepted as user-supplied evidence; sensor calibration, phase lag, residual propellant, and sample uncertainty are not independently validated.",

@@ -18,7 +18,8 @@ Each motor has exactly one mount with:
 
 - the matching motor identifier from the mass-state model
 - a fixed body-frame thrust application point
-- a fixed body-frame thrust-axis vector, normalized during configuration
+- a fixed body-frame thrust-axis vector, normalized during configuration, with
+  an optional motor-local gimbal schedule in the staged evaluator
 
 Every mass-model motor must have one mount and no unknown or duplicate mount is
 accepted. This prevents silent omission or double application of thrust.
@@ -86,8 +87,9 @@ flight behavior.
 
 ## Known limitations
 
-- Thrust axes and application points are fixed. Gimbals, flexure, mount
-  compliance, and nozzle motion are absent.
+- Application points remain fixed. Gimbal schedules interpolate commanded
+  thrust direction only; flexure, mount compliance, nozzle motion, actuator
+  dynamics, and control-loop coupling are absent.
 - Per-motor failure can be configured deterministically. Independent
   `motorThrustScale:<id>` scenario multipliers are available through the
   staged uncertainty adapter, but this nominal clustered layer does not infer
@@ -116,8 +118,7 @@ flight behavior.
 
 ## Next work
 
-The next propulsion step should add gimbal schedules, optional measured
-mass-flow histories, and a qualified motor-performance data path. The staged
-uncertainty browser already exposes independent per-motor thrust factors for
-cluster imbalance exploration; richer imbalance diagnostics remain future
-work.
+The next propulsion step should add measured separation impulses and a
+qualified motor-performance data path. The staged uncertainty browser already
+exposes independent per-motor thrust factors for cluster imbalance exploration;
+multi-nozzle and richer imbalance diagnostics remain future work.

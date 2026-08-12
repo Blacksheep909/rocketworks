@@ -933,6 +933,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /stageEnvelopeLengthM/);
   assert.match(page, /makePlacedStageComponents/);
   assert.match(page, /stageThrustAxisBody/);
+  assert.match(page, /stageThrustAxisWithGimbal/);
+  assert.match(page, /Gimbal schedule/);
+  assert.match(page, /Add gimbal point/);
   assert.match(page, /Motor cant \(deg\)/);
   assert.match(page, /Body length \(m\)/);
   assert.match(page, /Diameter \(m\)/);

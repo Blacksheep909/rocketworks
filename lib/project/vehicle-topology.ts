@@ -7,6 +7,16 @@ export const MAX_VEHICLE_COMPONENTS = 64;
 export type VehicleStageRole = "core" | "upper" | "booster" | "payload";
 export type VehicleStageAttachment = "serial" | "parallel";
 
+/** A stage-local commanded gimbal sample, expressed as pitch/yaw offsets in degrees. */
+export type VehicleStageGimbalPoint = Readonly<{
+  /** Seconds after the stage's motor-local ignition. */
+  timeS: number;
+  /** Positive pitch rotates the thrust direction toward the local +Y basis. */
+  pitchDeg: number;
+  /** Positive yaw rotates the thrust direction toward the local +Z basis. */
+  yawDeg: number;
+}>;
+
 /** Optional recovery hardware carried by a detachable stage. */
 export type VehicleStageRecoveryTrigger = "apogee" | "altitude" | "time";
 
@@ -74,6 +84,8 @@ export type VehicleStagePlan = Readonly<{
   repeatRadiusM: number;
   thrustCantAngleDeg: number;
   thrustCantAzimuthDeg: number;
+  /** Optional strictly time-ordered commanded gimbal offsets shared by stage instances. */
+  gimbalSchedule?: readonly VehicleStageGimbalPoint[];
   ignitionDelayS: number;
   separationDelayS: number;
   /** Retained-body axial separation delta-v in m/s (+X nose direction). */
@@ -110,6 +122,41 @@ export function stageThrustAxisBody(
     y: transverse * Math.cos(azimuthRad),
     z: transverse * Math.sin(azimuthRad),
   };
+}
+
+/**
+ * Applies a bounded stage-local pitch/yaw gimbal offset to one nominal stage
+ * thrust axis. The local transverse basis is deterministic and remains stable
+ * for radial instances, so the same authored schedule can be reused per copy.
+ */
+export function stageThrustAxisWithGimbal(
+  stage: Pick<VehicleStagePlan, "repeatCount" | "thrustCantAngleDeg" | "thrustCantAzimuthDeg">,
+  instanceIndex: number,
+  pitchDeg: number,
+  yawDeg: number,
+): VehicleThrustAxis {
+  const nominal = stageThrustAxisBody(stage, instanceIndex);
+  const reference = Math.abs(nominal.z) < 0.9
+    ? { x: 0, y: 0, z: 1 }
+    : { x: 0, y: 1, z: 0 };
+  const cross = (a: VehicleThrustAxis, b: VehicleThrustAxis): VehicleThrustAxis => ({
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  });
+  const normalize = (value: VehicleThrustAxis): VehicleThrustAxis => {
+    const length = Math.hypot(value.x, value.y, value.z);
+    return { x: value.x / length, y: value.y / length, z: value.z / length };
+  };
+  const pitchBasis = normalize(cross(nominal, reference));
+  const yawBasis = normalize(cross(pitchBasis, nominal));
+  const pitch = Math.tan((pitchDeg * Math.PI) / 180);
+  const yaw = Math.tan((yawDeg * Math.PI) / 180);
+  return normalize({
+    x: nominal.x + pitchBasis.x * pitch + yawBasis.x * yaw,
+    y: nominal.y + pitchBasis.y * pitch + yawBasis.y * yaw,
+    z: nominal.z + pitchBasis.z * pitch + yawBasis.z * yaw,
+  });
 }
 
 export type LocalVehicleTopology = Readonly<{
@@ -156,6 +203,34 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
   const thrustCantAzimuthDeg = stage.thrustCantAzimuthDeg ?? 0;
   if (typeof thrustCantAzimuthDeg !== "number" || !Number.isFinite(thrustCantAzimuthDeg) || thrustCantAzimuthDeg < -180 || thrustCantAzimuthDeg > 180) {
     throw new Error(`Stage ${id} thrustCantAzimuthDeg must be a finite value from -180 through 180 degrees.`);
+  }
+  const rawGimbalSchedule = stage.gimbalSchedule;
+  if (rawGimbalSchedule !== undefined && !Array.isArray(rawGimbalSchedule)) {
+    throw new Error(`Stage ${id} gimbalSchedule must be an array.`);
+  }
+  if (rawGimbalSchedule && rawGimbalSchedule.length > 32) {
+    throw new Error(`Stage ${id} gimbalSchedule cannot contain more than 32 points.`);
+  }
+  let previousGimbalTimeS = -1;
+  const gimbalSchedule = rawGimbalSchedule?.map((point, pointIndex) => {
+    const pointObject = objectValue(point, `Stage ${id} gimbal point ${pointIndex + 1}`);
+    const timeS = pointObject.timeS;
+    const pitchDeg = pointObject.pitchDeg;
+    const yawDeg = pointObject.yawDeg;
+    if (typeof timeS !== "number" || !Number.isFinite(timeS) || timeS < 0 || timeS <= previousGimbalTimeS) {
+      throw new Error(`Stage ${id} gimbal point ${pointIndex + 1} timeS must be finite, non-negative, and strictly increasing.`);
+    }
+    if (typeof pitchDeg !== "number" || !Number.isFinite(pitchDeg) || pitchDeg < -15 || pitchDeg > 15) {
+      throw new Error(`Stage ${id} gimbal point ${pointIndex + 1} pitchDeg must be a finite value from -15 through 15 degrees.`);
+    }
+    if (typeof yawDeg !== "number" || !Number.isFinite(yawDeg) || yawDeg < -15 || yawDeg > 15) {
+      throw new Error(`Stage ${id} gimbal point ${pointIndex + 1} yawDeg must be a finite value from -15 through 15 degrees.`);
+    }
+    previousGimbalTimeS = timeS;
+    return { timeS, pitchDeg, yawDeg };
+  });
+  if (stage.role === "payload" && gimbalSchedule && gimbalSchedule.length > 0) {
+    throw new Error(`Payload stage ${id} cannot configure a motor gimbal schedule.`);
   }
   if (stage.parentStageId !== undefined && (typeof stage.parentStageId !== "string" || !ID_PATTERN.test(stage.parentStageId))) {
     throw new Error(`Stage ${id} parentStageId is invalid.`);
@@ -284,6 +359,7 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     repeatRadiusM: stage.repeatRadiusM,
     thrustCantAngleDeg,
     thrustCantAzimuthDeg,
+    ...(gimbalSchedule && gimbalSchedule.length > 0 ? { gimbalSchedule } : {}),
     ignitionDelayS,
     separationDelayS,
     separationDeltaVBodyMps,
@@ -456,6 +532,7 @@ export function createStagePlan(input: Readonly<{
   repeatRadiusM?: number;
   thrustCantAngleDeg?: number;
   thrustCantAzimuthDeg?: number;
+  gimbalSchedule?: readonly VehicleStageGimbalPoint[];
   ignitionDelayS?: number;
   separationDelayS?: number;
   separationDeltaVBodyMps?: number;
