@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add intentional selectable-speed replay to the interactive world-frame
+  flight-path view. Play/pause advances the existing coupled trace selection,
+  keeps event markers and telemetry synchronized, and stops at the final sample;
+  replay is a display interaction and does not rerun or modify the simulation.
 - Add a provenance-labeled WGS84 GeoJSON flight-path export to the artifact
   center. Retained and released ENU traces preserve sample times and event
   markers for GIS review; the local tangent conversion, ellipsoidal-height

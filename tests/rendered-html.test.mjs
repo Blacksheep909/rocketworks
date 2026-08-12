@@ -365,8 +365,13 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
   assert.match(pageSource, /stageFlightTrajectorySeries/);
   assert.match(trajectoryViewport, /Interactive flight path/);
   assert.match(trajectoryViewport, /onSelectionChange/);
+  assert.match(trajectoryViewport, /togglePlayback/);
+  assert.match(trajectoryViewport, /requestAnimationFrame/);
+  assert.match(trajectoryViewport, /Replay rate/);
+  assert.match(trajectoryViewport, /Pause flight path replay/);
   assert.match(trajectoryProjection, /display-projection-only/);
   assert.match(trajectoryProjection, /projectFlightTrajectory/);
+  assert.match(trajectoryProjection, /advanceFlightTrajectoryReplay/);
   assert.match(pageSource, /createFlightPathGeoJson/);
   assert.match(pageSource, /flight-path-geojson/);
   assert.match(flightPathExport, /FeatureCollection/);
@@ -386,6 +391,7 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
   assert.match(stylesheet, /\.stage-separation-envelope/);
   assert.match(stylesheet, /\.flight-trajectory-viewport/);
   assert.match(stylesheet, /\.flight-trajectory-canvas/);
+  assert.match(stylesheet, /\.flight-trajectory-replay/);
 });
 
 test("routes browser mass properties through the hierarchical assembly graph", async () => {

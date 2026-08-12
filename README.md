@@ -153,7 +153,8 @@ research, standards, and original code.
   topology readouts, plus synchronized keyboard/touch sample scrubbers and
   event-row navigation for precise trace inspection; the staged workspace also
   includes an orbitable ENU flight-path view for retained and released-body
-  tracks with shared-time selection and display-only event markers;
+  tracks with shared-time selection, selectable-speed replay, and display-only
+  event markers;
 - preliminary structural-readiness screen for axial stress, Euler buckling,
   fin-root bending/shear, and static-margin review with explicit assumptions;
 - a preliminary equivalent-beam first bending-mode frequency trend with

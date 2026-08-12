@@ -37,6 +37,10 @@ trace positions.
 - Clicking within the retained path selects its nearest numerical sample.
 - The range scrubber selects a sample by index and shares its time with the
   staged metric chart and event rows.
+- Play/pause advances the shared selected time at a bounded selectable rate
+  (0.25x through 4x) and stops exactly at the final retained sample. This is a
+  requestAnimationFrame display loop backed by a pure bounded step helper; it
+  never reruns, extrapolates, or mutates the engineering solver.
 - Keyboard focus, a descriptive canvas label, visible controls, and a live
   selected-time readout keep the view usable without pointer input.
 - Reduced-motion preferences remain respected because the view does not use a

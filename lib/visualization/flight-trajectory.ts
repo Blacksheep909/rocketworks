@@ -78,6 +78,11 @@ export type FlightTrajectoryProjection = Readonly<{
   }>;
 }>;
 
+export type FlightTrajectoryReplayStep = Readonly<{
+  timeS: number;
+  completed: boolean;
+}>;
+
 type RotatedPoint = Readonly<{
   lateral: number;
   vertical: number;
@@ -183,6 +188,33 @@ export function nearestFlightTrajectorySampleIndex(
     }
   }
   return bestIndex;
+}
+
+/**
+ * Advance a display replay playhead without extrapolating beyond the supplied
+ * trace interval. This helper is intentionally pure so the UI timing loop can
+ * be regression-tested independently from browser animation APIs.
+ */
+export function advanceFlightTrajectoryReplay(
+  currentTimeS: number,
+  elapsedS: number,
+  playbackRate: number,
+  startTimeS: number,
+  endTimeS: number,
+): FlightTrajectoryReplayStep {
+  if (![currentTimeS, elapsedS, playbackRate, startTimeS, endTimeS].every(Number.isFinite)) {
+    throw new Error("flight trajectory replay values must be finite");
+  }
+  if (elapsedS < 0) throw new Error("flight trajectory replay elapsed time must be non-negative");
+  if (playbackRate <= 0) throw new Error("flight trajectory replay rate must be positive");
+  if (startTimeS < 0 || endTimeS < startTimeS) {
+    throw new Error("flight trajectory replay bounds are invalid");
+  }
+  const boundedCurrentTimeS = Math.max(startTimeS, Math.min(endTimeS, currentTimeS));
+  const candidateTimeS = boundedCurrentTimeS + elapsedS * playbackRate;
+  return candidateTimeS >= endTimeS
+    ? { timeS: endTimeS, completed: true }
+    : { timeS: candidateTimeS, completed: false };
 }
 
 /**

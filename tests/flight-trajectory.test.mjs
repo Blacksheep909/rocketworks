@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  advanceFlightTrajectoryReplay,
   FLIGHT_TRAJECTORY_VIEW_MODEL_VERSION,
   nearestFlightTrajectorySampleIndex,
   projectFlightTrajectory,
@@ -66,6 +67,29 @@ test("nearest sample selection is stable and malformed projections fail explicit
   assert.throws(
     () => projectFlightTrajectory(series(), [], { ...camera, zoom: 0 }, viewport),
     /zoom/,
+  );
+});
+
+test("replay advancement is rate-scaled, bounded, and pure", () => {
+  assert.deepEqual(
+    advanceFlightTrajectoryReplay(2, 0.25, 2, 0, 10),
+    { timeS: 2.5, completed: false },
+  );
+  assert.deepEqual(
+    advanceFlightTrajectoryReplay(9, 1, 4, 0, 10),
+    { timeS: 10, completed: true },
+  );
+  assert.deepEqual(
+    advanceFlightTrajectoryReplay(-5, 0, 1, 0, 10),
+    { timeS: 0, completed: false },
+  );
+  assert.throws(
+    () => advanceFlightTrajectoryReplay(1, 0.1, 0, 0, 10),
+    /rate must be positive/,
+  );
+  assert.throws(
+    () => advanceFlightTrajectoryReplay(1, 0.1, 1, 5, 2),
+    /bounds are invalid/,
   );
 });
 

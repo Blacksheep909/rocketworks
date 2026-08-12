@@ -10,6 +10,7 @@ import {
   type WheelEvent,
 } from "react";
 import {
+  advanceFlightTrajectoryReplay,
   nearestFlightTrajectorySampleIndex,
   projectFlightTrajectory,
   type FlightTrajectoryCamera,
@@ -56,8 +57,12 @@ export function FlightTrajectoryViewport({
   const [camera, setCamera] = useState<FlightTrajectoryCamera>(DEFAULT_CAMERA);
   const [canvasSize, setCanvasSize] = useState({ width: 720, height: 340 });
   const [hoverTimeS, setHoverTimeS] = useState<number | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const selectedTimeRef = useRef<number | null>(selectedTimeS);
+  const playbackTimeRef = useRef<number | null>(selectedTimeS);
   const primarySeries = series[0] ?? null;
-  const primaryTrace = primarySeries?.trace ?? [];
+  const primaryTrace = useMemo(() => primarySeries?.trace ?? [], [primarySeries]);
   const projection = useMemo(
     () => projectFlightTrajectory(series, events, camera, canvasSize),
     [camera, canvasSize, events, series],
@@ -67,6 +72,47 @@ export function FlightTrajectoryViewport({
     ? null
     : nearestFlightTrajectorySampleIndex(primaryTrace, activeTimeS);
   const activePrimarySample = activeIndex === null ? null : primaryTrace[activeIndex] ?? null;
+
+  useEffect(() => {
+    selectedTimeRef.current = selectedTimeS;
+    if (!playing) playbackTimeRef.current = selectedTimeS;
+  }, [playing, selectedTimeS]);
+
+  useEffect(() => {
+    if (!playing || primaryTrace.length < 2) return;
+    const firstTimeS = primaryTrace[0]!.timeS;
+    const finalTimeS = primaryTrace.at(-1)!.timeS;
+    let frameId: number | null = null;
+    let previousTimestampMs: number | null = null;
+    const tick = (timestampMs: number) => {
+      if (previousTimestampMs === null) previousTimestampMs = timestampMs;
+      const currentTimeS = playbackTimeRef.current ?? selectedTimeRef.current ?? firstTimeS;
+      const elapsedS = Math.max(0, (timestampMs - previousTimestampMs) / 1000);
+      previousTimestampMs = timestampMs;
+      const replayStep = advanceFlightTrajectoryReplay(
+        currentTimeS,
+        elapsedS,
+        playbackRate,
+        firstTimeS,
+        finalTimeS,
+      );
+      if (replayStep.completed) {
+        playbackTimeRef.current = replayStep.timeS;
+        selectedTimeRef.current = replayStep.timeS;
+        onSelectionChange?.(replayStep.timeS);
+        setPlaying(false);
+        return;
+      }
+      playbackTimeRef.current = replayStep.timeS;
+      selectedTimeRef.current = replayStep.timeS;
+      onSelectionChange?.(replayStep.timeS);
+      frameId = window.requestAnimationFrame(tick);
+    };
+    frameId = window.requestAnimationFrame(tick);
+    return () => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+    };
+  }, [onSelectionChange, playbackRate, playing, primaryTrace]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -200,6 +246,13 @@ export function FlightTrajectoryViewport({
     context.restore();
   }, [activeTimeS, camera, canvasSize, events, projection, series]);
 
+  const emitSelection = (timeS: number | null) => {
+    setPlaying(false);
+    playbackTimeRef.current = timeS;
+    selectedTimeRef.current = timeS;
+    onSelectionChange?.(timeS);
+  };
+
   const nearestPointAtPointer = (event: PointerEvent<HTMLCanvasElement>): number | null => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - bounds.left;
@@ -242,7 +295,7 @@ export function FlightTrajectoryViewport({
   const onPointerUp = (event: PointerEvent<HTMLCanvasElement>) => {
     const pointer = pointerRef.current;
     if (pointer?.pointerId === event.pointerId) {
-      if (!pointer.moved) onSelectionChange?.(nearestPointAtPointer(event));
+      if (!pointer.moved) emitSelection(nearestPointAtPointer(event));
       pointerRef.current = null;
     }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
@@ -270,9 +323,26 @@ export function FlightTrajectoryViewport({
     }
   };
 
+  const togglePlayback = () => {
+    if (playing) {
+      setPlaying(false);
+      return;
+    }
+    if (primaryTrace.length < 2) return;
+    const firstTimeS = primaryTrace[0]!.timeS;
+    const finalTimeS = primaryTrace.at(-1)!.timeS;
+    const requestedTimeS = selectedTimeRef.current ?? firstTimeS;
+    const startTimeS = requestedTimeS >= finalTimeS ? firstTimeS : Math.max(firstTimeS, requestedTimeS);
+    setHoverTimeS(null);
+    playbackTimeRef.current = startTimeS;
+    selectedTimeRef.current = startTimeS;
+    onSelectionChange?.(startTimeS);
+    setPlaying(true);
+  };
+
   const selectIndex = (index: number) => {
     const sample = primaryTrace[index];
-    if (sample) onSelectionChange?.(sample.timeS);
+    if (sample) emitSelection(sample.timeS);
   };
 
   return (
@@ -311,6 +381,28 @@ export function FlightTrajectoryViewport({
           <button type="button" onClick={() => setCamera((current) => ({ ...current, zoom: clamp(current.zoom * 1.12, 0.55, 4) }))} aria-label="Zoom flight path in">+</button>
           <button type="button" onClick={() => setCamera((current) => ({ ...current, yawRad: current.yawRad + 0.2 }))} aria-label="Orbit flight path right">↷</button>
         </div>
+      </div>
+      <div className="flight-trajectory-replay" aria-label="Flight trajectory replay controls">
+        <button
+          type="button"
+          className="flight-trajectory-replay-toggle"
+          onClick={togglePlayback}
+          disabled={primaryTrace.length < 2}
+          aria-pressed={playing}
+          aria-label={playing ? "Pause flight path replay" : "Play flight path replay"}
+        >
+          {playing ? "Pause" : "Play"}
+        </button>
+        <label htmlFor="flight-trajectory-playback-rate">Replay rate</label>
+        <select
+          id="flight-trajectory-playback-rate"
+          value={playbackRate}
+          onChange={(event) => setPlaybackRate(Number(event.target.value))}
+          aria-label="Flight path replay speed"
+        >
+          {[0.25, 0.5, 1, 2, 4].map((rate) => <option key={rate} value={rate}>{rate}x</option>)}
+        </select>
+        <span className="flight-trajectory-replay-status" aria-live="polite">{playing ? "Playing trace" : "Replay paused"}</span>
       </div>
       <div className="flight-trajectory-legend" aria-label="Flight path legend">
         {series.map((entry, index) => <span key={entry.id}><i style={{ background: entry.color ?? SERIES_COLORS[index % SERIES_COLORS.length] }} />{entry.label}</span>)}

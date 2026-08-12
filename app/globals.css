@@ -789,6 +789,14 @@ kbd {
 .flight-trajectory-controls button { min-width: 24px; min-height: 23px; padding: 2px 5px; border: 1px solid rgba(117,153,180,.22); border-radius: 2px; background: rgba(117,153,180,.06); color: #a9c9d9; cursor: pointer; font: 650 9px var(--font-geist-mono),monospace; }
 .flight-trajectory-controls button:hover, .flight-trajectory-controls button:focus-visible { border-color: rgba(47,159,255,.55); color: #e7f6ff; }
 .flight-trajectory-controls span { min-width: 34px; color: #78909f; font: 8px var(--font-geist-mono),monospace; text-align: center; }
+.flight-trajectory-replay { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 7px; padding: 6px 8px; border: 1px solid rgba(117,153,180,.14); border-radius: 2px; background: rgba(117,153,180,.035); color: #87a0ad; font: 8px var(--font-geist-mono),monospace; }
+.flight-trajectory-replay-toggle { min-width: 58px; min-height: 25px; padding: 3px 9px; border: 1px solid rgba(47,159,255,.45); border-radius: 2px; background: rgba(47,159,255,.12); color: #d9efff; cursor: pointer; font: 700 8px var(--font-geist-mono),monospace; letter-spacing: .05em; text-transform: uppercase; }
+.flight-trajectory-replay-toggle:hover, .flight-trajectory-replay-toggle:focus-visible { border-color: rgba(115,197,255,.82); background: rgba(47,159,255,.2); outline: none; }
+.flight-trajectory-replay-toggle:disabled { cursor: not-allowed; opacity: .45; }
+.flight-trajectory-replay label { margin-left: 4px; color: #78909f; text-transform: uppercase; letter-spacing: .05em; }
+.flight-trajectory-replay select { min-height: 25px; padding: 2px 5px; border: 1px solid rgba(117,153,180,.28); border-radius: 2px; background: #0b141b; color: #c9e4f0; font: 8px var(--font-geist-mono),monospace; }
+.flight-trajectory-replay select:focus-visible { outline: 2px solid #73c5ff; outline-offset: 2px; }
+.flight-trajectory-replay-status { margin-left: auto; color: #80d3ae; }
 .flight-trajectory-legend { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 7px; color: #78909f; font: 8px var(--font-geist-mono),monospace; }
 .flight-trajectory-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .flight-trajectory-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
@@ -2000,6 +2008,7 @@ kbd {
   .flight-trajectory-heading { flex-direction: column; }
   .flight-trajectory-heading-meta { align-items: flex-start; text-align: left; }
   .flight-trajectory-canvas { height: 250px; }
+  .flight-trajectory-replay-status { width: 100%; margin-left: 0; }
   .flight-trajectory-scrubber { grid-template-columns: 1fr; align-items: stretch; }
   .flight-trajectory-scrubber output { text-align: left; }
   .stage-structural-review-heading { flex-direction: column; }
