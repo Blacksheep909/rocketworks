@@ -771,6 +771,36 @@ kbd {
 .profile-key-line { display: inline-block; width: 18px; height: 2px; border-radius: 2px; }
 .profile-key-event { display: inline-block; width: 7px; height: 7px; border: 1px solid #ff7043; border-radius: 50%; }
 .stage-flight-profile-empty { margin-top: 12px; padding: 10px; border: 1px dashed rgba(117,153,180,.22); color: #8fa4b1; font-size: 9px; }
+.flight-trajectory-viewport {
+  margin-top: 12px; padding: 12px; border: 1px solid rgba(47,159,255,.22);
+  border-radius: 3px; background: linear-gradient(135deg, rgba(47,159,255,.06), rgba(5,9,13,.78) 62%);
+}
+.flight-trajectory-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.flight-trajectory-heading h4 { margin-top: 4px; color: #dcebf2; font-size: 11px; letter-spacing: .02em; }
+.flight-trajectory-heading p { max-width: 650px; margin-top: 4px; color: #748b99; font-size: 8px; line-height: 1.45; }
+.flight-trajectory-heading-meta { display: flex; flex: 0 0 auto; flex-direction: column; gap: 4px; align-items: flex-end; color: #78909f; font: 8px var(--font-geist-mono),monospace; text-align: right; }
+.flight-trajectory-heading-meta span { color: #80d3ae; text-transform: uppercase; letter-spacing: .08em; }
+.flight-trajectory-heading-meta strong { color: #a6bfd0; font-size: 7px; font-weight: 500; }
+.flight-trajectory-canvas-wrap { position: relative; margin-top: 9px; overflow: hidden; border: 1px solid rgba(117,153,180,.18); border-radius: 3px; background: #070d12; }
+.flight-trajectory-canvas { display: block; width: 100%; height: 300px; touch-action: none; cursor: grab; }
+.flight-trajectory-canvas:active { cursor: grabbing; }
+.flight-trajectory-canvas:focus-visible { outline: 2px solid #73c5ff; outline-offset: -2px; }
+.flight-trajectory-controls { position: absolute; right: 8px; bottom: 8px; display: flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid rgba(117,153,180,.22); border-radius: 3px; background: rgba(7,13,18,.9); }
+.flight-trajectory-controls button { min-width: 24px; min-height: 23px; padding: 2px 5px; border: 1px solid rgba(117,153,180,.22); border-radius: 2px; background: rgba(117,153,180,.06); color: #a9c9d9; cursor: pointer; font: 650 9px var(--font-geist-mono),monospace; }
+.flight-trajectory-controls button:hover, .flight-trajectory-controls button:focus-visible { border-color: rgba(47,159,255,.55); color: #e7f6ff; }
+.flight-trajectory-controls span { min-width: 34px; color: #78909f; font: 8px var(--font-geist-mono),monospace; text-align: center; }
+.flight-trajectory-legend { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 7px; color: #78909f; font: 8px var(--font-geist-mono),monospace; }
+.flight-trajectory-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.flight-trajectory-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
+.flight-trajectory-legend i.event { width: 7px; height: 7px; border: 1px solid #ff7043; border-radius: 50%; background: transparent; }
+.flight-trajectory-scrubber { display: grid; grid-template-columns: auto minmax(120px,1fr) minmax(100px,auto); align-items: center; gap: 9px; margin-top: 8px; padding: 7px 8px; border: 1px solid rgba(117,153,180,.14); border-radius: 2px; background: rgba(117,153,180,.035); }
+.flight-trajectory-scrubber label { color: #87a0ad; font: 650 8px var(--font-geist-mono),monospace; letter-spacing: .04em; text-transform: uppercase; }
+.flight-trajectory-scrubber input[type="range"] { width: 100%; min-width: 0; accent-color: var(--accent); cursor: ew-resize; }
+.flight-trajectory-scrubber input[type="range"]:focus-visible { outline: 2px solid #73c5ff; outline-offset: 3px; }
+.flight-trajectory-scrubber output { color: #b8d4df; font: 8px var(--font-geist-mono),monospace; text-align: right; }
+.flight-trajectory-readout { margin-top: 7px; color: #9ab1bf; font: 8px/1.45 var(--font-geist-mono),monospace; }
+.flight-trajectory-readout strong { color: #e1f2fa; }
+.flight-trajectory-disclaimer { margin-top: 7px; color: #748a97; font-size: 7px; line-height: 1.45; }
 .recovery-provenance { margin: -1px 0 8px; color: #8c7461; font: 8px/1.45 var(--font-geist-mono), monospace; }
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -1967,6 +1997,11 @@ kbd {
   .stage-flight-profile-scrubber { grid-template-columns: 1fr; align-items: stretch; }
   .stage-flight-profile-scrubber output { text-align: left; }
   .stage-flight-profile-footer { align-items: flex-start; flex-direction: column; }
+  .flight-trajectory-heading { flex-direction: column; }
+  .flight-trajectory-heading-meta { align-items: flex-start; text-align: left; }
+  .flight-trajectory-canvas { height: 250px; }
+  .flight-trajectory-scrubber { grid-template-columns: 1fr; align-items: stretch; }
+  .flight-trajectory-scrubber output { text-align: left; }
   .stage-structural-review-heading { flex-direction: column; }
   .stage-structural-review-heading small { text-align: left; }
   .stage-structural-review-row { grid-template-columns: 17px minmax(0, 1fr); }

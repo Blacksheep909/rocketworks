@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an original world-frame flight-path view to the staged Flight workspace.
+  Retained and released-body traces can be orbited, zoomed, and scrubbed with
+  the existing event timeline; rail and staging markers remain nearest-sample
+  display annotations, and the projection does not add force, contact,
+  collision, range-safety, or flight-validation claims.
 - Add bounded launch-rail guide-loss and rail-exit tip-off inputs. The coupled
   release now applies an authored effective axial friction acceleration and
   body-frame pitch/yaw angular rate, exposes guide-loss telemetry, carries both

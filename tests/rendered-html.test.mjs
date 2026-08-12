@@ -334,6 +334,14 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
     new URL("../app/globals.css", import.meta.url),
     "utf8",
   );
+  const trajectoryViewport = await readFile(
+    new URL("../app/flight-trajectory-viewport.tsx", import.meta.url),
+    "utf8",
+  );
+  const trajectoryProjection = await readFile(
+    new URL("../lib/visualization/flight-trajectory.ts", import.meta.url),
+    "utf8",
+  );
   assert.match(source, /simulateSeparatedBodyFlight/);
   assert.match(source, /createRecoverySystemModel/);
   assert.match(source, /recoveryDevices/);
@@ -349,6 +357,12 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
   assert.match(source, /separationEnvelope/);
   assert.match(source, /simulateCoupledMultiBodyFlight/);
   assert.match(source, /coupledMultiBodyFlight/);
+  assert.match(pageSource, /FlightTrajectoryViewport/);
+  assert.match(pageSource, /stageFlightTrajectorySeries/);
+  assert.match(trajectoryViewport, /Interactive flight path/);
+  assert.match(trajectoryViewport, /onSelectionChange/);
+  assert.match(trajectoryProjection, /display-projection-only/);
+  assert.match(trajectoryProjection, /projectFlightTrajectory/);
   assert.match(pageSource, /rigidBodyCount/);
   assert.match(pageSource, /quaternion\/inertia state/);
   assert.match(pageSource, /Coupled integrator/);
@@ -361,6 +375,8 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
   assert.match(stylesheet, /\.stage-multi-body-separation/);
   assert.match(stylesheet, /\.stage-coupled-multi-body-flight/);
   assert.match(stylesheet, /\.stage-separation-envelope/);
+  assert.match(stylesheet, /\.flight-trajectory-viewport/);
+  assert.match(stylesheet, /\.flight-trajectory-canvas/);
 });
 
 test("routes browser mass properties through the hierarchical assembly graph", async () => {

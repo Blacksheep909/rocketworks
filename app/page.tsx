@@ -5,6 +5,7 @@ import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { LandingFootprintChart } from "./landing-footprint-chart.tsx";
 import { Rocket3DViewport } from "./rocket-3d-viewport.tsx";
+import { FlightTrajectoryViewport } from "./flight-trajectory-viewport.tsx";
 import type { RocketPreviewComponentInstance } from "../lib/visualization/rocket-preview-3d.ts";
 import {
   createEngineeringReportMarkdown,
@@ -4201,6 +4202,23 @@ export default function Home() {
       referenceAreaM2: Math.PI * (recoveryDiameter / 2) ** 2,
     });
   }, [recoveryDelay, recoveryDiameter, recoveryEnabled, recoveryInflationTime, stageFlightIsCurrent, stageFlightResult, stageRecoveryCommandEvent]);
+  const stageFlightTrajectorySeries = useMemo(() => {
+    if (!stageFlightResult) return [];
+    const retainedTrace = stageFlightResult.rail?.trace ?? stageFlightResult.simulation?.trace ?? [];
+    const series = retainedTrace.length > 0
+      ? [{ id: "retained-vehicle", label: "Retained vehicle", trace: retainedTrace, color: "#2f9fff" }]
+      : [];
+    const released = stageFlightResult.coupledMultiBodyFlight?.trajectories ?? [];
+    return [
+      ...series,
+      ...released.map((trajectory, index) => ({
+        id: trajectory.id,
+        label: trajectory.label,
+        trace: trajectory.trace,
+        color: ["#ff7043", "#b58cff", "#45d6b0", "#e9c46a"][index % 4],
+      })),
+    ];
+  }, [stageFlightResult]);
   const flightDataComparisonState = useMemo<{ comparison: FlightDataComparisonResult | null; error: string }>(() => {
     if (!flightDataSeries) return { comparison: null, error: "" };
     if (flightDataTraceSource === "coupled-6dof") {
@@ -7755,6 +7773,17 @@ export default function Home() {
                       </section>
                     )}
                     <StageFlightProfileChart result={stageFlightResult} selectedTimeS={selectedStageEventTimeS} onSelectionChange={setSelectedStageEventTimeS} copy={uiCopy} />
+                    <FlightTrajectoryViewport
+                      series={stageFlightTrajectorySeries}
+                      events={stageFlightResult.events.map((event) => ({
+                        id: event.id,
+                        label: event.label,
+                        timeS: event.timeS,
+                        kind: event.kind,
+                      }))}
+                      selectedTimeS={selectedStageEventTimeS}
+                      onSelectionChange={setSelectedStageEventTimeS}
+                    />
                     {activeStageCount === 1 && (
                       <section className="stage-flight-comparison" aria-labelledby="stage-flight-comparison-title">
                         <div className="stage-flight-comparison-heading">
