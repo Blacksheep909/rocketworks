@@ -437,6 +437,11 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
       label: "Direct moment coefficients",
       distribution: { kind: "uniform", minimum: 0.95, maximum: 1.05 },
     },
+    {
+      key: "coefficientUncertaintyScale",
+      label: "Aero table uncertainty",
+      distribution: { kind: "uniform", minimum: -1, maximum: 1 },
+    },
   ];
   const first = analyzeStageFlightUncertainty({
     baseInput,
@@ -451,7 +456,7 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
     sampleCount: 6,
   });
 
-  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-0.6.0");
+  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-0.7.0");
   assert.equal(first.requestedSampleCount, 6);
   assert.equal(first.successfulSampleCount, 6);
   assert.deepEqual(first.samples, second.samples);
@@ -466,6 +471,7 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
     dragCoefficientScale: 1.2,
     directForceCoefficientScale: 1.1,
     directMomentCoefficientScale: 0.9,
+    coefficientUncertaintyScale: 1.25,
     windScale: 1.1,
   });
   assert.equal(variant.stages[0].structuralMassProperties.massKg, 0.55);
@@ -474,6 +480,8 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
   assert.equal(variant.dragCoefficientScale, 1.2);
   assert.equal(variant.directForceCoefficientScale, 1.1);
   assert.equal(variant.directMomentCoefficientScale, 0.9);
+  assert.equal(variant.coefficientUncertaintyScale, 1.25);
+  assert.ok(variant.additionalWarnings.some((warning) => warning.includes("common signed sigma")));
 
   const perMotorVariant = createStageFlightVariant(baseInput, {
     thrustScale: 1.05,

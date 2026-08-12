@@ -11,7 +11,12 @@ import type {
   AerodynamicCoefficientEvaluation,
   AerodynamicCoefficientTableModel,
 } from "./aerodynamic-coefficients.ts";
-import { scaleVector, type Vector3 } from "./linear-algebra.ts";
+import {
+  ZERO_VECTOR,
+  addVectors,
+  scaleVector,
+  type Vector3,
+} from "./linear-algebra.ts";
 import {
   computeStaticStability,
   type StaticStabilityResult,
@@ -21,7 +26,7 @@ import type { RigidBodyState } from "./six-dof.ts";
 import type { VehicleComponent } from "./vehicle-components.ts";
 
 export const STAGE_AWARE_AERODYNAMICS_MODEL_VERSION =
-  "kestrel-stage-aware-aero-0.2.0";
+  "kestrel-stage-aware-aero-0.3.0";
 
 export type StageAerodynamicRegime = Readonly<{
   id: string;
@@ -67,6 +72,7 @@ export type StageAwareAerodynamicEvaluation = Readonly<{
   coefficientEvaluation: AerodynamicCoefficientEvaluation | null;
   forceCoefficientBody: Vector3 | null;
   momentCoefficientBody: Vector3 | null;
+  dampingDerivativeBody: Vector3 | null;
   momentReferenceLengthBodyM: Vector3 | null;
   staticStability: StaticStabilityResult;
   centerOfPressureMinusCenterOfMassM: number;
@@ -143,6 +149,42 @@ function assertPositive(value: number, label: string): void {
   }
 }
 
+function applyCoefficientUncertainty(
+  nominal: number,
+  absoluteUncertainty: number,
+  sigma: number,
+  label: string,
+  requirePositive: boolean,
+): number {
+  const value = nominal + sigma * absoluteUncertainty;
+  if (
+    !Number.isFinite(value) ||
+    (requirePositive && value <= 0)
+  ) {
+    throw new Error(
+      `${label} became non-physical after coefficient uncertainty perturbation`,
+    );
+  }
+  return value;
+}
+
+function perturbCoefficientVector(
+  nominal: Vector3 | null,
+  absoluteUncertainty: Vector3 | null,
+  sigma: number,
+  label: string,
+): Vector3 | null {
+  if (!nominal) return null;
+  const perturbation = absoluteUncertainty ?? ZERO_VECTOR;
+  const value = addVectors(nominal, scaleVector(perturbation, sigma));
+  if (![value.x, value.y, value.z].every(Number.isFinite)) {
+    throw new Error(
+      `${label} became non-physical after coefficient uncertainty perturbation`,
+    );
+  }
+  return value;
+}
+
 function topologyKey(stageIds: readonly string[]): string {
   return [...stageIds].sort().join("|");
 }
@@ -159,6 +201,8 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
   directForceCoefficientScale?: number;
   /** Multiplicative scale applied to direct body-axis static moment coefficients. */
   directMomentCoefficientScale?: number;
+  /** Signed common-sigma multiplier applied to declared absolute table uncertainties. */
+  coefficientUncertaintyScale?: number;
 }>): StageAwareAerodynamicsModel {
   if (input.components.length === 0) {
     throw new Error("stage-aware aerodynamics requires vehicle components");
@@ -213,6 +257,10 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
   const directMomentCoefficientScale = input.directMomentCoefficientScale ?? 1;
   if (!Number.isFinite(directMomentCoefficientScale) || directMomentCoefficientScale <= 0) {
     throw new Error("direct moment coefficient scale must be positive and finite");
+  }
+  const coefficientUncertaintyScale = input.coefficientUncertaintyScale ?? 0;
+  if (!Number.isFinite(coefficientUncertaintyScale)) {
+    throw new Error("coefficient uncertainty scale must be finite");
   }
 
   const regimes = input.regimes.map((regime) => {
@@ -325,6 +373,9 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
   if (new Set(regimes.map((regime) => regime.id)).size !== regimes.length) {
     throw new Error("aerodynamic regime identifiers must be unique");
   }
+  const anyCoefficientUncertaintyAvailable = regimes.some((regime) =>
+    Boolean(regime.coefficientTable?.uncertaintyAvailable),
+  );
   const regimeByTopology = new Map<string, (typeof regimes)[number]>();
   for (const regime of regimes) {
     const key = topologyKey(regime.activeStageIds);
@@ -387,25 +438,72 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
         : null;
     const nominalDragCoefficient =
       coefficientEvaluation?.dragCoefficient ?? regime.dragCoefficient!;
-    const dragCoefficient = nominalDragCoefficient * dragCoefficientScale;
-    const normalForceSlopePerRad =
+    const coefficientUncertainty = coefficientEvaluation?.uncertainty ?? {
+      dragCoefficient: 0,
+      normalForceSlopePerRad: 0,
+      centerOfPressureXM: 0,
+      forceCoefficientBody: null,
+      momentCoefficientBody: null,
+      dampingDerivativeBody: null,
+    };
+    const tableDragCoefficient = coefficientEvaluation
+      ? applyCoefficientUncertainty(
+          nominalDragCoefficient,
+          coefficientUncertainty.dragCoefficient,
+          coefficientUncertaintyScale,
+          "drag coefficient",
+          true,
+        )
+      : nominalDragCoefficient;
+    const nominalNormalForceSlopePerRad =
       coefficientEvaluation?.normalForceSlopePerRad ??
       staticStability.normalForceSlopePerRad;
-    const centerOfPressureXM =
+    const normalForceSlopePerRad = coefficientEvaluation
+      ? applyCoefficientUncertainty(
+          nominalNormalForceSlopePerRad,
+          coefficientUncertainty.normalForceSlopePerRad,
+          coefficientUncertaintyScale,
+          "normal-force slope",
+          true,
+        )
+      : nominalNormalForceSlopePerRad;
+    const nominalCenterOfPressureXM =
       coefficientEvaluation?.centerOfPressureXM ??
       staticStability.centerOfPressureXM;
-    const forceCoefficientBody = coefficientEvaluation?.forceCoefficientBody
-      ? scaleVector(
-          coefficientEvaluation.forceCoefficientBody,
-          directForceCoefficientScale,
+    const centerOfPressureXM = coefficientEvaluation
+      ? applyCoefficientUncertainty(
+          nominalCenterOfPressureXM,
+          coefficientUncertainty.centerOfPressureXM,
+          coefficientUncertaintyScale,
+          "center of pressure",
+          false,
         )
+      : nominalCenterOfPressureXM;
+    const dragCoefficient = tableDragCoefficient * dragCoefficientScale;
+    const perturbedForceCoefficientBody = perturbCoefficientVector(
+      coefficientEvaluation?.forceCoefficientBody ?? null,
+        coefficientUncertainty.forceCoefficientBody,
+      coefficientUncertaintyScale,
+      "direct force coefficient",
+    );
+    const forceCoefficientBody = perturbedForceCoefficientBody
+      ? scaleVector(perturbedForceCoefficientBody, directForceCoefficientScale)
       : null;
-    const momentCoefficientBody = coefficientEvaluation?.momentCoefficientBody
-      ? scaleVector(
-          coefficientEvaluation.momentCoefficientBody,
-          directMomentCoefficientScale,
-        )
+    const perturbedMomentCoefficientBody = perturbCoefficientVector(
+      coefficientEvaluation?.momentCoefficientBody ?? null,
+      coefficientUncertainty.momentCoefficientBody,
+      coefficientUncertaintyScale,
+      "direct moment coefficient",
+    );
+    const momentCoefficientBody = perturbedMomentCoefficientBody
+      ? scaleVector(perturbedMomentCoefficientBody, directMomentCoefficientScale)
       : null;
+    const dampingDerivativeBody = perturbCoefficientVector(
+      coefficientEvaluation?.dampingDerivativeBody ?? null,
+      coefficientUncertainty.dampingDerivativeBody,
+      coefficientUncertaintyScale,
+      "damping derivative",
+    );
     const staticMarginCalibers =
       (centerOfPressureXM - staticStability.centerOfMassXM) /
       staticStability.referenceDiameterM;
@@ -457,6 +555,7 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       coefficientEvaluation,
       forceCoefficientBody,
       momentCoefficientBody,
+      dampingDerivativeBody,
       momentReferenceLengthBodyM: momentCoefficientBody
         ? regime.momentReferenceLengthBodyM ?? {
             x: staticStability.referenceDiameterM,
@@ -502,9 +601,9 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
         : "constant",
       reynoldsNumber: result.reynoldsNumber ?? undefined,
       dampingDerivativeBody:
-        result.coefficientEvaluation?.dampingDerivativeBody ?? undefined,
+        result.dampingDerivativeBody ?? undefined,
       dampingReferenceLengthBodyM:
-        result.coefficientEvaluation?.dampingDerivativeBody
+        result.dampingDerivativeBody
           ? regime.dampingReferenceLengthBodyM ?? {
               x: result.staticStability.referenceDiameterM,
               y: regime.referenceLengthM ?? result.staticStability.vehicleLengthM,
@@ -544,6 +643,11 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       ...(directMomentCoefficientScale === 1
         ? []
         : [`A multiplicative direct-moment coefficient scale of ${directMomentCoefficientScale} is applied after the selected moment database; damping derivatives remain nominal.`]),
+      ...(coefficientUncertaintyScale === 0
+        ? []
+        : [
+            `A common signed coefficient-uncertainty sigma of ${coefficientUncertaintyScale} is applied to declared absolute table cells; empirical per-coefficient covariance and time correlation are not modeled.`,
+          ]),
     ],
     warnings: [
       "This topology adapter has analytical component checks only and is not flight-safety validated.",
@@ -551,6 +655,11 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       "The static aerodynamic method remains low-speed, small-angle, slender-body preliminary analysis.",
       "Lateral booster interference, asymmetric crossflow, and radial fin-to-fin flow are not modeled.",
       "Proximity flow, plume interaction, and multi-body aerodynamics are explicitly unsupported around separation.",
+      ...(coefficientUncertaintyScale !== 0 && !anyCoefficientUncertaintyAvailable
+        ? [
+            "A coefficient-uncertainty sigma was supplied, but no selected aerodynamic table declares absolute uncertainty cells; the factor has no effect.",
+          ]
+        : []),
     ],
   };
 }

@@ -132,9 +132,11 @@ research, standards, and original code.
   outside the model;
 - seeded coupled 6DOF uncertainty envelopes that propagate bounded mass,
   propellant, global and per-motor thrust, drag, recovery-area,
-  deployment-outcome, and wind assumptions through stage events and launch-rail
+  deployment-outcome, wind, and declared aerodynamic-table absolute-uncertainty
+  assumptions through stage events and launch-rail
   handoff, plus sampled ignition-delay, separation-impulse, and
-  launch-alignment factors, with recovery-load percentile telemetry;
+  launch-alignment factors, with recovery-load percentile telemetry and an
+  explicit common-sigma correlation boundary;
 - optional Gaussian-copula correlation pairs for uncertainty propagation,
   validated as positive-definite while preserving each declared marginal;
 - a persisted Dependence model editor that carries correlation assumptions

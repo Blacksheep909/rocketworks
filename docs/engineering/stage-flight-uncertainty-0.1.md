@@ -6,7 +6,7 @@ rigid-body models. It does not import or reuse an external rocket simulator.
 
 ## Contract
 
-- Adapter version: `kestrel-stage-flight-uncertainty-0.6.0`
+- Adapter version: `kestrel-stage-flight-uncertainty-0.7.0`
 - Sampling: seeded Latin hypercube through the shared uncertainty model
   (`kestrel-uncertainty-0.4.0`)
 - Default browser ensemble: 16 samples, retained as individual input/output or
@@ -37,6 +37,14 @@ events with the event factors. Motor-local ignition delays and
 ignition-after-burnout triggers receive the sampled delay offset; annotated
 separation events receive the sampled impulse scale; the initial body attitude
 receives a body-`+Y` pitch perturbation for alignment uncertainty.
+
+When any selected aerodynamic table declares absolute uncertainty cells, the
+browser adds `coefficientUncertaintyScale` as a bounded normal factor (−2 to
++2 sigma). It applies one common signed sigma to the interpolated drag,
+normal-force slope, center-of-pressure, direct force/moment, and damping
+uncertainties. This makes the declared cell uncertainty actionable without
+inventing per-coefficient covariance or time correlation; the sample remains a
+visible failure if a positive-only coefficient becomes non-physical.
 
 Per-motor factors are keyed by the exact motor identifier. Repeated physical
 copies with distinct identifiers can vary independently; copies that share an
@@ -75,16 +83,18 @@ Failed samples remain visible and are excluded from percentile calculations.
 
 `StageFlightPreviewInput.dragCoefficientScale` applies after the selected
 constant or Mach--Reynolds table source is evaluated. It scales drag only;
-normal-force slope, centre of pressure, damping, and coefficient uncertainty
-remain nominal. This is an explicit input-dispersion assumption, not a claim
-that all aerodynamic coefficients share one correlated error.
+normal-force slope, centre of pressure, damping, and table uncertainty remain
+nominal. This is an explicit input-dispersion assumption, not a claim that all
+aerodynamic coefficients share one correlated error.
 
 `directForceCoefficientScale` and `directMomentCoefficientScale` apply after
 the selected angular force/moment volumes are evaluated. They multiply the
 body-axis `q S C_F` and `q S C_M l` resultants independently; static relation
 fallbacks, damping derivatives, and source uncertainty surfaces remain
 nominal. The separate factors avoid implying that drag, transverse force, and
-static moments share one error source.
+static moments share one error source. The separate
+`coefficientUncertaintyScale` factor is the only path that perturbs declared
+absolute table cells, and it intentionally uses one common signed sigma.
 
 ## Interpretation and limits
 

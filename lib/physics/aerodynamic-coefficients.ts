@@ -136,6 +136,8 @@ export type AerodynamicCoefficientTableModel = Readonly<{
   angleOfAttackRangeRad: readonly [number, number] | null;
   sideslipRangeRad: readonly [number, number] | null;
   forceMomentDatabaseAvailable: boolean;
+  /** True when at least one declared coefficient surface or volume has absolute uncertainty cells. */
+  uncertaintyAvailable: boolean;
   provenance: AerodynamicDataProvenance;
   evaluate: (input: Readonly<{
     mach: number;
@@ -300,6 +302,12 @@ function validateVolume(
       throw new Error(`${label} uncertainty volume contains an invalid value`);
     }
   }
+}
+
+function hasAbsoluteUncertainty(
+  surface: CoefficientSurface | CoefficientVolume | undefined,
+): boolean {
+  return surface?.absoluteUncertainty !== undefined;
 }
 
 function validateProvenance(provenance: AerodynamicDataProvenance): void {
@@ -562,6 +570,26 @@ export function createAerodynamicCoefficientTable(
   const hasForceMomentDatabase =
     definition.forceCoefficientBodyByAngle !== undefined ||
     definition.momentCoefficientBodyByAngle !== undefined;
+  const uncertaintyAvailable = [
+    definition.dragCoefficient,
+    definition.normalForceSlopePerRad,
+    definition.centerOfPressureXM,
+    definition.dragCoefficientByAngle,
+    definition.normalForceSlopePerRadByAngle,
+    definition.centerOfPressureXMByAngle,
+    definition.dampingDerivativeBody?.roll,
+    definition.dampingDerivativeBody?.pitch,
+    definition.dampingDerivativeBody?.yaw,
+    definition.dampingDerivativeBodyByAngle?.roll,
+    definition.dampingDerivativeBodyByAngle?.pitch,
+    definition.dampingDerivativeBodyByAngle?.yaw,
+    definition.forceCoefficientBodyByAngle?.axial,
+    definition.forceCoefficientBodyByAngle?.normal,
+    definition.forceCoefficientBodyByAngle?.side,
+    definition.momentCoefficientBodyByAngle?.roll,
+    definition.momentCoefficientBodyByAngle?.pitch,
+    definition.momentCoefficientBodyByAngle?.yaw,
+  ].some((surface) => hasAbsoluteUncertainty(surface));
   const modelVersion = hasForceMomentDatabase
     ? AERODYNAMIC_FORCE_MOMENT_TABLE_MODEL_VERSION
     : hasAngularCoefficientVolume
@@ -877,6 +905,7 @@ export function createAerodynamicCoefficientTable(
       ? [definition.sideslipPointsRad![0], definition.sideslipPointsRad!.at(-1)!]
       : null,
     forceMomentDatabaseAvailable: hasForceMomentDatabase,
+    uncertaintyAvailable,
     provenance: definition.provenance,
     evaluate,
     assumptions: [

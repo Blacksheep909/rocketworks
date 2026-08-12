@@ -390,7 +390,7 @@ test("tabulated topology provider exposes Mach, Reynolds, provenance, and uncert
   close(result.diagnostics.normalForceSlopePerRad, 3, 1e-15, "tabulated CNa");
   close(result.diagnostics.centerOfPressureXM, 0.75, 1e-15, "tabulated CP");
   assert.equal(result.diagnostics.coefficientProvenance.sourceName, provenance.sourceName);
-  assert.equal(result.diagnostics.aerodynamicModelVersion, "kestrel-stage-aware-aero-0.2.0");
+  assert.equal(result.diagnostics.aerodynamicModelVersion, "kestrel-stage-aware-aero-0.3.0");
   assert.deepEqual(staging.stageIds, ["sustainer"]);
   assert.ok(
     !result.diagnostics.applicability.some(

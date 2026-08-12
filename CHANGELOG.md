@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Propagate declared aerodynamic-table absolute uncertainty through staged
+  dispersion with a bounded common signed-sigma factor. Drag, normal-force,
+  CP, direct force/moment, and damping cells now participate explicitly while
+  covariance and time correlation remain out of scope.
 - Add independent per-motor thrust-scale factors to staged uncertainty runs.
   The browser derives one bounded factor per declared motor identifier, so
   clustered stages can expose deterministic thrust spread and net-force/moment

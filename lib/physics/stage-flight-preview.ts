@@ -113,6 +113,8 @@ export type StageFlightPreviewInput = Readonly<{
   directForceCoefficientScale?: number;
   /** Multiplicative uncertainty applied to direct body-axis static moment coefficients. */
   directMomentCoefficientScale?: number;
+  /** Signed common-sigma multiplier applied to declared absolute aero-table uncertainties. */
+  coefficientUncertaintyScale?: number;
   alwaysActiveGeometryStageIds?: readonly string[];
   separationTransitionWindowS?: number;
   initialState?: Partial<Pick<
@@ -666,6 +668,7 @@ export function simulateStageFlightPreview(
     dragCoefficientScale: input.dragCoefficientScale,
     directForceCoefficientScale: input.directForceCoefficientScale,
     directMomentCoefficientScale: input.directMomentCoefficientScale,
+    coefficientUncertaintyScale: input.coefficientUncertaintyScale,
   });
   const loads = createPreliminaryRocketLoadModel({
     body: staging.body,

@@ -40,11 +40,22 @@ function coefficientTable(id, drag = 0.5) {
   });
 }
 
-function directVolume(value) {
-  return { values: [[[[value, value], [value, value]]]] };
+function directVolume(value, uncertainty) {
+  return {
+    values: [[[[value, value], [value, value]]]],
+    ...(uncertainty === undefined
+      ? {}
+      : { absoluteUncertainty: [[[[uncertainty, uncertainty], [uncertainty, uncertainty]]]] }),
+  };
 }
 
-function directCoefficientTable(id = "direct-table") {
+function directCoefficientTable(id = "direct-table", includeUncertainty = false) {
+  const surface = (value, uncertainty) => ({
+    values: [[value, value], [value, value]],
+    ...(includeUncertainty
+      ? { absoluteUncertainty: [[uncertainty, uncertainty], [uncertainty, uncertainty]] }
+      : {}),
+  });
   return createAerodynamicCoefficientTable({
     id,
     name: id,
@@ -52,19 +63,28 @@ function directCoefficientTable(id = "direct-table") {
     reynoldsPoints: [1e5, 1e6],
     angleOfAttackPointsRad: [0],
     sideslipPointsRad: [0],
-    dragCoefficient: { values: [[0.5, 0.5], [0.5, 0.5]] },
-    normalForceSlopePerRad: { values: [[4, 4], [4, 4]] },
-    centerOfPressureXM: { values: [[0.5, 0.5], [0.5, 0.5]] },
+    dragCoefficient: surface(0.5, 0.1),
+    normalForceSlopePerRad: surface(4, 0.5),
+    centerOfPressureXM: surface(0.5, 0.02),
     forceCoefficientBodyByAngle: {
-      axial: directVolume(1),
-      normal: directVolume(-0.2),
-      side: directVolume(0.1),
+      axial: directVolume(1, includeUncertainty ? 0.2 : undefined),
+      normal: directVolume(-0.2, includeUncertainty ? 0.05 : undefined),
+      side: directVolume(0.1, includeUncertainty ? 0.01 : undefined),
     },
     momentCoefficientBodyByAngle: {
-      roll: directVolume(0.01),
-      pitch: directVolume(-0.02),
-      yaw: directVolume(0.03),
+      roll: directVolume(0.01, includeUncertainty ? 0.01 : undefined),
+      pitch: directVolume(-0.02, includeUncertainty ? 0.02 : undefined),
+      yaw: directVolume(0.03, includeUncertainty ? 0.03 : undefined),
     },
+    ...(includeUncertainty
+      ? {
+          dampingDerivativeBody: {
+            roll: surface(-0.1, 0.01),
+            pitch: surface(-0.2, 0.02),
+            yaw: surface(-0.3, 0.03),
+          },
+        }
+      : {}),
     provenance: {
       sourceName: "Direct force/moment fixture",
       sourceKind: "user-supplied",
@@ -321,6 +341,53 @@ test("direct force and moment scales apply after topology table evaluation", () 
   assert.deepEqual(scaledResult.momentCoefficientBody, { x: 0.02, y: -0.04, z: 0.06 });
   assert.match(scaled.assumptions.join(" "), /direct-force coefficient scale/);
   assert.match(scaled.assumptions.join(" "), /direct-moment coefficient scale/);
+});
+
+test("common signed sigma propagates declared coefficient-table uncertainty", () => {
+  const table = directCoefficientTable("uncertain-direct-table", true);
+  assert.equal(table.uncertaintyAvailable, true);
+  const makeModel = (coefficientUncertaintyScale) =>
+    aeroModel({
+      coefficientUncertaintyScale,
+      regimes: [
+        {
+          id: "full-stack",
+          label: "Full launch stack",
+          activeStageIds: ["booster", "upper"],
+          coefficientTable: table,
+          coefficientTableDesignPoint: { mach: 0.5, reynoldsNumber: 3e5 },
+        },
+        {
+          id: "upper-only",
+          label: "Upper stage",
+          activeStageIds: ["upper"],
+          coefficientTable: table,
+          coefficientTableDesignPoint: { mach: 0.5, reynoldsNumber: 3e5 },
+        },
+      ],
+    });
+  const nominal = makeModel(0).evaluate(fullStackState());
+  const plusModel = makeModel(1);
+  const minusModel = makeModel(-1);
+  const plus = plusModel.evaluate(fullStackState());
+  const minus = minusModel.evaluate(fullStackState());
+  close(nominal.dragCoefficient, 0.5, 1e-12, "nominal drag");
+  close(plus.dragCoefficient, 0.6, 1e-12, "plus drag");
+  close(minus.dragCoefficient, 0.4, 1e-12, "minus drag");
+  close(plus.normalForceSlopePerRad, 4.5, 1e-12, "plus normal-force slope");
+  close(minus.normalForceSlopePerRad, 3.5, 1e-12, "minus normal-force slope");
+  close(plus.centerOfPressureXM, 0.52, 1e-12, "plus center of pressure");
+  close(minus.centerOfPressureXM, 0.48, 1e-12, "minus center of pressure");
+  assert.deepEqual(plus.forceCoefficientBody, { x: 1.2, y: -0.15000000000000002, z: 0.11 });
+  assert.deepEqual(plus.momentCoefficientBody, { x: 0.02, y: 0, z: 0.06 });
+  close(plus.dampingDerivativeBody.x, -0.09, 1e-12, "plus roll damping");
+  close(plus.dampingDerivativeBody.y, -0.18, 1e-12, "plus pitch damping");
+  close(plus.dampingDerivativeBody.z, -0.27, 1e-12, "plus yaw damping");
+  assert.match(plusModel.assumptions.join(" "), /common signed coefficient-uncertainty sigma/);
+  assert.throws(
+    () => makeModel(-10).evaluate(fullStackState()),
+    /drag coefficient became non-physical/,
+  );
 });
 
 test("separation neighborhood is explicitly outside topology-model applicability", () => {

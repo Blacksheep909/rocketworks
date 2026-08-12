@@ -35,7 +35,7 @@ import {
 } from "./stage-flight-preview.ts";
 
 export const STAGE_FLIGHT_UNCERTAINTY_ADAPTER_VERSION =
-  "kestrel-stage-flight-uncertainty-0.6.0";
+  "kestrel-stage-flight-uncertainty-0.7.0";
 
 /** Prefix used for independent thrust multipliers keyed by motor identifier. */
 export const MOTOR_THRUST_SCALE_FACTOR_PREFIX = "motorThrustScale:";
@@ -55,6 +55,7 @@ export type StageFlightUncertaintyFactorKey =
   | "dragCoefficientScale"
   | "directForceCoefficientScale"
   | "directMomentCoefficientScale"
+  | "coefficientUncertaintyScale"
   | "recoveryAreaScale"
   | "recoveryDeploymentSuccess"
   | "windScale"
@@ -352,6 +353,10 @@ export function createStageFlightVariant(
     values.directMomentCoefficientScale ?? 1,
     "direct moment coefficient scale",
   );
+  const coefficientUncertaintyScale = finiteOffset(
+    values.coefficientUncertaintyScale ?? 0,
+    "coefficient uncertainty scale",
+  );
   const recoveryAreaScale = positiveScale(
     values.recoveryAreaScale ?? 1,
     "recovery area scale",
@@ -379,6 +384,10 @@ export function createStageFlightVariant(
     Object.prototype.hasOwnProperty.call(values, "ignitionDelayOffsetS") ||
     Object.prototype.hasOwnProperty.call(values, "separationImpulseScale") ||
     Object.prototype.hasOwnProperty.call(values, "alignmentOffsetRad");
+  const hasCoefficientUncertaintyFactor = Object.prototype.hasOwnProperty.call(
+    values,
+    "coefficientUncertaintyScale",
+  );
   const initialTimeS = 0;
   const failureEvents = recoveryDeploymentSuccess === 0
     ? (base.recoveryDevices ?? []).map((device) => ({
@@ -436,7 +445,10 @@ export function createStageFlightVariant(
     dragCoefficientScale,
     directForceCoefficientScale,
     directMomentCoefficientScale,
-    ...(hasEventFactors || hasMotorFactors
+    ...(hasCoefficientUncertaintyFactor
+      ? { coefficientUncertaintyScale }
+      : {}),
+    ...(hasEventFactors || hasMotorFactors || hasCoefficientUncertaintyFactor
       ? {
           additionalWarnings: [
             ...(base.additionalWarnings ?? []),
@@ -460,6 +472,11 @@ export function createStageFlightVariant(
                   "Sampled launch-alignment uncertainty is a body-frame pitch perturbation; launch-rail tolerance may reject out-of-alignment scenarios.",
                 ]
               : []),
+            ...(hasCoefficientUncertaintyFactor
+              ? [
+                  "Sampled aerodynamic coefficient uncertainty applies one common signed sigma to declared absolute table cells; empirical per-coefficient covariance and time correlation are not modeled.",
+                ]
+              : []),
           ],
           additionalAssumptions: [
             ...(base.additionalAssumptions ?? []),
@@ -471,6 +488,11 @@ export function createStageFlightVariant(
             ...(hasEventFactors
               ? [
                   "Event uncertainty factors are deterministic scenario perturbations sampled from caller-supplied distributions, not measured distributions or certification evidence.",
+                ]
+              : []),
+            ...(hasCoefficientUncertaintyFactor
+              ? [
+                  "The coefficient uncertainty factor is a caller-supplied signed sigma, not a measured distribution or certification evidence; samples that make positive-only coefficients non-physical fail explicitly.",
                 ]
               : []),
             "The nominal topology, event list, and caller-owned records are not mutated; staged event closures are wrapped only inside the sampled variant.",

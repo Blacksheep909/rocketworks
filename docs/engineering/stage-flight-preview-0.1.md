@@ -153,7 +153,10 @@ topology or environment. Drag uncertainty is an explicit drag-only scale after
 the selected constant or Mach--Reynolds source. When a direct force/moment
 database is selected, separate direct-force and direct-moment scales feed the
 same load diagnostics; relation fallback, damping, and centre-of-pressure
-terms remain nominal. See
+terms remain nominal. If a selected table declares absolute uncertainty cells,
+the wrapper also adds a bounded common signed-sigma factor for the interpolated
+drag, normal-force, CP, direct force/moment, and damping cells; empirical
+coefficient covariance and time correlation remain outside this adapter. See
 `stage-flight-uncertainty-0.1.md` for the full contract and limitations.
 
 ## Stage mass-ratio diagnostic

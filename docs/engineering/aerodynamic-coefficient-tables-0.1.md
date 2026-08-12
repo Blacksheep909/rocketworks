@@ -89,10 +89,13 @@ Each nominal coefficient surface may provide an absolute non-negative
 uncertainty surface. Interpolated uncertainty is exposed beside the nominal
 result and marked with `COEFFICIENT_UNCERTAINTY_PRESENT`.
 
-Version 0.1 does not automatically perturb coefficients. This keeps the
-deterministic trajectory reproducible and makes the uncertainty ready for the
-future seeded Monte Carlo layer. Correlation between coefficients, nodes, and
-flight conditions is not represented yet.
+The staged uncertainty adapter can now apply one caller-supplied signed sigma
+to every declared absolute uncertainty cell. The perturbation is common across
+the selected drag, normal-force, CP, direct force/moment, and damping cells, so
+it is an explicit shared-factor scenario rather than a fitted covariance model.
+Positive-only drag and normal-force coefficients are rejected when a sample
+would make them non-physical. Correlation between individual coefficients,
+table nodes, flight conditions, and time remains unrepresented.
 
 ## Rotational damping moments
 

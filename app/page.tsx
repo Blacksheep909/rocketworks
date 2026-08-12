@@ -345,6 +345,7 @@ const UNCERTAINTY_CORRELATION_DEFINITIONS: readonly UncertaintyCorrelationDefini
   { key: "dryMassScale", label: "Dry mass", scope: "vertical + coupled" },
   { key: "propellantMassScale", label: "Propellant mass", scope: "coupled" },
   { key: "dragCoefficientScale", label: "Drag coefficient", scope: "vertical + coupled" },
+  { key: "coefficientUncertaintyScale", label: "Aero table uncertainty", scope: "coupled" },
   { key: "directForceCoefficientScale", label: "Direct force coefficients", scope: "coupled" },
   { key: "directMomentCoefficientScale", label: "Direct moment coefficients", scope: "coupled" },
   { key: "thrustScale", label: "Delivered thrust", scope: "vertical + coupled" },
@@ -6384,6 +6385,13 @@ export default function Home() {
           label: `${motor.name} thrust`,
           distribution: { kind: "normal" as const, mean: 1, standardDeviation: 0.04, minimum: 0.85, maximum: 1.15 },
         }));
+        const aerodynamicUncertaintyAvailable =
+          Boolean(selectedAerodynamicTable?.uncertaintyAvailable) ||
+          vehicleTopology.stages.some(
+            (stage) =>
+              stage.aerodynamicTableId !== undefined &&
+              aerodynamicTableModels[stage.aerodynamicTableId]?.uncertaintyAvailable === true,
+          );
         const factors = [
           {
             key: "dryMassScale" as const,
@@ -6406,6 +6414,15 @@ export default function Home() {
             label: "Drag coefficient",
             distribution: { kind: "triangular" as const, minimum: 0.9, mode: 1, maximum: 1.1 },
           },
+          ...(aerodynamicUncertaintyAvailable
+            ? [
+                {
+                  key: "coefficientUncertaintyScale" as const,
+                  label: "Aero table uncertainty (common sigma)",
+                  distribution: { kind: "normal" as const, mean: 0, standardDeviation: 1, minimum: -2, maximum: 2 },
+                },
+              ]
+            : []),
           ...(selectedAerodynamicTable?.forceMomentDatabaseAvailable
             ? [
                 {
