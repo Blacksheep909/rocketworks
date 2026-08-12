@@ -22,11 +22,11 @@ import {
  * explicit instead of being silently discarded.
  */
 export const SEPARATION_DYNAMICS_MODEL_VERSION =
-  "rocketworks-separation-dynamics-0.1.0";
+  "rocketworks-separation-dynamics-0.2.0";
 export const SEPARATION_DYNAMICS_VALIDATION_STATUS =
   "instantaneous-conservation-audit-only" as const;
 export const COUPLED_SEPARATION_IMPULSE_MODEL_VERSION =
-  "rocketworks-coupled-separation-impulse-0.1.0";
+  "rocketworks-coupled-separation-impulse-0.2.0";
 
 export type SeparationDynamicsStatus = "balanced" | "review" | "unavailable";
 
@@ -45,6 +45,8 @@ export type SeparationDynamicsInput = Readonly<{
   detachedBodies: readonly SeparationDynamicsBodyInput[];
   /** The configured event impulse. Omit when the event carries no separation dV. */
   configuredRetainedDeltaVBodyMps?: Vector3 | null;
+  /** Optional measured retained-body impulse retained as provenance for the audit. */
+  configuredRetainedImpulseBodyNs?: Vector3 | null;
 }>;
 
 export type SeparationDynamicsResult = Readonly<{
@@ -60,6 +62,8 @@ export type SeparationDynamicsResult = Readonly<{
   totalMassAfterKg: number;
   retainedDeltaVBodyMps: Vector3 | null;
   retainedDeltaVWorldMps: Vector3 | null;
+  retainedImpulseBodyNs: Vector3 | null;
+  retainedImpulseWorldNs: Vector3 | null;
   expectedDetachedDeltaVWorldMps: Vector3 | null;
   linearMomentumResidualKgMps: Vector3 | null;
   linearMomentumResidualMagnitudeKgMps: number | null;
@@ -87,6 +91,8 @@ export type CoupledSeparationImpulseResult = Readonly<{
     | "not-modeled";
   retainedDeltaVBodyMps: Vector3 | null;
   retainedDeltaVWorldMps: Vector3 | null;
+  retainedImpulseBodyNs: Vector3 | null;
+  retainedImpulseWorldNs: Vector3 | null;
   baselineLinearMomentumResidualKgMps: Vector3 | null;
   baselineAngularImpulseResidualKgM2PerS: Vector3 | null;
   linearMomentumResidualKgMps: Vector3 | null;
@@ -286,8 +292,18 @@ export function auditSeparationDynamics(
   if (configuredRetainedDeltaVBodyMps) {
     finiteVector(configuredRetainedDeltaVBodyMps, "retained separation delta-v");
   }
+  const configuredRetainedImpulseBodyNs =
+    input.configuredRetainedImpulseBodyNs === undefined || input.configuredRetainedImpulseBodyNs === null
+      ? null
+      : input.configuredRetainedImpulseBodyNs;
+  if (configuredRetainedImpulseBodyNs) {
+    finiteVector(configuredRetainedImpulseBodyNs, "retained separation impulse");
+  }
   const retainedDeltaVWorldMps = configuredRetainedDeltaVBodyMps
-    ? rotateBodyToWorld(input.releaseState.orientationBodyToWorld, configuredRetainedDeltaVBodyMps)
+      ? rotateBodyToWorld(input.releaseState.orientationBodyToWorld, configuredRetainedDeltaVBodyMps)
+      : null;
+  const retainedImpulseWorldNs = configuredRetainedImpulseBodyNs
+    ? rotateBodyToWorld(input.releaseState.orientationBodyToWorld, configuredRetainedImpulseBodyNs)
     : null;
   const detachedMassKg = input.detachedBodies.reduce(
     (sum, body) => sum + body.massProperties.massKg,
@@ -386,6 +402,9 @@ export function auditSeparationDynamics(
   if (!hasConfiguredImpulse) {
     warnings.push("No configured retained-body separation delta-v was available, so the equal-and-opposite impulse audit remains unavailable.");
   }
+  if (configuredRetainedImpulseBodyNs && !configuredRetainedDeltaVBodyMps) {
+    warnings.push("A measured retained-body separation impulse was supplied without a converted delta-v, so conservation status remains unavailable.");
+  }
   if (!momentumBalanced) {
     warnings.push(`Linear momentum residual is ${linearMomentumResidualMagnitudeKgMps.toExponential(3)} kg·m/s, above the audit tolerance.`);
   }
@@ -405,6 +424,8 @@ export function auditSeparationDynamics(
     totalMassAfterKg,
     retainedDeltaVBodyMps: configuredRetainedDeltaVBodyMps,
     retainedDeltaVWorldMps: retainedDeltaVWorldMps ?? retainedObservedDeltaVWorldMps,
+    retainedImpulseBodyNs: configuredRetainedImpulseBodyNs,
+    retainedImpulseWorldNs,
     expectedDetachedDeltaVWorldMps,
     linearMomentumResidualKgMps,
     linearMomentumResidualMagnitudeKgMps,
@@ -457,6 +478,8 @@ export function solveCoupledSeparationImpulse(
     retainedDeltaVBodyMps:
       input.configuredRetainedDeltaVBodyMps ?? null,
     retainedDeltaVWorldMps: baseline.retainedDeltaVWorldMps,
+    retainedImpulseBodyNs: input.configuredRetainedImpulseBodyNs ?? null,
+    retainedImpulseWorldNs: baseline.retainedImpulseWorldNs,
     baselineLinearMomentumResidualKgMps: baseline.linearMomentumResidualKgMps,
     baselineAngularImpulseResidualKgM2PerS: baseline.angularImpulseResidualKgM2PerS,
   } as const;

@@ -936,6 +936,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /stageThrustAxisWithGimbal/);
   assert.match(page, /Gimbal schedule/);
   assert.match(page, /Add gimbal point/);
+  assert.match(page, /Measured separation impulse/);
+  assert.match(page, /Clear measured impulse/);
   assert.match(page, /Motor cant \(deg\)/);
   assert.match(page, /Body length \(m\)/);
   assert.match(page, /Diameter \(m\)/);
@@ -998,6 +1000,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(topology, /noseLengthM/);
   assert.match(topology, /failedMotorInstanceIndices/);
   assert.match(topology, /separationDeltaVBodyMps/);
+  assert.match(topology, /separationImpulseBodyNs/);
   assert.match(topology, /VehicleStageRecoveryPlan/);
   assert.match(topology, /recoveryValue/);
   assert.match(stagePreview, /simulateStageFlightPreview/);
@@ -1013,6 +1016,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stagePreview, /allocateMissionEventPlan/);
   assert.match(stagePreview, /half the integration step/);
   assert.match(stagePreview, /separated bodies/);
+  assert.match(stagePreview, /bindMeasuredSeparationImpulseEvent/);
   assert.match(stagePreview, /coupledMultiBodyGravity/);
   assert.match(stagePreview, /missionSerialStageIds/);
   assert.match(stagePreview, /computeMissionMassRatio/);

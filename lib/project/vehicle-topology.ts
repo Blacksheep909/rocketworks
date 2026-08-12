@@ -3,6 +3,7 @@ export const LOCAL_VEHICLE_TOPOLOGY_SCHEMA_VERSION = 1;
 export const LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY = "kestrel.project.arc54.vehicle-topology.v1";
 export const MAX_VEHICLE_STAGES = 8;
 export const MAX_VEHICLE_COMPONENTS = 64;
+export const MAX_SEPARATION_IMPULSE_BODY_NS = 10_000;
 
 export type VehicleStageRole = "core" | "upper" | "booster" | "payload";
 export type VehicleStageAttachment = "serial" | "parallel";
@@ -15,6 +16,13 @@ export type VehicleStageGimbalPoint = Readonly<{
   pitchDeg: number;
   /** Positive yaw rotates the thrust direction toward the local +Z basis. */
   yawDeg: number;
+}>;
+
+/** A user-supplied measured impulse imparted to the retained body at separation. */
+export type VehicleStageSeparationImpulseBodyNs = Readonly<{
+  x: number;
+  y: number;
+  z: number;
 }>;
 
 /** Optional recovery hardware carried by a detachable stage. */
@@ -90,6 +98,8 @@ export type VehicleStagePlan = Readonly<{
   separationDelayS: number;
   /** Retained-body axial separation delta-v in m/s (+X nose direction). */
   separationDeltaVBodyMps?: number;
+  /** Optional measured retained-body separation impulse in the body frame, N·s. */
+  separationImpulseBodyNs?: VehicleStageSeparationImpulseBodyNs;
   ignitionFailure: boolean;
   /** Zero-based radial motor instance indices that are configured not to ignite. */
   failedMotorInstanceIndices: readonly number[];
@@ -268,6 +278,28 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
   if (typeof separationDeltaVBodyMps !== "number" || !Number.isFinite(separationDeltaVBodyMps) || separationDeltaVBodyMps < 0 || separationDeltaVBodyMps > 30) {
     throw new Error(`Stage ${id} separationDeltaVBodyMps must be a finite value from 0 through 30 m/s.`);
   }
+  const rawSeparationImpulse = stage.separationImpulseBodyNs;
+  let separationImpulseBodyNs: VehicleStageSeparationImpulseBodyNs | undefined;
+  if (rawSeparationImpulse !== undefined) {
+    const impulse = objectValue(rawSeparationImpulse, `Stage ${id} separationImpulseBodyNs`);
+    const x = impulse.x;
+    const y = impulse.y;
+    const z = impulse.z;
+    if (![x, y, z].every((value) => typeof value === "number" && Number.isFinite(value))) {
+      throw new Error(`Stage ${id} separationImpulseBodyNs must contain finite x, y, and z values.`);
+    }
+    const magnitudeNs = Math.hypot(x as number, y as number, z as number);
+    if (!(magnitudeNs > 0) || magnitudeNs > MAX_SEPARATION_IMPULSE_BODY_NS) {
+      throw new Error(`Stage ${id} separationImpulseBodyNs magnitude must be greater than 0 and at most ${MAX_SEPARATION_IMPULSE_BODY_NS} N·s.`);
+    }
+    separationImpulseBodyNs = { x: x as number, y: y as number, z: z as number };
+    if (separationDeltaVBodyMps > 0) {
+      throw new Error(`Stage ${id} cannot configure both separationDeltaVBodyMps and separationImpulseBodyNs.`);
+    }
+    if (stage.role === "payload") {
+      throw new Error(`Payload stage ${id} cannot configure a separation impulse.`);
+    }
+  }
   const ignitionFailure = stage.ignitionFailure ?? false;
   if (typeof ignitionFailure !== "boolean") throw new Error(`Stage ${id} ignitionFailure must be boolean.`);
   const failedMotorInstanceIndices = stage.failedMotorInstanceIndices ?? [];
@@ -363,6 +395,7 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     ignitionDelayS,
     separationDelayS,
     separationDeltaVBodyMps,
+    ...(separationImpulseBodyNs ? { separationImpulseBodyNs } : {}),
     ignitionFailure,
     failedMotorInstanceIndices: [...failedMotorSet].sort((left, right) => left - right),
     ...(recovery ? { recovery } : {}),
@@ -536,6 +569,7 @@ export function createStagePlan(input: Readonly<{
   ignitionDelayS?: number;
   separationDelayS?: number;
   separationDeltaVBodyMps?: number;
+  separationImpulseBodyNs?: VehicleStageSeparationImpulseBodyNs;
   ignitionFailure?: boolean;
   failedMotorInstanceIndices?: readonly number[];
   recovery?: VehicleStageRecoveryPlan;
@@ -550,6 +584,7 @@ export function createStagePlan(input: Readonly<{
     ignitionDelayS: input.ignitionDelayS ?? 0,
     separationDelayS: input.separationDelayS ?? 0.1,
     separationDeltaVBodyMps: input.separationDeltaVBodyMps ?? 0,
+    ...(input.separationImpulseBodyNs ? { separationImpulseBodyNs: input.separationImpulseBodyNs } : {}),
     ignitionFailure: input.ignitionFailure ?? false,
     failedMotorInstanceIndices: input.failedMotorInstanceIndices ?? [],
   }, 0);

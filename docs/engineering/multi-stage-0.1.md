@@ -29,7 +29,7 @@ This makes staging a topology change rather than a cosmetic event: a separated
 stage immediately stops contributing mass, inertia, propellant, or thrust to
 the retained vehicle.
 
-The current implementation is model version `kestrel-multi-stage-0.5.0`.
+The current implementation is model version `kestrel-multi-stage-0.6.0`.
 `RocketStage.instances` can describe physical copies of one logical stage.
 When present, each copy has its own structure, motors, burnout offset, and
 event state while `attachedStageIds` continues to expose the logical topology
@@ -41,6 +41,13 @@ schedule. The staged evaluator linearly interpolates the authored body-frame
 directions and normalizes each result before computing force and moment. The
 browser topology editor authors these schedules as bounded pitch/yaw offsets
 relative to each stage instance's nominal canted axis.
+
+Detachable stages may optionally carry a measured retained-body separation
+impulse vector in N·s. At the event boundary the model divides that vector by
+the live retained post-separation mass to obtain the body-frame delta-v applied
+to the retained state. The original impulse is retained in applied-event,
+stage-flight, and conservation-audit telemetry; it is not treated as a
+mechanism or discarded-body measurement.
 
 ## Discrete state and phases
 
@@ -244,9 +251,10 @@ preview input.
 
 ## Next work
 
-Measured mass-flow histories and deterministic motor-local gimbal schedules now
-drive both standalone and multi-stage evaluations when supplied. Next add measured separation impulses and a
-time-propagated coupled multi-body branch that resolves discarded stages,
+Measured mass-flow histories, deterministic motor-local gimbal schedules, and
+optional measured retained-body separation impulses now drive staged
+evaluations when supplied. Next add a time-propagated coupled multi-body branch
+that resolves discarded stages,
 relative-body aerodynamic databases, and momentum exchange. The current
 event-level minimum-norm impulse allocator is diagnostic telemetry only and
 does not replace that propagated branch.

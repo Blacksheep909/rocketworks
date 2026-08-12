@@ -188,6 +188,7 @@ test("gimbal schedules validate, round-trip, and follow radial thrust bases", ()
         parentStageId: "sustainer",
         repeatCount: 2,
         repeatRadiusM: 0.12,
+        separationImpulseBodyNs: { x: 2.5, y: -0.4, z: 0.2 },
         gimbalSchedule: [
           { timeS: 0, pitchDeg: 0, yawDeg: 0 },
           { timeS: 1.5, pitchDeg: 4, yawDeg: -2 },
@@ -197,6 +198,7 @@ test("gimbal schedules validate, round-trip, and follow radial thrust bases", ()
   };
   const validated = validateVehicleTopology(topology);
   assert.deepEqual(validated.stages[1].gimbalSchedule, topology.stages[1].gimbalSchedule);
+  assert.deepEqual(validated.stages[1].separationImpulseBodyNs, topology.stages[1].separationImpulseBodyNs);
   assert.deepEqual(parseVehicleTopology(serializeVehicleTopology(validated)), validated);
   const nominal = stageThrustAxisBody(validated.stages[1], 0);
   const gimballed = stageThrustAxisWithGimbal(validated.stages[1], 0, 4, -2);
@@ -219,6 +221,24 @@ test("gimbal schedules validate, round-trip, and follow radial thrust bases", ()
         : stage),
     }),
     /pitchDeg/,
+  );
+  assert.throws(
+    () => validateVehicleTopology({
+      ...topology,
+      stages: topology.stages.map((stage) => stage.id === "booster-01"
+        ? { ...stage, separationImpulseBodyNs: { x: 1, y: 0, z: 0 }, separationDeltaVBodyMps: 1 }
+        : stage),
+    }),
+    /both separationDeltaVBodyMps and separationImpulseBodyNs/,
+  );
+  assert.throws(
+    () => validateVehicleTopology({
+      ...topology,
+      stages: topology.stages.map((stage) => stage.id === "booster-01"
+        ? { ...stage, separationImpulseBodyNs: { x: 10001, y: 0, z: 0 } }
+        : stage),
+    }),
+    /magnitude/,
   );
 });
 

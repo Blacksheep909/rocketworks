@@ -468,6 +468,32 @@ test("scheduled staging helpers apply exact state changes", () => {
   assert.equal(staging.evaluate(result.finalState).stages[0].phase, "separated");
 });
 
+test("measured separation impulse converts at live retained mass and survives event telemetry", () => {
+  const measuredStage = {
+    ...stage("booster", 2),
+    separationImpulseBodyNs: { x: 2, y: 1, z: 0 },
+  };
+  const staging = createMultiStageVehicleModel({
+    retainedMassProperties: properties(1, 0),
+    stages: [measuredStage],
+  });
+  const result = simulateRigidBody6D({
+    body: staging.body,
+    initialState: initializeMultiStageState(state(), ["booster"]),
+    durationS: 2.2,
+    timeStepS: 0.25,
+    stateEvents: [staging.createBurnoutSeparationEvent({ stageId: "booster" })],
+  });
+  assert.equal(result.events.length, 1);
+  const event = result.events[0];
+  assert.deepEqual(event.separationImpulseBodyNs, { x: 2, y: 1, z: 0 });
+  const retainedMassKg = staging.evaluate(event.stateAfter).massProperties.massKg;
+  close(event.separationDeltaVBodyMps.x, 2 / retainedMassKg, 1e-12, "measured impulse retained x dV");
+  close(event.separationDeltaVBodyMps.y, 1 / retainedMassKg, 1e-12, "measured impulse retained y dV");
+  close(event.separationDeltaVBodyMps.z, 0, 1e-12, "measured impulse retained z dV");
+  assert.ok(staging.warnings.some((warning) => warning.includes("measured") || warning.includes("actuator") || warning.includes("separation")));
+});
+
 test("inertia-rate expression matches a centered finite difference during burn", () => {
   const staging = model();
   const current = ignitedAtZero(0.8);

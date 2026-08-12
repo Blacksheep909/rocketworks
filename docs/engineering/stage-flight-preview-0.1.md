@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.21.0`.
+`kestrel-stage-flight-preview-0.22.0`.
 
 The result also carries a `rocketworks-mission-mass-ratio-0.1.0` serial-stack
 composition preview. The adapter passes the topology's serial stage IDs in
@@ -61,7 +61,8 @@ every applied event with its attached-stage set before and after the state
 change. Repeated physical stage copies are also reported through attached and
 detached stage-instance IDs. Separation events carry the optional body-frame
 retained-body delta-v annotation and its attitude-rotated world-frame vector,
-plus the detached logical-stage IDs. This keeps the timeline and exported result numerically
+plus optional measured body-frame/world-frame retained impulse vectors and the
+detached logical-stage IDs. This keeps the timeline and exported result numerically
 traceable instead of relying on event-label text. When `launchRail` is present,
 the result includes rail liftoff and release events, the effective travel distance, and the exact free-flight
 handoff state. It does not invent ignition delays, separation impulses, failure
@@ -200,7 +201,8 @@ center of mass. The release state is
 derived from the retained body's event state: the stage center-of-mass offset
 is rotated into world coordinates and the parent angular-rate cross-product is
 included in the released velocity. The result reports the retained-body
-separation delta-v in both body and world frames. When present, the adapter
+separation delta-v in both body and world frames and preserves any supplied
+measured retained-body impulse in both frames. When present, the adapter
 also adds the derived detached-body impulse to that release velocity. The
 branch then uses the same original
 6-DOF integrator with altitude-dependent gravity and a terminal ground-impact
@@ -215,7 +217,8 @@ declared design point for this independent branch; it is not coupled to the
 discarded body's changing Mach or Reynolds state. If either basis is missing,
 the branch stays gravity-only and labels that fallback in its telemetry.
 
-When the event carries a retained-body delta-v, the adapter derives the
+When the event carries a retained-body delta-v, including one derived from a
+measured retained-body impulse, the adapter derives the
 detached-body delta-v from equal-and-opposite linear momentum using the
 retained and detached masses at the event. If one event releases multiple
 physical copies, their combined detached mass is used and the same derived
@@ -316,11 +319,12 @@ explicitly approximate; it is not a substitute for retained CAD geometry.
   exposes a shared-grid detached point-mass track; mutual gravity is an opt-in
   translational force extension, not a contact or aerodynamic-interference
   solver.
-- A configured separation delta-v is applied to the retained body in body-frame
-  +X and is carried into the event/trajectory diagnostics in body and world
-  frames. The discarded-body branch receives the mass-ratio equal-and-opposite
-  linear impulse when that event annotation is present; mechanism dynamics,
-  angular impulse, and coupled contact remain outside the model.
+- A configured separation delta-v or measured retained-body impulse is applied
+  in the event body frame and carried into event/trajectory diagnostics in body
+  and world frames. The discarded-body branch receives the mass-ratio
+  equal-and-opposite linear impulse when that event annotation is present;
+  mechanism dynamics, impulse calibration, angular impulse, and coupled contact
+  remain outside the model.
 - Stage-separation proximity aerodynamics remain explicitly unsupported during
   the configured transition window.
 - The supplied aerodynamic regime table must contain an exact regime for every

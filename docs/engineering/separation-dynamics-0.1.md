@@ -10,13 +10,20 @@ multi-body separation solver. It does not replace that solver and it never
 promotes a separation result to flight-safe evidence.
 
 The stage-flight adapter also exposes
-`rocketworks-coupled-separation-impulse-0.1.0`. This event-level allocator
+`rocketworks-coupled-separation-impulse-0.2.0`. This event-level allocator
 starts from the configured retained-body delta-v and distributes minimum-norm
 detached-body velocity corrections across the supplied point-mass geometry.
 When the moment-arm matrix has sufficient rank, it can balance both linear and
 first-order angular impulse within the deterministic audit tolerance. The
 correction is telemetry only; it is not silently applied to the retained or
 detached trajectories.
+
+Topology stages may additionally supply a measured retained-body impulse vector
+in the body frame. The staged event adapter converts that vector to a retained
+body delta-v using the live post-separation mass, while carrying both the
+source impulse and derived delta-v through the applied-event trace. This is a
+provenance-preserving input path, not an assertion that the measurement is
+calibrated or that the discarded body's impulse has been observed.
 
 ## Linear momentum
 
@@ -73,8 +80,10 @@ The audit is instantaneous and assumes the supplied mass properties and event
 attitude are valid at the handoff. It ignores external force over the event
 window and does not solve coupled retained/detached six-degree-of-freedom
 motion, oriented collision geometry, lift, plume interference, range safety,
-or detached-stage recovery. Those remain roadmap work and require independent
-benchmark and test evidence.
+or detached-stage recovery. Measured impulse vectors remain user-supplied
+evidence; calibration, timing uncertainty, mechanism compliance, and
+discarded-body equal-and-opposite dynamics are not inferred. Those remain
+roadmap work and require independent benchmark and test evidence.
 
 The allocator is an impulse-distribution diagnostic, not a mechanism model.
 It assumes the retained-body delta-v is known, treats detached bodies as point

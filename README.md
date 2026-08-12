@@ -121,6 +121,8 @@ research, standards, and original code.
 - an instantaneous separation impulse audit that checks mass-ratio linear
   momentum balance and exposes unmodeled first-order angular impulse before
   detached-body propagation;
+- optional measured retained-body separation impulse vectors with live-mass
+  delta-v conversion, event provenance, and uncertainty scaling;
 - a shared-grid detached-body flight track that propagates every released
   point mass together against common gravity, atmosphere, and wind queries,
   applies only explicitly balanced event corrections, and reports continuous

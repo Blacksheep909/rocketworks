@@ -11,6 +11,7 @@ import {
   addVectors,
   scaleMatrix,
   scaleVector,
+  subtractVectors,
   magnitude,
   type Vector3,
 } from "./linear-algebra.ts";
@@ -25,6 +26,7 @@ import {
   normalizeQuaternion,
   quaternionFromAxisAngle,
   rotateBodyToWorld,
+  rotateWorldToBody,
   type ScheduledRigidBodyEvent,
   type StateTriggeredRigidBodyEvent,
 } from "./six-dof.ts";
@@ -35,7 +37,7 @@ import {
 } from "./stage-flight-preview.ts";
 
 export const STAGE_FLIGHT_UNCERTAINTY_ADAPTER_VERSION =
-  "kestrel-stage-flight-uncertainty-0.7.0";
+  "kestrel-stage-flight-uncertainty-0.8.0";
 
 /** Prefix used for independent thrust multipliers keyed by motor identifier. */
 export const MOTOR_THRUST_SCALE_FACTOR_PREFIX = "motorThrustScale:";
@@ -170,6 +172,14 @@ function scaleStageInstance(
             instance.separationDeltaVBodyMps * separationImpulseScale,
         }
       : {}),
+    ...(instance.separationImpulseBodyNs !== undefined
+      ? {
+          separationImpulseBodyNs: scaleVector(
+            instance.separationImpulseBodyNs,
+            separationImpulseScale,
+          ),
+        }
+      : {}),
     structuralMassProperties: scaleMassProperties(
       instance.structuralMassProperties,
       dryMassScale,
@@ -202,6 +212,14 @@ function scaleStage(
       ? {
           separationDeltaVBodyMps:
             stage.separationDeltaVBodyMps * separationImpulseScale,
+        }
+      : {}),
+    ...(stage.separationImpulseBodyNs !== undefined
+      ? {
+          separationImpulseBodyNs: scaleVector(
+            stage.separationImpulseBodyNs,
+            separationImpulseScale,
+          ),
         }
       : {}),
     structuralMassProperties: scaleMassProperties(
@@ -240,20 +258,31 @@ function scaleEventSeparationImpulse<
   T extends ScheduledRigidBodyEvent | StateTriggeredRigidBodyEvent,
 >(event: T, scale: number): T {
   const configuredDeltaV = event.separationDeltaVBodyMps;
-  if (scale === 1 || !configuredDeltaV) return event;
-  const scaledDeltaV = scaleVector(configuredDeltaV, scale);
-  const correctionBodyMps = scaleVector(
-    configuredDeltaV,
-    scale - 1,
-  );
+  const configuredImpulse = event.separationImpulseBodyNs;
+  if (scale === 1 || (!configuredDeltaV && !configuredImpulse)) return event;
+  const scaledDeltaV = configuredDeltaV
+    ? scaleVector(configuredDeltaV, scale)
+    : undefined;
+  const scaledImpulse = configuredImpulse
+    ? scaleVector(configuredImpulse, scale)
+    : undefined;
   const originalApply = event.apply;
   return {
     ...event,
-    separationDeltaVBodyMps: scaledDeltaV,
+    ...(scaledDeltaV ? { separationDeltaVBodyMps: scaledDeltaV } : {}),
+    ...(scaledImpulse ? { separationImpulseBodyNs: scaledImpulse } : {}),
     ...(originalApply
       ? {
           apply: (state: Parameters<NonNullable<T["apply"]>>[0]) => {
             const after = originalApply(state);
+            const originalDeltaVBodyMps = configuredDeltaV ?? rotateWorldToBody(
+              state.orientationBodyToWorld,
+              subtractVectors(after.velocityWorldMps, state.velocityWorldMps),
+            );
+            const correctionBodyMps = scaleVector(
+              originalDeltaVBodyMps,
+              scale - 1,
+            );
             return {
               ...after,
               velocityWorldMps: addVectors(
@@ -464,7 +493,7 @@ export function createStageFlightVariant(
               : []),
             ...(separationImpulseScale !== 1
               ? [
-                  "Sampled separation-impulse uncertainty rescales annotated event velocity changes; mechanism compliance, plume interaction, and contact remain outside the model.",
+                  "Sampled separation-impulse uncertainty rescales configured measured impulse vectors and legacy event delta-v annotations; mechanism compliance, plume interaction, and contact remain outside the model.",
                 ]
               : []),
             ...(alignmentOffsetRad !== 0

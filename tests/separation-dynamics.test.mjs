@@ -104,6 +104,26 @@ test("separation audit keeps missing impulse configuration explicitly unavailabl
   assert.ok(result.warnings.some((warning) => /unavailable/i.test(warning)));
 });
 
+test("separation audit retains measured impulse provenance beside derived delta-v", () => {
+  const result = auditSeparationDynamics({
+    eventId: "measured-source",
+    releaseState: state(),
+    retainedStateAfter: { ...state(), velocityWorldMps: { x: 12, y: 0, z: 0 } },
+    retainedMassPropertiesBefore: massProperties(4, { x: 0, y: 0, z: 0 }),
+    retainedMassPropertiesAfter: massProperties(3, { x: -1 / 3, y: 0, z: 0 }),
+    configuredRetainedDeltaVBodyMps: { x: 2, y: 0, z: 0 },
+    configuredRetainedImpulseBodyNs: { x: 6, y: 0, z: 0 },
+    detachedBodies: [{
+      id: "booster/booster-1",
+      massProperties: massProperties(1, { x: 1, y: 0, z: 0 }),
+      deltaVBodyMps: { x: -6, y: 0, z: 0 },
+    }],
+  });
+  assert.deepEqual(result.retainedImpulseBodyNs, { x: 6, y: 0, z: 0 });
+  assert.deepEqual(result.retainedImpulseWorldNs, { x: 6, y: 0, z: 0 });
+  assert.deepEqual(result.retainedDeltaVBodyMps, { x: 2, y: 0, z: 0 });
+});
+
 test("coupled separation impulse allocation can remove a point-mass angular residual", () => {
   const result = solveCoupledSeparationImpulse({
     eventId: "three-body-release",
@@ -134,7 +154,7 @@ test("coupled separation impulse allocation can remove a point-mass angular resi
     ],
   });
 
-  assert.equal(result.modelVersion, "rocketworks-coupled-separation-impulse-0.1.0");
+  assert.equal(result.modelVersion, "rocketworks-coupled-separation-impulse-0.2.0");
   assert.equal(result.status, "balanced");
   assert.equal(result.correctionModel, "minimum-norm-linear-and-angular-impulse");
   assert.equal(result.resolvedConstraintCount, 6);

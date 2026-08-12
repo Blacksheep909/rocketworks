@@ -6,7 +6,7 @@ rigid-body models. It does not import or reuse an external rocket simulator.
 
 ## Contract
 
-- Adapter version: `kestrel-stage-flight-uncertainty-0.7.0`
+- Adapter version: `kestrel-stage-flight-uncertainty-0.8.0`
 - Sampling: seeded Latin hypercube through the shared uncertainty model
   (`kestrel-uncertainty-0.4.0`)
 - Default browser ensemble: 16 samples, retained as individual input/output or
@@ -35,8 +35,9 @@ configured recovery-device reference areas with the recovery area factor, both
 profile/provider wind vectors with the wind factor, and annotated staging
 events with the event factors. Motor-local ignition delays and
 ignition-after-burnout triggers receive the sampled delay offset; annotated
-separation events receive the sampled impulse scale; the initial body attitude
-receives a body-`+Y` pitch perturbation for alignment uncertainty.
+separation events receive the sampled impulse scale, including measured
+body-frame impulse vectors; the initial body attitude receives a body-`+Y`
+pitch perturbation for alignment uncertainty.
 
 When any selected aerodynamic table declares absolute uncertainty cells, the
 browser adds `coefficientUncertaintyScale` as a bounded normal factor (−2 to
@@ -115,10 +116,10 @@ design exploration and independent engineering review only.
 - The ignition-delay factor is a global additive offset over motor-local delay
   and stage ignition-after-burnout triggers. Per-motor timing distributions,
   ignition transients, and measured event covariance remain future inputs.
-- Separation impulse scaling applies only to events carrying the explicit
-  separation-delta-v annotation. Mechanism compliance, plume interaction,
-  contact, angular impulse, and relative-body propagation remain outside this
-  adapter.
+- Separation impulse scaling applies to events carrying an explicit
+  separation-delta-v annotation or measured body-frame impulse vector.
+  Mechanism compliance, plume interaction, contact, angular impulse, and
+  relative-body propagation remain outside this adapter.
 - Alignment uncertainty is a body-frame pitch perturbation at the initial
   state. It is not a pad-survey, rail-flexure, tip-off, or guidance-error
   model.

@@ -1759,6 +1759,12 @@ kbd {
 .topology-gimbal-index { display: grid; place-items: center; min-height: 27px; border: 1px solid rgba(47,159,255,.25); border-radius: 3px; color: #78c7f8; font: 650 8px var(--font-geist-mono),monospace; }
 .topology-gimbal-remove { min-height: 27px; padding: 0 8px; font-size: 8px; }
 .topology-gimbal-editor > .secondary-button { margin-top: 8px; min-height: 27px; padding: 0 9px; font-size: 8px; }
+.topology-separation-impulse-editor { grid-column: 1 / -1; margin-top: 2px; padding-top: 9px; border-top: 1px solid rgba(117,153,180,.12); }
+.topology-separation-impulse-editor summary { width: fit-content; color: #9eb8c8; font: 650 8px var(--font-geist-mono),monospace; cursor: pointer; }
+.topology-separation-impulse-editor summary:hover, .topology-separation-impulse-editor summary:focus-visible { color: #e8f5fb; }
+.topology-separation-impulse-editor > p { margin: 7px 0 8px; color: #718895; font-size: 7px; line-height: 1.45; }
+.topology-separation-impulse-fields { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; }
+.topology-separation-impulse-editor > .secondary-button { margin-top: 8px; min-height: 27px; padding: 0 9px; font-size: 8px; }
 .topology-number-field > span { min-height: 17px; }
 .topology-number-input { position: relative; }
 .topology-number-input input { min-height: 27px; }

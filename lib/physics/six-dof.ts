@@ -122,6 +122,8 @@ export type ScheduledRigidBodyEvent = Readonly<{
   mutualExclusionKey?: string;
   /** Optional staging annotation retained in the applied event trace. */
   separationDeltaVBodyMps?: Vector3;
+  /** Optional measured retained-body separation impulse retained in the applied event trace. */
+  separationImpulseBodyNs?: Vector3;
 }>;
 
 export type StateEventDirection = "rising" | "falling" | "any";
@@ -145,6 +147,8 @@ export type StateTriggeredRigidBodyEvent = Readonly<{
   valueTolerance?: number;
   /** Optional staging annotation retained in the applied event trace. */
   separationDeltaVBodyMps?: Vector3;
+  /** Optional measured retained-body separation impulse retained in the applied event trace. */
+  separationImpulseBodyNs?: Vector3;
 }>;
 
 export type AppliedRigidBodyEvent = Readonly<{
@@ -159,6 +163,8 @@ export type AppliedRigidBodyEvent = Readonly<{
   priority: number;
   /** Optional staging annotation copied from the source event. */
   separationDeltaVBodyMps?: Vector3;
+  /** Optional measured retained-body separation impulse copied from the source event. */
+  separationImpulseBodyNs?: Vector3;
 }>;
 
 export type SixDofSimulationInput = Readonly<{
@@ -929,7 +935,15 @@ export function simulateRigidBody6D(
       stateAfter: state,
       missionKind: inferMissionEventKind(event),
       priority: eventPriority[event.id] ?? 100,
-      separationDeltaVBodyMps: event.separationDeltaVBodyMps,
+      separationDeltaVBodyMps: event.separationDeltaVBodyMps ?? (
+        event.separationImpulseBodyNs
+          ? rotateWorldToBody(
+              stateBefore.orientationBodyToWorld,
+              subtractVectors(state.velocityWorldMps, stateBefore.velocityWorldMps),
+            )
+          : undefined
+      ),
+      separationImpulseBodyNs: event.separationImpulseBodyNs,
     };
     firedStateEventIds.add(event.id);
     appliedEvents.push(appliedEvent);
@@ -1177,7 +1191,15 @@ export function simulateRigidBody6D(
           stateAfter: state,
           missionKind: inferMissionEventKind(event),
           priority: eventPriority[event.id] ?? 100,
-          separationDeltaVBodyMps: event.separationDeltaVBodyMps,
+          separationDeltaVBodyMps: event.separationDeltaVBodyMps ?? (
+            event.separationImpulseBodyNs
+              ? rotateWorldToBody(
+                  stateBefore.orientationBodyToWorld,
+                  subtractVectors(state.velocityWorldMps, stateBefore.velocityWorldMps),
+                )
+              : undefined
+          ),
+          separationImpulseBodyNs: event.separationImpulseBodyNs,
         });
         trace.push(state);
         eventIndex += 1;

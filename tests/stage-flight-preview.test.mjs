@@ -9,6 +9,7 @@ import {
   computeMissionMassRatio,
   computeStageMassRatio,
   computeStageFlightForceBudget,
+  createMultiStageVehicleModel,
   createStageFlightVariant,
   motorThrustScaleFactorKey,
   simulateStageFlightPreview,
@@ -170,6 +171,61 @@ test("stage-flight force budget rejects malformed traces and keeps insufficient 
   );
 });
 
+test("stage-flight preview preserves measured separation impulse provenance and conversion", () => {
+  const measuredStages = stages.map((stage) => stage.id === "booster"
+    ? { ...stage, separationImpulseBodyNs: { x: 1.4, y: 0.2, z: -0.1 } }
+    : stage);
+  const staging = createMultiStageVehicleModel({
+    retainedMassProperties: properties(0.4, 0.2),
+    stages: measuredStages,
+  });
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages: measuredStages,
+    regimes,
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 2.5,
+    timeStepS: 0.05,
+    stateEvents: [staging.createBurnoutSeparationEvent({ stageId: "booster" })],
+  });
+  const separationEvent = result.events.find((event) => event.missionKind === "separation");
+  assert.ok(separationEvent);
+  assert.deepEqual(separationEvent.separationImpulseBodyNs, { x: 1.4, y: 0.2, z: -0.1 });
+  assert.ok(separationEvent.separationDeltaVBodyMps);
+  assert.ok(result.separationDynamics[0].retainedImpulseBodyNs);
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("Measured separation impulse")));
+  assert.ok(result.warnings.some((warning) => warning.includes("Measured separation impulses")));
+});
+
+test("measured separation impulse variants recompute dV from variant retained mass", () => {
+  const measuredStages = stages.map((stage) => stage.id === "booster"
+    ? { ...stage, separationImpulseBodyNs: { x: 1.4, y: 0, z: 0 } }
+    : stage);
+  const staging = createMultiStageVehicleModel({
+    retainedMassProperties: properties(0.4, 0.2),
+    stages: measuredStages,
+  });
+  const baseInput = {
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages: measuredStages,
+    regimes,
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 2.5,
+    timeStepS: 0.05,
+    stateEvents: [staging.createBurnoutSeparationEvent({ stageId: "booster" })],
+  };
+  const nominal = simulateStageFlightPreview(baseInput);
+  const heavy = simulateStageFlightPreview(createStageFlightVariant(baseInput, { dryMassScale: 2 }));
+  const nominalEvent = nominal.events.find((event) => event.missionKind === "separation");
+  const heavyEvent = heavy.events.find((event) => event.missionKind === "separation");
+  assert.ok(nominalEvent?.separationDeltaVBodyMps);
+  assert.ok(heavyEvent?.separationDeltaVBodyMps);
+  assert.ok(heavyEvent.separationDeltaVBodyMps.x < nominalEvent.separationDeltaVBodyMps.x);
+  assert.deepEqual(baseInput.stages[0].separationImpulseBodyNs, { x: 1.4, y: 0, z: 0 });
+});
+
 test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF events", () => {
   const result = simulateStageFlightPreview({
     retainedMassProperties: properties(0.4, 0.2),
@@ -191,7 +247,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.21.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.22.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.simulation?.integration.method, "adaptive-rk4-step-doubling");
   assert.ok((result.simulation?.integration.acceptedStepCount ?? 0) > 0);
@@ -456,7 +512,7 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
     sampleCount: 6,
   });
 
-  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-0.7.0");
+  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-0.8.0");
   assert.equal(first.requestedSampleCount, 6);
   assert.equal(first.successfulSampleCount, 6);
   assert.deepEqual(first.samples, second.samples);

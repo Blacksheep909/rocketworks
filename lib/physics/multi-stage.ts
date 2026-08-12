@@ -38,7 +38,7 @@ import {
 } from "./six-dof.ts";
 import type { RecoveryCommandTrigger, RecoveryDevice } from "./recovery-system.ts";
 
-export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.5.0";
+export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.6.0";
 
 /** A motor-local body-frame thrust direction sample for deterministic gimbal interpolation. */
 export type MotorGimbalPoint = Readonly<{
@@ -76,6 +76,8 @@ export type RocketStageInstance = Readonly<{
   structuralMassProperties: MassProperties;
   motors: readonly MultiStageMotor[];
   separationDeltaVBodyMps?: number;
+  /** Optional measured retained-body separation impulse in N·s, body frame. */
+  separationImpulseBodyNs?: Vector3;
 }>;
 
 export type RocketStage = Readonly<{
@@ -86,6 +88,8 @@ export type RocketStage = Readonly<{
   instances?: readonly RocketStageInstance[];
   /** Retained-body axial separation delta-v in the body frame (+X nose direction). */
   separationDeltaVBodyMps?: number;
+  /** Optional measured retained-body separation impulse in N·s, body frame. */
+  separationImpulseBodyNs?: Vector3;
   /** Recovery hardware that deploys if this stage becomes a detached body. */
   recoveryDevices?: readonly RecoveryDevice[];
   /** Trigger used by the detached-body recovery branch. */
@@ -191,6 +195,7 @@ export type MultiStageVehicleModel = Readonly<{
     delayS?: number;
     label?: string;
     separationDeltaVBodyMps?: number;
+    separationImpulseBodyNs?: Vector3;
   }>) => StateTriggeredRigidBodyEvent;
   createBurnoutIgnitionEvent: (input: Readonly<{
     sourceStageId: string;
@@ -247,6 +252,19 @@ function assertNonNegative(value: number, label: string): void {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${label} must be a non-negative finite number`);
   }
+}
+
+function validateSeparationImpulse(
+  value: Vector3 | undefined,
+  label: string,
+): Vector3 | undefined {
+  if (value === undefined) return undefined;
+  if (!finiteVector(value)) throw new Error(`${label} must contain finite coordinates`);
+  const impulseMagnitudeNs = magnitude(value);
+  if (!(impulseMagnitudeNs > 0) || !Number.isFinite(impulseMagnitudeNs)) {
+    throw new Error(`${label} must be a finite non-zero vector`);
+  }
+  return { x: value.x, y: value.y, z: value.z };
 }
 
 function finiteVector(vector: Vector3): boolean {
@@ -779,6 +797,13 @@ export function createMultiStageVehicleModel(input: Readonly<{
     validateMassProperties(stage.structuralMassProperties, `stage ${stage.id} structure`);
     const separationDeltaVBodyMps = stage.separationDeltaVBodyMps ?? 0;
     assertNonNegative(separationDeltaVBodyMps, `stage ${stage.id} separation delta-v`);
+    const separationImpulseBodyNs = validateSeparationImpulse(
+      stage.separationImpulseBodyNs,
+      `stage ${stage.id} separation impulse`,
+    );
+    if (separationImpulseBodyNs && separationDeltaVBodyMps > 0) {
+      throw new Error(`stage ${stage.id} cannot configure both separation delta-v and separation impulse`);
+    }
     const motors = prepareMotors(stage.motors, `stage ${stage.id}`);
     const rawInstances = stage.instances ?? [{
       id: stage.id,
@@ -786,6 +811,7 @@ export function createMultiStageVehicleModel(input: Readonly<{
       structuralMassProperties: stage.structuralMassProperties,
       motors: stage.motors,
       separationDeltaVBodyMps,
+      ...(separationImpulseBodyNs ? { separationImpulseBodyNs } : {}),
     }];
     if (rawInstances.length === 0) throw new Error(`stage ${stage.id} requires at least one physical instance`);
     const instanceIds = new Set<string>();
@@ -797,10 +823,18 @@ export function createMultiStageVehicleModel(input: Readonly<{
       validateMassProperties(instance.structuralMassProperties, `stage ${stage.id} instance ${instance.id} structure`);
       const instanceDeltaV = instance.separationDeltaVBodyMps ?? separationDeltaVBodyMps;
       assertNonNegative(instanceDeltaV, `stage ${stage.id} instance ${instance.id} separation delta-v`);
+      const instanceImpulse = validateSeparationImpulse(
+        instance.separationImpulseBodyNs ?? separationImpulseBodyNs,
+        `stage ${stage.id} instance ${instance.id} separation impulse`,
+      );
+      if (instanceImpulse && instanceDeltaV > 0) {
+        throw new Error(`stage ${stage.id} instance ${instance.id} cannot configure both separation delta-v and separation impulse`);
+      }
       const instanceMotors = prepareMotors(instance.motors, `stage ${stage.id} instance ${instance.id}`);
       return {
         ...instance,
         separationDeltaVBodyMps: instanceDeltaV,
+        ...(instanceImpulse ? { separationImpulseBodyNs: instanceImpulse } : {}),
         motors: instanceMotors,
         burnoutOffsetS: burnoutOffset(instanceMotors),
       };
@@ -808,6 +842,7 @@ export function createMultiStageVehicleModel(input: Readonly<{
     return {
       ...stage,
       separationDeltaVBodyMps,
+      ...(separationImpulseBodyNs ? { separationImpulseBodyNs } : {}),
       motors,
       instances,
       burnoutOffsetS: Math.max(...instances.map((instance) => instance.burnoutOffsetS)),
@@ -846,6 +881,11 @@ export function createMultiStageVehicleModel(input: Readonly<{
     ...stage.instances.flatMap((instance) => instance.motors),
   ]).filter((motor) => motor.normalizedThrustAxisSchedule);
   const hasGimbalSchedule = gimbalMotors.length > 0;
+  const measuredSeparationStages = stages.filter((stage) =>
+    stage.separationImpulseBodyNs !== undefined ||
+    stage.instances.some((instance) => instance.separationImpulseBodyNs !== undefined),
+  );
+  const hasMeasuredSeparationImpulse = measuredSeparationStages.length > 0;
 
   const evaluate = (state: RigidBodyState): MultiStageVehicleEvaluation => {
     if (!Number.isFinite(state.timeS)) throw new Error("staging state time must be finite");
@@ -1145,6 +1185,7 @@ export function createMultiStageVehicleModel(input: Readonly<{
     delayS?: number;
     label?: string;
     separationDeltaVBodyMps?: number;
+    separationImpulseBodyNs?: Vector3;
   }>): StateTriggeredRigidBodyEvent => {
     const stage = requireStage(eventInput.stageId);
     const instance = eventInput.instanceId === undefined
@@ -1155,9 +1196,34 @@ export function createMultiStageVehicleModel(input: Readonly<{
     const separationDeltaVBodyMps = eventInput.separationDeltaVBodyMps ??
       instance?.separationDeltaVBodyMps ?? stage.separationDeltaVBodyMps ?? 0;
     assertNonNegative(separationDeltaVBodyMps, "stage separation delta-v");
-    const separationLabel = separationDeltaVBodyMps > 0
-      ? ` (+${separationDeltaVBodyMps.toFixed(2)} m/s body +X)`
-      : "";
+    const separationImpulseBodyNs = validateSeparationImpulse(
+      eventInput.separationImpulseBodyNs ??
+        instance?.separationImpulseBodyNs ??
+        stage.separationImpulseBodyNs,
+      `stage ${stage.id} separation impulse`,
+    );
+    if (separationImpulseBodyNs && separationDeltaVBodyMps > 0) {
+      throw new Error("stage separation cannot configure both delta-v and impulse");
+    }
+    const separationLabel = separationImpulseBodyNs
+      ? ` (measured impulse ${separationImpulseBodyNs.x.toFixed(2)},${separationImpulseBodyNs.y.toFixed(2)},${separationImpulseBodyNs.z.toFixed(2)} N·s)`
+      : separationDeltaVBodyMps > 0
+        ? ` (+${separationDeltaVBodyMps.toFixed(2)} m/s body +X)`
+        : "";
+    const retainedDeltaVForState = (state: RigidBodyState): Vector3 => {
+      if (!separationImpulseBodyNs) return { x: separationDeltaVBodyMps, y: 0, z: 0 };
+      const stateAfterSeparation = separateStage(
+        state,
+        stage.id,
+        ZERO_VECTOR,
+        instance?.id,
+      );
+      const retainedMassKg = evaluate(stateAfterSeparation).massProperties.massKg;
+      if (!(retainedMassKg > 0) || !Number.isFinite(retainedMassKg)) {
+        throw new Error(`stage ${stage.id} retained post-separation mass must be positive for impulse conversion`);
+      }
+      return scaleVector(separationImpulseBodyNs, 1 / retainedMassKg);
+    };
     const instanceSuffix = instance ? `-${instance.id}` : "";
     return {
       id: `staging-${stage.id}${instanceSuffix}-burnout-separation`,
@@ -1177,10 +1243,12 @@ export function createMultiStageVehicleModel(input: Readonly<{
       apply: (state) => separateStage(
         state,
         stage.id,
-        { x: separationDeltaVBodyMps, y: 0, z: 0 },
+        retainedDeltaVForState(state),
         instance?.id,
       ),
-      separationDeltaVBodyMps: { x: separationDeltaVBodyMps, y: 0, z: 0 },
+      ...(separationImpulseBodyNs
+        ? { separationImpulseBodyNs }
+        : { separationDeltaVBodyMps: { x: separationDeltaVBodyMps, y: 0, z: 0 } }),
     };
   };
 
@@ -1314,6 +1382,11 @@ export function createMultiStageVehicleModel(input: Readonly<{
             "Motor thrust-axis schedules are linearly interpolated in motor-local time and normalized before force and moment evaluation",
           ]
         : []),
+      ...(hasMeasuredSeparationImpulse
+        ? [
+            "Measured separation impulses are converted to retained-body delta-v using the live post-separation mass at the event boundary",
+          ]
+        : []),
       ...(hasMeasuredMassFlow
         ? [
             "When supplied, positive measured mass-flow history directly drives motor propellant depletion while thrust remains an independent curve",
@@ -1330,6 +1403,11 @@ export function createMultiStageVehicleModel(input: Readonly<{
       ...(hasGimbalSchedule
         ? [
             "Gimbal schedules are deterministic commanded-axis previews; actuator dynamics, rate limits, flexure, plume effects, and control-loop coupling are not modeled.",
+          ]
+        : []),
+      ...(hasMeasuredSeparationImpulse
+        ? [
+            "Measured separation impulses are user-supplied vectors; calibration, timing uncertainty, mechanism compliance, and equal-and-opposite discarded-body dynamics remain outside this staged model.",
           ]
         : []),
       ...(hasMeasuredMassFlow

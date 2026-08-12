@@ -179,6 +179,7 @@ import {
   type VehicleStagePlan,
   type VehicleStageRecoveryTrigger,
   type VehicleStageRole,
+  type VehicleStageSeparationImpulseBodyNs,
   type VehicleTopologyComponentPlan,
 } from "../lib/project/vehicle-topology.ts";
 import {
@@ -1531,6 +1532,9 @@ function createStageFlightPreviewInputs({
           structuralMassProperties: instanceStructuralMassProperties,
           motors: instanceMotors,
           separationDeltaVBodyMps: stage.separationDeltaVBodyMps ?? 0,
+          ...(stage.separationImpulseBodyNs
+            ? { separationImpulseBodyNs: stage.separationImpulseBodyNs }
+            : {}),
         };
       });
     const stageRecoveryDevices = stage.recovery?.enabled && stage.role !== "payload"
@@ -1552,6 +1556,9 @@ function createStageFlightPreviewInputs({
       motors,
       ...(physicalInstances.length > 1 ? { instances: physicalInstances } : {}),
       separationDeltaVBodyMps: stage.separationDeltaVBodyMps ?? 0,
+      ...(stage.separationImpulseBodyNs
+        ? { separationImpulseBodyNs: stage.separationImpulseBodyNs }
+        : {}),
       ...(stageRecoveryDevices ? {
         recoveryDevices: stageRecoveryDevices,
         recoveryDeploymentTrigger: stage.recovery?.deploymentTrigger ?? "apogee",
@@ -1642,6 +1649,9 @@ function createStageFlightPreviewInputs({
       ...(instanceId ? { instanceId } : {}),
       delayS: plan?.separationDelayS ?? 0.1,
       separationDeltaVBodyMps: plan?.separationDeltaVBodyMps ?? 0,
+      ...(plan?.separationImpulseBodyNs
+        ? { separationImpulseBodyNs: plan.separationImpulseBodyNs }
+        : {}),
     });
     if (instanceIds.length > 1) {
       instanceIds.forEach((instanceId) => {
@@ -5874,6 +5884,21 @@ export default function Home() {
       ...(nextSchedule.length > 0 ? { gimbalSchedule: nextSchedule } : { gimbalSchedule: undefined }),
     });
   };
+  const updateTopologySeparationImpulse = (
+    stage: VehicleStagePlan,
+    axis: keyof VehicleStageSeparationImpulseBodyNs,
+    value: number,
+  ): boolean => {
+    const current = stage.separationImpulseBodyNs ?? { x: 0, y: 0, z: 0 };
+    const next = { ...current, [axis]: value } as VehicleStageSeparationImpulseBodyNs;
+    const hasImpulse = Math.hypot(next.x, next.y, next.z) > 1e-9;
+    return updateTopologyStage(stage.id, {
+      separationDeltaVBodyMps: 0,
+      ...(hasImpulse ? { separationImpulseBodyNs: next } : { separationImpulseBodyNs: undefined }),
+    });
+  };
+  const clearTopologySeparationImpulse = (stage: VehicleStagePlan): boolean =>
+    updateTopologyStage(stage.id, { separationImpulseBodyNs: undefined });
   const updateTopologyRecovery = (
     stage: VehicleStagePlan,
     patch: Partial<NonNullable<VehicleStagePlan["recovery"]>>,
@@ -7552,6 +7577,7 @@ export default function Home() {
                               <div><span>Audited events</span><strong>{stageFlightResult.separationDynamics.length}</strong><small>{stageFlightResult.separationDynamics.filter((audit) => audit.status === "balanced").length} balanced</small></div>
                               <div><span>Maximum momentum residual</span><strong>{(() => { const value = maximumNullableMetric(stageFlightResult.separationDynamics.map((audit) => audit.linearMomentumResidualMagnitudeKgMps)); return value === null ? "Not assessed" : `${value.toExponential(2)} kg·m/s`; })()}</strong><small>instantaneous audit</small></div>
                               <div><span>Maximum angular impulse</span><strong>{(() => { const value = maximumNullableMetric(stageFlightResult.separationDynamics.map((audit) => audit.angularImpulseResidualMagnitudeKgM2PerS)); return value === null ? "Not assessed" : `${value.toExponential(2)} kg·m²/s`; })()}</strong><small>unmodeled first-order term</small></div>
+                              <div><span>Measured impulses</span><strong>{stageFlightResult.separationDynamics.filter((audit) => audit.retainedImpulseBodyNs !== null).length}</strong><small>source vectors retained</small></div>
                               <div><span>Model</span><strong>{publicModelVersion(stageFlightResult.separationDynamics[0].modelVersion)}</strong><small>conservation audit only</small></div>
                             </div>
                             {stageFlightResult.separationDynamics.some((audit) => audit.status !== "balanced") && (
@@ -7675,6 +7701,7 @@ export default function Home() {
                           {event.detachedStageInstanceIds.length > 0 && <small>released copies · {event.detachedStageInstanceIds.join(" + ")}</small>}
                           <small>{event.attachedStageIdsBefore.join(" + ")} → {event.attachedStageIdsAfter.join(" + ")}</small>
                           {event.separationDeltaVBodyMps && event.detachedStageIds.length > 0 && <small>retained dV +X {event.separationDeltaVBodyMps.x.toFixed(2)} m/s · world ({event.separationDeltaVWorldMps?.x.toFixed(2)}, {event.separationDeltaVWorldMps?.y.toFixed(2)}, {event.separationDeltaVWorldMps?.z.toFixed(2)}) m/s</small>}
+                          {event.separationImpulseBodyNs && event.detachedStageIds.length > 0 && <small>measured retained impulse ({event.separationImpulseBodyNs.x.toFixed(1)}, {event.separationImpulseBodyNs.y.toFixed(1)}, {event.separationImpulseBodyNs.z.toFixed(1)}) N·s</small>}
                         </button>
                       ))}
                     </div>
@@ -9091,7 +9118,17 @@ export default function Home() {
                     <div className="topology-stage-events">
                       <TopologyNumberField id={`${stage.id}-ignition-delay`} label="Ignition delay (s)" value={stage.ignitionDelayS} min={0} max={120} step={0.01} onChange={(value) => { if (typeof value === "number") updateTopologyStage(stage.id, { ignitionDelayS: value }); }} />
                       <TopologyNumberField id={`${stage.id}-separation-delay`} label="Separation delay (s)" value={stage.separationDelayS} min={0} max={120} step={0.01} disabled={stage.role === "core"} onChange={(value) => { if (typeof value === "number") updateTopologyStage(stage.id, { separationDelayS: value }); }} />
-                      <TopologyNumberField id={`${stage.id}-separation-dv`} label="Separation dV (+X, m/s)" value={stage.separationDeltaVBodyMps ?? 0} min={0} max={30} step={0.01} disabled={stage.role === "core"} onChange={(value) => { if (typeof value === "number") updateTopologyStage(stage.id, { separationDeltaVBodyMps: value }); }} />
+                      <TopologyNumberField id={`${stage.id}-separation-dv`} label="Separation dV (+X, m/s)" value={stage.separationDeltaVBodyMps ?? 0} min={0} max={30} step={0.01} disabled={stage.role === "core"} onChange={(value) => { if (typeof value === "number") updateTopologyStage(stage.id, { separationDeltaVBodyMps: value, ...(value > 0 ? { separationImpulseBodyNs: undefined } : {}) }); }} />
+                      {stage.role !== "core" && stage.role !== "payload" && <details className="topology-separation-impulse-editor">
+                        <summary>Measured separation impulse {stage.separationImpulseBodyNs ? "· active" : "· not configured"}</summary>
+                        <p>Optional retained-body impulse in the stage body frame. RocketWorks converts it to dV using the live post-separation mass and keeps the measurement visible in the event audit.</p>
+                        <div className="topology-separation-impulse-fields">
+                          <TopologyNumberField id={`${stage.id}-separation-impulse-x`} label="Impulse X (N·s)" value={stage.separationImpulseBodyNs?.x ?? 0} min={-5000} max={5000} step={0.1} onChange={(value) => { if (typeof value === "number") updateTopologySeparationImpulse(stage, "x", value); }} />
+                          <TopologyNumberField id={`${stage.id}-separation-impulse-y`} label="Impulse Y (N·s)" value={stage.separationImpulseBodyNs?.y ?? 0} min={-5000} max={5000} step={0.1} onChange={(value) => { if (typeof value === "number") updateTopologySeparationImpulse(stage, "y", value); }} />
+                          <TopologyNumberField id={`${stage.id}-separation-impulse-z`} label="Impulse Z (N·s)" value={stage.separationImpulseBodyNs?.z ?? 0} min={-5000} max={5000} step={0.1} onChange={(value) => { if (typeof value === "number") updateTopologySeparationImpulse(stage, "z", value); }} />
+                        </div>
+                        {stage.separationImpulseBodyNs && <button className="secondary-button" type="button" onClick={() => clearTopologySeparationImpulse(stage)}>Clear measured impulse</button>}
+                      </details>}
                       {stage.role !== "core" && stage.role !== "payload" && <>
                         <label className="topology-failure-toggle"><input type="checkbox" checked={stage.recovery?.enabled ?? false} onChange={(event) => updateTopologyRecovery(stage, { enabled: event.target.checked })} /> Detached recovery</label>
                         <TopologyNumberField id={`${stage.id}-recovery-diameter`} label="Canopy diameter (m)" value={stage.recovery?.diameterM ?? 0.45} min={0.05} max={3} step={0.01} disabled={!stage.recovery?.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyRecovery(stage, { diameterM: value }); }} />
@@ -9107,7 +9144,7 @@ export default function Home() {
                       <label>Failed motors (1-based)<input type="text" inputMode="text" placeholder={stageMotorInstanceCount(stage) > 1 ? "e.g. 1, 3" : "none"} value={topologyFailureDrafts[stage.id] ?? stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")} disabled={stage.role === "payload"} onChange={(event) => { setTopologyFailureDrafts((current) => ({ ...current, [stage.id]: event.target.value })); setTopologyError(""); }} onBlur={() => { const value = topologyFailureDrafts[stage.id]; if (value === undefined) return; if (updateTopologyMotorFailures(stage, value)) { setTopologyFailureDrafts((current) => { const next = { ...current }; delete next[stage.id]; return next; }); } }} /></label>
                       <label className="topology-failure-toggle"><input type="checkbox" checked={stage.ignitionFailure} onChange={(event) => updateTopologyStage(stage.id, { ignitionFailure: event.target.checked })} /> Force ignition failure in preview</label>
                     </div>
-                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{(stage.separationDeltaVBodyMps ?? 0) > 0 ? ` · separation +${(stage.separationDeltaVBodyMps ?? 0).toFixed(2)} m/s` : ""}{stage.recovery?.enabled ? ` · detached recovery Ø${stage.recovery.diameterM.toFixed(2)} m · ${stage.recovery.deploymentTrigger === "altitude" ? `descent ${stage.recovery.deploymentAltitudeAglM ?? 150} m` : stage.recovery.deploymentTrigger === "time" ? `time ${stage.recovery.deploymentTimeS ?? 8} s` : "branch apogee"}` : ""}{stage.failedMotorInstanceIndices.length > 0 ? ` · failed motor${stage.failedMotorInstanceIndices.length > 1 ? "s" : ""} ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}` : ""}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}{stage.gimbalSchedule && stage.gimbalSchedule.length > 0 ? ` · gimbal ${stage.gimbalSchedule.length} points` : ""}</span><div className="topology-stage-actions"><button className="secondary-button" onClick={() => duplicateTopologyStage(stage.id)}>Duplicate</button>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div></div>
+                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{(stage.separationDeltaVBodyMps ?? 0) > 0 ? ` · separation +${(stage.separationDeltaVBodyMps ?? 0).toFixed(2)} m/s` : ""}{stage.separationImpulseBodyNs ? ` · measured impulse ${Math.hypot(stage.separationImpulseBodyNs.x, stage.separationImpulseBodyNs.y, stage.separationImpulseBodyNs.z).toFixed(1)} N·s` : ""}{stage.recovery?.enabled ? ` · detached recovery Ø${stage.recovery.diameterM.toFixed(2)} m · ${stage.recovery.deploymentTrigger === "altitude" ? `descent ${stage.recovery.deploymentAltitudeAglM ?? 150} m` : stage.recovery.deploymentTrigger === "time" ? `time ${stage.recovery.deploymentTimeS ?? 8} s` : "branch apogee"}` : ""}{stage.failedMotorInstanceIndices.length > 0 ? ` · failed motor${stage.failedMotorInstanceIndices.length > 1 ? "s" : ""} ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}` : ""}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}{stage.gimbalSchedule && stage.gimbalSchedule.length > 0 ? ` · gimbal ${stage.gimbalSchedule.length} points` : ""}</span><div className="topology-stage-actions"><button className="secondary-button" onClick={() => duplicateTopologyStage(stage.id)}>Duplicate</button>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div></div>
                   </div>
                 </article>
               ))}

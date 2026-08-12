@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add optional measured retained-body separation impulses. Topology-authored
+  body-frame N·s vectors now convert to event delta-v using live post-separation
+  mass, remain visible in staged telemetry and audits, and scale through the
+  uncertainty adapter; mechanism timing, calibration, compliance, and discarded
+  body dynamics remain explicit limitations.
 - Add bounded motor-local gimbal schedules. Stage-authored pitch/yaw points now
   interpolate thrust direction and feed the live 6DOF force/moment path, while
   actuator dynamics, rate limits, flexure, plume effects, and control-loop

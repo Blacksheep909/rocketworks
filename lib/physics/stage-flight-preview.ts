@@ -18,6 +18,7 @@ import {
 } from "./launch-rail.ts";
 import {
   rotateBodyToWorld,
+  rotateWorldToBody,
   simulateRigidBody6D,
   type AppliedRigidBodyEvent,
   type RigidBodyLoads,
@@ -88,7 +89,7 @@ import {
 } from "./stage-flight-vector-budget.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.21.0";
+  "kestrel-stage-flight-preview-0.22.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -208,6 +209,8 @@ export type StageFlightEvent = Readonly<{
   priority: number;
   separationDeltaVBodyMps?: Vector3;
   separationDeltaVWorldMps?: Vector3;
+  separationImpulseBodyNs?: Vector3;
+  separationImpulseWorldNs?: Vector3;
 }>;
 
 export type StageFlightConvergenceDiagnostic = Readonly<{
@@ -454,7 +457,47 @@ function summarizeEvent(
     separationDeltaVWorldMps: event.separationDeltaVBodyMps
       ? rotateBodyToWorld(event.stateBefore.orientationBodyToWorld, event.separationDeltaVBodyMps)
       : undefined,
+    separationImpulseBodyNs: event.separationImpulseBodyNs,
+    separationImpulseWorldNs: event.separationImpulseBodyNs
+      ? rotateBodyToWorld(event.stateBefore.orientationBodyToWorld, event.separationImpulseBodyNs)
+      : undefined,
   };
+}
+
+function bindMeasuredSeparationImpulseEvent<
+  T extends ScheduledRigidBodyEvent | StateTriggeredRigidBodyEvent,
+>(
+  event: T,
+  staging: ReturnType<typeof createMultiStageVehicleModel>,
+): T {
+  const impulseBodyNs = event.separationImpulseBodyNs;
+  if (!impulseBodyNs || !event.apply) return event;
+  if (event.separationDeltaVBodyMps) {
+    throw new Error(`${event.id} cannot carry both separation delta-v and measured impulse`);
+  }
+  return {
+    ...event,
+    apply: (state: Parameters<NonNullable<T["apply"]>>[0]) => {
+      const after = event.apply!(state);
+      const retainedMassKg = staging.evaluate(after).massProperties.massKg;
+      if (!(retainedMassKg > 0) || !Number.isFinite(retainedMassKg)) {
+        throw new Error(`${event.id} measured separation impulse requires positive retained post-separation mass`);
+      }
+      const targetDeltaVBodyMps = scaleVector(impulseBodyNs, 1 / retainedMassKg);
+      const originalDeltaVBodyMps = rotateWorldToBody(
+        state.orientationBodyToWorld,
+        subtractVectors(after.velocityWorldMps, state.velocityWorldMps),
+      );
+      const correctionWorldMps = rotateBodyToWorld(
+        state.orientationBodyToWorld,
+        subtractVectors(targetDeltaVBodyMps, originalDeltaVBodyMps),
+      );
+      return {
+        ...after,
+        velocityWorldMps: addVectors(after.velocityWorldMps, correctionWorldMps),
+      };
+    },
+  } as T;
 }
 
 type StageFlightRun = Readonly<{
@@ -767,9 +810,15 @@ export function simulateStageFlightPreview(
           note,
         };
       });
+  const effectiveEvents = (input.events ?? []).map((event) =>
+    bindMeasuredSeparationImpulseEvent(event, staging),
+  );
+  const effectiveStateEvents = (input.stateEvents ?? []).map((event) =>
+    bindMeasuredSeparationImpulseEvent(event, staging),
+  );
   const scheduledTimesS = [
     ...new Set(
-      (input.events ?? [])
+      effectiveEvents
         .map((event) => event.timeS)
         .filter((timeS) => Number.isFinite(timeS) && timeS >= 0),
     ),
@@ -784,8 +833,8 @@ export function simulateStageFlightPreview(
           loads: combinedLoads,
           rail: input.launchRail,
           scheduledTimesS,
-          events: input.events,
-          stateEvents: input.stateEvents,
+          events: effectiveEvents,
+          stateEvents: effectiveStateEvents,
           maximumRailSteps: input.launchRailMaximumSteps,
           integration: input.integration,
         })
@@ -798,8 +847,8 @@ export function simulateStageFlightPreview(
           durationS: input.durationS,
           timeStepS,
           loads: combinedLoads,
-          events: input.events,
-          stateEvents: input.stateEvents,
+          events: effectiveEvents,
+          stateEvents: effectiveStateEvents,
           scheduledTimesS,
           integration: input.integration,
         }));
@@ -940,7 +989,7 @@ export function simulateStageFlightPreview(
     primaryRun.simulation?.eventAllocation ??
     primaryRun.rail?.freeFlight?.eventAllocation ??
     allocateMissionEventPlan([
-      ...(input.events ?? []).map((event) => ({
+      ...effectiveEvents.map((event) => ({
         id: event.id,
         label: event.label,
         kind: event.kind,
@@ -949,7 +998,7 @@ export function simulateStageFlightPreview(
         dependsOn: event.dependsOn,
         mutualExclusionKey: event.mutualExclusionKey,
       })),
-      ...(input.stateEvents ?? []).map((event) => ({
+      ...effectiveStateEvents.map((event) => ({
         id: event.id,
         label: event.label,
         kind: event.kind,
@@ -1028,6 +1077,7 @@ export function simulateStageFlightPreview(
         retainedMassPropertiesBefore: before.massProperties,
         retainedMassPropertiesAfter: retainedMassPropertiesAfterSeparation,
         configuredRetainedDeltaVBodyMps: event.separationDeltaVBodyMps,
+        configuredRetainedImpulseBodyNs: event.separationImpulseBodyNs,
         detachedBodies: detachedStageMassEntries.map((entry) => ({
           id: `${entry.stageId}/${entry.instanceId}`,
           massProperties: entry.massProperties,
