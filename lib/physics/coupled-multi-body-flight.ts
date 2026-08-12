@@ -422,7 +422,7 @@ function accelerationAt(
     {
       x: 0,
       y: 0,
-      z: -gravityAtAltitude(altitudeAslM),
+      z: -(environment?.gravityAccelerationMps2 ?? gravityAtAltitude(altitudeAslM)),
     },
     environment?.earthRotationAccelerationWorldMps2 ?? { x: 0, y: 0, z: 0 },
   );

@@ -65,6 +65,8 @@ export type EditableProjectInputs = Readonly<{
   launchAltitudeM: number;
   /** Opt-in local ENU Coriolis correction for coupled flight paths. */
   earthRotationEnabled?: boolean;
+  /** Opt-in WGS84 normal-gravity correction using launch latitude. */
+  normalGravityEnabled?: boolean;
   /** Local ENU terrain contact model used by landing-dispersion descent. */
   terrainModel: ProjectTerrainModel;
   /** Planar terrain rise per metre moving east, expressed as percent. */
@@ -151,7 +153,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -395,6 +397,12 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   if (typeof earthRotationEnabled !== "boolean") {
     throw new Error("earthRotationEnabled must be boolean.");
   }
+  const normalGravityEnabled = input.normalGravityEnabled === undefined
+    ? false
+    : input.normalGravityEnabled;
+  if (typeof normalGravityEnabled !== "boolean") {
+    throw new Error("normalGravityEnabled must be boolean.");
+  }
   const uncertaintySeed = input.uncertaintySeed === undefined
     ? DEFAULT_UNCERTAINTY_SEED
     : nonEmptyString(input.uncertaintySeed, "uncertaintySeed", 80);
@@ -422,6 +430,7 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     launchLongitudeDeg: validated.launchLongitudeDeg,
     launchAltitudeM: validated.launchAltitudeM,
     ...(input.earthRotationEnabled === undefined ? {} : { earthRotationEnabled }),
+    ...(input.normalGravityEnabled === undefined ? {} : { normalGravityEnabled }),
     terrainModel,
     terrainEastSlopePercent: validated.terrainEastSlopePercent,
     terrainNorthSlopePercent: validated.terrainNorthSlopePercent,
@@ -552,6 +561,7 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   launchLongitudeDeg: "launch-site longitude",
   launchAltitudeM: "launch altitude",
   earthRotationEnabled: "Earth rotation correction",
+  normalGravityEnabled: "WGS84 normal gravity",
   terrainModel: "terrain contact model",
   terrainEastSlopePercent: "terrain east slope",
   terrainNorthSlopePercent: "terrain north slope",

@@ -28,6 +28,8 @@ east-north-up position and time:
 - deterministic one-minus-cosine discrete gust events
 - optional WGS84 Earth-rate Coriolis acceleration in the local ENU frame, with
   a separate API-only centrifugal displacement-gradient term
+- optional WGS84 normal gravity from launch latitude and ASL height, with a
+  standard scalar compatibility fallback
 - source, version, licence, attribution, observation time, and validation status
 
 The same surface-observation anchor is also available to the fast vertical
@@ -56,6 +58,29 @@ The optional `includeCentrifugalGradient` API flag adds
 constant site centrifugal term is not added a second time. Both terms are
 analytical preview corrections and remain unvalidated against a flight
 reference or geodetic/inertial truth model.
+
+## Gravity model
+
+The environment defaults to the existing standard scalar gravity relation so
+legacy projects and traces remain reproducible. When `gravityModel` is
+`"wgs84-normal"`, surface gravity uses the WGS84 Somigliana relation:
+
+```text
+gamma(phi) = gamma_e (1 + k sin²(phi)) / sqrt(1 - e² sin²(phi))
+```
+
+and geometric height uses the normal-gravity second-order expansion:
+
+```text
+gamma(phi,h) = gamma(phi) [1 - c(phi) h + 3(h/a)²]
+```
+
+The implementation keeps the constants and model version in
+`lib/physics/normal-gravity.ts`, rejects heights outside its declared
+`-10 km` through `1000 km` domain, and surfaces the selected model and version
+on every launch-environment query. It is a transparent normal-gravity
+approximation, not a geoid, EGM, or local gravimetry solution; it remains
+`engineering-preview-unvalidated`.
 
 ## Atmosphere adjustment
 

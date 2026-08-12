@@ -16,6 +16,10 @@ import {
   type EarthRotationOptions,
 } from "./earth-rotation.ts";
 import {
+  evaluateGravity,
+  type GravityModelKind,
+} from "./normal-gravity.ts";
+import {
   ZERO_VECTOR,
   addVectors,
   type Vector3,
@@ -80,6 +84,7 @@ export type DiscreteGustEvent = Readonly<{
 export type LaunchEnvironmentDefinition = Readonly<{
   site: LaunchSite;
   provenance: WeatherDataProvenance;
+  gravityModel?: GravityModelKind;
   earthRotation?: EarthRotationOptions;
   meanWindProfile?: readonly WindLayer[];
   surfaceObservation?: SurfaceWeatherObservation;
@@ -112,6 +117,10 @@ export type LaunchEnvironmentState = Readonly<{
   earthRotationEnabled?: boolean;
   earthRotationModelVersion?: string;
   earthRotationValidationStatus?: string;
+  gravityAccelerationMps2?: number;
+  gravityModel?: GravityModelKind;
+  gravityModelVersion?: string;
+  gravityValidationStatus?: string;
   provenance: WeatherDataProvenance;
 }>;
 
@@ -264,6 +273,11 @@ export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefini
     velocityWorldMps: ZERO_VECTOR,
     options: definition.earthRotation,
   });
+  const gravityAtOrigin = evaluateGravity({
+    model: definition.gravityModel,
+    latitudeDeg: site.latitudeDeg,
+    altitudeM: site.elevationM,
+  });
   const meanWindProfile = [...(definition.meanWindProfile ?? [])];
   validateWindProfile(meanWindProfile);
   const observation = definition.surfaceObservation;
@@ -342,6 +356,11 @@ export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefini
     const altitudeAglM = query.positionWorldM.z;
     const altitudeAslM = site.elevationM + altitudeAglM;
     const atmosphere = adjustedAtmosphere(altitudeAslM, site.elevationM, observation);
+    const gravity = evaluateGravity({
+      model: definition.gravityModel,
+      latitudeDeg: site.latitudeDeg,
+      altitudeM: altitudeAslM,
+    });
     const earthRotation = evaluateEarthRotation({
       latitudeDeg: site.latitudeDeg,
       positionWorldM: query.positionWorldM,
@@ -401,6 +420,10 @@ export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefini
       earthRotationEnabled: earthRotation.enabled,
       earthRotationModelVersion: earthRotation.modelVersion,
       earthRotationValidationStatus: earthRotation.validationStatus,
+      gravityAccelerationMps2: gravity.gravityMps2,
+      gravityModel: gravity.model,
+      gravityModelVersion: gravity.modelVersion,
+      gravityValidationStatus: gravity.validationStatus,
       provenance: definition.provenance,
     };
   };
@@ -426,6 +449,9 @@ export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefini
               : []),
           ]
         : ["Earth rotation correction is disabled by default; the local ENU preview omits Coriolis acceleration unless explicitly enabled."]),
+      ...(gravityAtOrigin.model === "wgs84-normal"
+        ? ["WGS84 normal gravity uses Somigliana surface gravity with a second-order height expansion; it is an analytical preview and not a geoid or local gravimetry solution."]
+        : ["Standard scalar gravity remains the compatibility default; latitude-dependent WGS84 normal gravity is opt-in."]),
       "Weather provenance and observation age must be reviewed before use; RocketWorks does not authenticate external weather data.",
       "The launch-environment model is unvalidated and is not a flight-safety weather assessment.",
     ],
@@ -443,6 +469,9 @@ export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefini
             "Earth rotation uses the WGS84 conventional mean angular rate expressed in the launch-site ENU frame.",
             "Coriolis velocity is ground-relative ENU velocity; wind remains an aerodynamic relative-flow input and is not subtracted from this term.",
           ]
+        : []),
+      ...(gravityAtOrigin.model === "wgs84-normal"
+        ? ["Gravity uses launch-site geodetic latitude and ASL height through the selected WGS84 normal-gravity approximation."]
         : []),
     ],
   };

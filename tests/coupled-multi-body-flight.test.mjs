@@ -180,6 +180,8 @@ test("coupled point-mass propagation consumes optional environment rotation acce
       altitudeAglM: positionWorldM.z,
       altitudeAslM: positionWorldM.z,
       atmosphere: standardAtmosphere(positionWorldM.z),
+      gravityAccelerationMps2: 9.5,
+      gravityModel: "fixture-gravity",
       meanWindWorldMps: { x: 0, y: 0, z: 0 },
       turbulenceWindWorldMps: { x: 0, y: 0, z: 0 },
       discreteGustWindWorldMps: { x: 0, y: 0, z: 0 },
@@ -200,7 +202,7 @@ test("coupled point-mass propagation consumes optional environment rotation acce
   const initial = result.trajectories[0].trace[0];
   assert.equal(initial.accelerationWorldMps2.x, 0.25);
   assert.equal(initial.accelerationWorldMps2.y, -0.5);
-  assert.ok(initial.accelerationWorldMps2.z < -8.3);
+  assert.equal(initial.accelerationWorldMps2.z, -8.75);
   assert.ok(result.assumptions.some((assumption) => /Earth rotation|rotation/i.test(assumption)));
 });
 

@@ -332,15 +332,23 @@ export function simulateSeparatedBodyFlight(
       const environment = input.environmentAt?.({
         timeS: state.timeS,
         positionWorldM: state.positionWorldM,
+        velocityWorldMps: state.velocityWorldMps,
       });
       const altitudeAslM =
         environment?.altitudeAslM ??
         (input.launchAltitudeM ?? 0) + state.positionWorldM.z;
-      const gravityForceWorldN = {
-        x: 0,
-        y: 0,
-        z: -input.stageMassProperties.massKg * gravityAtAltitude(altitudeAslM),
-      };
+      const gravityAccelerationWorldMps2 = addVectors(
+        {
+          x: 0,
+          y: 0,
+          z: -(environment?.gravityAccelerationMps2 ?? gravityAtAltitude(altitudeAslM)),
+        },
+        environment?.earthRotationAccelerationWorldMps2 ?? ZERO_VECTOR,
+      );
+      const gravityForceWorldN = scaleVector(
+        gravityAccelerationWorldMps2,
+        input.stageMassProperties.massKg,
+      );
       let dragForceWorldN = ZERO_VECTOR;
       if (hasReferenceArea && hasDragCoefficient) {
         const atmosphere = environment?.atmosphere ?? standardAtmosphere(altitudeAslM);

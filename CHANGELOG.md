@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an opt-in WGS84 normal-gravity model using Somigliana surface gravity and
+  a second-order height expansion. The selected model now flows through launch
+  environment state, retained and detached 6DOF loads, landing descent, and
+  persisted browser inputs; standard scalar gravity remains the compatibility
+  default and all normal-gravity limits remain explicit.
 - Add an opt-in clean-room WGS84 Earth-rate correction to the launch
   environment. The local ENU Coriolis acceleration now flows through rocket
   loads and shared released-body propagation, with an explicit browser control,

@@ -71,6 +71,25 @@ test("opt-in Earth rotation is exposed through the environment state", () => {
   assert.equal(disabled.earthRotationEnabled, false);
 });
 
+test("opt-in WGS84 normal gravity is exposed with model provenance", () => {
+  const model = createLaunchEnvironmentModel(definition({
+    gravityModel: "wgs84-normal",
+  }));
+  const state = model.at({
+    timeS: 0,
+    positionWorldM: { x: 0, y: 0, z: 500 },
+  });
+  assert.equal(state.gravityModel, "wgs84-normal");
+  assert.match(state.gravityModelVersion, /wgs84-normal-gravity/);
+  assert.ok((state.gravityAccelerationMps2 ?? 0) > 9.7);
+  assert.ok(model.warnings.some((warning) => /WGS84 normal gravity/.test(warning)));
+  const standard = createLaunchEnvironmentModel(definition()).at({
+    timeS: 0,
+    positionWorldM: { x: 0, y: 0, z: 500 },
+  });
+  assert.equal(standard.gravityModel, "standard");
+});
+
 test("surface observation exactly anchors site pressure and temperature", () => {
   const model = createLaunchEnvironmentModel(definition({
     surfaceObservation: {

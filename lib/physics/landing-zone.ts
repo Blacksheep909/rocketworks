@@ -567,11 +567,17 @@ export function simulateRecoveryDescent(input: Readonly<{
     return {
       positionDerivative: state.velocityWorldMps,
       velocityDerivative: {
-        x: dragAccelerationFactor * airRelativeVelocity.x,
-        y: dragAccelerationFactor * airRelativeVelocity.y,
+        x:
+          dragAccelerationFactor * airRelativeVelocity.x +
+          (environment.earthRotationAccelerationWorldMps2?.x ?? 0),
+        y:
+          dragAccelerationFactor * airRelativeVelocity.y +
+          (environment.earthRotationAccelerationWorldMps2?.y ?? 0),
         z:
           dragAccelerationFactor * airRelativeVelocity.z -
-          gravityAtAltitude(environment.altitudeAslM),
+          (environment.gravityAccelerationMps2 ??
+            gravityAtAltitude(environment.altitudeAslM)) +
+          (environment.earthRotationAccelerationWorldMps2?.z ?? 0),
       },
       environment,
       airspeedMps,

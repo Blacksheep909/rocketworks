@@ -157,6 +157,8 @@ export type PreliminaryRocketLoadDiagnostics = Readonly<{
   propulsionForceBodyN: Vector3;
   propulsionMomentBodyNm: Vector3;
   gravityN: number;
+  gravityModel: string;
+  gravityModelVersion: string | null;
   dragN: number;
   normalForceN: number;
   normalForceApplied: boolean;
@@ -669,12 +671,15 @@ export function createPreliminaryRocketLoadModel(
     ) {
       throw new Error("propulsion load provider returned invalid force, moment, or thrust");
     }
-    const gravityN = body.massKg * gravityAtAltitude(altitudeAslM);
+    const gravityAccelerationMps2 =
+      providedEnvironment?.gravityAccelerationMps2 ??
+      gravityAtAltitude(altitudeAslM);
+    const gravityN = body.massKg * gravityAccelerationMps2;
     const earthRotationAccelerationWorldMps2 =
       providedEnvironment?.earthRotationAccelerationWorldMps2 ?? ZERO_VECTOR;
     const gravityAndEarthRotationForceWorldN = scaleVector(
       addVectors(
-        { x: 0, y: 0, z: -gravityAtAltitude(altitudeAslM) },
+        { x: 0, y: 0, z: -gravityAccelerationMps2 },
         earthRotationAccelerationWorldMps2,
       ),
       body.massKg,
@@ -721,6 +726,8 @@ export function createPreliminaryRocketLoadModel(
         propulsionForceBodyN: propulsion.netThrustForceBodyN,
         propulsionMomentBodyNm: propulsion.netThrustMomentBodyNm,
         gravityN,
+        gravityModel: providedEnvironment?.gravityModel ?? "standard",
+        gravityModelVersion: providedEnvironment?.gravityModelVersion ?? null,
         dragN,
         normalForceN,
         normalForceApplied,

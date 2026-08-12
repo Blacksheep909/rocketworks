@@ -191,6 +191,17 @@ test("project snapshots preserve the opt-in Earth rotation control", () => {
   );
 });
 
+test("project snapshots preserve the opt-in normal-gravity control", () => {
+  const source = snapshot(1, { normalGravityEnabled: true });
+  assert.equal(source.inputs.normalGravityEnabled, true);
+  assert.deepEqual(parseLocalProjectSnapshot(serializeLocalProjectSnapshot(source)), source);
+  assert.equal(snapshot(2).inputs.normalGravityEnabled, undefined);
+  assert.throws(
+    () => snapshot(3, { normalGravityEnabled: "yes" }),
+    /normalGravityEnabled/,
+  );
+});
+
 test("project snapshots persist bounded uncertainty dependence assumptions", () => {
   const source = snapshot(1, {
     uncertaintyCorrelations: [

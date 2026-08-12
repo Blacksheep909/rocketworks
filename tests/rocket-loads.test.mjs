@@ -218,6 +218,7 @@ test("launch environment drives atmosphere, gust wind, and load diagnostics", ()
 test("opt-in Earth rotation enters world force and remains inspectable", () => {
   const environment = createLaunchEnvironmentModel({
     ...gustEnvironment().definition,
+    gravityModel: "wgs84-normal",
     earthRotation: { enabled: true },
   });
   const current = state({
@@ -229,6 +230,8 @@ test("opt-in Earth rotation enters world force and remains inspectable", () => {
   assert.ok(expected);
   assert.equal(evaluation.diagnostics.earthRotationEnabled, true);
   assert.match(evaluation.diagnostics.earthRotationModelVersion, /earth-rotation/);
+  assert.equal(evaluation.diagnostics.gravityModel, "wgs84-normal");
+  assert.match(evaluation.diagnostics.gravityModelVersion, /wgs84-normal-gravity/);
   close(
     evaluation.diagnostics.earthRotationAccelerationWorldMps2.x,
     expected.x,
