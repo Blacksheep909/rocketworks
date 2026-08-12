@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add synchronized keyboard- and touch-accessible sample scrubbers to the
+  vertical and staged flight trace inspectors; the selected sample now drives
+  the chart crosshair and numerical readout without changing engineering
+  inputs or rerunning a simulation.
 - Broaden synchronized, keyboard-accessible range controls across burn-time,
   drag, weather, wind, launch-rail, recovery, reefing, and uncertainty
   settings while retaining exact numeric entry for every field.

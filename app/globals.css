@@ -749,6 +749,16 @@ kbd {
 .stage-flight-hover span { color: #82c8ff; font: 650 8px var(--font-geist-mono), monospace; }
 .stage-flight-hover strong { color: #ecf7fb; font: 700 11px var(--font-geist-mono), monospace; }
 .stage-flight-hover small { overflow-wrap: anywhere; color: #78909f; font: 7px var(--font-geist-mono), monospace; }
+.stage-flight-profile-scrubber {
+  display: grid; grid-template-columns: auto minmax(120px, 1fr) minmax(150px, auto); align-items: center; gap: 9px;
+  margin-top: 8px; padding: 7px 8px; border: 1px solid rgba(117,153,180,.14); border-radius: 2px; background: rgba(117,153,180,.035);
+}
+.stage-flight-profile-scrubber label { color: #87a0ad; font: 650 8px var(--font-geist-mono), monospace; letter-spacing: .04em; text-transform: uppercase; }
+.stage-flight-profile-scrubber input[type="range"] {
+  width: 100%; min-width: 0; accent-color: var(--accent); cursor: ew-resize;
+}
+.stage-flight-profile-scrubber input[type="range"]:focus-visible { outline: 2px solid #73c5ff; outline-offset: 3px; }
+.stage-flight-profile-scrubber output { min-width: 0; overflow: hidden; color: #b8d4df; font: 8px var(--font-geist-mono), monospace; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
 .stage-flight-profile-footer { display: flex; justify-content: space-between; gap: 10px; margin-top: 4px; color: #6f8795; font: 8px var(--font-geist-mono), monospace; }
 .stage-flight-profile-footer > span { display: inline-flex; align-items: center; gap: 5px; }
 .profile-key-line { display: inline-block; width: 18px; height: 2px; border-radius: 2px; }
@@ -1927,6 +1937,8 @@ kbd {
   .stage-flight-heading .primary-button { width: 100%; }
   .stage-flight-profile-heading { flex-direction: column; }
   .stage-flight-profile-tabs { justify-content: flex-start; }
+  .stage-flight-profile-scrubber { grid-template-columns: 1fr; align-items: stretch; }
+  .stage-flight-profile-scrubber output { text-align: left; }
   .stage-flight-profile-footer { align-items: flex-start; flex-direction: column; }
   .stage-structural-review-heading { flex-direction: column; }
   .stage-structural-review-heading small { text-align: left; }

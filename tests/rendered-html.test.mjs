@@ -104,6 +104,7 @@ test("ships versioned flight results and explainable model UI", async () => {
   assert.match(source, /brand-mark.*>R<\/span>/);
   assert.match(source, /Flight events/);
   assert.match(source, /Vertical flight profile/);
+  assert.match(source, /vertical-flight-trace-scrubber/);
   assert.match(source, /FLIGHT_METRICS/);
   assert.match(source, /Dynamic pressure/);
   assert.match(source, /role="tablist"/);
@@ -869,6 +870,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Run dispersion/);
   assert.match(page, /stageUncertaintyIsCurrent/);
   assert.match(page, /StageFlightProfileChart/);
+  assert.match(page, /stage-flight-trace-scrubber/);
   assert.match(page, /Vertical vs coupled preview/);
   assert.match(page, /formatSignedMetric/);
   assert.match(page, /stage-flight-comparison/);
@@ -1017,6 +1019,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stylesheet, /\.topology-component-marker/);
   assert.match(stylesheet, /\.stage-flight-profile/);
   assert.match(stylesheet, /\.stage-flight-chart/);
+  assert.match(stylesheet, /\.stage-flight-profile-scrubber/);
   assert.match(stylesheet, /\.stage-flight-convergence/);
   assert.match(stylesheet, /\.stage-event-allocation/);
   assert.match(stylesheet, /\.recovery-opening-load-card/);

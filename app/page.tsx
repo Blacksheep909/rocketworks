@@ -2347,6 +2347,7 @@ function FlightChart({ result }: { result: VerticalFlightResult }) {
     metricValues[0] ?? 0,
   );
   const hoverPoint = hoverIndex === null ? null : trace[hoverIndex] ?? null;
+  const scrubIndex = Math.min(Math.max(hoverIndex ?? 0, 0), Math.max(trace.length - 1, 0));
 
   const selectMetricByKeyboard = (
     event: ReactKeyboardEvent<HTMLButtonElement>,
@@ -2547,6 +2548,22 @@ function FlightChart({ result }: { result: VerticalFlightResult }) {
             <small>t {hoverPoint.timeS.toFixed(2)} s · altitude {hoverPoint.altitudeAglM.toFixed(1)} m</small>
           </div>
         )}
+      </div>
+      <div className="stage-flight-profile-scrubber">
+        <label htmlFor="vertical-flight-trace-scrubber">Trace sample</label>
+        <input
+          id="vertical-flight-trace-scrubber"
+          type="range"
+          min={0}
+          max={Math.max(trace.length - 1, 0)}
+          step={1}
+          value={scrubIndex}
+          aria-valuetext={hoverPoint ? `Sample ${scrubIndex + 1} of ${trace.length}, ${hoverPoint.timeS.toFixed(2)} seconds` : "No sample selected"}
+          onChange={(event) => setHoverIndex(Number(event.target.value))}
+        />
+        <output aria-live="polite">
+          {hoverPoint ? `t ${hoverPoint.timeS.toFixed(2)} s · ${formatFlightMetric(flightMetricValue(hoverPoint, metric), metric)} ${definition.unit}` : "Use the slider or point at the chart"}
+        </output>
       </div>
       <div className="stage-flight-profile-footer">
         <span><i className="profile-key-line" style={{ background: definition.color }} />Peak {formatFlightMetric(peakValue, metric)} {definition.unit}</span>
@@ -3015,6 +3032,7 @@ function StageFlightProfileChart({ result }: { result: StageFlightPreviewResult 
   const metricValues = trace.map((point) => stageFlightMetricValue(point, metric));
   const peakValue = metricValues.length > 0 ? Math.max(...metricValues) : 0;
   const hoverPoint = hoverIndex === null ? null : trace[hoverIndex] ?? null;
+  const scrubIndex = Math.min(Math.max(hoverIndex ?? 0, 0), Math.max(trace.length - 1, 0));
   const summaryId = "stage-flight-profile-summary";
   const selectMetricByKeyboard = (
     event: ReactKeyboardEvent<HTMLButtonElement>,
@@ -3217,6 +3235,22 @@ function StageFlightProfileChart({ result }: { result: StageFlightPreviewResult 
             <small>{hoverPoint.attachedStageIds.join(" + ") || "No attached stage"}</small>
           </div>
         )}
+      </div>
+      <div className="stage-flight-profile-scrubber">
+        <label htmlFor="stage-flight-trace-scrubber">Trace sample</label>
+        <input
+          id="stage-flight-trace-scrubber"
+          type="range"
+          min={0}
+          max={Math.max(trace.length - 1, 0)}
+          step={1}
+          value={scrubIndex}
+          aria-valuetext={hoverPoint ? `Sample ${scrubIndex + 1} of ${trace.length}, ${hoverPoint.timeS.toFixed(2)} seconds` : "No sample selected"}
+          onChange={(event) => setHoverIndex(Number(event.target.value))}
+        />
+        <output aria-live="polite">
+          {hoverPoint ? `t ${hoverPoint.timeS.toFixed(2)} s · ${formatStageFlightMetric(stageFlightMetricValue(hoverPoint, metric), metric)} ${definition.unit}` : "Use the slider or point at the chart"}
+        </output>
       </div>
       <div className="stage-flight-profile-footer">
         <span><i className="profile-key-line" style={{ background: definition.color }} />{definition.label} · peak {formatStageFlightMetric(peakValue, metric)} {definition.unit}</span>
