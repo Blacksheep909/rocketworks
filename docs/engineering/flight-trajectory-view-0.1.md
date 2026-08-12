@@ -41,6 +41,10 @@ trace positions.
   (0.25x through 4x) and stops exactly at the final retained sample. This is a
   requestAnimationFrame display loop backed by a pure bounded step helper; it
   never reruns, extrapolates, or mutates the engineering solver.
+- When a sample carries a normalized rigid-body quaternion, the view draws a
+  short screen-space arrow for the body nose (`body -X`) and reports the
+  supplied body angular-rate magnitude. A point-mass trace has no attitude
+  glyph by design; no orientation is inferred from its velocity.
 - Keyboard focus, a descriptive canvas label, visible controls, and a live
   selected-time readout keep the view usable without pointer input.
 - Reduced-motion preferences remain respected because the view does not use a
@@ -48,8 +52,9 @@ trace positions.
 
 ## Validation boundary
 
-The projection validates finite, ordered trace times and finite positions,
-then reports model version `rocketworks-flight-trajectory-view-0.1.0` with
+The projection validates finite, ordered trace times, finite positions, and
+any supplied quaternion/rate values, then reports model version
+`rocketworks-flight-trajectory-view-0.2.0` with
 status `display-projection-only`. It does not interpolate or modify engineering
 states, infer missing released-body paths, or add aerodynamic, gravity,
 contact, collision, range-safety, or flight-validation evidence. Event markers

@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extend the world-frame trajectory view to project optional rigid-body
+  quaternion attitude as a selected-time nose-direction glyph and expose the
+  supplied body angular-rate magnitude. Point-mass traces remain explicitly
+  translation-only, and the attitude glyph is display telemetry rather than a
+  new aerodynamic, contact, or flight-validation model.
 - Add intentional selectable-speed replay to the interactive world-frame
   flight-path view. Play/pause advances the existing coupled trace selection,
   keeps event markers and telemetry synchronized, and stops at the final sample;

@@ -1,4 +1,9 @@
 import type { Vector3 } from "../physics/linear-algebra.ts";
+import {
+  normalizeQuaternion,
+  rotateBodyToWorld,
+  type Quaternion,
+} from "../physics/six-dof.ts";
 
 /**
  * Original, display-only projection helpers for world-frame flight paths.
@@ -6,11 +11,15 @@ import type { Vector3 } from "../physics/linear-algebra.ts";
  * it consumes already-produced traces and never changes a simulation state.
  */
 export const FLIGHT_TRAJECTORY_VIEW_MODEL_VERSION =
-  "rocketworks-flight-trajectory-view-0.1.0";
+  "rocketworks-flight-trajectory-view-0.2.0";
 
 export type FlightTrajectorySample = Readonly<{
   timeS: number;
   positionWorldM: Vector3;
+  /** Optional rigid-body attitude; point-mass traces intentionally omit it. */
+  orientationBodyToWorld?: Quaternion;
+  /** Optional body-frame angular rate retained for display telemetry. */
+  angularVelocityBodyRadS?: Vector3;
 }>;
 
 export type FlightTrajectorySeries = Readonly<{
@@ -45,6 +54,11 @@ export type ProjectedFlightTrajectoryPoint = Readonly<{
   x: number;
   y: number;
   depth: number;
+  attitude?: Readonly<{
+    /** Unit nose direction in screen coordinates; body nose is body -X. */
+    noseDirectionScreen: Readonly<{ x: number; y: number }>;
+    angularRateMagnitudeRadS: number | null;
+  }>;
 }>;
 
 export type ProjectedFlightTrajectorySeries = Readonly<{
@@ -149,6 +163,12 @@ function validateSeries(series: readonly FlightTrajectorySeries[]): void {
       if (!finiteVector(sample.positionWorldM)) {
         throw new Error(`flight trajectory series ${entry.id} positions must be finite`);
       }
+      if (sample.orientationBodyToWorld) {
+        normalizeQuaternion(sample.orientationBodyToWorld);
+      }
+      if (sample.angularVelocityBodyRadS && !finiteVector(sample.angularVelocityBodyRadS)) {
+        throw new Error(`flight trajectory series ${entry.id} angular rates must be finite`);
+      }
       previousTimeS = sample.timeS;
     }
   }
@@ -249,18 +269,49 @@ export function projectFlightTrajectory(
   ) * camera.zoom;
   const centerLateral = (minimumLateral + maximumLateral) / 2;
   const centerVertical = (minimumVertical + maximumVertical) / 2;
-  const project = (rotated: RotatedPoint, seriesId: string, timeS: number): ProjectedFlightTrajectoryPoint => ({
-    seriesId,
-    timeS,
-    x: viewport.width / 2 + (rotated.lateral - centerLateral) * scale,
-    y: viewport.height / 2 - (rotated.vertical - centerVertical) * scale,
-    depth: rotated.depth,
-  });
+  const project = (
+    rotated: RotatedPoint,
+    seriesId: string,
+    timeS: number,
+    sample: FlightTrajectorySample,
+  ): ProjectedFlightTrajectoryPoint => {
+    const point = {
+      seriesId,
+      timeS,
+      x: viewport.width / 2 + (rotated.lateral - centerLateral) * scale,
+      y: viewport.height / 2 - (rotated.vertical - centerVertical) * scale,
+      depth: rotated.depth,
+    };
+    if (!sample.orientationBodyToWorld) return point;
+    const noseWorld = rotateBodyToWorld(sample.orientationBodyToWorld, { x: -1, y: 0, z: 0 });
+    const noseScreen = rotatePosition(noseWorld, camera);
+    const screenMagnitude = Math.hypot(noseScreen.lateral, noseScreen.vertical);
+    return {
+      ...point,
+      ...(screenMagnitude > 1e-12
+        ? {
+            attitude: {
+              noseDirectionScreen: {
+                x: noseScreen.lateral / screenMagnitude,
+                y: -noseScreen.vertical / screenMagnitude,
+              },
+              angularRateMagnitudeRadS: sample.angularVelocityBodyRadS
+                ? Math.hypot(
+                    sample.angularVelocityBodyRadS.x,
+                    sample.angularVelocityBodyRadS.y,
+                    sample.angularVelocityBodyRadS.z,
+                  )
+                : null,
+            },
+          }
+        : {}),
+    };
+  };
   const projectedSeries = rotatedSeries.map(({ entry, points }) => ({
     id: entry.id,
     label: entry.label,
     ...(entry.color ? { color: entry.color } : {}),
-    points: points.map(({ sample, rotated }) => project(rotated, entry.id, sample.timeS)),
+    points: points.map(({ sample, rotated }) => project(rotated, entry.id, sample.timeS, sample)),
   }));
   const primaryTrace = series[0]?.trace ?? [];
   const projectedEvents = events.map((event) => {

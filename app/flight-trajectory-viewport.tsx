@@ -72,6 +72,9 @@ export function FlightTrajectoryViewport({
     ? null
     : nearestFlightTrajectorySampleIndex(primaryTrace, activeTimeS);
   const activePrimarySample = activeIndex === null ? null : primaryTrace[activeIndex] ?? null;
+  const activePrimaryProjectedPoint = activeIndex === null
+    ? null
+    : projection.series[0]?.points[activeIndex] ?? null;
 
   useEffect(() => {
     selectedTimeRef.current = selectedTimeS;
@@ -234,6 +237,27 @@ export function FlightTrajectoryViewport({
         context.arc(point.x, point.y, seriesIndex === 0 ? 6 : 4, 0, Math.PI * 2);
         context.fill();
         context.stroke();
+        if (point.attitude) {
+          const glyphLength = seriesIndex === 0 ? 30 : 21;
+          const noseX = point.x + point.attitude.noseDirectionScreen.x * glyphLength;
+          const noseY = point.y + point.attitude.noseDirectionScreen.y * glyphLength;
+          const headAngle = Math.atan2(noseY - point.y, noseX - point.x);
+          context.save();
+          context.strokeStyle = "#f1f8fb";
+          context.fillStyle = "#f1f8fb";
+          context.lineWidth = seriesIndex === 0 ? 2 : 1.25;
+          context.beginPath();
+          context.moveTo(point.x, point.y);
+          context.lineTo(noseX, noseY);
+          context.stroke();
+          context.beginPath();
+          context.moveTo(noseX, noseY);
+          context.lineTo(noseX - Math.cos(headAngle - 0.48) * 7, noseY - Math.sin(headAngle - 0.48) * 7);
+          context.lineTo(noseX - Math.cos(headAngle + 0.48) * 7, noseY - Math.sin(headAngle + 0.48) * 7);
+          context.closePath();
+          context.fill();
+          context.restore();
+        }
         context.restore();
       });
     }
@@ -424,7 +448,7 @@ export function FlightTrajectoryViewport({
       </div>
       {activePrimarySample && (
         <p className="flight-trajectory-readout" aria-live="polite">
-          Selected sample <strong>{activePrimarySample.timeS.toFixed(2)} s</strong>. Click any path point to synchronize the detailed trace.
+          Selected sample <strong>{activePrimarySample.timeS.toFixed(2)} s</strong>. {activePrimaryProjectedPoint?.attitude ? `Rigid-body attitude available${activePrimaryProjectedPoint.attitude.angularRateMagnitudeRadS === null ? "" : ` · rate ${activePrimaryProjectedPoint.attitude.angularRateMagnitudeRadS.toFixed(3)} rad/s`}.` : "This path is translation-only at the selected sample."} Click any path point to synchronize the detailed trace.
         </p>
       )}
       <p className="flight-trajectory-disclaimer">Display projection only. It reuses the selected simulation states and does not add forces, contact, collision, range-safety, or flight-validation claims.</p>

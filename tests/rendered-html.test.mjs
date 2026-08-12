@@ -369,9 +369,13 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
   assert.match(trajectoryViewport, /requestAnimationFrame/);
   assert.match(trajectoryViewport, /Replay rate/);
   assert.match(trajectoryViewport, /Pause flight path replay/);
+  assert.match(trajectoryViewport, /noseDirectionScreen/);
+  assert.match(trajectoryViewport, /Rigid-body attitude available/);
   assert.match(trajectoryProjection, /display-projection-only/);
   assert.match(trajectoryProjection, /projectFlightTrajectory/);
   assert.match(trajectoryProjection, /advanceFlightTrajectoryReplay/);
+  assert.match(trajectoryProjection, /orientationBodyToWorld/);
+  assert.match(trajectoryProjection, /rocketworks-flight-trajectory-view-0\.2\.0/);
   assert.match(pageSource, /createFlightPathGeoJson/);
   assert.match(pageSource, /flight-path-geojson/);
   assert.match(flightPathExport, /FeatureCollection/);

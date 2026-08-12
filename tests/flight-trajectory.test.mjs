@@ -43,6 +43,28 @@ test("flight trajectory projection is deterministic and keeps release markers at
   assert.ok(first.series[0].points.every((point) => [point.x, point.y, point.depth].every(Number.isFinite)));
 });
 
+test("rigid-body attitude projects to a screen nose glyph without mutating the trace", () => {
+  const input = [{
+    id: "rigid",
+    label: "Rigid released body",
+    trace: [
+      {
+        timeS: 0,
+        positionWorldM: { x: 0, y: 0, z: 0 },
+        orientationBodyToWorld: { w: 1, x: 0, y: 0, z: 0 },
+        angularVelocityBodyRadS: { x: 0.1, y: 0.2, z: 0.3 },
+      },
+    ],
+  }];
+  const result = projectFlightTrajectory(input, [], camera, viewport);
+  const attitude = result.series[0].points[0].attitude;
+  assert.ok(attitude);
+  assert.ok(Number.isFinite(attitude.noseDirectionScreen.x));
+  assert.ok(Number.isFinite(attitude.noseDirectionScreen.y));
+  assert.equal(attitude.angularRateMagnitudeRadS, Math.sqrt(0.14));
+  assert.equal(input[0].trace[0].orientationBodyToWorld.w, 1);
+});
+
 test("orbit changes the display projection without changing input traces", () => {
   const input = series();
   const first = projectFlightTrajectory(input, [], camera, viewport);
@@ -67,6 +89,15 @@ test("nearest sample selection is stable and malformed projections fail explicit
   assert.throws(
     () => projectFlightTrajectory(series(), [], { ...camera, zoom: 0 }, viewport),
     /zoom/,
+  );
+  assert.throws(
+    () => projectFlightTrajectory(
+      [{ id: "bad-attitude", label: "Bad attitude", trace: [{ timeS: 0, positionWorldM: { x: 0, y: 0, z: 0 }, orientationBodyToWorld: { w: 0, x: 0, y: 0, z: 0 } }] }],
+      [],
+      camera,
+      viewport,
+    ),
+    /orientation quaternion/,
   );
 });
 
