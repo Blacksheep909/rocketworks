@@ -38,6 +38,10 @@ import {
 } from "./linear-algebra.ts";
 import type { VehicleComponent } from "./vehicle-components.ts";
 import type { WindLayer } from "./curves.ts";
+import {
+  NORMAL_FORCE_COMPRESSIBILITY_MODEL_VERSION,
+  type NormalForceModelKind,
+} from "./normal-force-compressibility.ts";
 import type { MassProperties } from "./mass-properties.ts";
 import {
   allocateMissionEventPlan,
@@ -236,6 +240,8 @@ export type StageFlightPreviewResult = Readonly<{
   stagingModelVersion: string;
   aerodynamicsModelVersion: string;
   loadsModelVersion: string;
+  normalForceModel: NormalForceModelKind | "mixed";
+  normalForceModelVersion: string;
   recoveryModelVersion: string | null;
   simulation: SixDofSimulationResult | null;
   rail: RailGuidedLaunchResult | null;
@@ -713,6 +719,11 @@ export function simulateStageFlightPreview(
     directMomentCoefficientScale: input.directMomentCoefficientScale,
     coefficientUncertaintyScale: input.coefficientUncertaintyScale,
   });
+  const normalForceModels = [
+    ...new Set(input.regimes.map((regime) => regime.normalForceModel ?? "low-speed")),
+  ];
+  const normalForceModel: StageFlightPreviewResult["normalForceModel"] =
+    normalForceModels.length === 1 ? normalForceModels[0]! : "mixed";
   const loads = createPreliminaryRocketLoadModel({
     body: staging.body,
     propulsion: staging.propulsion,
@@ -1299,6 +1310,7 @@ export function simulateStageFlightPreview(
     ...staging.assumptions,
     ...aerodynamics.assumptions,
     ...loads.assumptions,
+    `Relation normal-force model: ${normalForceModel}; model version ${NORMAL_FORCE_COMPRESSIBILITY_MODEL_VERSION}. Direct force/moment tables remain authoritative and the transonic domain gap is not interpolated.`,
     ...(recovery?.assumptions ?? []),
     ...(primaryRun.rail?.assumptions ?? primaryRun.simulation?.assumptions ?? []),
     ...(primaryRun.rail?.freeFlight?.assumptions ?? []),
@@ -1339,6 +1351,8 @@ export function simulateStageFlightPreview(
     stagingModelVersion: staging.modelVersion,
     aerodynamicsModelVersion: aerodynamics.modelVersion,
     loadsModelVersion: loads.modelVersion,
+    normalForceModel,
+    normalForceModelVersion: NORMAL_FORCE_COMPRESSIBILITY_MODEL_VERSION,
     recoveryModelVersion: recovery?.modelVersion ?? null,
     simulation: primaryRun.simulation,
     rail: primaryRun.rail,

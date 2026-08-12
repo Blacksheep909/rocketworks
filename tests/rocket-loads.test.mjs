@@ -269,6 +269,46 @@ test("normal force is disabled beyond its Mach applicability limit", () => {
   );
 });
 
+test("Prandtl-Glauert normal-force trend extends the relation path below transonic flow", () => {
+  const evaluation = loadModel({ normalForceModel: "prandtl-glauert" }).evaluate(
+    state({ velocityWorldMps: { x: -200, y: 8, z: 0 } }),
+  );
+
+  assert.ok(evaluation.diagnostics.mach < 0.8);
+  assert.equal(evaluation.diagnostics.normalForceModel, "prandtl-glauert");
+  assert.equal(evaluation.diagnostics.normalForceApplied, true);
+  assert.ok(evaluation.diagnostics.normalForceModelFactor > 1);
+  assert.ok(evaluation.diagnostics.normalForceN > 0);
+  assert.equal(
+    evaluation.diagnostics.applicability.some((issue) => issue.code === "MACH_LIMIT"),
+    false,
+  );
+});
+
+test("linearized supersonic normal-force trend remains explicit and leaves transonic flow unsupported", () => {
+  const supersonic = loadModel({ normalForceModel: "supersonic-linearized" }).evaluate(
+    state({ velocityWorldMps: { x: -700, y: 14, z: 0 } }),
+  );
+
+  assert.ok(supersonic.diagnostics.mach > 1.2);
+  assert.equal(supersonic.diagnostics.normalForceModel, "supersonic-linearized");
+  assert.equal(supersonic.diagnostics.normalForceApplied, true);
+  assert.ok(supersonic.diagnostics.normalForceModelFactor > 0);
+  assert.ok(supersonic.diagnostics.normalForceN > 0);
+
+  const transonic = loadModel({ normalForceModel: "supersonic-linearized" }).evaluate(
+    state({ velocityWorldMps: { x: -350, y: 8, z: 0 } }),
+  );
+  assert.ok(transonic.diagnostics.mach > 0.8 && transonic.diagnostics.mach < 1.2);
+  assert.equal(transonic.diagnostics.normalForceApplied, false);
+  assert.equal(transonic.diagnostics.normalForceN, 0);
+  assert.ok(
+    transonic.diagnostics.applicability.some(
+      (issue) => issue.code === "NORMAL_FORCE_MODEL_DOMAIN" && issue.severity === "unsupported",
+    ),
+  );
+});
+
 test("atmosphere and gravity use launch altitude plus ENU up position", () => {
   const evaluation = loadModel({ launchAltitudeM: 500 }).evaluate(
     state({ positionWorldM: { x: 0, y: 0, z: 1000 } }),

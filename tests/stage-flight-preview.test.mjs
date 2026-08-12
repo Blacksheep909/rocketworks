@@ -249,6 +249,8 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
 
   assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.23.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
+  assert.equal(result.normalForceModel, "low-speed");
+  assert.match(result.normalForceModelVersion, /normal-force-compressibility/);
   assert.equal(result.simulation?.integration.method, "adaptive-rk4-step-doubling");
   assert.ok((result.simulation?.integration.acceptedStepCount ?? 0) > 0);
   assert.equal(result.massRatio.overallStatus, "assessed");

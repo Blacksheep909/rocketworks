@@ -125,6 +125,7 @@ import {
   type RecoveryReefingStage,
   type TerrainSurface,
   type WindLayer,
+  type NormalForceModelKind,
 } from "../lib/physics/index.ts";
 import {
   createPreviewWindProfile,
@@ -1367,6 +1368,7 @@ function createStageFlightPreviewInputs({
   recoveryReefingDurationS,
   recoveryReefingStartAreaFraction,
   sixDofIntegrationMethod,
+  normalForceModel,
   aerodynamicTable,
   aerodynamicTableModels,
 }: {
@@ -1400,6 +1402,7 @@ function createStageFlightPreviewInputs({
   recoveryReefingDurationS: number;
   recoveryReefingStartAreaFraction: number;
   sixDofIntegrationMethod: RigidBodyIntegrationMethod;
+  normalForceModel: NormalForceModelKind;
   aerodynamicTable?: AerodynamicCoefficientTableModel | null;
   aerodynamicTableModels?: Readonly<Record<string, AerodynamicCoefficientTableModel>>;
 }): Parameters<typeof simulateStageFlightPreview>[0] {
@@ -1624,6 +1627,7 @@ function createStageFlightPreviewInputs({
       id: `preview-${activeStageIds.join("-") || "retained"}`,
       label: activeStageIds.length > 0 ? `${activeStageIds.join(" + ")} topology` : "Retained payload topology",
       activeStageIds,
+      normalForceModel,
       ...(regimeTable
         ? {
             coefficientTable: regimeTable,
@@ -3681,6 +3685,7 @@ export default function Home() {
   const [launchAltitude, setLaunchAltitude] = useState(80);
   const [earthRotationEnabled, setEarthRotationEnabled] = useState(false);
   const [normalGravityEnabled, setNormalGravityEnabled] = useState(false);
+  const [normalForceModel, setNormalForceModel] = useState<NormalForceModelKind>("low-speed");
   const [terrainModel, setTerrainModel] = useState<ProjectTerrainModel>("flat");
   const [terrainEastSlopePercent, setTerrainEastSlopePercent] = useState(0);
   const [terrainNorthSlopePercent, setTerrainNorthSlopePercent] = useState(0);
@@ -3814,6 +3819,7 @@ export default function Home() {
       launchAltitudeM: launchAltitude,
       earthRotationEnabled,
       normalGravityEnabled,
+      normalForceModel,
       terrainModel,
       terrainEastSlopePercent,
       terrainNorthSlopePercent,
@@ -3848,7 +3854,7 @@ export default function Home() {
       uncertaintySeed,
       uncertaintyCorrelations,
     }),
-    [burnTime, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
+    [burnTime, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalForceModel, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -4711,6 +4717,7 @@ export default function Home() {
         setLaunchAltitude(inputs.launchAltitudeM);
         setEarthRotationEnabled(inputs.earthRotationEnabled ?? false);
         setNormalGravityEnabled(inputs.normalGravityEnabled ?? false);
+        setNormalForceModel(inputs.normalForceModel ?? "low-speed");
         setTerrainModel(inputs.terrainModel);
         setTerrainEastSlopePercent(inputs.terrainEastSlopePercent);
         setTerrainNorthSlopePercent(inputs.terrainNorthSlopePercent);
@@ -4842,6 +4849,7 @@ export default function Home() {
         setLaunchAltitude(inputs.launchAltitudeM);
         setEarthRotationEnabled(inputs.earthRotationEnabled ?? false);
         setNormalGravityEnabled(inputs.normalGravityEnabled ?? false);
+        setNormalForceModel(inputs.normalForceModel ?? "low-speed");
         setTerrainModel(inputs.terrainModel);
         setTerrainEastSlopePercent(inputs.terrainEastSlopePercent);
         setTerrainNorthSlopePercent(inputs.terrainNorthSlopePercent);
@@ -5315,6 +5323,7 @@ export default function Home() {
     setLaunchAltitude(inputs.launchAltitudeM);
     setEarthRotationEnabled(inputs.earthRotationEnabled ?? false);
     setNormalGravityEnabled(inputs.normalGravityEnabled ?? false);
+    setNormalForceModel(inputs.normalForceModel ?? "low-speed");
     setTerrainModel(inputs.terrainModel);
     setTerrainEastSlopePercent(inputs.terrainEastSlopePercent);
     setTerrainNorthSlopePercent(inputs.terrainNorthSlopePercent);
@@ -6512,6 +6521,7 @@ export default function Home() {
             launchRailTipOffYawRateDegS,
             coupledMutualGravityEnabled,
             coupledGravitySofteningRadiusM,
+            normalForceModel,
             recoveryEnabled,
             recoveryDelay,
             recoveryInflationTime,
@@ -6571,6 +6581,7 @@ export default function Home() {
           launchRailTipOffYawRateDegS,
           coupledMutualGravityEnabled,
           coupledGravitySofteningRadiusM,
+          normalForceModel,
           recoveryEnabled,
           recoveryDelay,
           recoveryInflationTime,
@@ -7882,7 +7893,7 @@ export default function Home() {
                     <div className="stage-flight-status">
                       <span>MODEL STATUS</span>
                       <strong>{stageFlightResult.validationStatus}</strong>
-                      <small>{publicModelVersion(stageFlightResult.stagingModelVersion)} · {publicModelVersion(stageFlightResult.aerodynamicsModelVersion)}{stageFlightResult.recoveryModelVersion ? ` · ${publicModelVersion(stageFlightResult.recoveryModelVersion)}` : ""}{stageFlightResult.rail ? ` · ${publicModelVersion(stageFlightResult.rail.modelVersion)}` : ""}</small>
+                      <small>{publicModelVersion(stageFlightResult.stagingModelVersion)} · {publicModelVersion(stageFlightResult.aerodynamicsModelVersion)} · normal force {stageFlightResult.normalForceModel}{stageFlightResult.recoveryModelVersion ? ` · ${publicModelVersion(stageFlightResult.recoveryModelVersion)}` : ""}{stageFlightResult.rail ? ` · ${publicModelVersion(stageFlightResult.rail.modelVersion)}` : ""}</small>
                     </div>
                     <div className="stage-flight-warnings" role="note">
                       <span>WARNINGS</span>
@@ -8552,6 +8563,15 @@ export default function Home() {
               </select>
             </div>
             <p className="field-help">WGS84 normal gravity uses the launch latitude and an explicit second-order height expansion. It improves site-level fidelity but remains an analytical, unvalidated approximation rather than a geoid or local gravimetry solution.</p>
+            <div className="field-group normal-force-model-control-group">
+              <label htmlFor="normal-force-model">Relation normal-force model</label>
+              <select id="normal-force-model" value={normalForceModel} onChange={(event) => { setNormalForceModel(event.target.value as NormalForceModelKind); markChanged(); }}>
+                <option value="low-speed">Low-speed baseline - compatibility</option>
+                <option value="prandtl-glauert">Prandtl-Glauert - subsonic trend</option>
+                <option value="supersonic-linearized">Linearized supersonic - Ackeret trend</option>
+              </select>
+            </div>
+            <p className="field-help">This affects relation-based normal force in the coupled 6DOF preview only. User force/moment tables remain authoritative; the analytical trend leaves a deliberate transonic gap and is not flight validated.</p>
             <div className="field-group terrain-control-group">
               <label htmlFor="terrain-model">Landing surface</label>
               <select id="terrain-model" value={terrainModel} onChange={(event) => { setTerrainModel(event.target.value as ProjectTerrainModel); markChanged(); }}>
@@ -8693,6 +8713,7 @@ export default function Home() {
                   <div><span>Reynolds range</span><strong>{selectedAerodynamicTable ? `${selectedAerodynamicTable.reynoldsRange[0].toExponential(1)}–${selectedAerodynamicTable.reynoldsRange[1].toExponential(1)}` : "fixed"}</strong></div>
                   <div><span>Angular axes</span><strong>{selectedAerodynamicTable?.angleOfAttackRangeRad ? "AoA + sideslip" : "not supplied"}</strong></div>
                   <div><span>Force / moment DB</span><strong>{selectedAerodynamicTable?.forceMomentDatabaseAvailable ? "direct body axes" : "relation fallback"}</strong></div>
+                  <div><span>Relation normal force</span><strong>{normalForceModel === "low-speed" ? "Low-speed baseline" : normalForceModel === "prandtl-glauert" ? "Prandtl-Glauert" : "Linearized supersonic"}</strong></div>
                   <div><span>Validation</span><strong>{selectedAerodynamicTable?.validationStatus ?? "analytical preview"}</strong></div>
                 </div>
                 <p className="motor-provenance">Coefficient tables now drive both the fast vertical estimate and topology-aware 6DOF preview when selected. Out-of-range queries remain visible as warnings, and table data are never promoted to flight certification.</p>

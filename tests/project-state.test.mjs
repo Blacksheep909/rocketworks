@@ -16,6 +16,7 @@ import {
   projectConfigurationFingerprint,
   serializeLocalProjectHistory,
   serializeLocalProjectSnapshot,
+  validateEditableProjectInputs,
 } from "../lib/project/project-state.ts";
 import {
   createDefaultVehicleTopology,
@@ -199,6 +200,23 @@ test("project snapshots preserve the opt-in normal-gravity control", () => {
   assert.throws(
     () => snapshot(3, { normalGravityEnabled: "yes" }),
     /normalGravityEnabled/,
+  );
+});
+
+test("project snapshots preserve the relation normal-force model", () => {
+  const projectInputs = { ...inputs, normalForceModel: "supersonic-linearized" };
+  const snapshot = createLocalProjectSnapshot({
+    projectId: "arc54",
+    projectName: "Compressibility fixture",
+    revision: 1,
+    savedAtIso: "2026-01-01T00:00:00.000Z",
+    inputs: projectInputs,
+  });
+  const parsed = parseLocalProjectSnapshot(serializeLocalProjectSnapshot(snapshot));
+  assert.equal(parsed.inputs.normalForceModel, "supersonic-linearized");
+  assert.throws(
+    () => validateEditableProjectInputs({ ...projectInputs, normalForceModel: "unknown" }),
+    /normalForceModel must/,
   );
 });
 

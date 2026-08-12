@@ -21,6 +21,10 @@ import {
 } from "./curves.ts";
 import type { LaunchEnvironmentProvider } from "./launch-environment.ts";
 import {
+  evaluateNormalForceModel,
+  type NormalForceModelKind,
+} from "./normal-force-compressibility.ts";
+import {
   ZERO_VECTOR,
   addVectors,
   cross,
@@ -56,7 +60,8 @@ export type RocketLoadApplicabilityCode =
   | "AERODYNAMIC_TABLE_REYNOLDS_RANGE"
   | "AERODYNAMIC_TABLE_ANGLE_RANGE"
   | "AERODYNAMIC_FORCE_MOMENT_DATABASE"
-  | "COEFFICIENT_UNCERTAINTY_PRESENT";
+  | "COEFFICIENT_UNCERTAINTY_PRESENT"
+  | "NORMAL_FORCE_MODEL_DOMAIN";
 
 export type RocketLoadApplicabilityIssue = Readonly<{
   code: RocketLoadApplicabilityCode;
@@ -72,6 +77,7 @@ export type PreliminaryAerodynamicState = Readonly<{
   maximumNormalForceMach?: number;
   maximumNormalForceAngleRad?: number;
   minimumNormalForceAirspeedMps?: number;
+  normalForceModel?: NormalForceModelKind;
   modelVersion?: string;
   activeStageIds?: readonly string[];
   centerOfPressureXM?: number;
@@ -128,6 +134,7 @@ export type PreliminaryRocketLoadConfig = Readonly<{
   maximumNormalForceMach?: number;
   maximumNormalForceAngleRad?: number;
   minimumNormalForceAirspeedMps?: number;
+  normalForceModel?: NormalForceModelKind;
 }>;
 
 export type PreliminaryRocketLoadDiagnostics = Readonly<{
@@ -159,6 +166,10 @@ export type PreliminaryRocketLoadDiagnostics = Readonly<{
   gravityN: number;
   gravityModel: string;
   gravityModelVersion: string | null;
+  normalForceModel: NormalForceModelKind;
+  normalForceModelVersion: string;
+  normalForceModelRegime: string;
+  normalForceModelFactor: number;
   dragN: number;
   normalForceN: number;
   normalForceApplied: boolean;
@@ -391,6 +402,12 @@ export function createPreliminaryRocketLoadModel(
     const minimumNormalForceAirspeedMps =
       aerodynamics.minimumNormalForceAirspeedMps ??
       configuredMinimumNormalForceAirspeedMps;
+    const normalForceModel =
+      aerodynamics.normalForceModel ?? config.normalForceModel ?? "low-speed";
+    const normalForceModelEvaluation = evaluateNormalForceModel({
+      model: normalForceModel,
+      mach,
+    });
     assertPositive(maximumNormalForceMach, "dynamic maximum normal-force Mach number");
     assertPositive(maximumNormalForceAngleRad, "dynamic maximum normal-force angle");
     assertPositive(minimumNormalForceAirspeedMps, "dynamic minimum normal-force airspeed");
@@ -429,12 +446,26 @@ export function createPreliminaryRocketLoadModel(
           "Angle of attack exceeds the configured small-angle limit; normal force is bounded at that limit.",
       });
     }
-    if (!hasDirectForceCoefficients && mach > maximumNormalForceMach) {
+    if (
+      !hasDirectForceCoefficients &&
+      normalForceModel === "low-speed" &&
+      mach > maximumNormalForceMach
+    ) {
       applicability.push({
         code: "MACH_LIMIT",
         severity: "unsupported",
         explanation:
           "The low-speed normal-force relation is disabled above its configured Mach limit.",
+      });
+    }
+    if (
+      !hasDirectForceCoefficients &&
+      normalForceModelEvaluation.issue
+    ) {
+      applicability.push({
+        code: normalForceModelEvaluation.issue.code,
+        severity: normalForceModelEvaluation.issue.severity,
+        explanation: normalForceModelEvaluation.issue.explanation,
       });
     }
 
@@ -523,7 +554,9 @@ export function createPreliminaryRocketLoadModel(
       normalForceApplied =
         airspeedMps >= minimumNormalForceAirspeedMps &&
         forwardAirspeedBodyMps > 0 &&
-        mach <= maximumNormalForceMach;
+        (normalForceModel === "low-speed"
+          ? mach <= maximumNormalForceMach
+          : normalForceModelEvaluation.applied);
       const boundedAngleRad = Math.min(
         angleOfAttackRad,
         maximumNormalForceAngleRad,
@@ -532,6 +565,7 @@ export function createPreliminaryRocketLoadModel(
         ? dynamicPressurePa *
           aerodynamics.referenceAreaM2 *
           aerodynamics.normalForceSlopePerRad *
+          normalForceModelEvaluation.factor *
           boundedAngleRad
         : 0;
       normalBodyN =
@@ -728,6 +762,10 @@ export function createPreliminaryRocketLoadModel(
         gravityN,
         gravityModel: providedEnvironment?.gravityModel ?? "standard",
         gravityModelVersion: providedEnvironment?.gravityModelVersion ?? null,
+        normalForceModel,
+        normalForceModelVersion: normalForceModelEvaluation.modelVersion,
+        normalForceModelRegime: normalForceModelEvaluation.regime,
+        normalForceModelFactor: normalForceModelEvaluation.factor,
         dragN,
         normalForceN,
         normalForceApplied,
@@ -782,13 +820,14 @@ export function createPreliminaryRocketLoadModel(
       config.aerodynamicsAt
         ? "Low-speed, small-angle normal force with a state-dependent CP-to-CG lever arm"
         : "Low-speed, small-angle normal force with a fixed CP-to-CG lever arm",
+      "The selected normal-force compressibility trend is applied only to the relation fallback; direct force-coefficient tables remain authoritative.",
       config.aerodynamicsAt
         ? "Rotational damping is applied only when the aerodynamic provider supplies derivative and reference-length data"
         : "Rigid vehicle with no aerodynamic damping or launch constraint",
     ],
     warnings: [
       "This coupling is not a validated flight simulation.",
-      "Normal force is disabled outside forward low-speed flow and bounded at the small-angle limit.",
+      "Normal force is disabled outside the selected forward-flow, angle, airspeed, and compressibility domain; transonic flow remains an explicit gap.",
       "Atmosphere version 0.5 uses U.S. Standard Atmosphere 1976 hydrostatic layers through 84.852 km geopotential (about 86 km geometric); moist-air corrections remain bounded ideal-mixture approximations.",
       "No ground contact, terrain, curvature, or geodesy is included; an opt-in local ENU Earth-rotation acceleration is consumed only when the supplied environment provider exposes it. Launch rail, recovery, and staging require explicitly composed providers.",
     ],

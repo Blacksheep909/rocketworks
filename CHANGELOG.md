@@ -11,6 +11,10 @@ flight-readiness claims.
   environment state, retained and detached 6DOF loads, landing descent, and
   persisted browser inputs; standard scalar gravity remains the compatibility
   default and all normal-gravity limits remain explicit.
+- Add an opt-in relation normal-force compressibility model with bounded
+  Prandtl-Glauert subsonic and normalized Ackeret supersonic trends, an explicit
+  transonic gap, direct-table precedence, persisted browser selection, and
+  versioned diagnostics.
 - Add an opt-in clean-room WGS84 Earth-rate correction to the launch
   environment. The local ENU Coriolis acceleration now flows through rocket
   loads and shared released-body propagation, with an explicit browser control,

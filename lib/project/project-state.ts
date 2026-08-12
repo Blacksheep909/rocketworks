@@ -2,6 +2,7 @@ import {
   validateVehicleTopology,
   type LocalVehicleTopology,
 } from "./vehicle-topology.ts";
+import type { NormalForceModelKind } from "../physics/normal-force-compressibility.ts";
 
 export const LOCAL_PROJECT_SCHEMA_ID = "dev.kestrel-lab.local-project";
 export const LOCAL_PROJECT_SCHEMA_VERSION = 1;
@@ -67,6 +68,8 @@ export type EditableProjectInputs = Readonly<{
   earthRotationEnabled?: boolean;
   /** Opt-in WGS84 normal-gravity correction using launch latitude. */
   normalGravityEnabled?: boolean;
+  /** Relation-based 6DOF normal-force compressibility trend. */
+  normalForceModel?: NormalForceModelKind;
   /** Local ENU terrain contact model used by landing-dispersion descent. */
   terrainModel: ProjectTerrainModel;
   /** Planar terrain rise per metre moving east, expressed as percent. */
@@ -153,7 +156,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -403,6 +406,16 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   if (typeof normalGravityEnabled !== "boolean") {
     throw new Error("normalGravityEnabled must be boolean.");
   }
+  const normalForceModel = input.normalForceModel === undefined
+    ? "low-speed"
+    : input.normalForceModel;
+  if (
+    normalForceModel !== "low-speed" &&
+    normalForceModel !== "prandtl-glauert" &&
+    normalForceModel !== "supersonic-linearized"
+  ) {
+    throw new Error("normalForceModel must be low-speed, prandtl-glauert, or supersonic-linearized.");
+  }
   const uncertaintySeed = input.uncertaintySeed === undefined
     ? DEFAULT_UNCERTAINTY_SEED
     : nonEmptyString(input.uncertaintySeed, "uncertaintySeed", 80);
@@ -431,6 +444,7 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     launchAltitudeM: validated.launchAltitudeM,
     ...(input.earthRotationEnabled === undefined ? {} : { earthRotationEnabled }),
     ...(input.normalGravityEnabled === undefined ? {} : { normalGravityEnabled }),
+    ...(input.normalForceModel === undefined ? {} : { normalForceModel }),
     terrainModel,
     terrainEastSlopePercent: validated.terrainEastSlopePercent,
     terrainNorthSlopePercent: validated.terrainNorthSlopePercent,
@@ -562,6 +576,7 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   launchAltitudeM: "launch altitude",
   earthRotationEnabled: "Earth rotation correction",
   normalGravityEnabled: "WGS84 normal gravity",
+  normalForceModel: "relation normal-force model",
   terrainModel: "terrain contact model",
   terrainEastSlopePercent: "terrain east slope",
   terrainNorthSlopePercent: "terrain north slope",

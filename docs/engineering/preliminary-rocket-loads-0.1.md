@@ -43,6 +43,13 @@ Vbody,y`, and total airspeed `V`, the reported angle is
 Positive sideslip is toward body `+y`. This readout is diagnostic only; it does
 not introduce a new sideslip-dependent force or coefficient model.
 
+Version 0.4 adds an opt-in relation normal-force compressibility selector. The
+low-speed default is unchanged. The Prandtl-Glauert and normalized Ackeret
+trends are documented independently in
+`docs/engineering/normal-force-compressibility-0.1.md`; direct force/moment
+coefficient tables remain authoritative. The transonic interval is an explicit
+unsupported gap rather than a silently extrapolated coefficient.
+
 The returned loads can drive the independent rigid-body integrator. The model
 does not yet implement a launch rail, ground contact, recovery, or a complete
 flight-event controller.
@@ -165,6 +172,7 @@ Current issue codes are:
 - `MACH_LIMIT`
 - `FIXED_DRAG_COEFFICIENT`
 - `AERODYNAMIC_DAMPING_OMITTED`
+- `NORMAL_FORCE_MODEL_DOMAIN`
 
 ## Automated verification
 
@@ -192,7 +200,8 @@ accuracy.
 - No event controller for liftoff, burnout, apogee, deployment, or impact
 - No aerodynamic damping derivatives
 - No Mach- or Reynolds-dependent drag coefficient
-- No transonic, supersonic, separated-flow, or reverse-flow normal-force model
+- No transonic or separated-flow normal-force model; the opt-in linearized
+  subsonic/supersonic trends remain engineering approximations
 - No angle-of-attack-dependent CP movement unless a direct coefficient database
   supplies a static moment volume
 - No roll or fin-cant aerodynamics. A separate clustered propulsion adapter can

@@ -79,6 +79,9 @@ research, standards, and original code.
   option; effective scalar gravity remains the default baseline;
 - an opt-in WGS84 normal-gravity model using launch latitude and ASL height,
   with explicit formula provenance and a standard-gravity compatibility path;
+- an opt-in relation normal-force compressibility selector with a bounded
+  Prandtl-Glauert subsonic trend, normalized Ackeret supersonic trend, explicit
+  transonic gap, persisted project state, and direct-table precedence;
 - seeded coupled-flight uncertainty runs can independently vary declared motor
   thrust scales plus direct body-axis force and static-moment coefficient
   databases when those sources are present, with selected factors and nominal

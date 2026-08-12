@@ -24,6 +24,10 @@ import {
 import type { MultiStageVehicleModel } from "./multi-stage.ts";
 import type { RigidBodyState } from "./six-dof.ts";
 import type { VehicleComponent } from "./vehicle-components.ts";
+import {
+  NORMAL_FORCE_COMPRESSIBILITY_MODEL_VERSION,
+  type NormalForceModelKind,
+} from "./normal-force-compressibility.ts";
 
 export const STAGE_AWARE_AERODYNAMICS_MODEL_VERSION =
   "kestrel-stage-aware-aero-0.3.0";
@@ -45,6 +49,7 @@ export type StageAerodynamicRegime = Readonly<{
   maximumNormalForceMach?: number;
   maximumNormalForceAngleRad?: number;
   minimumNormalForceAirspeedMps?: number;
+  normalForceModel?: NormalForceModelKind;
 }>;
 
 export type StageAerodynamicTableAssignment = Readonly<{
@@ -76,6 +81,8 @@ export type StageAwareAerodynamicEvaluation = Readonly<{
   momentReferenceLengthBodyM: Vector3 | null;
   staticStability: StaticStabilityResult;
   centerOfPressureMinusCenterOfMassM: number;
+  normalForceModel: NormalForceModelKind;
+  normalForceModelVersion: string;
   applicability: readonly RocketLoadApplicabilityIssue[];
 }>;
 
@@ -566,6 +573,8 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       staticStability,
       centerOfPressureMinusCenterOfMassM:
         centerOfPressureXM - staticStability.centerOfMassXM,
+      normalForceModel: regime.normalForceModel ?? "low-speed",
+      normalForceModelVersion: NORMAL_FORCE_COMPRESSIBILITY_MODEL_VERSION,
       applicability,
     };
   };
@@ -586,6 +595,7 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
         regime.maximumNormalForceMach ?? regime.coefficientTable?.machRange[1],
       maximumNormalForceAngleRad: regime.maximumNormalForceAngleRad,
       minimumNormalForceAirspeedMps: regime.minimumNormalForceAirspeedMps,
+      normalForceModel: regime.normalForceModel,
       modelVersion: STAGE_AWARE_AERODYNAMICS_MODEL_VERSION,
       activeStageIds: result.activeStageIds,
       centerOfPressureXM: result.centerOfPressureXM,
@@ -653,6 +663,7 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       "This topology adapter has analytical component checks only and is not flight-safety validated.",
       "Coefficient data are supplied externally and must use the same axes, signs, and reference conventions as the selected topology.",
       "The static aerodynamic method remains low-speed, small-angle, slender-body preliminary analysis.",
+      "The selected compressibility trend applies only to relation-based normal force; transonic flow remains an explicit unsupported gap and direct coefficient tables remain authoritative.",
       "Lateral booster interference, asymmetric crossflow, and radial fin-to-fin flow are not modeled.",
       "Proximity flow, plume interaction, and multi-body aerodynamics are explicitly unsupported around separation.",
       ...(coefficientUncertaintyScale !== 0 && !anyCoefficientUncertaintyAvailable
