@@ -407,7 +407,8 @@ export function parseKestrelProjectJson(serialized: string): KestrelProjectImpor
   }
 }
 
-function csvCell(value: string | number | boolean): string {
+function csvCell(value: string | number | boolean | null | undefined): string {
+  if (value === null || value === undefined) return "";
   const text = typeof value === "number" ? value.toString() : String(value);
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
@@ -465,6 +466,10 @@ export function createStageFlightTraceCsv(
     "mach",
     "angle_of_attack_deg",
     "sideslip_deg",
+    "center_of_pressure_x_m",
+    "center_of_mass_x_m",
+    "static_margin_calibers",
+    "normal_force_slope_per_rad",
     "dynamic_pressure_pa",
     "drag_n",
     "aerodynamic_force_n",
@@ -487,6 +492,10 @@ export function createStageFlightTraceCsv(
       point.mach,
       (point.angleOfAttackRad * 180) / Math.PI,
       (point.sideslipRad * 180) / Math.PI,
+      point.centerOfPressureXM,
+      point.centerOfMassXM,
+      point.staticMarginCalibers,
+      point.normalForceSlopePerRad,
       point.dynamicPressurePa,
       point.dragN,
       point.aerodynamicForceN ?? 0,
@@ -497,15 +506,17 @@ export function createStageFlightTraceCsv(
       point.massKg,
       point.thrustN,
     ];
-    values.forEach((value, valueIndex) =>
-      assertFinite(value, `stage-flight trace row ${index + 1} column ${headers[valueIndex]}`),
-    );
+    values.forEach((value, valueIndex) => {
+      if (value !== null && value !== undefined) {
+        assertFinite(value, `stage-flight trace row ${index + 1} column ${headers[valueIndex]}`);
+      }
+    });
     return [
-      ...values.slice(0, 11),
+      ...values.slice(0, 15),
       point.directForceApplied ?? false,
       point.directMomentApplied ?? false,
       point.coefficientBasis ?? "",
-      ...values.slice(11),
+      ...values.slice(15),
       point.attachedStageIds.join("|"),
     ].map(csvCell).join(",");
   });
@@ -1514,6 +1525,16 @@ export function createEngineeringReportMarkdown(
   const landingTerrainName = input.landing?.footprint.terrainName ?? "Flat launch surface";
   const landingTerrainModelVersion = input.landing?.footprint.terrainModelVersion ?? "legacy-flat-ground";
   const landingMeanTerrainElevationM = input.landing?.footprint.meanImpact.terrainElevationM ?? 0;
+  const stageStabilityTrace = input.stageFlight?.trace ?? [];
+  const stageStaticMarginValues = stageStabilityTrace
+    .map((point) => point.staticMarginCalibers)
+    .filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value));
+  const stageCenterOfPressureValues = stageStabilityTrace
+    .map((point) => point.centerOfPressureXM)
+    .filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value));
+  const stageCenterOfMassValues = stageStabilityTrace
+    .map((point) => point.centerOfMassXM)
+    .filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value));
   for (const [label, value] of [
     ["selected motor source ID", input.selectedMotorId],
     ["selected aerodynamic source ID", input.selectedAerodynamicTableId],
@@ -1775,6 +1796,9 @@ export function createEngineeringReportMarkdown(
           `| Apogee estimate | ${formatNumber(input.stageFlight.timeToApogeeS, 2)} s |`,
           `| Recovery load model | ${input.stageFlight.recoveryModelVersion ? `\`${markdownText(input.stageFlight.recoveryModelVersion)}\`` : "Not configured"} |`,
           `| Peak recovery drag | ${input.stageFlight.recoveryModelVersion ? `${formatNumber(Math.max(0, ...input.stageFlight.trace.map((point) => point.recoveryDragN)), 2)} N` : "Not configured"} |`,
+          `| Static-margin samples | ${stageStaticMarginValues.length} / ${stageStabilityTrace.length} |`,
+          `| Static-margin range | ${stageStaticMarginValues.length > 0 ? `${formatNumber(Math.min(...stageStaticMarginValues), 3)} to ${formatNumber(Math.max(...stageStaticMarginValues), 3)} calibres` : "not available"} |`,
+          `| CP / CG range | ${stageCenterOfPressureValues.length > 0 && stageCenterOfMassValues.length > 0 ? `${formatNumber(Math.min(...stageCenterOfPressureValues), 3)}–${formatNumber(Math.max(...stageCenterOfPressureValues), 3)} m / ${formatNumber(Math.min(...stageCenterOfMassValues), 3)}–${formatNumber(Math.max(...stageCenterOfMassValues), 3)} m` : "not available"} |`,
           `| Step convergence | ${markdownText(input.stageFlight.convergence.status)} |`,
           `| Coarse step | ${formatNumber(input.stageFlight.convergence.baseTimeStepS, 4)} s |`,
           `| Half-step | ${formatNumber(input.stageFlight.convergence.refinedTimeStepS, 4)} s |`,

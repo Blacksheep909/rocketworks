@@ -126,12 +126,15 @@ locale-independent JavaScript decimal notation and every numeric value is
 checked for finiteness.
 
 The staged 6DOF trace CSV uses the same explicit style and adds
-`mach`, `angle_of_attack_deg`, `sideslip_deg`, `dynamic_pressure_pa`, and
-`drag_n`, `recovery_drag_n`, and `recovery_effective_area_m2` before the live
-mass, thrust, and attached-stage identifiers. These aerodynamic and recovery
-columns are evaluated from the coupled load diagnostics at each retained
-sample, not reconstructed from the display chart. Recovery values are zero
-when no retained-vehicle recovery device is configured or before its command.
+`mach`, `angle_of_attack_deg`, `sideslip_deg`, `center_of_pressure_x_m`,
+`center_of_mass_x_m`, `static_margin_calibers`,
+`normal_force_slope_per_rad`, `dynamic_pressure_pa`, and `drag_n`,
+`recovery_drag_n`, and `recovery_effective_area_m2` before the live mass,
+thrust, and attached-stage identifiers. These aerodynamic, stability, and
+recovery columns are evaluated from the coupled load diagnostics at each
+retained sample, not reconstructed from the display chart. Stability cells are
+blank when the active source cannot provide a CP/CG estimate. Recovery values
+are zero when no retained-vehicle recovery device is configured or before its command.
 `recovery_inflation_fraction` is the vertical preview's smoothstep
 effective-area fraction; it is not a fabric-state measurement.
 

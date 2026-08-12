@@ -247,7 +247,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.24.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.25.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);
@@ -291,6 +291,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.ok(result.maxAltitudeAglM > 0);
   assert.ok(result.maxSpeedMps > 0);
   assert.ok(result.trace.every((point) => Number.isFinite(point.mach) && Number.isFinite(point.angleOfAttackRad) && Number.isFinite(point.sideslipRad) && Number.isFinite(point.dynamicPressurePa) && Number.isFinite(point.dragN) && Number.isFinite(point.aerodynamicForceN) && Number.isFinite(point.aerodynamicMomentNm) && Number.isFinite(point.aerodynamicDampingMomentNm)));
+  assert.ok(result.trace.every((point) => Number.isFinite(point.centerOfPressureXM) && Number.isFinite(point.centerOfMassXM) && Number.isFinite(point.staticMarginCalibers) && Number.isFinite(point.normalForceSlopePerRad)));
   assert.ok(result.trace.some((point) => point.dynamicPressurePa > 0));
   assert.ok(result.trace.some((point) => point.attachedStageIds.includes("booster")));
   assert.ok(result.trace.some((point) => !point.attachedStageIds.includes("booster")));

@@ -97,7 +97,7 @@ import {
 } from "./stage-flight-vector-budget.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.24.0";
+  "kestrel-stage-flight-preview-0.25.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -160,6 +160,14 @@ export type StageFlightTracePoint = Readonly<{
   aerodynamicMomentNm?: number;
   /** Magnitude of the aerodynamic rate-damping moment component. */
   aerodynamicDampingMomentNm?: number;
+  /** Static center of pressure from the active aerodynamic topology, from the nose datum. */
+  centerOfPressureXM: number | null;
+  /** Mass center from the active staging state, from the nose datum. */
+  centerOfMassXM: number | null;
+  /** (CP - CG) / reference diameter for the active topology. */
+  staticMarginCalibers: number | null;
+  /** Active normal-force slope used by the aerodynamic evaluator. */
+  normalForceSlopePerRad: number | null;
   directForceApplied?: boolean;
   directMomentApplied?: boolean;
   coefficientBasis?: string | null;
@@ -927,6 +935,10 @@ export function simulateStageFlightPreview(
         aerodynamicDampingMomentNm: magnitude(
           loadEvaluation.diagnostics.aerodynamicDampingMomentBodyNm,
         ),
+        centerOfPressureXM: loadEvaluation.diagnostics.centerOfPressureXM,
+        centerOfMassXM: loadEvaluation.diagnostics.centerOfMassXM,
+        staticMarginCalibers: loadEvaluation.diagnostics.staticMarginCalibers,
+        normalForceSlopePerRad: loadEvaluation.diagnostics.normalForceSlopePerRad,
         directForceApplied: loadEvaluation.diagnostics.directForceApplied,
         directMomentApplied: loadEvaluation.diagnostics.directMomentApplied,
         coefficientBasis: loadEvaluation.diagnostics.coefficientBasis,

@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.24.0`.
+`kestrel-stage-flight-preview-0.25.0`.
 
 Relation-based aerodynamics retain both the selected normal-force trend and
 the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions
@@ -199,6 +199,21 @@ losses because the trace does not expose a complete force-vector and
 propulsive-efficiency history. It is a trace-accounting diagnostic, not a
 mission-performance budget, validation result, or flight-safety gate. See
 `stage-flight-force-budget.ts` for the contract and limits.
+
+## Stability telemetry
+
+Each coupled trace sample now preserves the active topology's center of
+pressure, center of mass, static margin in calibres, and normal-force slope.
+These values are recomputed when mass properties or the selected aerodynamic
+regime changes, so the trace can show staging-driven stability movement instead
+of only the design-time value. The profile inspector exposes CP, CG, and static
+margin plots; staged CSV and reports carry the same values when available.
+
+The telemetry is an analytical static-aerodynamics diagnostic. It does not add
+dynamic derivatives, control authority, flutter, contact loads, plume
+interference, or flight validation. Missing values remain unavailable rather
+than being replaced with a guessed margin. See
+`stage-flight-stability-telemetry-0.1.md` for the schema and limits.
 
 ## Separated-body analytical branch
 

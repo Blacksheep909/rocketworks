@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Preserve topology-specific CP, CG, static-margin, and normal-force-slope
+  telemetry in staged 6DOF traces. The Flight profile now plots CP, CG, and
+  static margin, staged CSV exports retain the SI values, and engineering
+  reports summarize the available stability range without upgrading the
+  analytical preview to dynamic-stability or flight-safety evidence.
 - Add an opt-in WGS84 normal-gravity model using Somigliana surface gravity and
   a second-order height expansion. The selected model now flows through launch
   environment state, retained and detached 6DOF loads, landing descent, and
