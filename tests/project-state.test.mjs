@@ -83,6 +83,9 @@ test("local project snapshots round-trip through a strict versioned schema", () 
   assert.equal(source.inputs.relativeHumidityPercent, 60);
   assert.equal(source.inputs.surfacePressureHpa, 1004);
   assert.equal(source.inputs.surfaceTemperatureC, 15);
+  assert.equal(source.inputs.terrainModel, "flat");
+  assert.equal(source.inputs.terrainEastSlopePercent, 0);
+  assert.equal(source.inputs.terrainNorthSlopePercent, 0);
   assert.equal(JSON.parse(serialized).schema, LOCAL_PROJECT_SCHEMA_ID);
   assert.equal(projectInputFingerprint(source.inputs), projectInputFingerprint({ ...inputs }));
 });

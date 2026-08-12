@@ -542,6 +542,12 @@ test("ships a provenance-qualified recovery landing footprint", async () => {
   assert.match(page, /analyzeRecoveryLandingDispersion/);
   assert.match(page, /Landing footprint/);
   assert.match(page, /Recovery-phase drift/);
+  assert.match(page, /terrainModel/);
+  assert.match(page, /terrain-east-slope/);
+  assert.match(page, /terrain-north-slope/);
+  assert.match(page, /terrainName/);
+  assert.match(page, /terrainElevationM/);
+  assert.match(page, /createPlanarTerrainSurface/);
   assert.match(page, /arc54-landing-v1/);
   assert.match(page, /recoveryDeploymentSuccess/);
   assert.match(page, /recoveryDeploymentSuccessProbability/);

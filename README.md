@@ -62,7 +62,9 @@ research, standards, and original code.
   export for reproducing the default sampled condition;
 - atmosphere through the published 84.852 km geopotential layer boundary,
   launch-site, wind, turbulence, launch-rail, recovery, and landing-dispersion
-  previews;
+  previews; landing descent can root-find contact against a flat or bounded
+  planar local-ENU terrain surface while keeping terrain elevation and the
+  surveyed-terrain limitation explicit;
 - editable launch-site name and WGS84 coordinates carried into local history,
   share links, landing-zone provenance, coupled environment providers, and
   engineering reports;

@@ -16,6 +16,7 @@ export const DEFAULT_WEATHER_SEED = "arc54-weather-v1";
 export type ProjectMaterial = "kraft" | "fiberglass" | "carbon";
 export type NoseProfile = "ogive" | "conical" | "elliptical";
 export type RecoveryDeploymentTrigger = "apogee" | "altitude" | "time";
+export type ProjectTerrainModel = "flat" | "planar";
 
 /**
  * A user-supplied mean-wind layer in the local ENU frame. An empty array
@@ -62,6 +63,12 @@ export type EditableProjectInputs = Readonly<{
   /** Launch-site longitude in WGS84 degrees. */
   launchLongitudeDeg: number;
   launchAltitudeM: number;
+  /** Local ENU terrain contact model used by landing-dispersion descent. */
+  terrainModel: ProjectTerrainModel;
+  /** Planar terrain rise per metre moving east, expressed as percent. */
+  terrainEastSlopePercent: number;
+  /** Planar terrain rise per metre moving north, expressed as percent. */
+  terrainNorthSlopePercent: number;
   windSpeedMps: number;
   /** Mean-wind azimuth in the local ENU frame: 0° east, +90° north. */
   windAzimuthDeg: number;
@@ -134,7 +141,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -151,6 +158,8 @@ const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material
   launchLatitudeDeg: [-90, 90],
   launchLongitudeDeg: [-180, 180],
   launchAltitudeM: [-400, 10000],
+  terrainEastSlopePercent: [-100, 100],
+  terrainNorthSlopePercent: [-100, 100],
   windSpeedMps: [0, 80],
   windAzimuthDeg: [-180, 180],
   turbulenceScale: [0, 3],
@@ -185,6 +194,8 @@ const numericDefaults: Readonly<Partial<Record<keyof typeof numericRanges, numbe
   relativeHumidityPercent: 60,
   launchLatitudeDeg: -36.85,
   launchLongitudeDeg: 174.76,
+  terrainEastSlopePercent: 0,
+  terrainNorthSlopePercent: 0,
   surfacePressureHpa: 1004,
   surfaceTemperatureC: 15,
   windAzimuthDeg: 0,
@@ -344,6 +355,10 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   if (typeof input.recoveryEnabled !== "boolean") {
     throw new Error("recoveryEnabled must be boolean.");
   }
+  const terrainModel = input.terrainModel ?? "flat";
+  if (terrainModel !== "flat" && terrainModel !== "planar") {
+    throw new Error("terrainModel must be flat or planar.");
+  }
   const recoveryDeploymentTrigger = input.recoveryDeploymentTrigger ?? "apogee";
   if (recoveryDeploymentTrigger !== "apogee" && recoveryDeploymentTrigger !== "altitude" && recoveryDeploymentTrigger !== "time") {
     throw new Error("recoveryDeploymentTrigger must be apogee, altitude, or time.");
@@ -382,6 +397,9 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     launchLatitudeDeg: validated.launchLatitudeDeg,
     launchLongitudeDeg: validated.launchLongitudeDeg,
     launchAltitudeM: validated.launchAltitudeM,
+    terrainModel,
+    terrainEastSlopePercent: validated.terrainEastSlopePercent,
+    terrainNorthSlopePercent: validated.terrainNorthSlopePercent,
     windSpeedMps: validated.windSpeedMps,
     windAzimuthDeg: validated.windAzimuthDeg,
     windProfileLayers: validateWindProfileLayers(input.windProfileLayers),
@@ -504,6 +522,9 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   launchLatitudeDeg: "launch-site latitude",
   launchLongitudeDeg: "launch-site longitude",
   launchAltitudeM: "launch altitude",
+  terrainModel: "terrain contact model",
+  terrainEastSlopePercent: "terrain east slope",
+  terrainNorthSlopePercent: "terrain north slope",
   windSpeedMps: "wind speed",
   windAzimuthDeg: "wind azimuth",
   windProfileLayers: "altitude-dependent wind profile",

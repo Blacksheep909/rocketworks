@@ -5,6 +5,12 @@ import type {
 } from "./launch-environment.ts";
 import type { Vector3 } from "./linear-algebra.ts";
 import {
+  createFlatTerrainSurface,
+  terrainClearanceM,
+  terrainElevationAt,
+  type TerrainSurface,
+} from "./terrain.ts";
+import {
   runUncertaintyAnalysis,
   type ProbabilityDistribution,
   type UncertaintyCorrelation,
@@ -16,9 +22,9 @@ import {
   type RecoveryReefingStage,
 } from "./recovery-reefing.ts";
 
-export const RECOVERY_DESCENT_MODEL_VERSION = "kestrel-recovery-descent-0.2.0";
+export const RECOVERY_DESCENT_MODEL_VERSION = "kestrel-recovery-descent-0.3.0";
 export const ASCENT_DRIFT_MODEL_VERSION = "kestrel-ascent-drift-0.1.0";
-export const LANDING_FOOTPRINT_MODEL_VERSION = "kestrel-landing-footprint-0.4.0";
+export const LANDING_FOOTPRINT_MODEL_VERSION = "kestrel-landing-footprint-0.5.0";
 export const LANDING_ZONE_MODEL_STATUS = "engineering-preview-unvalidated";
 
 const WGS84_SEMI_MAJOR_AXIS_M = 6_378_137;
@@ -34,6 +40,8 @@ export type RecoveryDescentPhase =
 export type RecoveryDescentTracePoint = Readonly<{
   timeS: number;
   positionWorldM: Vector3;
+  terrainElevationM: number;
+  groundClearanceM: number;
   velocityWorldMps: Vector3;
   windWorldMps: Vector3;
   airspeedMps: number;
@@ -46,10 +54,13 @@ export type RecoveryDescentTracePoint = Readonly<{
 export type RecoveryDescentResult = Readonly<{
   modelVersion: string;
   validationStatus: typeof LANDING_ZONE_MODEL_STATUS;
+  terrainModelVersion: string;
+  terrainName: string;
   landed: boolean;
   impactTimeS: number | null;
   descentDurationS: number;
   impactPositionWorldM: Vector3 | null;
+  impactTerrainElevationM: number | null;
   impactVelocityWorldMps: Vector3 | null;
   impactSpeedMps: number | null;
   maximumAirspeedMps: number;
@@ -63,6 +74,8 @@ export type LandingImpactSample = Readonly<{
   id: string;
   eastM: number;
   northM: number;
+  /** Local terrain elevation at impact, relative to the launch-pad origin. */
+  terrainElevationM?: number;
   impactSpeedMps: number;
   descentDurationS: number;
 }>;
@@ -85,12 +98,15 @@ export type LandingConfidenceEllipse = Readonly<{
 export type LandingFootprintResult = Readonly<{
   modelVersion: string;
   validationStatus: typeof LANDING_ZONE_MODEL_STATUS;
+  terrainModelVersion: string;
+  terrainName: string;
   site: LaunchSite;
   sampleCount: number;
   impacts: readonly (LandingImpactSample & Readonly<{ positionWgs84: Wgs84Position }>)[];
   meanImpact: Readonly<{
     eastM: number;
     northM: number;
+    terrainElevationM: number;
     positionWgs84: Wgs84Position;
   }>;
   covarianceM2: Readonly<{
@@ -424,6 +440,8 @@ export function simulateRecoveryDescent(input: Readonly<{
   initialPositionWorldM: Vector3;
   initialVelocityWorldMps: Vector3;
   environmentAt: LaunchEnvironmentProvider;
+  /** Optional local ENU terrain surface; flat z=0 is retained by default. */
+  terrain?: TerrainSurface;
   ballisticDragCoefficient: number;
   ballisticReferenceAreaM2: number;
   recovery?: Readonly<{
@@ -439,12 +457,16 @@ export function simulateRecoveryDescent(input: Readonly<{
     traceIntervalS?: number;
   }>;
 }>): RecoveryDescentResult {
+  const terrain = input.terrain ?? createFlatTerrainSurface();
   assertPositive(input.massKg, "descent mass");
   if (!Number.isFinite(input.initialTimeS)) {
     throw new Error("descent initial time must be finite");
   }
-  if (!finiteVector(input.initialPositionWorldM) || input.initialPositionWorldM.z <= 0) {
-    throw new Error("descent initial position must be finite and above ground");
+  if (!finiteVector(input.initialPositionWorldM)) {
+    throw new Error("descent initial position must be finite");
+  }
+  if (!(terrainClearanceM(terrain, input.initialPositionWorldM) > 0)) {
+    throw new Error("descent initial position must be above ground and the supplied terrain surface");
   }
   if (!finiteVector(input.initialVelocityWorldMps)) {
     throw new Error("descent initial velocity must be finite");
@@ -511,7 +533,13 @@ export function simulateRecoveryDescent(input: Readonly<{
   };
 
   const derivative = (state: DescentState) => {
-    const environment = input.environmentAt(state);
+    const terrainElevationM = terrainElevationAt(terrain, state.positionWorldM);
+    const groundClearanceM = state.positionWorldM.z - terrainElevationM;
+    const environment = input.environmentAt({
+      ...state,
+      // Launch-environment providers consume local AGL in the z component.
+      positionWorldM: { ...state.positionWorldM, z: groundClearanceM },
+    });
     const airRelativeVelocity = {
       x: state.velocityWorldMps.x - environment.windWorldMps.x,
       y: state.velocityWorldMps.y - environment.windWorldMps.y,
@@ -550,6 +578,8 @@ export function simulateRecoveryDescent(input: Readonly<{
       effectiveDragAreaM2,
       reefingFraction: recovery.reefingFraction,
       phase: recovery.phase,
+      terrainElevationM,
+      groundClearanceM,
     };
   };
 
@@ -634,6 +664,8 @@ export function simulateRecoveryDescent(input: Readonly<{
     trace.push({
       timeS: recordState.timeS,
       positionWorldM: { ...recordState.positionWorldM },
+      terrainElevationM: evaluation.terrainElevationM,
+      groundClearanceM: evaluation.groundClearanceM,
       velocityWorldMps: { ...recordState.velocityWorldMps },
       windWorldMps: { ...evaluation.environment.windWorldMps },
       airspeedMps: evaluation.airspeedMps,
@@ -649,15 +681,24 @@ export function simulateRecoveryDescent(input: Readonly<{
   while (state.timeS < endTimeS - 1e-12) {
     const stepS = Math.min(timeStepS, endTimeS - state.timeS);
     const next = advance(state, stepS);
-    if (next.positionWorldM.z <= 0) {
-      const fraction =
-        state.positionWorldM.z /
-        (state.positionWorldM.z - next.positionWorldM.z);
+    const currentClearanceM = terrainClearanceM(terrain, state.positionWorldM);
+    const nextClearanceM = terrainClearanceM(terrain, next.positionWorldM);
+    if (nextClearanceM <= 0) {
+      const clearanceDeltaM = currentClearanceM - nextClearanceM;
+      const fraction = clearanceDeltaM > 0
+        ? Math.max(0, Math.min(1, currentClearanceM / clearanceDeltaM))
+        : 1;
+      const impactPosition = interpolateVector(
+        state.positionWorldM,
+        next.positionWorldM,
+        fraction,
+      );
+      const impactTerrainElevationM = terrainElevationAt(terrain, impactPosition);
       state = {
         timeS: state.timeS + stepS * fraction,
         positionWorldM: {
-          ...interpolateVector(state.positionWorldM, next.positionWorldM, fraction),
-          z: 0,
+          ...impactPosition,
+          z: impactTerrainElevationM,
         },
         velocityWorldMps: interpolateVector(
           state.velocityWorldMps,
@@ -669,10 +710,13 @@ export function simulateRecoveryDescent(input: Readonly<{
       return {
         modelVersion: RECOVERY_DESCENT_MODEL_VERSION,
         validationStatus: LANDING_ZONE_MODEL_STATUS,
+        terrainModelVersion: terrain.modelVersion,
+        terrainName: terrain.name,
         landed: true,
         impactTimeS: state.timeS,
         descentDurationS: state.timeS - input.initialTimeS,
         impactPositionWorldM: { ...state.positionWorldM },
+        impactTerrainElevationM,
         impactVelocityWorldMps: { ...state.velocityWorldMps },
         impactSpeedMps: Math.hypot(
           state.velocityWorldMps.x,
@@ -692,12 +736,14 @@ export function simulateRecoveryDescent(input: Readonly<{
                 "Configured reefing stages multiply the fully inflated canopy area through a piecewise-linear effective-area schedule",
               ]
             : []),
-          "Ground is a flat z=0 AGL plane",
+          `Ground contact is root-found against the supplied ${terrain.name} surface (${terrain.modelVersion})`,
+          ...terrain.assumptions,
         ],
         warnings: [
           "This recovery-drift model is an engineering preview and is not validated for range-safety decisions.",
-          "This standalone recovery model omits the ascent handoff, canopy/vehicle relative motion, pendulum dynamics, line forces, reefing hardware, wake interaction, and terrain; the landing-footprint composition may supply a separate ascent-drift proxy.",
+          "This standalone recovery model omits the ascent handoff, canopy/vehicle relative motion, pendulum dynamics, line forces, reefing hardware, wake interaction, and terrain obstacles; the landing-footprint composition may supply a separate ascent-drift proxy.",
           "Impact is linearly interpolated across the final RK4 step; decrease the time step for convergence studies.",
+          ...terrain.warnings,
         ],
       };
     }
@@ -716,10 +762,13 @@ export function simulateRecoveryDescent(input: Readonly<{
   return {
     modelVersion: RECOVERY_DESCENT_MODEL_VERSION,
     validationStatus: LANDING_ZONE_MODEL_STATUS,
+    terrainModelVersion: terrain.modelVersion,
+    terrainName: terrain.name,
     landed: false,
     impactTimeS: null,
     descentDurationS: maximumDurationS,
     impactPositionWorldM: null,
+    impactTerrainElevationM: null,
     impactVelocityWorldMps: null,
     impactSpeedMps: null,
     maximumAirspeedMps,
@@ -730,11 +779,13 @@ export function simulateRecoveryDescent(input: Readonly<{
       ...(reefingStages.length > 0
         ? ["Configured reefing stages multiply canopy drag area with a piecewise-linear schedule"]
         : []),
-      "Ground is a flat z=0 AGL plane",
+      `Ground contact is root-found against the supplied ${terrain.name} surface (${terrain.modelVersion})`,
+      ...terrain.assumptions,
     ],
     warnings: [
       "The configured maximum duration elapsed before ground impact.",
       "This recovery-drift model is an engineering preview and is not validated for range-safety decisions.",
+      ...terrain.warnings,
     ],
   };
 }
@@ -819,7 +870,9 @@ function convexHull(points: readonly Readonly<{ eastM: number; northM: number }>
 export function analyzeLandingFootprint(input: Readonly<{
   site: LaunchSite;
   impacts: readonly LandingImpactSample[];
+  terrain?: TerrainSurface;
 }>): LandingFootprintResult {
+  const terrain = input.terrain ?? createFlatTerrainSurface();
   if (input.impacts.length < 3) {
     throw new Error("landing footprint requires at least three impact samples");
   }
@@ -833,6 +886,7 @@ export function analyzeLandingFootprint(input: Readonly<{
       ![
         impact.eastM,
         impact.northM,
+        impact.terrainElevationM ?? 0,
         impact.impactSpeedMps,
         impact.descentDurationS,
       ].every(Number.isFinite) ||
@@ -842,11 +896,20 @@ export function analyzeLandingFootprint(input: Readonly<{
       throw new Error(`landing impact ${impact.id} contains invalid values`);
     }
   });
+  const resolvedTerrainElevationM = (impact: LandingImpactSample): number =>
+    impact.terrainElevationM ?? terrainElevationAt(terrain, {
+      x: impact.eastM,
+      y: impact.northM,
+      z: 0,
+    });
   const meanEastM =
     input.impacts.reduce((sum, impact) => sum + impact.eastM, 0) /
     input.impacts.length;
   const meanNorthM =
     input.impacts.reduce((sum, impact) => sum + impact.northM, 0) /
+    input.impacts.length;
+  const meanTerrainElevationM =
+    input.impacts.reduce((sum, impact) => sum + resolvedTerrainElevationM(impact), 0) /
     input.impacts.length;
   const denominator = input.impacts.length - 1;
   const covariance = input.impacts.reduce(
@@ -893,16 +956,30 @@ export function analyzeLandingFootprint(input: Readonly<{
   return {
     modelVersion: LANDING_FOOTPRINT_MODEL_VERSION,
     validationStatus: LANDING_ZONE_MODEL_STATUS,
+    terrainModelVersion: terrain.modelVersion,
+    terrainName: terrain.name,
     site: { ...input.site },
     sampleCount: input.impacts.length,
     impacts: input.impacts.map((impact) => ({
       ...impact,
-      positionWgs84: localEnuOffsetToWgs84(input.site, impact.eastM, impact.northM),
+      terrainElevationM: resolvedTerrainElevationM(impact),
+      positionWgs84: localEnuOffsetToWgs84(
+        input.site,
+        impact.eastM,
+        impact.northM,
+        resolvedTerrainElevationM(impact),
+      ),
     })),
     meanImpact: {
       eastM: meanEastM,
       northM: meanNorthM,
-      positionWgs84: localEnuOffsetToWgs84(input.site, meanEastM, meanNorthM),
+      terrainElevationM: meanTerrainElevationM,
+      positionWgs84: localEnuOffsetToWgs84(
+        input.site,
+        meanEastM,
+        meanNorthM,
+        meanTerrainElevationM,
+      ),
     },
     covarianceM2: covariance,
     confidenceEllipses,
@@ -923,11 +1000,14 @@ export function analyzeLandingFootprint(input: Readonly<{
       "Covariance uses the unbiased sample estimate",
       "Confidence ellipses assume an approximately bivariate-normal impact distribution",
       "Ellipse probability scale uses the exact two-degree-of-freedom chi-square radial relation",
+      `Impact elevations use the supplied ${terrain.name} surface (${terrain.modelVersion})`,
+      ...terrain.assumptions,
     ],
     warnings: [
       "A confidence ellipse summarizes sample covariance and can under-represent skewed, multimodal, bounded, or failed-flight distributions.",
       "The local WGS84 conversion is a curvature-radius approximation limited to 100 km and is not a surveyed geodetic solution.",
       "This footprint is an unvalidated engineering preview, not a launch corridor or range-safety determination.",
+      ...terrain.warnings,
     ],
   };
 }
@@ -936,6 +1016,7 @@ export function analyzeRecoveryLandingDispersion(input: Readonly<{
   site: LaunchSite;
   seed: string;
   sampleCount: number;
+  terrain?: TerrainSurface;
   parameters: readonly LandingDispersionParameter[];
   ascentDrift?: LandingAscentDriftSummary;
   deploymentScenario?: Readonly<{
@@ -966,6 +1047,8 @@ export function analyzeRecoveryLandingDispersion(input: Readonly<{
       return {
         impactEastM: descent.impactPositionWorldM.x,
         impactNorthM: descent.impactPositionWorldM.y,
+        impactTerrainElevationM:
+          descent.impactTerrainElevationM ?? descent.impactPositionWorldM.z,
         impactSpeedMps: descent.impactSpeedMps,
         descentDurationS: descent.descentDurationS,
         radialDistanceM: Math.hypot(
@@ -1023,11 +1106,16 @@ export function analyzeRecoveryLandingDispersion(input: Readonly<{
         id: `sample-${String(sample.index + 1).padStart(3, "0")}`,
         eastM: sample.outputs!.impactEastM!,
         northM: sample.outputs!.impactNorthM!,
+        terrainElevationM: sample.outputs!.impactTerrainElevationM ?? 0,
         impactSpeedMps: sample.outputs!.impactSpeedMps!,
         descentDurationS: sample.outputs!.descentDurationS!,
       }),
     );
-  const footprint = analyzeLandingFootprint({ site: input.site, impacts });
+  const footprint = analyzeLandingFootprint({
+    site: input.site,
+    impacts,
+    terrain: input.terrain,
+  });
   if (input.ascentDrift) {
     if (
       !input.ascentDrift.modelVersion.trim() ||

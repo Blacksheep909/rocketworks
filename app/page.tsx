@@ -24,6 +24,7 @@ import {
 } from "../lib/export/project-exports.ts";
 import {
   analyzeRecoveryLandingDispersion,
+  createPlanarTerrainSurface,
   ASCENT_DRIFT_MODEL_VERSION,
   createAerodynamicCoefficientTable,
   sampleAerodynamicPolar,
@@ -118,6 +119,7 @@ import {
   type SeparationDynamicsResult,
   type CoupledSeparationImpulseResult,
   type RecoveryReefingStage,
+  type TerrainSurface,
   type WindLayer,
 } from "../lib/physics/index.ts";
 import {
@@ -145,6 +147,7 @@ import {
   type NoseProfile,
   type ProjectWindLayer,
   type ProjectUncertaintyCorrelation,
+  type ProjectTerrainModel,
   type RecoveryDeploymentTrigger,
 } from "../lib/project/project-state.ts";
 import {
@@ -2110,6 +2113,9 @@ type LandingPredictionInputs = Parameters<typeof createFlightConfig>[0] & Readon
   launchSiteName: string;
   launchLatitudeDeg: number;
   launchLongitudeDeg: number;
+  terrainModel: ProjectTerrainModel;
+  terrainEastSlopePercent: number;
+  terrainNorthSlopePercent: number;
   turbulenceScale: number;
   weatherSeed: string;
   recoveryDeploymentSuccessProbability: number;
@@ -2142,6 +2148,13 @@ function createLandingPrediction(
     datum: "WGS84" as const,
     timeZone: "Pacific/Auckland",
   };
+  const terrain: TerrainSurface = inputs.terrainModel === "planar"
+    ? createPlanarTerrainSurface({
+        name: "Planar local ENU terrain",
+        eastSlope: inputs.terrainEastSlopePercent / 100,
+        northSlope: inputs.terrainNorthSlopePercent / 100,
+      })
+    : createPlanarTerrainSurface({ name: "Flat launch surface" });
   const parameters = [
     {
       key: "windScale",
@@ -2191,6 +2204,7 @@ function createLandingPrediction(
   ];
   return analyzeRecoveryLandingDispersion({
     site,
+    terrain,
     seed: "arc54-landing-v1",
     sampleCount: 24,
     parameters,
@@ -2245,6 +2259,7 @@ function createLandingPrediction(
           z: 0,
         },
         environmentAt: environment.at,
+        terrain,
         ballisticDragCoefficient: inputs.dragCoefficient,
         ballisticReferenceAreaM2:
           Math.PI * Math.pow(inputs.diameter / 2000, 2),
@@ -3533,6 +3548,9 @@ export default function Home() {
   const [launchLatitudeDeg, setLaunchLatitudeDeg] = useState(-36.85);
   const [launchLongitudeDeg, setLaunchLongitudeDeg] = useState(174.76);
   const [launchAltitude, setLaunchAltitude] = useState(80);
+  const [terrainModel, setTerrainModel] = useState<ProjectTerrainModel>("flat");
+  const [terrainEastSlopePercent, setTerrainEastSlopePercent] = useState(0);
+  const [terrainNorthSlopePercent, setTerrainNorthSlopePercent] = useState(0);
   const [windSpeed, setWindSpeed] = useState(4);
   const [windAzimuthDeg, setWindAzimuthDeg] = useState(0);
   const [windProfileLayers, setWindProfileLayers] = useState<ProjectWindLayer[]>([]);
@@ -3657,6 +3675,9 @@ export default function Home() {
       launchLatitudeDeg,
       launchLongitudeDeg,
       launchAltitudeM: launchAltitude,
+      terrainModel,
+      terrainEastSlopePercent,
+      terrainNorthSlopePercent,
       windSpeedMps: windSpeed,
       windAzimuthDeg,
       windProfileLayers,
@@ -3684,7 +3705,7 @@ export default function Home() {
       uncertaintySeed,
       uncertaintyCorrelations,
     }),
-    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, launchSiteName, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
+    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, launchSiteName, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -3989,6 +4010,9 @@ export default function Home() {
           launchLatitudeDeg,
           launchLongitudeDeg,
           launchAltitude,
+          terrainModel,
+          terrainEastSlopePercent,
+          terrainNorthSlopePercent,
           windSpeed,
           windAzimuthDeg,
           windProfileLayers,
@@ -4520,6 +4544,9 @@ export default function Home() {
         setLaunchLatitudeDeg(inputs.launchLatitudeDeg);
         setLaunchLongitudeDeg(inputs.launchLongitudeDeg);
         setLaunchAltitude(inputs.launchAltitudeM);
+        setTerrainModel(inputs.terrainModel);
+        setTerrainEastSlopePercent(inputs.terrainEastSlopePercent);
+        setTerrainNorthSlopePercent(inputs.terrainNorthSlopePercent);
         setWindSpeed(inputs.windSpeedMps);
         setWindAzimuthDeg(inputs.windAzimuthDeg);
         setWindProfileLayers([...(inputs.windProfileLayers ?? [])]);
@@ -4642,6 +4669,9 @@ export default function Home() {
         setLaunchLatitudeDeg(inputs.launchLatitudeDeg);
         setLaunchLongitudeDeg(inputs.launchLongitudeDeg);
         setLaunchAltitude(inputs.launchAltitudeM);
+        setTerrainModel(inputs.terrainModel);
+        setTerrainEastSlopePercent(inputs.terrainEastSlopePercent);
+        setTerrainNorthSlopePercent(inputs.terrainNorthSlopePercent);
         setWindSpeed(inputs.windSpeedMps);
         setWindAzimuthDeg(inputs.windAzimuthDeg);
         setWindProfileLayers([...(inputs.windProfileLayers ?? [])]);
@@ -5104,6 +5134,9 @@ export default function Home() {
     setLaunchLatitudeDeg(inputs.launchLatitudeDeg);
     setLaunchLongitudeDeg(inputs.launchLongitudeDeg);
     setLaunchAltitude(inputs.launchAltitudeM);
+    setTerrainModel(inputs.terrainModel);
+    setTerrainEastSlopePercent(inputs.terrainEastSlopePercent);
+    setTerrainNorthSlopePercent(inputs.terrainNorthSlopePercent);
     setWindSpeed(inputs.windSpeedMps);
     setWindAzimuthDeg(inputs.windAzimuthDeg);
     setWindProfileLayers([...(inputs.windProfileLayers ?? [])]);
@@ -6117,6 +6150,9 @@ export default function Home() {
       launchLatitudeDeg,
       launchLongitudeDeg,
       launchAltitude,
+      terrainModel,
+      terrainEastSlopePercent,
+      terrainNorthSlopePercent,
       windSpeed,
       windAzimuthDeg,
       windProfileLayers,
@@ -7720,7 +7756,7 @@ export default function Home() {
                 <div className="event-card-heading">
                   <div>
                     <strong>Landing footprint</strong>
-                    <span>Recovery-phase drift · local WGS84 tangent plane · {launchSiteName}</span>
+                    <span>Recovery-phase drift · {landingPrediction.footprint.terrainName} · local WGS84 tangent plane · {launchSiteName}</span>
                   </div>
                   <span>{landingPrediction.footprint.sampleCount} seeded scenarios</span>
                 </div>
@@ -7730,7 +7766,7 @@ export default function Home() {
                     <div>
                       <span>Mean impact</span>
                       <strong>{landingPrediction.footprint.meanImpact.eastM.toFixed(0)} m E · {landingPrediction.footprint.meanImpact.northM.toFixed(0)} m N</strong>
-                      <small>{landingPrediction.footprint.meanImpact.positionWgs84.latitudeDeg.toFixed(5)}°, {landingPrediction.footprint.meanImpact.positionWgs84.longitudeDeg.toFixed(5)}°</small>
+                      <small>{landingPrediction.footprint.meanImpact.positionWgs84.latitudeDeg.toFixed(5)}°, {landingPrediction.footprint.meanImpact.positionWgs84.longitudeDeg.toFixed(5)}° · terrain {landingPrediction.footprint.meanImpact.terrainElevationM.toFixed(1)} m</small>
                     </div>
                     <div>
                       <span>Radial distance P50 / P95</span>
@@ -7775,7 +7811,7 @@ export default function Home() {
                 </div>
                 <div className="landing-disclaimer">
                   <span>RECOVERY PHASE ONLY</span>
-                  <p>Seed {landingPrediction.seed} · includes a scenario-specific ascent wind-drag handoff plus mean wind, deterministic turbulence, canopy-area, mass, direction, delay, and a Bernoulli deployment-outcome assumption. Terrain, obstacles, canopy pendulum motion, and range constraints are omitted. Not a flight-safety corridor.</p>
+                  <p>Seed {landingPrediction.seed} · includes a scenario-specific ascent wind-drag handoff plus mean wind, deterministic turbulence, canopy-area, mass, direction, delay, and a Bernoulli deployment-outcome assumption. The selected terrain is a local analytical surface; obstacles, canopy pendulum motion, and range constraints remain omitted. Not a flight-safety corridor.</p>
                 </div>
               </div>
             )}
@@ -8093,6 +8129,18 @@ export default function Home() {
             <NumberField id="launch-latitude" label="Latitude (WGS84)" value={launchLatitudeDeg} unit="deg" min={-90} max={90} step={0.0001} onChange={(value) => { setLaunchLatitudeDeg(value); markChanged(); }} />
             <NumberField id="launch-longitude" label="Longitude (WGS84)" value={launchLongitudeDeg} unit="deg" min={-180} max={180} step={0.0001} onChange={(value) => { setLaunchLongitudeDeg(value); markChanged(); }} />
             <NumberField id="launch-altitude" label="Launch-site altitude" value={launchAltitude} unit="m" min={-400} max={10000} step={10} onChange={(value) => { setLaunchAltitude(value); markChanged(); }} />
+            <div className="field-group terrain-control-group">
+              <label htmlFor="terrain-model">Landing surface</label>
+              <select id="terrain-model" value={terrainModel} onChange={(event) => { setTerrainModel(event.target.value as ProjectTerrainModel); markChanged(); }}>
+                <option value="flat">Flat launch surface</option>
+                <option value="planar">Planar local ENU terrain</option>
+              </select>
+            </div>
+            {terrainModel === "planar" && <>
+              <NumberField id="terrain-east-slope" label="Terrain east slope" value={terrainEastSlopePercent} unit="%" min={-100} max={100} step={0.1} slider onChange={(value) => { setTerrainEastSlopePercent(value); markChanged(); }} />
+              <NumberField id="terrain-north-slope" label="Terrain north slope" value={terrainNorthSlopePercent} unit="%" min={-100} max={100} step={0.1} slider onChange={(value) => { setTerrainNorthSlopePercent(value); markChanged(); }} />
+              <p className="field-help">Landing dispersion root-finds impact against an infinite plane in the local ENU frame. Slopes are rise/run percentages relative to the launch-pad origin; this is not a surveyed elevation model.</p>
+            </>}
             <div className="wind-profile-editor" id="wind-profile-editor">
               <div className="wind-profile-editor-heading">
                 <div>

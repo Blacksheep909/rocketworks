@@ -1,10 +1,10 @@
-# Recovery descent and landing footprint 0.4
+# Recovery descent and landing footprint 0.5
 
 Status: `engineering-preview-unvalidated`.
 
 The landing-footprint composition version is
-`kestrel-landing-footprint-0.4.0`; the underlying recovery-descent point-mass
-model is `kestrel-recovery-descent-0.2.0`. The ascent handoff proxy is
+`kestrel-landing-footprint-0.5.0`; the underlying recovery-descent point-mass
+model is `kestrel-recovery-descent-0.3.0`. The ascent handoff proxy is
 `kestrel-ascent-drift-0.1.0`. The uncertainty sampler is
 `kestrel-uncertainty-0.2.0` and now supports Bernoulli outcomes alongside its
 continuous distributions.
@@ -62,6 +62,25 @@ reefing-line, fabric, or structural model.
 This is substantially simpler than a canopy-riser-payload model. It does not
 model line forces, relative canopy motion, pendulum dynamics, opening shock,
 reefing hardware, apparent mass, wake interaction, or fluid-structure coupling.
+
+## Local terrain contact
+
+Recovery descent accepts a versioned local ENU `TerrainSurface`. The default is
+the legacy flat plane at `z = 0` relative to the launch-pad origin. The browser
+also exposes an optional analytical planar surface:
+
+```text
+z_ground = z_origin + s_east east + s_north north
+```
+
+The two slopes are user inputs expressed as rise/run percentages. The
+integrator computes local AGL from the surface before querying the atmosphere,
+then root-finds the first signed-clearance crossing. Impact position is placed
+on the surface and the trace retains terrain elevation and ground clearance.
+The footprint mean WGS84 point carries the mean local terrain elevation as its
+up offset. This is a kinematic contact boundary only; no terrain mesh,
+obstacle, bounce, skid, penetration, contact impulse, water, or range-boundary
+model is inferred.
 
 ## Ascent-to-recovery handoff
 
@@ -187,6 +206,8 @@ Automated tests cover:
 - seeded dispersion replay and sensitivity output
 - deterministic deployment-success/failure branching and Wilson interval
 - deterministic ascent-to-recovery wind-drag handoff and replay
+- planar-terrain clearance root finding, impact elevation, and footprint mean
+  elevation propagation
 - invalid state, integration, geodesy, and footprint rejection
 - browser footprint, accessible canvas description, metrics, and safety copy
 
@@ -199,8 +220,8 @@ independent range-safety software, or certified parachute data.
 - Ascent drift uses a prescribed vertical trace with horizontal body-drag
   coupling; attitude, lift, fin normal force, thrust-vector misalignment, rail
   tip-off, CP/CG coupling, and rotational 6DOF dynamics remain omitted.
-- Flat ground; no terrain elevation, obstacles, exclusion zones, coastline,
-  water drift, or recovery-team routing.
+- Planar local terrain only; no surveyed elevation grid, terrain mesh,
+  obstacles, exclusion zones, coastline, water drift, or recovery-team routing.
 - Point mass only; no 6DOF attitude, tumbling, canopy-payload geometry, or
   tether dynamics.
 - Constant user/model ballistic and canopy drag coefficients.

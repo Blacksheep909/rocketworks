@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Added a versioned local-ENU terrain contact surface to recovery descent and
+  landing dispersion. Flat-ground compatibility remains the default; an
+  optional planar slope now root-finds impact clearance, carries terrain
+  elevation into traces and WGS84 landing means, and is exposed with project,
+  share, template, browser, and report provenance. Surveyed terrain, obstacles,
+  bounce, contact impulse, and range-safety analysis remain outside scope.
 - Extended the stage-interface axial load-path review with current staged-trace
   body-axis acceleration telemetry. Interface demand now filters to intervals
   where both stages are attached and retains the conservative peak-thrust

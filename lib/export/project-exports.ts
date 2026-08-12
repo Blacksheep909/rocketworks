@@ -1499,6 +1499,9 @@ export function createEngineeringReportMarkdown(
   const stageInterfaceAccelerationBasis = input.stageInterfaceLoads?.accelerationBasis ?? "peak-thrust-common-acceleration";
   const stageInterfaceTracePeakAxialAccelerationMps2 = input.stageInterfaceLoads?.tracePeakAxialAccelerationMps2 ?? null;
   const stageInterfaceTracePeakTimeS = input.stageInterfaceLoads?.tracePeakTimeS ?? null;
+  const landingTerrainName = input.landing?.footprint.terrainName ?? "Flat launch surface";
+  const landingTerrainModelVersion = input.landing?.footprint.terrainModelVersion ?? "legacy-flat-ground";
+  const landingMeanTerrainElevationM = input.landing?.footprint.meanImpact.terrainElevationM ?? 0;
   for (const [label, value] of [
     ["selected motor source ID", input.selectedMotorId],
     ["selected aerodynamic source ID", input.selectedAerodynamicTableId],
@@ -2038,10 +2041,11 @@ export function createEngineeringReportMarkdown(
           `Model: \`${markdownText(input.landing!.modelVersion)}\`  `,
           `Status: \`${markdownText(input.landing!.validationStatus)}\`  `,
           `Seed: \`${markdownText(input.landing!.seed)}\``,
+          `- Terrain surface: ${markdownText(landingTerrainName)} (\`${markdownText(landingTerrainModelVersion)}\`).`,
           "",
           `- Scenario count: ${landing.sampleCount}`,
           `- Mean impact: ${formatNumber(landing.meanImpact.eastM, 1)} m east, ${formatNumber(landing.meanImpact.northM, 1)} m north`,
-          `- Mean WGS84 position: ${formatNumber(landing.meanImpact.positionWgs84.latitudeDeg, 6)}°, ${formatNumber(landing.meanImpact.positionWgs84.longitudeDeg, 6)}°`,
+          `- Mean WGS84 position: ${formatNumber(landing.meanImpact.positionWgs84.latitudeDeg, 6)}°, ${formatNumber(landing.meanImpact.positionWgs84.longitudeDeg, 6)}° (mean terrain ${formatNumber(landingMeanTerrainElevationM, 2)} m relative to pad)`,
           `- Radial distance P50 / P95: ${formatNumber(landing.radialDistanceM.p50, 1)} / ${formatNumber(landing.radialDistanceM.p95, 1)} m`,
           `- Impact speed P50 / P95: ${formatNumber(landing.impactSpeedMps.p50, 2)} / ${formatNumber(landing.impactSpeedMps.p95, 2)} m/s`,
           `- 95% covariance ellipse semi-axes: ${formatNumber(landing.confidenceEllipses[2].semiMajorM, 1)} × ${formatNumber(landing.confidenceEllipses[2].semiMinorM, 1)} m`,

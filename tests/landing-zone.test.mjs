@@ -6,11 +6,13 @@ import {
   LANDING_FOOTPRINT_MODEL_VERSION,
   analyzeLandingFootprint,
   analyzeRecoveryLandingDispersion,
+  createPlanarTerrainSurface,
   createLaunchEnvironmentModel,
   estimateAscentWindDrift,
   localEnuOffsetToWgs84,
   simulateRecoveryDescent,
   standardAtmosphere,
+  TERRAIN_SURFACE_MODEL_VERSION,
 } from "../lib/physics/index.ts";
 
 const site = {
@@ -105,6 +107,35 @@ test("wind-relative vector drag produces downwind recovery drift", () => {
   assert.ok(result.impactPositionWorldM.y < -5);
   assert.ok(result.maximumHorizontalDistanceM > 20);
   assert.ok(result.trace.some((point) => point.windWorldMps.x === 8));
+});
+
+test("recovery descent root-finds impact against a planar local terrain surface", () => {
+  const model = environment();
+  const terrain = createPlanarTerrainSurface({
+    name: "Test east rise",
+    elevationAtOriginM: 1,
+    eastSlope: 0.05,
+    northSlope: -0.02,
+  });
+  const result = simulateRecoveryDescent({
+    massKg: 1,
+    initialTimeS: 0,
+    initialPositionWorldM: { x: 40, y: 10, z: 100 },
+    initialVelocityWorldMps: { x: 0, y: 0, z: -20 },
+    environmentAt: model.at,
+    terrain,
+    ballisticDragCoefficient: 0.5,
+    ballisticReferenceAreaM2: 0.01,
+    integration: { timeStepS: 0.01, maximumDurationS: 20, traceIntervalS: 0.2 },
+  });
+  const expectedTerrainM = 1 + 0.05 * result.impactPositionWorldM.x - 0.02 * result.impactPositionWorldM.y;
+  assert.equal(result.landed, true);
+  assert.equal(result.terrainModelVersion, TERRAIN_SURFACE_MODEL_VERSION);
+  assert.equal(result.terrainName, "Test east rise");
+  assert.ok(Math.abs(result.impactTerrainElevationM - expectedTerrainM) < 1e-10);
+  assert.ok(Math.abs(result.impactPositionWorldM.z - expectedTerrainM) < 1e-10);
+  assert.ok(result.trace.every((point) => point.groundClearanceM >= -1e-9));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("root-found")));
 });
 
 test("ascent wind-drag handoff is deterministic and follows the supplied wind", () => {
@@ -202,6 +233,7 @@ test("footprint covariance, ellipse, hull, and geodetic mean match a symmetric f
   assert.equal(result.meanImpact.northM, 0);
   assert.equal(result.meanImpact.positionWgs84.latitudeDeg, 0);
   assert.equal(result.meanImpact.positionWgs84.longitudeDeg, 0);
+  assert.equal(result.meanImpact.terrainElevationM, 0);
   assert.ok(Math.abs(result.covarianceM2.eastEast - 400 / 3) < 1e-12);
   assert.ok(Math.abs(result.covarianceM2.northNorth - 100 / 3) < 1e-12);
   assert.equal(result.covarianceM2.eastNorth, 0);
@@ -211,6 +243,22 @@ test("footprint covariance, ellipse, hull, and geodetic mean match a symmetric f
   assert.ok(Math.abs(ellipse95.semiMajorM / ellipse95.semiMinorM - 2) < 1e-12);
   assert.equal(ellipse95.majorAxisAngleDegFromEast, 0);
   assert.equal(result.impactSpeedMps.p50, 7.5);
+});
+
+test("landing footprint preserves terrain elevation in the mean geodetic point", () => {
+  const terrain = createPlanarTerrainSurface({ elevationAtOriginM: 2, eastSlope: 0.01 });
+  const result = analyzeLandingFootprint({
+    site,
+    terrain,
+    impacts: [
+      { id: "a", eastM: 10, northM: 0, impactSpeedMps: 5, descentDurationS: 10 },
+      { id: "b", eastM: 20, northM: 0, impactSpeedMps: 5, descentDurationS: 10 },
+      { id: "c", eastM: 30, northM: 0, impactSpeedMps: 5, descentDurationS: 10 },
+    ],
+  });
+  assert.equal(result.terrainName, "Planar launch surface");
+  assert.ok(Math.abs(result.meanImpact.terrainElevationM - 2.2) < 1e-12);
+  assert.ok(Math.abs(result.meanImpact.positionWgs84.elevationM - 2.2) < 1e-12);
 });
 
 test("seeded recovery dispersion is reproducible and exposes sensitivity samples", () => {
@@ -321,6 +369,7 @@ test("invalid descent, geodesy, and footprint inputs fail explicitly", () => {
   assert.throws(() => descent({ massKg: 0 }), /mass/);
   assert.throws(() => descent({ initialPositionWorldM: { x: 0, y: 0, z: 0 } }), /above ground/);
   assert.throws(() => descent({ integration: { timeStepS: 1 } }), /time step/);
+  assert.throws(() => createPlanarTerrainSurface({ eastSlope: 2 }), /between -1 and 1/);
   assert.throws(() => localEnuOffsetToWgs84(site, 100_001, 0), /100 km/);
   assert.throws(
     () => analyzeLandingFootprint({ site, impacts: [{ id: "one", eastM: 0, northM: 0, impactSpeedMps: 1, descentDurationS: 1 }] }),
