@@ -35,7 +35,18 @@ import {
 } from "./stage-flight-preview.ts";
 
 export const STAGE_FLIGHT_UNCERTAINTY_ADAPTER_VERSION =
-  "kestrel-stage-flight-uncertainty-0.5.0";
+  "kestrel-stage-flight-uncertainty-0.6.0";
+
+/** Prefix used for independent thrust multipliers keyed by motor identifier. */
+export const MOTOR_THRUST_SCALE_FACTOR_PREFIX = "motorThrustScale:";
+
+export function motorThrustScaleFactorKey(
+  motorId: string,
+): `motorThrustScale:${string}` {
+  const normalizedId = motorId.trim();
+  if (!normalizedId) throw new Error("motor id must not be empty");
+  return `${MOTOR_THRUST_SCALE_FACTOR_PREFIX}${normalizedId}` as `motorThrustScale:${string}`;
+}
 
 export type StageFlightUncertaintyFactorKey =
   | "dryMassScale"
@@ -49,7 +60,8 @@ export type StageFlightUncertaintyFactorKey =
   | "windScale"
   | "ignitionDelayOffsetS"
   | "separationImpulseScale"
-  | "alignmentOffsetRad";
+  | "alignmentOffsetRad"
+  | `motorThrustScale:${string}`;
 
 export type StageFlightUncertaintyFactor = {
   key: StageFlightUncertaintyFactorKey;
@@ -91,6 +103,7 @@ function scaleMotor(
   dryMassScale: number,
   propellantMassScale: number,
   thrustScale: number,
+  motorThrustScale: number,
   ignitionDelayOffsetS: number,
 ): MultiStageMotor {
   return {
@@ -103,9 +116,40 @@ function scaleMotor(
     ),
     thrustCurve: motor.thrustCurve.map((point) => ({
       ...point,
-      thrustN: point.thrustN * thrustScale,
+      thrustN: point.thrustN * thrustScale * motorThrustScale,
     })),
   };
+}
+
+function collectMotorIds(stages: readonly RocketStage[]): Set<string> {
+  const ids = new Set<string>();
+  for (const stage of stages) {
+    for (const motor of stage.motors) ids.add(motor.id);
+    for (const instance of stage.instances ?? []) {
+      for (const motor of instance.motors) ids.add(motor.id);
+    }
+  }
+  return ids;
+}
+
+function resolveMotorThrustScales(
+  stages: readonly RocketStage[],
+  values: Readonly<Record<string, number>>,
+): Readonly<Record<string, number>> {
+  const knownMotorIds = collectMotorIds(stages);
+  const scales: Record<string, number> = {};
+  for (const [key, value] of Object.entries(values)) {
+    if (!key.startsWith(MOTOR_THRUST_SCALE_FACTOR_PREFIX)) continue;
+    const motorId = key.slice(MOTOR_THRUST_SCALE_FACTOR_PREFIX.length);
+    if (!motorId) {
+      throw new Error(`${MOTOR_THRUST_SCALE_FACTOR_PREFIX} must include a motor id`);
+    }
+    if (!knownMotorIds.has(motorId)) {
+      throw new Error(`Unknown motor thrust scale factor motor id: ${motorId}`);
+    }
+    scales[motorId] = positiveScale(value, `${key} scale`);
+  }
+  return scales;
 }
 
 function scaleStageInstance(
@@ -113,6 +157,7 @@ function scaleStageInstance(
   dryMassScale: number,
   propellantMassScale: number,
   thrustScale: number,
+  motorThrustScales: Readonly<Record<string, number>>,
   ignitionDelayOffsetS: number,
   separationImpulseScale: number,
 ): RocketStageInstance {
@@ -134,6 +179,7 @@ function scaleStageInstance(
         dryMassScale,
         propellantMassScale,
         thrustScale,
+        motorThrustScales[motor.id] ?? 1,
         ignitionDelayOffsetS,
       ),
     ),
@@ -145,6 +191,7 @@ function scaleStage(
   dryMassScale: number,
   propellantMassScale: number,
   thrustScale: number,
+  motorThrustScales: Readonly<Record<string, number>>,
   ignitionDelayOffsetS: number,
   separationImpulseScale: number,
 ): RocketStage {
@@ -166,6 +213,7 @@ function scaleStage(
         dryMassScale,
         propellantMassScale,
         thrustScale,
+        motorThrustScales[motor.id] ?? 1,
         ignitionDelayOffsetS,
       ),
     ),
@@ -177,6 +225,7 @@ function scaleStage(
               dryMassScale,
               propellantMassScale,
               thrustScale,
+              motorThrustScales,
               ignitionDelayOffsetS,
               separationImpulseScale,
             ),
@@ -278,7 +327,8 @@ function scaleEnvironmentProvider(
  * Creates a physically explicit variant of a coupled preview without
  * mutating the caller's topology, motor records, environment, or event list.
  * Dry and propellant mass scales apply to the corresponding structural and
- * motor mass properties; thrust and drag scales are independent inputs.
+ * motor mass properties; global and per-motor thrust scales are independent
+ * inputs, allowing declared cluster imbalance to be sampled explicitly.
  */
 export function createStageFlightVariant(
   base: StageFlightPreviewInput,
@@ -323,6 +373,8 @@ export function createStageFlightVariant(
     values.alignmentOffsetRad ?? 0,
     "alignment offset",
   );
+  const motorThrustScales = resolveMotorThrustScales(base.stages, values);
+  const hasMotorFactors = Object.keys(motorThrustScales).length > 0;
   const hasEventFactors =
     Object.prototype.hasOwnProperty.call(values, "ignitionDelayOffsetS") ||
     Object.prototype.hasOwnProperty.call(values, "separationImpulseScale") ||
@@ -350,6 +402,7 @@ export function createStageFlightVariant(
         dryMassScale,
         propellantMassScale,
         thrustScale,
+        motorThrustScales,
         ignitionDelayOffsetS,
         separationImpulseScale,
       ),
@@ -383,10 +436,15 @@ export function createStageFlightVariant(
     dragCoefficientScale,
     directForceCoefficientScale,
     directMomentCoefficientScale,
-    ...(hasEventFactors
+    ...(hasEventFactors || hasMotorFactors
       ? {
           additionalWarnings: [
             ...(base.additionalWarnings ?? []),
+            ...(hasMotorFactors
+              ? [
+                  "Per-motor thrust factors are deterministic multipliers on declared motor identifiers; no measured motor-to-motor covariance, gimbal, or thrust-vector misalignment is implied.",
+                ]
+              : []),
             ...(ignitionDelayOffsetS !== 0
               ? [
                   "Sampled ignition-delay uncertainty shifts motor-local delays and ignition-after-burnout triggers; no measured timing distribution is implied.",
@@ -405,7 +463,16 @@ export function createStageFlightVariant(
           ],
           additionalAssumptions: [
             ...(base.additionalAssumptions ?? []),
-            "Event uncertainty factors are deterministic scenario perturbations sampled from caller-supplied distributions, not measured distributions or certification evidence.",
+            ...(hasMotorFactors
+              ? [
+                  "Each motorThrustScale:<id> factor applies to every topology entry with that motor identifier; repeated physical copies with distinct IDs can vary independently, while duplicate IDs share one sampled factor.",
+                ]
+              : []),
+            ...(hasEventFactors
+              ? [
+                  "Event uncertainty factors are deterministic scenario perturbations sampled from caller-supplied distributions, not measured distributions or certification evidence.",
+                ]
+              : []),
             "The nominal topology, event list, and caller-owned records are not mutated; staged event closures are wrapped only inside the sampled variant.",
           ],
         }

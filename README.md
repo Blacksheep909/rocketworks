@@ -68,9 +68,10 @@ research, standards, and original code.
 - editable launch-site name and WGS84 coordinates carried into local history,
   share links, landing-zone provenance, coupled environment providers, and
   engineering reports;
-- seeded coupled-flight uncertainty runs can independently vary direct
-  body-axis force and static-moment coefficient databases when those sources
-  are present, with the selected factors and nominal fallbacks disclosed;
+- seeded coupled-flight uncertainty runs can independently vary declared motor
+  thrust scales plus direct body-axis force and static-moment coefficient
+  databases when those sources are present, with selected factors and nominal
+  fallbacks disclosed;
 - user-configurable recovery triggers (apogee, descending AGL altitude, or
   mission time) and reefing schedules shared by the vertical preview, landing
   descent, 6DOF recovery loads, trace telemetry, and portable inputs;
@@ -129,10 +130,10 @@ research, standards, and original code.
   force-rate proxy; opening shock and structural response remain explicitly
   outside the model;
 - seeded coupled 6DOF uncertainty envelopes that propagate bounded mass,
-  propellant, thrust, drag, recovery-area, deployment-outcome, and wind
-  assumptions through stage events and launch-rail handoff, plus sampled
-  ignition-delay, separation-impulse, and launch-alignment factors, with
-  recovery-load percentile telemetry;
+  propellant, global and per-motor thrust, drag, recovery-area,
+  deployment-outcome, and wind assumptions through stage events and launch-rail
+  handoff, plus sampled ignition-delay, separation-impulse, and
+  launch-alignment factors, with recovery-load percentile telemetry;
 - optional Gaussian-copula correlation pairs for uncertainty propagation,
   validated as positive-definite while preserving each declared marginal;
 - a persisted Dependence model editor that carries correlation assumptions

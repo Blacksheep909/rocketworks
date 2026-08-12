@@ -1,4 +1,4 @@
-# Coupled stage-flight uncertainty 0.3
+# Coupled stage-flight uncertainty 0.4
 
 RocketWorks' coupled dispersion adapter is an independent wrapper around the
 existing staging, topology-aerodynamics, launch-environment, launch-rail, and
@@ -6,7 +6,7 @@ rigid-body models. It does not import or reuse an external rocket simulator.
 
 ## Contract
 
-- Adapter version: `kestrel-stage-flight-uncertainty-0.5.0`
+- Adapter version: `kestrel-stage-flight-uncertainty-0.6.0`
 - Sampling: seeded Latin hypercube through the shared uncertainty model
   (`kestrel-uncertainty-0.4.0`)
 - Default browser ensemble: 16 samples, retained as individual input/output or
@@ -19,21 +19,30 @@ rigid-body models. It does not import or reuse an external rocket simulator.
 The default browser factors are independent bounded distributions for dry mass,
 propellant mass, delivered thrust, drag coefficient, recovery area (when a
 retained recovery device is configured), recovery deployment outcome (when a
-retained recovery device is configured), and wind magnitude. When the selected
-topology source exposes direct body-axis force or static-moment volumes, the
-browser also exposes separate direct-force and direct-moment coefficient scales.
-The coupled browser additionally samples an ignition-delay offset, a
-separation-impulse scale, and a small launch-alignment offset. The variant
-builder scales structural and dry motor mass properties with the dry-mass
-factor, initial propellant mass properties with the propellant factor, every
-thrust-curve ordinate with the thrust factor, selected aerodynamic drag with
-the drag factor, direct body-axis force and static-moment resultants with their
-respective factors, configured recovery-device reference areas with the
-recovery area factor, both profile/provider wind vectors with the wind factor,
-and annotated staging events with the event factors. Motor-local ignition
-delays and ignition-after-burnout triggers receive the sampled delay offset;
-annotated separation events receive the sampled impulse scale; the initial
-body attitude receives a body-`+Y` pitch perturbation for alignment uncertainty.
+retained recovery device is configured), and wind magnitude. Each declared
+motor also receives an independent `motorThrustScale:<id>` factor so clustered
+stages can expose thrust spread and net-force/moment imbalance. When the
+selected topology source exposes direct body-axis force or static-moment
+volumes, the browser also exposes separate direct-force and direct-moment
+coefficient scales. The coupled browser additionally samples an ignition-delay
+offset, a separation-impulse scale, and a small launch-alignment offset. The
+variant builder scales structural and dry motor mass properties with the
+dry-mass factor, initial propellant mass properties with the propellant factor,
+every thrust-curve ordinate with the global thrust factor and its declared
+per-motor factor, selected aerodynamic drag with the drag factor, direct
+body-axis force and static-moment resultants with their respective factors,
+configured recovery-device reference areas with the recovery area factor, both
+profile/provider wind vectors with the wind factor, and annotated staging
+events with the event factors. Motor-local ignition delays and
+ignition-after-burnout triggers receive the sampled delay offset; annotated
+separation events receive the sampled impulse scale; the initial body attitude
+receives a body-`+Y` pitch perturbation for alignment uncertainty.
+
+Per-motor factors are keyed by the exact motor identifier. Repeated physical
+copies with distinct identifiers can vary independently; copies that share an
+identifier share one sampled factor. The factors are deterministic scenario
+multipliers and do not claim measured motor covariance, gimbal behavior,
+thrust-vector misalignment, or a qualified motor-performance distribution.
 
 When a Bernoulli recovery outcome is sampled as failure, the variant inserts a
 small positive-time failure event for each configured recovery device; the

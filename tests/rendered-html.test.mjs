@@ -297,6 +297,9 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(source, /Apogee sensitivity/);
   assert.match(source, /recoveryAreaScale/);
   assert.match(source, /recoveryDeploymentSuccess/);
+  assert.match(source, /motorThrustScaleFactorKey/);
+  assert.match(source, /motorFactorDefinitions/);
+  assert.match(source, /motor\.name\} thrust/);
   assert.match(source, /recovery-deployed/);
   assert.match(source, /Impact speed P05 \/ P50 \/ P95/);
   assert.match(source, /Recovery delay offset/);

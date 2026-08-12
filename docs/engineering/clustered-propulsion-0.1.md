@@ -88,9 +88,11 @@ flight behavior.
 
 - Thrust axes and application points are fixed. Gimbals, flexure, mount
   compliance, and nozzle motion are absent.
-- Per-motor failure can be configured deterministically, but ignition
-  probability, partial ignition, thrust variation, temperature effects, and
-  correlated cluster uncertainty are absent.
+- Per-motor failure can be configured deterministically. Independent
+  `motorThrustScale:<id>` scenario multipliers are available through the
+  staged uncertainty adapter, but this nominal clustered layer does not infer
+  measured ignition probability, partial ignition, temperature effects, or
+  correlated cluster uncertainty.
 - Scalar thrust histories must already include exhaust momentum and nozzle
   pressure thrust.
 - No plume interaction, base-pressure interaction, jet damping, or thrust
@@ -114,7 +116,8 @@ flight behavior.
 
 ## Next work
 
-The next propulsion step should add per-motor thrust uncertainty, gimbal
-schedules, and optional measured mass-flow histories. A mission orchestrator
-should then expose cluster imbalance warnings and uncertainty envelopes in the
-browser UI.
+The next propulsion step should add gimbal schedules, optional measured
+mass-flow histories, and a qualified motor-performance data path. The staged
+uncertainty browser already exposes independent per-motor thrust factors for
+cluster imbalance exploration; richer imbalance diagnostics remain future
+work.

@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add independent per-motor thrust-scale factors to staged uncertainty runs.
+  The browser derives one bounded factor per declared motor identifier, so
+  clustered stages can expose deterministic thrust spread and net-force/moment
+  imbalance while preserving explicit clean-room and qualification limits.
 - Route trace-scrubber labels and empty-selection guidance through the typed
   English/Spanish shell catalog while leaving engineering units and model
   explanations explicit.

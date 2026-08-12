@@ -31,6 +31,7 @@ import {
   computeStaticStability,
   analyzeVerticalFlightUncertainty,
   analyzeStageFlightUncertainty,
+  motorThrustScaleFactorKey,
   createApogeeRecoveryDeploymentEvent,
   createAltitudeRecoveryDeploymentEvent,
   createScheduledRecoveryDeploymentEvent,
@@ -6369,6 +6370,20 @@ export default function Home() {
           aerodynamicTable: selectedAerodynamicTable,
           aerodynamicTableModels,
         });
+        const motorFactorDefinitions = Array.from(
+          new Map(
+            baseInput.stages
+              .flatMap((stage) => [
+                ...stage.motors,
+                ...(stage.instances ?? []).flatMap((instance) => instance.motors),
+              ])
+              .map((motor) => [motor.id, motor] as const),
+          ).values(),
+        ).map((motor) => ({
+          key: motorThrustScaleFactorKey(motor.id),
+          label: `${motor.name} thrust`,
+          distribution: { kind: "normal" as const, mean: 1, standardDeviation: 0.04, minimum: 0.85, maximum: 1.15 },
+        }));
         const factors = [
           {
             key: "dryMassScale" as const,
@@ -6385,6 +6400,7 @@ export default function Home() {
             label: "Delivered thrust",
             distribution: { kind: "normal" as const, mean: 1, standardDeviation: 0.04, minimum: 0.88, maximum: 1.12 },
           },
+          ...motorFactorDefinitions,
           {
             key: "dragCoefficientScale" as const,
             label: "Drag coefficient",

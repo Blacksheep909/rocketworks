@@ -10,6 +10,7 @@ import {
   computeStageMassRatio,
   computeStageFlightForceBudget,
   createStageFlightVariant,
+  motorThrustScaleFactorKey,
   simulateStageFlightPreview,
 } from "../lib/physics/index.ts";
 
@@ -450,7 +451,7 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
     sampleCount: 6,
   });
 
-  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-0.5.0");
+  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-0.6.0");
   assert.equal(first.requestedSampleCount, 6);
   assert.equal(first.successfulSampleCount, 6);
   assert.deepEqual(first.samples, second.samples);
@@ -473,6 +474,21 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
   assert.equal(variant.dragCoefficientScale, 1.2);
   assert.equal(variant.directForceCoefficientScale, 1.1);
   assert.equal(variant.directMomentCoefficientScale, 0.9);
+
+  const perMotorVariant = createStageFlightVariant(baseInput, {
+    thrustScale: 1.05,
+    [motorThrustScaleFactorKey("booster-motor")]: 1.1,
+  });
+  assert.ok(
+    Math.abs(perMotorVariant.stages[0].motors[0].thrustCurve[1].thrustN - 34.65) < 1e-12,
+  );
+  assert.equal(perMotorVariant.stages[1].motors[0].thrustCurve[1].thrustN, 31.5);
+  assert.ok(perMotorVariant.additionalWarnings.some((warning) => warning.includes("Per-motor thrust factors")));
+  assert.ok(perMotorVariant.additionalAssumptions.some((assumption) => assumption.includes("motorThrustScale:<id>")));
+  assert.throws(
+    () => createStageFlightVariant(baseInput, { [motorThrustScaleFactorKey("missing-motor")]: 1.05 }),
+    /Unknown motor thrust scale factor motor id/,
+  );
 
   const recoveryBase = {
     ...baseInput,
@@ -599,6 +615,44 @@ test("stage-flight uncertainty perturbs event timing, separation impulse, and al
   );
   assert.ok(variant.additionalWarnings.some((warning) => warning.includes("launch-alignment")));
   assert.ok(variant.additionalAssumptions.some((assumption) => assumption.includes("Event uncertainty factors")));
+});
+
+test("stage-flight uncertainty applies distinct thrust factors to repeated motor copies", () => {
+  const repeatedStage = {
+    ...stages[0],
+    instances: [
+      {
+        id: "booster-1",
+        name: "Booster 1",
+        structuralMassProperties: properties(0.5, 1.1),
+        motors: [motor("booster-1-motor", 1.3)],
+      },
+      {
+        id: "booster-2",
+        name: "Booster 2",
+        structuralMassProperties: properties(0.5, 1.1),
+        motors: [motor("booster-2-motor", 1.3)],
+      },
+    ],
+  };
+  const baseInput = {
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages: [repeatedStage],
+    regimes: [regimes[0]],
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 2,
+    timeStepS: 0.1,
+    launchAltitudeM: 0,
+  };
+  const variant = createStageFlightVariant(baseInput, {
+    [motorThrustScaleFactorKey("booster-1-motor")]: 1.1,
+    [motorThrustScaleFactorKey("booster-2-motor")]: 0.9,
+  });
+
+  assert.equal(variant.stages[0].instances[0].motors[0].thrustCurve[1].thrustN, 33);
+  assert.equal(variant.stages[0].instances[1].motors[0].thrustCurve[1].thrustN, 27);
+  assert.equal(stages[0].instances, undefined);
 });
 
 test("stage-flight adapter spawns one separated-body branch per repeated physical copy", () => {
