@@ -8154,9 +8154,9 @@ export default function Home() {
           </>
         ) : (
           <>
-            <NumberField id="thrust" label="Average thrust" value={thrust} unit="N" min={1} max={5000} step={0.5} onChange={(value) => { setThrust(value); markChanged(); }} />
-            <NumberField id="burn-time" label="Burn time" value={burnTime} unit="s" min={0.1} max={30} step={0.05} onChange={(value) => { setBurnTime(value); markChanged(); }} />
-            <NumberField id="drag" label="Drag coefficient" value={dragCoefficient} unit="Cd" min={0.1} max={2} step={0.01} onChange={(value) => { setDragCoefficient(value); markChanged(); }} />
+            <NumberField id="thrust" label="Average thrust" value={thrust} unit="N" min={1} max={5000} step={0.5} slider onChange={(value) => { setThrust(value); markChanged(); }} />
+            <NumberField id="burn-time" label="Burn time" value={burnTime} unit="s" min={0.1} max={30} step={0.05} slider onChange={(value) => { setBurnTime(value); markChanged(); }} />
+            <NumberField id="drag" label="Drag coefficient" value={dragCoefficient} unit="Cd" min={0.1} max={2} step={0.01} slider onChange={(value) => { setDragCoefficient(value); markChanged(); }} />
             <div className="field-group">
               <label htmlFor="launch-site-name">Launch site</label>
               <input id="launch-site-name" type="text" maxLength={120} value={launchSiteName} onChange={(event) => { setLaunchSiteName(event.target.value || "ARC 54 synthetic range"); markChanged(); }} />
@@ -8212,16 +8212,16 @@ export default function Home() {
                 </>
               )}
             </div>
-            <NumberField id="surface-pressure" label="Pad pressure" value={surfacePressureHpa} unit="hPa" min={20} max={1100} step={0.1} onChange={(value) => { setSurfacePressureHpa(value); markChanged(); }} />
-            <NumberField id="surface-temperature" label="Pad temperature" value={surfaceTemperatureC} unit="°C" min={-90} max={70} step={0.5} onChange={(value) => { setSurfaceTemperatureC(value); markChanged(); }} />
-            <NumberField id="wind-speed" label="Wind at 500 m" value={windSpeed} unit="m/s" min={0} max={80} step={0.5} onChange={(value) => { setWindSpeed(value); markChanged(); }} />
-            <NumberField id="wind-azimuth" label="Wind azimuth · east toward north" value={windAzimuthDeg} unit="deg" min={-180} max={180} step={1} onChange={(value) => { setWindAzimuthDeg(value); markChanged(); }} />
+            <NumberField id="surface-pressure" label="Pad pressure" value={surfacePressureHpa} unit="hPa" min={20} max={1100} step={0.1} slider onChange={(value) => { setSurfacePressureHpa(value); markChanged(); }} />
+            <NumberField id="surface-temperature" label="Pad temperature" value={surfaceTemperatureC} unit="°C" min={-90} max={70} step={0.5} slider onChange={(value) => { setSurfaceTemperatureC(value); markChanged(); }} />
+            <NumberField id="wind-speed" label="Wind at 500 m" value={windSpeed} unit="m/s" min={0} max={80} step={0.5} slider onChange={(value) => { setWindSpeed(value); markChanged(); }} />
+            <NumberField id="wind-azimuth" label="Wind azimuth · east toward north" value={windAzimuthDeg} unit="deg" min={-180} max={180} step={1} slider onChange={(value) => { setWindAzimuthDeg(value); markChanged(); }} />
             <NumberField id="turbulence-scale" label="Turbulence RMS scale" value={turbulenceScale} unit="×" min={0} max={3} step={0.05} slider onChange={(value) => { setTurbulenceScale(value); markChanged(); }} />
             <div className="field-group">
               <label htmlFor="weather-seed">Weather replay seed</label>
               <input id="weather-seed" type="text" maxLength={80} value={weatherSeed} onChange={(event) => { setWeatherSeed(event.target.value.slice(0, 80)); markChanged(); }} onBlur={() => setWeatherSeed((current) => current.trim() || DEFAULT_WEATHER_SEED)} />
             </div>
-            <NumberField id="relative-humidity" label="Relative humidity" value={relativeHumidityPercent} unit="%" min={0} max={100} step={1} onChange={(value) => { setRelativeHumidityPercent(value); markChanged(); }} />
+            <NumberField id="relative-humidity" label="Relative humidity" value={relativeHumidityPercent} unit="%" min={0} max={100} step={1} slider onChange={(value) => { setRelativeHumidityPercent(value); markChanged(); }} />
             <p className="field-help">The site label and WGS84 coordinates flow into landing-zone provenance and exported reports. Pressure and temperature anchor the launch-site profile; wind azimuth uses the local ENU frame (0° east, +90° north); turbulence scale multiplies the deterministic RMS envelope, and the seed makes the generated field replayable. Humidity couples to water-vapor pressure, virtual temperature, density, and sound speed. These are user observations and assumptions, not a live weather feed.</p>
             <div className="field-group rail-control-group">
               <label htmlFor="launch-rail-enabled">Launch rail constraint</label>
@@ -8231,9 +8231,9 @@ export default function Home() {
               </select>
             </div>
             {launchRailEnabled && <>
-              <NumberField id="launch-rail-length" label="Effective rail travel" value={launchRailLengthM} unit="m" min={0.25} max={12} step={0.05} onChange={(value) => { setLaunchRailLengthM(value); markChanged(); }} />
-              <NumberField id="launch-rail-inclination" label="Inclination from vertical" value={launchRailInclinationDeg} unit="deg" min={0} max={30} step={0.1} onChange={(value) => { setLaunchRailInclinationDeg(value); markChanged(); }} />
-              <NumberField id="launch-rail-azimuth" label="Azimuth · east toward north" value={launchRailAzimuthDeg} unit="deg" min={-180} max={180} step={1} onChange={(value) => { setLaunchRailAzimuthDeg(value); markChanged(); }} />
+              <NumberField id="launch-rail-length" label="Effective rail travel" value={launchRailLengthM} unit="m" min={0.25} max={12} step={0.05} slider onChange={(value) => { setLaunchRailLengthM(value); markChanged(); }} />
+              <NumberField id="launch-rail-inclination" label="Inclination from vertical" value={launchRailInclinationDeg} unit="deg" min={0} max={30} step={0.1} slider onChange={(value) => { setLaunchRailInclinationDeg(value); markChanged(); }} />
+              <NumberField id="launch-rail-azimuth" label="Azimuth · east toward north" value={launchRailAzimuthDeg} unit="deg" min={-180} max={180} step={1} slider onChange={(value) => { setLaunchRailAzimuthDeg(value); markChanged(); }} />
               <p className="rail-provenance">The staged preview holds attitude and lateral motion on a fixed ENU rail, then hands the exact release state to free flight. Inclination is measured from +up; azimuth is 0° east and 90° north. Guide hardware, friction, tip-off, and launcher motion are not modeled.</p>
             </>}
             <div className="field-group">
@@ -8254,8 +8254,8 @@ export default function Home() {
             {recoveryEnabled && recoveryDeploymentTrigger === "altitude" && <NumberField id="recovery-deployment-altitude" label="Deployment altitude" value={recoveryDeploymentAltitudeM} unit="m AGL" min={0} max={10000} step={5} slider onChange={(value) => { setRecoveryDeploymentAltitudeM(value); markChanged(); }} />}
             {recoveryEnabled && recoveryDeploymentTrigger === "time" && <NumberField id="recovery-deployment-time" label="Deployment mission time" value={recoveryDeploymentTimeS} unit="s" min={0} max={180} step={0.1} slider onChange={(value) => { setRecoveryDeploymentTimeS(value); markChanged(); }} />}
             {recoveryEnabled && <NumberField id="recovery-delay" label="Deployment delay after trigger" value={recoveryDelay} unit="s" min={0} max={30} step={0.1} slider onChange={(value) => { setRecoveryDelay(value); markChanged(); }} />}
-            {recoveryEnabled && <NumberField id="recovery-diameter" label="Canopy diameter" value={recoveryDiameter} unit="m" min={0.1} max={3} step={0.01} onChange={(value) => { setRecoveryDiameter(value); markChanged(); }} />}
-            {recoveryEnabled && <NumberField id="recovery-deployment-success" label="Deployment success assumption" value={recoveryDeploymentSuccessProbability * 100} unit="%" min={0} max={100} step={1} onChange={(value) => { setRecoveryDeploymentSuccessProbability(value / 100); markChanged(); }} />}
+            {recoveryEnabled && <NumberField id="recovery-diameter" label="Canopy diameter" value={recoveryDiameter} unit="m" min={0.1} max={3} step={0.01} slider onChange={(value) => { setRecoveryDiameter(value); markChanged(); }} />}
+            {recoveryEnabled && <NumberField id="recovery-deployment-success" label="Deployment success assumption" value={recoveryDeploymentSuccessProbability * 100} unit="%" min={0} max={100} step={1} slider onChange={(value) => { setRecoveryDeploymentSuccessProbability(value / 100); markChanged(); }} />}
             {recoveryEnabled && <div className="field-group">
               <label htmlFor="recovery-reefing">Canopy opening schedule</label>
               <select id="recovery-reefing" value={recoveryReefingEnabled ? "reefed" : "full-open"} onChange={(event) => { setRecoveryReefingEnabled(event.target.value === "reefed"); markChanged(); }}>
@@ -8264,8 +8264,8 @@ export default function Home() {
               </select>
             </div>}
             {recoveryEnabled && recoveryReefingEnabled && <>
-              <NumberField id="recovery-reefing-start-area" label="Initial reefed canopy area" value={recoveryReefingStartAreaFraction * 100} unit="%" min={5} max={100} step={1} onChange={(value) => { setRecoveryReefingStartAreaFraction(value / 100); markChanged(); }} />
-              <NumberField id="recovery-reefing-duration" label="Reefing duration" value={recoveryReefingDurationS} unit="s" min={0.1} max={30} step={0.1} onChange={(value) => { setRecoveryReefingDurationS(value); markChanged(); }} />
+              <NumberField id="recovery-reefing-start-area" label="Initial reefed canopy area" value={recoveryReefingStartAreaFraction * 100} unit="%" min={5} max={100} step={1} slider onChange={(value) => { setRecoveryReefingStartAreaFraction(value / 100); markChanged(); }} />
+              <NumberField id="recovery-reefing-duration" label="Reefing duration" value={recoveryReefingDurationS} unit="s" min={0.1} max={30} step={0.1} slider onChange={(value) => { setRecoveryReefingDurationS(value); markChanged(); }} />
               <p className="recovery-provenance">The preview multiplies canopy drag area from the initial fraction to 100% with a piecewise-linear schedule after inflation. Reefing lines, fabric dynamics, loads, and hardware are not modeled.</p>
             </>}
             {recoveryEnabled && <p className="recovery-provenance">The primary device can command at apogee, on descent through a target AGL altitude, or at a mission time, then waits the configured delay before inflation. Landing dispersion samples deployment as a Bernoulli outcome. A failed deployment uses ballistic descent with body drag; these are modeling assumptions, not hardware reliability evidence.</p>}
@@ -9355,7 +9355,7 @@ function UncertaintyCorrelationEditor({
         <div className="uncertainty-correlation-form">
           <label htmlFor="correlation-first">First input<select id="correlation-first" value={firstParameterKey} onChange={(event) => setFirstParameterKey(event.target.value)}>{UNCERTAINTY_CORRELATION_DEFINITIONS.map((definition) => <option value={definition.key} key={definition.key}>{definition.label} · {definition.scope}</option>)}</select></label>
           <label htmlFor="correlation-second">Second input<select id="correlation-second" value={secondParameterKey} onChange={(event) => setSecondParameterKey(event.target.value)}>{UNCERTAINTY_CORRELATION_DEFINITIONS.map((definition) => <option value={definition.key} key={definition.key}>{definition.label} · {definition.scope}</option>)}</select></label>
-          <NumberField id="correlation-coefficient" label="Latent coefficient" value={coefficient} unit="ρ" min={-0.998} max={0.998} step={0.05} onChange={setCoefficient} />
+          <NumberField id="correlation-coefficient" label="Latent coefficient" value={coefficient} unit="ρ" min={-0.998} max={0.998} step={0.05} slider onChange={setCoefficient} />
           <button className="secondary-button" type="button" onClick={addCorrelation} disabled={!canAdd}>Add pair</button>
         </div>
         <small className="uncertainty-correlation-hint" aria-live="polite">

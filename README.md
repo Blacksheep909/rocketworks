@@ -197,6 +197,9 @@ research, standards, and original code.
 - device-local display and accessibility preferences with v1 migration,
   reduced-motion behavior, high-contrast controls, and keyboard-reachable
   settings; these never enter engineering project state;
+- synchronized bounded sliders plus exact-number inputs for flight, weather,
+  launch-rail, recovery, reefing, and uncertainty tuning, with the same
+  validation and stale-result guardrails as direct edits;
 - a typed English/Spanish shell copy catalog with device-local locale
   persistence and a clearly bounded translation surface while engineering
   explanations remain English until a complete catalog is available.

@@ -468,6 +468,13 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(page, /view-azimuth-rail/);
   assert.match(page, /designAzimuthDeg/);
   assert.match(page, /className="field-slider"/);
+  assert.match(page, /id="thrust".*slider/);
+  assert.match(page, /id="burn-time".*slider/);
+  assert.match(page, /id="drag".*slider/);
+  assert.match(page, /id="wind-speed".*slider/);
+  assert.match(page, /id="launch-rail-length".*slider/);
+  assert.match(page, /id="recovery-diameter".*slider/);
+  assert.match(page, /id="correlation-coefficient".*slider/);
   assert.match(page, /UI_PREFERENCES_STORAGE_KEY/);
   assert.match(page, /UI_PREFERENCES_LEGACY_STORAGE_KEYS/);
   assert.match(page, /serializeUiPreferences/);

@@ -6,6 +6,9 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Broaden synchronized, keyboard-accessible range controls across burn-time,
+  drag, weather, wind, launch-rail, recovery, reefing, and uncertainty
+  settings while retaining exact numeric entry for every field.
 - Add a serial-stack mass-ratio preview to the staged flight workspace and
   engineering report. Later serial-stage and retained payload mass now remain
   visible through each ideal burn; parallel/booster stages are listed as
