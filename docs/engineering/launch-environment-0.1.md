@@ -26,6 +26,8 @@ east-north-up position and time:
   north), with deterministic rotation of every profile layer
 - seeded, finite-band Dryden-shaped turbulence
 - deterministic one-minus-cosine discrete gust events
+- optional WGS84 Earth-rate Coriolis acceleration in the local ENU frame, with
+  a separate API-only centrifugal displacement-gradient term
 - source, version, licence, attribution, observation time, and validation status
 
 The same surface-observation anchor is also available to the fast vertical
@@ -33,6 +35,27 @@ flight adapter, so browser estimates can share pressure, temperature, and
 humidity inputs with the coupled preview. The same provider can be supplied to the preliminary 6DOF rocket-load and
 recovery-load adapters. Supplying both this provider and their legacy launch
 altitude or wind-profile inputs is rejected to avoid conflicting environments.
+
+## Earth rotation correction
+
+The launch environment keeps the historical non-rotating ENU behavior by
+default. When `earthRotation.enabled` is true, the provider exposes an
+additional acceleration in m/s²:
+
+```text
+a_coriolis = -2 (Omega_ENU x v_ground_ENU)
+Omega_ENU = [0, Omega cos(phi), Omega sin(phi)]
+Omega = 7.29211514670698e-5 rad/s
+```
+
+`v_ground_ENU` is the vehicle velocity relative to the launch site; wind is
+not subtracted because wind belongs to the aerodynamic relative-flow model.
+The optional `includeCentrifugalGradient` API flag adds
+`-Omega x (Omega x r_local)` for the local displacement only. The baseline
+`gravityAtAltitude` scalar is treated as effective launch-site gravity, so the
+constant site centrifugal term is not added a second time. Both terms are
+analytical preview corrections and remain unvalidated against a flight
+reference or geodetic/inertial truth model.
 
 ## Atmosphere adjustment
 
@@ -176,6 +199,8 @@ software.
 - Finite wavelength band and finite mode count; turbulence is stationary and
   advected only along the local mean horizontal wind.
 - No rotational turbulence or gust-gradient aerodynamic model.
+- Earth rotation is disabled by default; when enabled, the local ENU rate
+  correction is not a full ECEF/geodesic or inertial-navigation solution.
 
 ## Primary public references
 

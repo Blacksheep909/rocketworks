@@ -63,6 +63,8 @@ export type EditableProjectInputs = Readonly<{
   /** Launch-site longitude in WGS84 degrees. */
   launchLongitudeDeg: number;
   launchAltitudeM: number;
+  /** Opt-in local ENU Coriolis correction for coupled flight paths. */
+  earthRotationEnabled?: boolean;
   /** Local ENU terrain contact model used by landing-dispersion descent. */
   terrainModel: ProjectTerrainModel;
   /** Planar terrain rise per metre moving east, expressed as percent. */
@@ -149,7 +151,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -387,6 +389,12 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   if (typeof launchRailEnabled !== "boolean") {
     throw new Error("launchRailEnabled must be boolean.");
   }
+  const earthRotationEnabled = input.earthRotationEnabled === undefined
+    ? false
+    : input.earthRotationEnabled;
+  if (typeof earthRotationEnabled !== "boolean") {
+    throw new Error("earthRotationEnabled must be boolean.");
+  }
   const uncertaintySeed = input.uncertaintySeed === undefined
     ? DEFAULT_UNCERTAINTY_SEED
     : nonEmptyString(input.uncertaintySeed, "uncertaintySeed", 80);
@@ -413,6 +421,7 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     launchLatitudeDeg: validated.launchLatitudeDeg,
     launchLongitudeDeg: validated.launchLongitudeDeg,
     launchAltitudeM: validated.launchAltitudeM,
+    ...(input.earthRotationEnabled === undefined ? {} : { earthRotationEnabled }),
     terrainModel,
     terrainEastSlopePercent: validated.terrainEastSlopePercent,
     terrainNorthSlopePercent: validated.terrainNorthSlopePercent,
@@ -542,6 +551,7 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   launchLatitudeDeg: "launch-site latitude",
   launchLongitudeDeg: "launch-site longitude",
   launchAltitudeM: "launch altitude",
+  earthRotationEnabled: "Earth rotation correction",
   terrainModel: "terrain contact model",
   terrainEastSlopePercent: "terrain east slope",
   terrainNorthSlopePercent: "terrain north slope",

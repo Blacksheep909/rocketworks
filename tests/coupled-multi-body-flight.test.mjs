@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   COUPLED_MULTI_BODY_FLIGHT_MODEL_VERSION,
+  standardAtmosphere,
   simulateCoupledMultiBodyFlight,
 } from "../lib/physics/index.ts";
 
@@ -165,6 +166,42 @@ test("mutual gravity exposes singularity and softening controls explicitly", () 
   });
   assert.equal(softened.mutualGravity.softeningRadiusM, 0.5);
   assert.ok(softened.warnings.some((warning) => warning.includes("softening radius")));
+});
+
+test("coupled point-mass propagation consumes optional environment rotation acceleration", () => {
+  const result = simulateCoupledMultiBodyFlight({
+    bodies: [body({ releaseTimeS: 0, releasePositionWorldM: { x: 0, y: 0, z: 100 } })],
+    durationS: 0.1,
+    timeStepS: 0.1,
+    environmentAt: ({ positionWorldM }) => ({
+      modelVersion: "rotation-fixture",
+      validationStatus: "engineering-preview-unvalidated",
+      timeS: 0,
+      altitudeAglM: positionWorldM.z,
+      altitudeAslM: positionWorldM.z,
+      atmosphere: standardAtmosphere(positionWorldM.z),
+      meanWindWorldMps: { x: 0, y: 0, z: 0 },
+      turbulenceWindWorldMps: { x: 0, y: 0, z: 0 },
+      discreteGustWindWorldMps: { x: 0, y: 0, z: 0 },
+      windWorldMps: { x: 0, y: 0, z: 0 },
+      activeGustIds: [],
+      earthRotationAccelerationWorldMps2: { x: 0.25, y: -0.5, z: 0.75 },
+      earthRotationEnabled: true,
+      provenance: {
+        sourceName: "fixture",
+        sourceKind: "synthetic",
+        dataVersion: "1",
+        licenseIdentifier: "CC0-1.0",
+        attribution: "fixture",
+        validationStatus: "synthetic-unvalidated",
+      },
+    }),
+  });
+  const initial = result.trajectories[0].trace[0];
+  assert.equal(initial.accelerationWorldMps2.x, 0.25);
+  assert.equal(initial.accelerationWorldMps2.y, -0.5);
+  assert.ok(initial.accelerationWorldMps2.z < -8.3);
+  assert.ok(result.assumptions.some((assumption) => /Earth rotation|rotation/i.test(assumption)));
 });
 
 test("opt-in released rigid bodies propagate attitude and body-frame torque", () => {

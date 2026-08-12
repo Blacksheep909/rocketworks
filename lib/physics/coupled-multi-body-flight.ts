@@ -399,8 +399,13 @@ function environmentAt(
   input: CoupledMultiBodyFlightInput,
   timeS: number,
   positionWorldM: Vector3,
+  velocityWorldMps?: Vector3,
 ) {
-  return input.environmentAt?.({ timeS, positionWorldM });
+  return input.environmentAt?.({
+    timeS,
+    positionWorldM,
+    ...(velocityWorldMps === undefined ? {} : { velocityWorldMps }),
+  });
 }
 
 function accelerationAt(
@@ -410,14 +415,17 @@ function accelerationAt(
   positionWorldM: Vector3,
   velocityWorldMps: Vector3,
 ): Vector3 {
-  const environment = environmentAt(input, timeS, positionWorldM);
+  const environment = environmentAt(input, timeS, positionWorldM, velocityWorldMps);
   const altitudeAslM =
     environment?.altitudeAslM ?? (input.launchAltitudeM ?? 0) + positionWorldM.z;
-  const gravityAccelerationWorldMps2 = {
-    x: 0,
-    y: 0,
-    z: -gravityAtAltitude(altitudeAslM),
-  };
+  const gravityAccelerationWorldMps2 = addVectors(
+    {
+      x: 0,
+      y: 0,
+      z: -gravityAtAltitude(altitudeAslM),
+    },
+    environment?.earthRotationAccelerationWorldMps2 ?? { x: 0, y: 0, z: 0 },
+  );
   if (body.referenceAreaM2 === undefined || body.dragCoefficient === undefined) {
     return gravityAccelerationWorldMps2;
   }
@@ -1654,6 +1662,7 @@ export function simulateCoupledMultiBodyFlight(
     ...(rigidBodyCount > 0
       ? [`${rigidBodyCount} released bod${rigidBodyCount === 1 ? "y" : "ies"} used the opt-in rigid-body attitude state; supplied external loads were evaluated in the body/world frames.`]
       : []),
+    "An optional earthRotationAccelerationWorldMps2 field from the environment provider is added to each body's shared acceleration; the provider remains responsible for its provenance and validation status.",
     ...(mutualGravity.enabled && mutualGravity.softeningRadiusM > 0
       ? [`Mutual gravity uses a Plummer-style softening radius of ${mutualGravity.softeningRadiusM.toFixed(6)} m for close approaches; this is a numerical approximation, not a contact model.`]
       : []),
@@ -1680,6 +1689,7 @@ export function simulateCoupledMultiBodyFlight(
     "The integrator is explicit fourth-order Runge-Kutta over a shared mission-time grid; release times are inserted as exact initial points and partial steps are used to align with the grid.",
     "Gravity is evaluated from altitude using the RocketWorks atmosphere/gravity implementation; drag is a constant-Cd, constant-reference-area isotropic approximation when configured.",
     "The environment provider is queried separately for each body at each Runge-Kutta substep, so wind and atmosphere may vary with time and position but bodies do not alter the environment.",
+    "Environment-supplied Earth rotation acceleration is interpreted in the same local ENU frame and uses ground-relative velocity when the provider computes Coriolis effects.",
     ...(mutualGravity.enabled
       ? [`Pairwise point-mass gravity uses F = G m₁ m₂ r / (|r|² + ε²)^(3/2), with G=${STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2.toExponential(5)} m³ kg⁻¹ s⁻² and ε=${mutualGravity.softeningRadiusM.toFixed(6)} m.`]
       : []),

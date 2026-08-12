@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an opt-in clean-room WGS84 Earth-rate correction to the launch
+  environment. The local ENU Coriolis acceleration now flows through rocket
+  loads and shared released-body propagation, with an explicit browser control,
+  persisted input, model-versioned diagnostics, and a clear effective-gravity
+  / flight-validation boundary. Centrifugal displacement gradient remains an
+  API-only opt-in term for future expert workflows.
 - Extend the WGS84 GeoJSON flight-path artifact with optional rigid-body
   quaternion, angular-velocity, and derived angular-rate arrays. Sparse
   attitude telemetry remains explicitly display/interchange data and is

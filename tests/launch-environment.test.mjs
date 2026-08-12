@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   createLaunchEnvironmentModel,
+  evaluateEarthRotation,
   standardAtmosphere,
 } from "../lib/physics/index.ts";
 
@@ -43,6 +44,31 @@ test("standard environment preserves atmosphere and interpolates mean ENU wind",
   assert.deepEqual(state.windWorldMps, state.meanWindWorldMps);
   assert.equal(state.altitudeAglM, 500);
   assert.equal(state.altitudeAslM, 600);
+});
+
+test("opt-in Earth rotation is exposed through the environment state", () => {
+  const model = createLaunchEnvironmentModel(definition({
+    earthRotation: { enabled: true },
+  }));
+  const query = {
+    timeS: 0.25,
+    positionWorldM: { x: 10, y: -4, z: 500 },
+    velocityWorldMps: { x: 2, y: 3, z: 80 },
+  };
+  const state = model.at(query);
+  const expected = evaluateEarthRotation({
+    latitudeDeg: definition().site.latitudeDeg,
+    positionWorldM: query.positionWorldM,
+    velocityWorldMps: query.velocityWorldMps,
+    options: { enabled: true },
+  });
+  assert.deepEqual(state.earthRotationAccelerationWorldMps2, expected.accelerationWorldMps2);
+  assert.equal(state.earthRotationEnabled, true);
+  assert.match(state.earthRotationModelVersion, /earth-rotation/);
+  assert.ok(model.warnings.some((warning) => /Earth rotation adds/.test(warning)));
+  const disabled = createLaunchEnvironmentModel(definition()).at(query);
+  assert.deepEqual(disabled.earthRotationAccelerationWorldMps2, { x: 0, y: 0, z: 0 });
+  assert.equal(disabled.earthRotationEnabled, false);
 });
 
 test("surface observation exactly anchors site pressure and temperature", () => {

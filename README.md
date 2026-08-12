@@ -74,6 +74,9 @@ research, standards, and original code.
 - editable launch-site name and WGS84 coordinates carried into local history,
   share links, landing-zone provenance, coupled environment providers, and
   engineering reports;
+- an opt-in WGS84 Earth-rate Coriolis correction in the local ENU environment,
+  persisted with the project and surfaced as an analytical, unvalidated model
+  option; effective scalar gravity remains the default baseline;
 - seeded coupled-flight uncertainty runs can independently vary declared motor
   thrust scales plus direct body-axis force and static-moment coefficient
   databases when those sources are present, with selected factors and nominal

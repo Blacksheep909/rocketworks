@@ -180,6 +180,17 @@ test("legacy snapshots receive explicit surface-weather defaults", () => {
   assert.deepEqual(legacy.inputs.uncertaintyCorrelations, []);
 });
 
+test("project snapshots preserve the opt-in Earth rotation control", () => {
+  const source = snapshot(1, { earthRotationEnabled: true });
+  assert.equal(source.inputs.earthRotationEnabled, true);
+  assert.deepEqual(parseLocalProjectSnapshot(serializeLocalProjectSnapshot(source)), source);
+  assert.equal(snapshot(2).inputs.earthRotationEnabled, undefined);
+  assert.throws(
+    () => snapshot(3, { earthRotationEnabled: "yes" }),
+    /earthRotationEnabled/,
+  );
+});
+
 test("project snapshots persist bounded uncertainty dependence assumptions", () => {
   const source = snapshot(1, {
     uncertaintyCorrelations: [

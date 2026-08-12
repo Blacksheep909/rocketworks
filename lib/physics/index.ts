@@ -1,4 +1,5 @@
 export * from "./atmosphere.ts";
+export * from "./earth-rotation.ts";
 export * from "./aerodynamic-coefficients.ts";
 export * from "./aerodynamic-polar.ts";
 export * from "./clustered-propulsion.ts";

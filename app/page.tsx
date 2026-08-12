@@ -632,6 +632,7 @@ function createPreviewEnvironment(
     windScale?: number;
     directionOffsetRad?: number;
     turbulenceScale?: number;
+    earthRotationEnabled?: boolean;
     relativeHumidityPercent?: number;
     surfacePressureHpa?: number;
     surfaceTemperatureC?: number;
@@ -704,6 +705,9 @@ function createPreviewEnvironment(
       maximumWavelengthM: 800,
       modeCount: 24,
       minimumAdvectionSpeedMps: 0.5,
+    },
+    earthRotation: {
+      enabled: options.earthRotationEnabled ?? false,
     },
   });
 }
@@ -2173,6 +2177,7 @@ type LandingPredictionInputs = Parameters<typeof createFlightConfig>[0] & Readon
   terrainModel: ProjectTerrainModel;
   terrainEastSlopePercent: number;
   terrainNorthSlopePercent: number;
+  earthRotationEnabled?: boolean;
   turbulenceScale: number;
   weatherSeed: string;
   recoveryDeploymentSuccessProbability: number;
@@ -2291,6 +2296,7 @@ function createLandingPrediction(
           // Keep the persisted Flight-inspector scale as the nominal envelope;
           // the landing analysis factor is a bounded scenario perturbation.
           turbulenceScale: inputs.turbulenceScale * values.turbulenceScale,
+          earthRotationEnabled: inputs.earthRotationEnabled,
           relativeHumidityPercent: inputs.relativeHumidityPercent,
           surfacePressureHpa: inputs.surfacePressureHpa,
           surfaceTemperatureC: inputs.surfaceTemperatureC,
@@ -3669,6 +3675,7 @@ export default function Home() {
   const [launchLatitudeDeg, setLaunchLatitudeDeg] = useState(-36.85);
   const [launchLongitudeDeg, setLaunchLongitudeDeg] = useState(174.76);
   const [launchAltitude, setLaunchAltitude] = useState(80);
+  const [earthRotationEnabled, setEarthRotationEnabled] = useState(false);
   const [terrainModel, setTerrainModel] = useState<ProjectTerrainModel>("flat");
   const [terrainEastSlopePercent, setTerrainEastSlopePercent] = useState(0);
   const [terrainNorthSlopePercent, setTerrainNorthSlopePercent] = useState(0);
@@ -3800,6 +3807,7 @@ export default function Home() {
       launchLatitudeDeg,
       launchLongitudeDeg,
       launchAltitudeM: launchAltitude,
+      earthRotationEnabled,
       terrainModel,
       terrainEastSlopePercent,
       terrainNorthSlopePercent,
@@ -3834,7 +3842,7 @@ export default function Home() {
       uncertaintySeed,
       uncertaintyCorrelations,
     }),
-    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
+    [burnTime, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -4023,8 +4031,8 @@ export default function Home() {
     [coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, editableInputs, previewMotor, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, sixDofIntegrationMethod, vehicleTopology],
   );
   const previewEnvironment = useMemo(
-    () => createPreviewEnvironment(launchAltitude, windSpeed, { siteName: launchSiteName, latitudeDeg: launchLatitudeDeg, longitudeDeg: launchLongitudeDeg, windAzimuthDeg, windProfileLayers, turbulenceScale, seed: weatherSeed, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
-    [launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchSiteName, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, turbulenceScale, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
+    () => createPreviewEnvironment(launchAltitude, windSpeed, { siteName: launchSiteName, latitudeDeg: launchLatitudeDeg, longitudeDeg: launchLongitudeDeg, windAzimuthDeg, windProfileLayers, turbulenceScale, earthRotationEnabled, seed: weatherSeed, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
+    [earthRotationEnabled, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchSiteName, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, turbulenceScale, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const environmentAtPad = useMemo(
     () => previewEnvironment.at({ timeS: 0, positionWorldM: { x: 0, y: 0, z: 0 } }),
@@ -4695,6 +4703,7 @@ export default function Home() {
         setLaunchLatitudeDeg(inputs.launchLatitudeDeg);
         setLaunchLongitudeDeg(inputs.launchLongitudeDeg);
         setLaunchAltitude(inputs.launchAltitudeM);
+        setEarthRotationEnabled(inputs.earthRotationEnabled ?? false);
         setTerrainModel(inputs.terrainModel);
         setTerrainEastSlopePercent(inputs.terrainEastSlopePercent);
         setTerrainNorthSlopePercent(inputs.terrainNorthSlopePercent);
@@ -4824,6 +4833,7 @@ export default function Home() {
         setLaunchLatitudeDeg(inputs.launchLatitudeDeg);
         setLaunchLongitudeDeg(inputs.launchLongitudeDeg);
         setLaunchAltitude(inputs.launchAltitudeM);
+        setEarthRotationEnabled(inputs.earthRotationEnabled ?? false);
         setTerrainModel(inputs.terrainModel);
         setTerrainEastSlopePercent(inputs.terrainEastSlopePercent);
         setTerrainNorthSlopePercent(inputs.terrainNorthSlopePercent);
@@ -5295,6 +5305,7 @@ export default function Home() {
     setLaunchLatitudeDeg(inputs.launchLatitudeDeg);
     setLaunchLongitudeDeg(inputs.launchLongitudeDeg);
     setLaunchAltitude(inputs.launchAltitudeM);
+    setEarthRotationEnabled(inputs.earthRotationEnabled ?? false);
     setTerrainModel(inputs.terrainModel);
     setTerrainEastSlopePercent(inputs.terrainEastSlopePercent);
     setTerrainNorthSlopePercent(inputs.terrainNorthSlopePercent);
@@ -8516,6 +8527,14 @@ export default function Home() {
             <NumberField id="launch-latitude" label="Latitude (WGS84)" value={launchLatitudeDeg} unit="deg" min={-90} max={90} step={0.0001} onChange={(value) => { setLaunchLatitudeDeg(value); markChanged(); }} />
             <NumberField id="launch-longitude" label="Longitude (WGS84)" value={launchLongitudeDeg} unit="deg" min={-180} max={180} step={0.0001} onChange={(value) => { setLaunchLongitudeDeg(value); markChanged(); }} />
             <NumberField id="launch-altitude" label="Launch-site altitude" value={launchAltitude} unit="m" min={-400} max={10000} step={10} onChange={(value) => { setLaunchAltitude(value); markChanged(); }} />
+            <div className="field-group earth-rotation-control-group">
+              <label htmlFor="earth-rotation">Earth rotation correction</label>
+              <select id="earth-rotation" value={earthRotationEnabled ? "enabled" : "disabled"} onChange={(event) => { setEarthRotationEnabled(event.target.value === "enabled"); markChanged(); }}>
+                <option value="disabled">Disabled - non-rotating ENU</option>
+                <option value="enabled">Enabled - local Coriolis</option>
+              </select>
+            </div>
+            <p className="field-help">When enabled, the coupled 6DOF path adds the WGS84 Earth-rate Coriolis acceleration in the launch-site ENU frame. It is an analytical preview, not an independently flight-validated correction; the default gravity remains the effective launch-site scalar model.</p>
             <div className="field-group terrain-control-group">
               <label htmlFor="terrain-model">Landing surface</label>
               <select id="terrain-model" value={terrainModel} onChange={(event) => { setTerrainModel(event.target.value as ProjectTerrainModel); markChanged(); }}>
@@ -8676,6 +8695,7 @@ export default function Home() {
                   <div><span>Launch site</span><strong>{previewEnvironment.definition.site.name}</strong></div>
                   <div><span>WGS84 coordinates</span><strong>{previewEnvironment.definition.site.latitudeDeg.toFixed(5)}°, {previewEnvironment.definition.site.longitudeDeg.toFixed(5)}°</strong></div>
                   <div><span>Altitude reference</span><strong>{environmentAt500M.altitudeAslM.toFixed(0)} m ASL at 500 m AGL</strong></div>
+                  <div><span>Earth rotation</span><strong>{earthRotationEnabled ? "Coriolis enabled" : "Disabled"}</strong></div>
                   <div><span>Mean wind at 500 m</span><strong>{Math.hypot(environmentAt500M.meanWindWorldMps.x, environmentAt500M.meanWindWorldMps.y).toFixed(1)} m/s</strong></div>
                   <div><span>Wind azimuth input</span><strong>{windAzimuthDeg.toFixed(0)}° ENU</strong></div>
                   <div><span>Mean-wind source</span><strong>{windProfileLayers.length > 0 ? `User layers · ${windProfileLayers.length}` : "Synthetic · 3 layers"}</strong></div>

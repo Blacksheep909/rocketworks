@@ -215,6 +215,34 @@ test("launch environment drives atmosphere, gust wind, and load diagnostics", ()
   assert.ok(evaluation.diagnostics.dynamicPressurePa > 0);
 });
 
+test("opt-in Earth rotation enters world force and remains inspectable", () => {
+  const environment = createLaunchEnvironmentModel({
+    ...gustEnvironment().definition,
+    earthRotation: { enabled: true },
+  });
+  const current = state({
+    positionWorldM: { x: 0, y: 0, z: 0 },
+    velocityWorldMps: { x: 0, y: 0, z: 10 },
+  });
+  const evaluation = loadModel({ environmentAt: environment.at }).evaluate(current);
+  const expected = environment.at(current).earthRotationAccelerationWorldMps2;
+  assert.ok(expected);
+  assert.equal(evaluation.diagnostics.earthRotationEnabled, true);
+  assert.match(evaluation.diagnostics.earthRotationModelVersion, /earth-rotation/);
+  close(
+    evaluation.diagnostics.earthRotationAccelerationWorldMps2.x,
+    expected.x,
+    1e-15,
+    "Earth-rotation force east acceleration",
+  );
+  close(
+    evaluation.loads.forceWorldN.x / body.massKg,
+    expected.x,
+    1e-15,
+    "Earth-rotation world force",
+  );
+});
+
 test("launch environment cannot be combined with legacy altitude or wind inputs", () => {
   const environment = gustEnvironment();
   assert.throws(

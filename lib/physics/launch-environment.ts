@@ -12,6 +12,10 @@ import {
   type WindLayer,
 } from "./curves.ts";
 import {
+  evaluateEarthRotation,
+  type EarthRotationOptions,
+} from "./earth-rotation.ts";
+import {
   ZERO_VECTOR,
   addVectors,
   type Vector3,
@@ -76,6 +80,7 @@ export type DiscreteGustEvent = Readonly<{
 export type LaunchEnvironmentDefinition = Readonly<{
   site: LaunchSite;
   provenance: WeatherDataProvenance;
+  earthRotation?: EarthRotationOptions;
   meanWindProfile?: readonly WindLayer[];
   surfaceObservation?: SurfaceWeatherObservation;
   turbulence?: DrydenShapedTurbulenceConfig;
@@ -85,6 +90,8 @@ export type LaunchEnvironmentDefinition = Readonly<{
 export type LaunchEnvironmentQuery = Readonly<{
   timeS: number;
   positionWorldM: Vector3;
+  /** Optional ground-relative ENU velocity used by the Coriolis correction. */
+  velocityWorldMps?: Vector3;
 }>;
 
 export type LaunchEnvironmentState = Readonly<{
@@ -99,6 +106,12 @@ export type LaunchEnvironmentState = Readonly<{
   discreteGustWindWorldMps: Vector3;
   windWorldMps: Vector3;
   activeGustIds: readonly string[];
+  /** Optional apparent acceleration correction from the local rotation model. */
+  earthRotationAccelerationWorldMps2?: Vector3;
+  earthRotationCentrifugalGradientAccelerationWorldMps2?: Vector3;
+  earthRotationEnabled?: boolean;
+  earthRotationModelVersion?: string;
+  earthRotationValidationStatus?: string;
   provenance: WeatherDataProvenance;
 }>;
 
@@ -245,6 +258,12 @@ export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefini
     throw new Error("launch-site elevation must be within the atmosphere model range");
   }
   validateProvenance(definition.provenance);
+  const earthRotationAtOrigin = evaluateEarthRotation({
+    latitudeDeg: site.latitudeDeg,
+    positionWorldM: ZERO_VECTOR,
+    velocityWorldMps: ZERO_VECTOR,
+    options: definition.earthRotation,
+  });
   const meanWindProfile = [...(definition.meanWindProfile ?? [])];
   validateWindProfile(meanWindProfile);
   const observation = definition.surfaceObservation;
@@ -323,6 +342,12 @@ export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefini
     const altitudeAglM = query.positionWorldM.z;
     const altitudeAslM = site.elevationM + altitudeAglM;
     const atmosphere = adjustedAtmosphere(altitudeAslM, site.elevationM, observation);
+    const earthRotation = evaluateEarthRotation({
+      latitudeDeg: site.latitudeDeg,
+      positionWorldM: query.positionWorldM,
+      velocityWorldMps: query.velocityWorldMps ?? ZERO_VECTOR,
+      options: definition.earthRotation,
+    });
     const mean = interpolateWind(meanWindProfile, altitudeAglM);
     const meanWindWorldMps = { x: mean.eastMps, y: mean.northMps, z: mean.upMps };
     const horizontalSpeed = Math.hypot(mean.eastMps, mean.northMps);
@@ -370,6 +395,12 @@ export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefini
       discreteGustWindWorldMps,
       windWorldMps: addVectors(addVectors(meanWindWorldMps, turbulenceWindWorldMps), discreteGustWindWorldMps),
       activeGustIds,
+      earthRotationAccelerationWorldMps2: earthRotation.accelerationWorldMps2,
+      earthRotationCentrifugalGradientAccelerationWorldMps2:
+        earthRotation.centrifugalGradientAccelerationWorldMps2,
+      earthRotationEnabled: earthRotation.enabled,
+      earthRotationModelVersion: earthRotation.modelVersion,
+      earthRotationValidationStatus: earthRotation.validationStatus,
       provenance: definition.provenance,
     };
   };
@@ -387,6 +418,14 @@ export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefini
         ? ["Relative humidity is coupled to water-vapor partial pressure, virtual temperature, density, and speed of sound in version 0.2; condensation and humidity-dependent viscosity are not modeled."]
         : []),
       ...(turbulence ? ["Turbulence is a finite-band deterministic Dryden-shaped spectral realization, not a measured gust history."] : []),
+      ...(earthRotationAtOrigin.enabled
+        ? [
+            "Earth rotation adds a local ENU Coriolis acceleration from ground-relative velocity; the correction is an analytical preview and is not independently flight-validated.",
+            ...(earthRotationAtOrigin.includeCentrifugalGradient
+              ? ["The centrifugal contribution is only the local displacement gradient because the baseline scalar gravity already represents effective launch-site gravity."]
+              : []),
+          ]
+        : ["Earth rotation correction is disabled by default; the local ENU preview omits Coriolis acceleration unless explicitly enabled."]),
       "Weather provenance and observation age must be reviewed before use; RocketWorks does not authenticate external weather data.",
       "The launch-environment model is unvalidated and is not a flight-safety weather assessment.",
     ],
@@ -399,6 +438,12 @@ export function createLaunchEnvironmentModel(definition: LaunchEnvironmentDefini
         : ["Without a humidity observation, the dry-air density and speed-of-sound fallback is used."]),
       "Turbulence uses Taylor frozen-field advection along the local horizontal mean-wind direction.",
       "Discrete gusts use a smooth finite one-minus-cosine pulse with zero value at both endpoints.",
+      ...(earthRotationAtOrigin.enabled
+        ? [
+            "Earth rotation uses the WGS84 conventional mean angular rate expressed in the launch-site ENU frame.",
+            "Coriolis velocity is ground-relative ENU velocity; wind remains an aerodynamic relative-flow input and is not subtracted from this term.",
+          ]
+        : []),
     ],
   };
 }

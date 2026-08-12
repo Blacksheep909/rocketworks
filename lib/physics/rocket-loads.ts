@@ -142,6 +142,9 @@ export type PreliminaryRocketLoadDiagnostics = Readonly<{
   turbulenceWindWorldMps: Vector3;
   discreteGustWindWorldMps: Vector3;
   activeGustIds: readonly string[];
+  earthRotationAccelerationWorldMps2: Vector3;
+  earthRotationEnabled: boolean;
+  earthRotationModelVersion: string | null;
   airRelativeVelocityWorldMps: Vector3;
   airRelativeVelocityBodyMps: Vector3;
   airspeedMps: number;
@@ -667,10 +670,19 @@ export function createPreliminaryRocketLoadModel(
       throw new Error("propulsion load provider returned invalid force, moment, or thrust");
     }
     const gravityN = body.massKg * gravityAtAltitude(altitudeAslM);
+    const earthRotationAccelerationWorldMps2 =
+      providedEnvironment?.earthRotationAccelerationWorldMps2 ?? ZERO_VECTOR;
+    const gravityAndEarthRotationForceWorldN = scaleVector(
+      addVectors(
+        { x: 0, y: 0, z: -gravityAtAltitude(altitudeAslM) },
+        earthRotationAccelerationWorldMps2,
+      ),
+      body.massKg,
+    );
 
     return {
       loads: {
-        forceWorldN: { x: 0, y: 0, z: -gravityN },
+        forceWorldN: gravityAndEarthRotationForceWorldN,
         forceBodyN: addVectors(
           propulsion.netThrustForceBodyN,
           aerodynamicForceBodyN,
@@ -693,6 +705,10 @@ export function createPreliminaryRocketLoadModel(
         turbulenceWindWorldMps,
         discreteGustWindWorldMps,
         activeGustIds: [...(providedEnvironment?.activeGustIds ?? [])],
+        earthRotationAccelerationWorldMps2,
+        earthRotationEnabled: providedEnvironment?.earthRotationEnabled ?? false,
+        earthRotationModelVersion:
+          providedEnvironment?.earthRotationModelVersion ?? null,
         airRelativeVelocityWorldMps,
         airRelativeVelocityBodyMps,
         airspeedMps,
@@ -767,7 +783,7 @@ export function createPreliminaryRocketLoadModel(
       "This coupling is not a validated flight simulation.",
       "Normal force is disabled outside forward low-speed flow and bounded at the small-angle limit.",
       "Atmosphere version 0.5 uses U.S. Standard Atmosphere 1976 hydrostatic layers through 84.852 km geopotential (about 86 km geometric); moist-air corrections remain bounded ideal-mixture approximations.",
-      "No ground contact, terrain, Coriolis, Earth rotation, curvature, or geodesy is included; launch rail, recovery, and staging require explicitly composed providers.",
+      "No ground contact, terrain, curvature, or geodesy is included; an opt-in local ENU Earth-rotation acceleration is consumed only when the supplied environment provider exposes it. Launch rail, recovery, and staging require explicitly composed providers.",
     ],
   };
 }
