@@ -700,7 +700,10 @@ kbd {
 .stage-flight-cluster-grid strong { display: block; margin-top: 3px; overflow: hidden; color: #d5eaf5; font: 700 9px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
 .stage-flight-cluster p { margin-top: 8px; color: #a2b1ba; font-size: 7px; line-height: 1.45; }
 .stage-flight-events { display: flex; flex-direction: column; gap: 5px; margin-top: 11px; }
-.stage-flight-events > div { display: grid; grid-template-columns: 52px minmax(0,1fr) minmax(130px,auto); align-items: center; gap: 9px; padding: 7px 8px; border-left: 2px solid var(--accent); background: rgba(47,159,255,.045); }
+.stage-flight-events > div, .stage-flight-events > button { display: grid; grid-template-columns: 52px minmax(0,1fr) minmax(130px,auto); align-items: center; gap: 9px; padding: 7px 8px; border-left: 2px solid var(--accent); background: rgba(47,159,255,.045); }
+.stage-flight-events > button { width: 100%; border-top: 0; border-right: 0; border-bottom: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.stage-flight-events > button:hover, .stage-flight-events > button.selected { border-left-color: var(--launch-orange); background: rgba(255,112,67,.08); }
+.stage-flight-events > button:focus-visible { outline: 2px solid #73c5ff; outline-offset: 2px; }
 .stage-flight-events span { color: #82c8ff; font: 650 8px var(--font-geist-mono),monospace; }
 .stage-flight-events strong { color: #d7e7ef; font-size: 9px; }
 .stage-flight-events small { color: #78909f; font: 8px var(--font-geist-mono),monospace; text-align: right; }
@@ -1297,6 +1300,12 @@ kbd {
   row-gap: 3px;
   padding-right: 10px;
 }
+.event-item-button {
+  border: 0; color: inherit; background: transparent; font: inherit; text-align: left; cursor: pointer;
+}
+.event-item-button:hover strong, .event-item-button.selected strong { color: #d9efff; }
+.event-item-button:hover i, .event-item-button.selected i { background: var(--launch-orange); box-shadow: 0 0 0 1px #d45d3d, 0 0 12px rgba(255,112,67,.32); }
+.event-item-button:focus-visible { z-index: 2; outline: 2px solid #73c5ff; outline-offset: 3px; border-radius: 2px; }
 .event-item::before {
   content: "";
   position: absolute;
@@ -1949,7 +1958,7 @@ kbd {
   .stage-interface-load-row { grid-template-columns: 17px minmax(0, 1fr); }
   .stage-interface-load-row em { grid-column: 2; justify-self: start; }
   .stage-flight-rail { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .stage-flight-events > div { grid-template-columns: 48px minmax(0,1fr); }
+  .stage-flight-events > div, .stage-flight-events > button { grid-template-columns: 48px minmax(0,1fr); }
   .stage-flight-events small { grid-column: 2; text-align: left; }
   .metric-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .uncertainty-grid { grid-template-columns: 1fr; }

@@ -6,6 +6,9 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Make vertical and staged flight-event timeline rows keyboard- and
+  touch-activatable; selecting a detected transition now moves the matching
+  trace scrubber to its nearest numerical sample.
 - Add synchronized keyboard- and touch-accessible sample scrubbers to the
   vertical and staged flight trace inspectors; the selected sample now drives
   the chart crosshair and numerical readout without changing engineering

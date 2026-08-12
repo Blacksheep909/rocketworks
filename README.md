@@ -139,8 +139,8 @@ research, standards, and original code.
   through local history, share links, project JSON, and scoped analyses;
 - interactive vertical and staged trace inspectors with Mach, dynamic-pressure,
   axial/recovery drag, canopy area, angle-of-attack, sideslip, event, and
-  topology readouts, plus synchronized keyboard/touch sample scrubbers for
-  precise trace inspection;
+  topology readouts, plus synchronized keyboard/touch sample scrubbers and
+  event-row navigation for precise trace inspection;
 - preliminary structural-readiness screen for axial stress, Euler buckling,
   fin-root bending/shear, and static-margin review with explicit assumptions;
 - a preliminary equivalent-beam first bending-mode frequency trend with

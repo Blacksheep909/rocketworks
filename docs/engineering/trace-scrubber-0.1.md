@@ -20,6 +20,12 @@ adjacent output and an explicit `aria-valuetext`. Canvas rendering remains a
 visual enhancement; the chart's existing screen-reader summary, event count,
 model-boundary copy, and stale-result guardrails remain authoritative.
 
+Detected vertical and staged event rows are buttons. Activating one selects
+its event time in the corresponding trace scrubber, so rail release, burnout,
+staging, failure, and recovery transitions can be inspected without relying
+on pixel-precise pointer placement. The selected event is a view state and is
+cleared when a new result is generated or the engineering inputs change.
+
 This interaction does not make the underlying trace validated, flight-safe,
 or suitable for range decisions. It only makes the declared analytical
 preview easier to inspect with keyboard, touch, and pointer workflows.

@@ -2334,7 +2334,31 @@ function formatFlightMetric(value: number, key: FlightMetricKey): string {
   return value.toFixed(1);
 }
 
-function FlightChart({ result }: { result: VerticalFlightResult }) {
+function nearestTraceSampleIndex(
+  trace: readonly { timeS: number }[],
+  targetTimeS: number,
+): number {
+  let nearestIndex = 0;
+  let nearestDistance = Infinity;
+  trace.forEach((point, index) => {
+    const distance = Math.abs(point.timeS - targetTimeS);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestIndex = index;
+    }
+  });
+  return nearestIndex;
+}
+
+function FlightChart({
+  result,
+  selectedTimeS = null,
+  onSelectionChange,
+}: {
+  result: VerticalFlightResult;
+  selectedTimeS?: number | null;
+  onSelectionChange?: (timeS: number | null) => void;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [metric, setMetric] = useState<FlightMetricKey>("altitude");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -2346,8 +2370,9 @@ function FlightChart({ result }: { result: VerticalFlightResult }) {
     (peak, value) => Math.max(peak, value),
     metricValues[0] ?? 0,
   );
-  const hoverPoint = hoverIndex === null ? null : trace[hoverIndex] ?? null;
-  const scrubIndex = Math.min(Math.max(hoverIndex ?? 0, 0), Math.max(trace.length - 1, 0));
+  const activeHoverIndex = selectedTimeS === null ? hoverIndex : nearestTraceSampleIndex(trace, selectedTimeS);
+  const hoverPoint = activeHoverIndex === null ? null : trace[activeHoverIndex] ?? null;
+  const scrubIndex = Math.min(Math.max(activeHoverIndex ?? 0, 0), Math.max(trace.length - 1, 0));
 
   const selectMetricByKeyboard = (
     event: ReactKeyboardEvent<HTMLButtonElement>,
@@ -2458,8 +2483,8 @@ function FlightChart({ result }: { result: VerticalFlightResult }) {
         context.restore();
       }
 
-      if (hoverIndex !== null && coordinates[hoverIndex]) {
-        const point = coordinates[hoverIndex]!;
+      if (activeHoverIndex !== null && coordinates[activeHoverIndex]) {
+        const point = coordinates[activeHoverIndex]!;
         context.save();
         context.strokeStyle = "rgba(236,245,249,.52)";
         context.setLineDash([2, 3]);
@@ -2481,7 +2506,7 @@ function FlightChart({ result }: { result: VerticalFlightResult }) {
     const observer = new ResizeObserver(draw);
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, [definition.color, definition.unit, hoverIndex, maxTimeS, metric, result.events, trace]);
+  }, [activeHoverIndex, definition.color, definition.unit, maxTimeS, metric, result.events, trace]);
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (trace.length === 0) return;
@@ -2491,16 +2516,9 @@ function FlightChart({ result }: { result: VerticalFlightResult }) {
     const usableWidth = Math.max(1, bounds.width - paddingLeft - paddingRight);
     const normalizedX = Math.max(0, Math.min(1, (event.clientX - bounds.left - paddingLeft) / usableWidth));
     const targetTimeS = normalizedX * maxTimeS;
-    let nearestIndex = 0;
-    let nearestDistance = Infinity;
-    trace.forEach((point, index) => {
-      const distance = Math.abs(point.timeS - targetTimeS);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestIndex = index;
-      }
-    });
+    const nearestIndex = nearestTraceSampleIndex(trace, targetTimeS);
     setHoverIndex(nearestIndex);
+    onSelectionChange?.(null);
   };
 
   if (trace.length === 0) {
@@ -2539,7 +2557,7 @@ function FlightChart({ result }: { result: VerticalFlightResult }) {
           aria-label={`${definition.label} over time`}
           role="img"
           onPointerMove={handlePointerMove}
-          onPointerLeave={() => setHoverIndex(null)}
+          onPointerLeave={() => { setHoverIndex(null); onSelectionChange?.(null); }}
         />
         {hoverPoint && (
           <div className="stage-flight-hover" aria-live="polite">
@@ -2559,7 +2577,7 @@ function FlightChart({ result }: { result: VerticalFlightResult }) {
           step={1}
           value={scrubIndex}
           aria-valuetext={hoverPoint ? `Sample ${scrubIndex + 1} of ${trace.length}, ${hoverPoint.timeS.toFixed(2)} seconds` : "No sample selected"}
-          onChange={(event) => setHoverIndex(Number(event.target.value))}
+          onChange={(event) => { setHoverIndex(Number(event.target.value)); onSelectionChange?.(null); }}
         />
         <output aria-live="polite">
           {hoverPoint ? `t ${hoverPoint.timeS.toFixed(2)} s · ${formatFlightMetric(flightMetricValue(hoverPoint, metric), metric)} ${definition.unit}` : "Use the slider or point at the chart"}
@@ -3022,7 +3040,15 @@ function maximumNullableMetric(
   return finiteValues.length > 0 ? Math.max(...finiteValues) : null;
 }
 
-function StageFlightProfileChart({ result }: { result: StageFlightPreviewResult }) {
+function StageFlightProfileChart({
+  result,
+  selectedTimeS = null,
+  onSelectionChange,
+}: {
+  result: StageFlightPreviewResult;
+  selectedTimeS?: number | null;
+  onSelectionChange?: (timeS: number | null) => void;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [metric, setMetric] = useState<StageFlightMetricKey>("altitude");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -3031,8 +3057,9 @@ function StageFlightProfileChart({ result }: { result: StageFlightPreviewResult 
   const maxTimeS = Math.max(trace.at(-1)?.timeS ?? 0, 1);
   const metricValues = trace.map((point) => stageFlightMetricValue(point, metric));
   const peakValue = metricValues.length > 0 ? Math.max(...metricValues) : 0;
-  const hoverPoint = hoverIndex === null ? null : trace[hoverIndex] ?? null;
-  const scrubIndex = Math.min(Math.max(hoverIndex ?? 0, 0), Math.max(trace.length - 1, 0));
+  const activeHoverIndex = selectedTimeS === null ? hoverIndex : nearestTraceSampleIndex(trace, selectedTimeS);
+  const hoverPoint = activeHoverIndex === null ? null : trace[activeHoverIndex] ?? null;
+  const scrubIndex = Math.min(Math.max(activeHoverIndex ?? 0, 0), Math.max(trace.length - 1, 0));
   const summaryId = "stage-flight-profile-summary";
   const selectMetricByKeyboard = (
     event: ReactKeyboardEvent<HTMLButtonElement>,
@@ -3145,8 +3172,8 @@ function StageFlightProfileChart({ result }: { result: StageFlightPreviewResult 
         context.restore();
       }
 
-      if (hoverIndex !== null && coordinates[hoverIndex]) {
-        const point = coordinates[hoverIndex]!;
+      if (activeHoverIndex !== null && coordinates[activeHoverIndex]) {
+        const point = coordinates[activeHoverIndex]!;
         context.save();
         context.strokeStyle = "rgba(236,245,249,.52)";
         context.setLineDash([2, 3]);
@@ -3168,7 +3195,7 @@ function StageFlightProfileChart({ result }: { result: StageFlightPreviewResult 
     const observer = new ResizeObserver(draw);
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, [definition.color, definition.unit, hoverIndex, maxTimeS, metric, result.events, trace]);
+  }, [activeHoverIndex, definition.color, definition.unit, maxTimeS, metric, result.events, trace]);
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (trace.length === 0) return;
@@ -3178,16 +3205,9 @@ function StageFlightProfileChart({ result }: { result: StageFlightPreviewResult 
     const usableWidth = Math.max(1, bounds.width - paddingLeft - paddingRight);
     const normalizedX = Math.max(0, Math.min(1, (event.clientX - bounds.left - paddingLeft) / usableWidth));
     const targetTimeS = normalizedX * maxTimeS;
-    let nearestIndex = 0;
-    let nearestDistance = Infinity;
-    trace.forEach((point, index) => {
-      const distance = Math.abs(point.timeS - targetTimeS);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestIndex = index;
-      }
-    });
+    const nearestIndex = nearestTraceSampleIndex(trace, targetTimeS);
     setHoverIndex(nearestIndex);
+    onSelectionChange?.(null);
   };
 
   if (trace.length === 0) {
@@ -3226,7 +3246,7 @@ function StageFlightProfileChart({ result }: { result: StageFlightPreviewResult 
           aria-label={`${definition.label} over time for the staged flight preview`}
           aria-describedby={summaryId}
           onPointerMove={handlePointerMove}
-          onPointerLeave={() => setHoverIndex(null)}
+          onPointerLeave={() => { setHoverIndex(null); onSelectionChange?.(null); }}
         />
         {hoverPoint && (
           <div className="stage-flight-hover" aria-live="polite">
@@ -3246,7 +3266,7 @@ function StageFlightProfileChart({ result }: { result: StageFlightPreviewResult 
           step={1}
           value={scrubIndex}
           aria-valuetext={hoverPoint ? `Sample ${scrubIndex + 1} of ${trace.length}, ${hoverPoint.timeS.toFixed(2)} seconds` : "No sample selected"}
-          onChange={(event) => setHoverIndex(Number(event.target.value))}
+          onChange={(event) => { setHoverIndex(Number(event.target.value)); onSelectionChange?.(null); }}
         />
         <output aria-live="polite">
           {hoverPoint ? `t ${hoverPoint.timeS.toFixed(2)} s · ${formatStageFlightMetric(stageFlightMetricValue(hoverPoint, metric), metric)} ${definition.unit}` : "Use the slider or point at the chart"}
@@ -3990,6 +4010,7 @@ export default function Home() {
   );
   const [comparisonReference, setComparisonReference] = useState<VerticalFlightResult | null>(null);
   const [comparisonReferenceFingerprint, setComparisonReferenceFingerprint] = useState<string | null>(null);
+  const [selectedFlightEventTimeS, setSelectedFlightEventTimeS] = useState<number | null>(null);
   const [flightDataSeries, setFlightDataSeries] = useState<FlightDataSeries | null>(null);
   const [flightDataError, setFlightDataError] = useState("");
   const [flightDataPersistenceState, setFlightDataPersistenceState] = useState<FlightDataPersistenceState>("none");
@@ -4000,6 +4021,7 @@ export default function Home() {
   const [stageFlightFingerprint, setStageFlightFingerprint] = useState<string | null>(
     null,
   );
+  const [selectedStageEventTimeS, setSelectedStageEventTimeS] = useState<number | null>(null);
   const [stageFlightRunning, setStageFlightRunning] = useState(false);
   const [stageFlightError, setStageFlightError] = useState("");
   const [stageUncertainty, setStageUncertainty] = useState<StageFlightUncertaintyResult | null>(null);
@@ -5058,6 +5080,8 @@ export default function Home() {
   const markChanged = () => {
     setSaved(false);
     setStageFlightResult(null);
+    setSelectedFlightEventTimeS(null);
+    setSelectedStageEventTimeS(null);
     setStageFlightError("");
     setSweepResult(null);
     setSweepError("");
@@ -6223,6 +6247,7 @@ export default function Home() {
           baseResult: nextResult,
         });
         setResult(nextResult);
+        setSelectedFlightEventTimeS(null);
         setVerticalConvergence(nextConvergence);
         setVerticalConvergenceFingerprint(runFingerprint);
         setUncertainty(createUncertaintyResult(inputs, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed));
@@ -6287,6 +6312,7 @@ export default function Home() {
           }),
         );
         setStageFlightResult(nextResult);
+        setSelectedStageEventTimeS(null);
         setStageFlightFingerprint(runFingerprint);
         notify(activeStageCount > 1 ? "Stage-aware 6DOF preview complete" : "Coupled 6DOF preview complete");
       } catch (error) {
@@ -7515,7 +7541,7 @@ export default function Home() {
                         </div>
                       </section>
                     )}
-                    <StageFlightProfileChart result={stageFlightResult} />
+                    <StageFlightProfileChart result={stageFlightResult} selectedTimeS={selectedStageEventTimeS} onSelectionChange={setSelectedStageEventTimeS} />
                     {activeStageCount === 1 && (
                       <section className="stage-flight-comparison" aria-labelledby="stage-flight-comparison-title">
                         <div className="stage-flight-comparison-heading">
@@ -7538,13 +7564,19 @@ export default function Home() {
                       {stageFlightResult.events.length === 0 ? (
                         <span className="stage-flight-empty">No rail, staging, failure, or recovery transitions were reached in this run.</span>
                       ) : stageFlightResult.events.map((event) => (
-                        <div key={`${event.id}-${event.timeS}`}>
+                        <button
+                          className={`stage-flight-event${selectedStageEventTimeS === event.timeS ? " selected" : ""}`}
+                          key={`${event.id}-${event.timeS}`}
+                          type="button"
+                          aria-pressed={selectedStageEventTimeS === event.timeS}
+                          onClick={() => setSelectedStageEventTimeS(event.timeS)}
+                        >
                           <span>{event.timeS.toFixed(2)} s</span>
                           <strong>{event.label}</strong>
                           {event.detachedStageInstanceIds.length > 0 && <small>released copies · {event.detachedStageInstanceIds.join(" + ")}</small>}
                           <small>{event.attachedStageIdsBefore.join(" + ")} → {event.attachedStageIdsAfter.join(" + ")}</small>
                           {event.separationDeltaVBodyMps && event.detachedStageIds.length > 0 && <small>retained dV +X {event.separationDeltaVBodyMps.x.toFixed(2)} m/s · world ({event.separationDeltaVWorldMps?.x.toFixed(2)}, {event.separationDeltaVWorldMps?.y.toFixed(2)}, {event.separationDeltaVWorldMps?.z.toFixed(2)}) m/s</small>}
-                        </div>
+                        </button>
                       ))}
                     </div>
                     <div className="stage-flight-status">
@@ -7582,7 +7614,7 @@ export default function Home() {
                 <div><strong>Flight trace</strong><span>Switch metrics and inspect the estimated trajectory over time</span></div>
                 <span className="legend"><i /> Max q {Math.round(result.maxDynamicPressurePa)} Pa</span>
               </div>
-              {running ? <div className="chart-loading"><Skeleton height={260} borderRadius={12} /></div> : <FlightChart result={result} />}
+              {running ? <div className="chart-loading"><Skeleton height={260} borderRadius={12} /></div> : <FlightChart result={result} selectedTimeS={selectedFlightEventTimeS} onSelectionChange={setSelectedFlightEventTimeS} />}
             </div>
             <FlightComparisonCard
               current={result}
@@ -7891,12 +7923,18 @@ export default function Home() {
               </div>
               <div className="event-timeline">
                 {result.events.map((event) => (
-                  <div className="event-item" key={`${event.type}-${event.timeS}`}>
+                  <button
+                    className={`event-item event-item-button${selectedFlightEventTimeS === event.timeS ? " selected" : ""}`}
+                    key={`${event.type}-${event.timeS}`}
+                    type="button"
+                    aria-pressed={selectedFlightEventTimeS === event.timeS}
+                    onClick={() => setSelectedFlightEventTimeS(event.timeS)}
+                  >
                     <i />
                     <strong>{event.label}</strong>
                     <span>{event.timeS.toFixed(2)} s</span>
                     <small>{event.altitudeAglM.toFixed(0)} m AGL</small>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
