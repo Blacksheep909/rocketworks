@@ -202,8 +202,9 @@ research, standards, and original code.
   launch-rail, recovery, reefing, and uncertainty tuning, with the same
   validation and stale-result guardrails as direct edits;
 - a typed English/Spanish shell copy catalog with device-local locale
-  persistence and a clearly bounded translation surface while engineering
-  explanations remain English until a complete catalog is available.
+  persistence, including trace-inspection controls, and a clearly bounded
+  translation surface while engineering explanations remain English until a
+  complete catalog is available.
 - an installable standards-based browser shell with original RocketWorks artwork,
   a native browser install affordance, and an honest later desktop/tablet
   wrapper path; offline simulation is not claimed.

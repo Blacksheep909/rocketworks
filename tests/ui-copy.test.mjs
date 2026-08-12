@@ -10,6 +10,10 @@ test("UI copy catalog has complete English and Spanish shell coverage", () => {
   assert.equal(spanish.display, "Pantalla");
   assert.equal(english.accessibilityTitle, "Display & accessibility");
   assert.equal(spanish.accessibilityTitle, "Pantalla y accesibilidad");
+  assert.equal(english.traceSample, "Trace sample");
+  assert.equal(spanish.traceSample, "Muestra de traza");
+  assert.equal(english.traceOf, "of");
+  assert.equal(spanish.traceOf, "de");
   assert.deepEqual(Object.keys(english).sort(), Object.keys(spanish).sort());
   assert.ok(Object.values(english).every((value) => value.trim().length > 0));
   assert.ok(Object.values(spanish).every((value) => value.trim().length > 0));

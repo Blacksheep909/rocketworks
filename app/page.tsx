@@ -219,7 +219,7 @@ import {
   UI_PREFERENCES_STORAGE_KEY,
   type UiDesignView,
 } from "../lib/project/ui-preferences.ts";
-import { getUiCopy, type UiLocale } from "../lib/project/ui-copy.ts";
+import { getUiCopy, type UiCopy, type UiLocale } from "../lib/project/ui-copy.ts";
 
 type ComponentKey = "nose" | "body" | "fins" | "mount" | "recovery";
 type ViewKey = "design" | "flight";
@@ -2354,10 +2354,12 @@ function FlightChart({
   result,
   selectedTimeS = null,
   onSelectionChange,
+  copy,
 }: {
   result: VerticalFlightResult;
   selectedTimeS?: number | null;
   onSelectionChange?: (timeS: number | null) => void;
+  copy: UiCopy;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [metric, setMetric] = useState<FlightMetricKey>("altitude");
@@ -2568,7 +2570,7 @@ function FlightChart({
         )}
       </div>
       <div className="stage-flight-profile-scrubber">
-        <label htmlFor="vertical-flight-trace-scrubber">Trace sample</label>
+        <label htmlFor="vertical-flight-trace-scrubber">{copy.traceSample}</label>
         <input
           id="vertical-flight-trace-scrubber"
           type="range"
@@ -2576,11 +2578,11 @@ function FlightChart({
           max={Math.max(trace.length - 1, 0)}
           step={1}
           value={scrubIndex}
-          aria-valuetext={hoverPoint ? `Sample ${scrubIndex + 1} of ${trace.length}, ${hoverPoint.timeS.toFixed(2)} seconds` : "No sample selected"}
+          aria-valuetext={hoverPoint ? `${copy.traceSample} ${scrubIndex + 1} ${copy.traceOf} ${trace.length}, ${hoverPoint.timeS.toFixed(2)} ${copy.traceSeconds}` : copy.traceNoSelection}
           onChange={(event) => { setHoverIndex(Number(event.target.value)); onSelectionChange?.(null); }}
         />
         <output aria-live="polite">
-          {hoverPoint ? `t ${hoverPoint.timeS.toFixed(2)} s · ${formatFlightMetric(flightMetricValue(hoverPoint, metric), metric)} ${definition.unit}` : "Use the slider or point at the chart"}
+          {hoverPoint ? `t ${hoverPoint.timeS.toFixed(2)} s · ${formatFlightMetric(flightMetricValue(hoverPoint, metric), metric)} ${definition.unit}` : copy.traceNoSelection}
         </output>
       </div>
       <div className="stage-flight-profile-footer">
@@ -3044,10 +3046,12 @@ function StageFlightProfileChart({
   result,
   selectedTimeS = null,
   onSelectionChange,
+  copy,
 }: {
   result: StageFlightPreviewResult;
   selectedTimeS?: number | null;
   onSelectionChange?: (timeS: number | null) => void;
+  copy: UiCopy;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [metric, setMetric] = useState<StageFlightMetricKey>("altitude");
@@ -3257,7 +3261,7 @@ function StageFlightProfileChart({
         )}
       </div>
       <div className="stage-flight-profile-scrubber">
-        <label htmlFor="stage-flight-trace-scrubber">Trace sample</label>
+        <label htmlFor="stage-flight-trace-scrubber">{copy.traceSample}</label>
         <input
           id="stage-flight-trace-scrubber"
           type="range"
@@ -3265,11 +3269,11 @@ function StageFlightProfileChart({
           max={Math.max(trace.length - 1, 0)}
           step={1}
           value={scrubIndex}
-          aria-valuetext={hoverPoint ? `Sample ${scrubIndex + 1} of ${trace.length}, ${hoverPoint.timeS.toFixed(2)} seconds` : "No sample selected"}
+          aria-valuetext={hoverPoint ? `${copy.traceSample} ${scrubIndex + 1} ${copy.traceOf} ${trace.length}, ${hoverPoint.timeS.toFixed(2)} ${copy.traceSeconds}` : copy.traceNoSelection}
           onChange={(event) => { setHoverIndex(Number(event.target.value)); onSelectionChange?.(null); }}
         />
         <output aria-live="polite">
-          {hoverPoint ? `t ${hoverPoint.timeS.toFixed(2)} s · ${formatStageFlightMetric(stageFlightMetricValue(hoverPoint, metric), metric)} ${definition.unit}` : "Use the slider or point at the chart"}
+          {hoverPoint ? `t ${hoverPoint.timeS.toFixed(2)} s · ${formatStageFlightMetric(stageFlightMetricValue(hoverPoint, metric), metric)} ${definition.unit}` : copy.traceNoSelection}
         </output>
       </div>
       <div className="stage-flight-profile-footer">
@@ -7541,7 +7545,7 @@ export default function Home() {
                         </div>
                       </section>
                     )}
-                    <StageFlightProfileChart result={stageFlightResult} selectedTimeS={selectedStageEventTimeS} onSelectionChange={setSelectedStageEventTimeS} />
+                    <StageFlightProfileChart result={stageFlightResult} selectedTimeS={selectedStageEventTimeS} onSelectionChange={setSelectedStageEventTimeS} copy={uiCopy} />
                     {activeStageCount === 1 && (
                       <section className="stage-flight-comparison" aria-labelledby="stage-flight-comparison-title">
                         <div className="stage-flight-comparison-heading">
@@ -7614,7 +7618,7 @@ export default function Home() {
                 <div><strong>Flight trace</strong><span>Switch metrics and inspect the estimated trajectory over time</span></div>
                 <span className="legend"><i /> Max q {Math.round(result.maxDynamicPressurePa)} Pa</span>
               </div>
-              {running ? <div className="chart-loading"><Skeleton height={260} borderRadius={12} /></div> : <FlightChart result={result} selectedTimeS={selectedFlightEventTimeS} onSelectionChange={setSelectedFlightEventTimeS} />}
+              {running ? <div className="chart-loading"><Skeleton height={260} borderRadius={12} /></div> : <FlightChart result={result} selectedTimeS={selectedFlightEventTimeS} onSelectionChange={setSelectedFlightEventTimeS} copy={uiCopy} />}
             </div>
             <FlightComparisonCard
               current={result}

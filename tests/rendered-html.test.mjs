@@ -105,6 +105,8 @@ test("ships versioned flight results and explainable model UI", async () => {
   assert.match(source, /Flight events/);
   assert.match(source, /Vertical flight profile/);
   assert.match(source, /vertical-flight-trace-scrubber/);
+  assert.match(source, /copy\.traceSample/);
+  assert.match(source, /copy\.traceNoSelection/);
   assert.match(source, /event-item-button/);
   assert.match(source, /selectedFlightEventTimeS/);
   assert.match(source, /FLIGHT_METRICS/);
@@ -873,6 +875,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /stageUncertaintyIsCurrent/);
   assert.match(page, /StageFlightProfileChart/);
   assert.match(page, /stage-flight-trace-scrubber/);
+  assert.match(page, /copy=\{uiCopy\}/);
   assert.match(page, /stage-flight-event/);
   assert.match(page, /selectedStageEventTimeS/);
   assert.match(page, /Vertical vs coupled preview/);

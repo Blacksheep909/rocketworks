@@ -50,7 +50,11 @@ export type UiCopyKey =
   | "openAccessibility"
   | "chooseTemplate"
   | "showGuide"
-  | "hideGuide";
+  | "hideGuide"
+  | "traceSample"
+  | "traceNoSelection"
+  | "traceOf"
+  | "traceSeconds";
 
 export type UiCopy = Readonly<Record<UiCopyKey, string>>;
 
@@ -95,6 +99,10 @@ const ENGLISH_COPY: UiCopy = {
   chooseTemplate: "Choose a template",
   showGuide: "How to read CG / CP",
   hideGuide: "Hide guide",
+  traceSample: "Trace sample",
+  traceNoSelection: "Use the slider or point at the chart",
+  traceOf: "of",
+  traceSeconds: "seconds",
 };
 
 const SPANISH_COPY: UiCopy = {
@@ -138,6 +146,10 @@ const SPANISH_COPY: UiCopy = {
   chooseTemplate: "Elegir una plantilla",
   showGuide: "Cómo leer CG / CP",
   hideGuide: "Ocultar guía",
+  traceSample: "Muestra de traza",
+  traceNoSelection: "Usa el control deslizante o apunta al gráfico",
+  traceOf: "de",
+  traceSeconds: "segundos",
 };
 
 export function getUiCopy(locale: UiLocale): UiCopy {

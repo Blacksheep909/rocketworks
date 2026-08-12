@@ -6,6 +6,9 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Route trace-scrubber labels and empty-selection guidance through the typed
+  English/Spanish shell catalog while leaving engineering units and model
+  explanations explicit.
 - Make vertical and staged flight-event timeline rows keyboard- and
   touch-activatable; selecting a detected transition now moves the matching
   trace scrubber to its nearest numerical sample.
