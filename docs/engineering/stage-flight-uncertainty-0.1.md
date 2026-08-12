@@ -6,7 +6,7 @@ rigid-body models. It does not import or reuse an external rocket simulator.
 
 ## Contract
 
-- Adapter version: `kestrel-stage-flight-uncertainty-0.8.0`
+- Adapter version: `kestrel-stage-flight-uncertainty-0.9.0`
 - Sampling: seeded Latin hypercube through the shared uncertainty model
   (`kestrel-uncertainty-0.4.0`)
 - Default browser ensemble: 16 samples, retained as individual input/output or
@@ -31,8 +31,10 @@ dry-mass factor, initial propellant mass properties with the propellant factor,
 every thrust-curve ordinate with the global thrust factor and its declared
 per-motor factor, selected aerodynamic drag with the drag factor, direct
 body-axis force and static-moment resultants with their respective factors,
-configured recovery-device reference areas with the recovery area factor, both
-profile/provider wind vectors with the wind factor, and annotated staging
+configured recovery-device reference areas with the recovery area factor,
+configured recovery-device inflation intervals with the recovery inflation-time
+factor, both profile/provider wind vectors with the wind factor, and annotated
+staging
 events with the event factors. Motor-local ignition delays and
 ignition-after-burnout triggers receive the sampled delay offset; annotated
 separation events receive the sampled impulse scale, including measured

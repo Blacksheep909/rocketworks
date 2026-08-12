@@ -37,7 +37,7 @@ import {
 } from "./stage-flight-preview.ts";
 
 export const STAGE_FLIGHT_UNCERTAINTY_ADAPTER_VERSION =
-  "kestrel-stage-flight-uncertainty-0.8.0";
+  "kestrel-stage-flight-uncertainty-0.9.0";
 
 /** Prefix used for independent thrust multipliers keyed by motor identifier. */
 export const MOTOR_THRUST_SCALE_FACTOR_PREFIX = "motorThrustScale:";
@@ -59,6 +59,7 @@ export type StageFlightUncertaintyFactorKey =
   | "directMomentCoefficientScale"
   | "coefficientUncertaintyScale"
   | "recoveryAreaScale"
+  | "recoveryInflationTimeScale"
   | "recoveryDeploymentSuccess"
   | "windScale"
   | "ignitionDelayOffsetS"
@@ -390,6 +391,10 @@ export function createStageFlightVariant(
     values.recoveryAreaScale ?? 1,
     "recovery area scale",
   );
+  const recoveryInflationTimeScale = positiveScale(
+    values.recoveryInflationTimeScale ?? 1,
+    "recovery inflation time scale",
+  );
   const recoveryDeploymentSuccess = values.recoveryDeploymentSuccess ?? 1;
   if (recoveryDeploymentSuccess !== 0 && recoveryDeploymentSuccess !== 1) {
     throw new Error("recovery deployment success must be exactly 0 or 1");
@@ -457,6 +462,9 @@ export function createStageFlightVariant(
     recoveryDevices: base.recoveryDevices?.map((device) => ({
       ...device,
       referenceAreaM2: device.referenceAreaM2 * recoveryAreaScale,
+      ...(device.inflationTimeS !== undefined
+        ? { inflationTimeS: device.inflationTimeS * recoveryInflationTimeScale }
+        : {}),
     })),
     events: [
       ...(base.events ?? []),
@@ -496,6 +504,11 @@ export function createStageFlightVariant(
                   "Sampled separation-impulse uncertainty rescales configured measured impulse vectors and legacy event delta-v annotations; mechanism compliance, plume interaction, and contact remain outside the model.",
                 ]
               : []),
+            ...(recoveryInflationTimeScale !== 1
+              ? [
+                  "Sampled recovery inflation-time uncertainty rescales the prescribed canopy-area ramp; line dynamics, fabric response, and opening shock remain outside the model.",
+                ]
+              : []),
             ...(alignmentOffsetRad !== 0
               ? [
                   "Sampled launch-alignment uncertainty is a body-frame pitch perturbation; launch-rail tolerance may reject out-of-alignment scenarios.",
@@ -522,6 +535,11 @@ export function createStageFlightVariant(
             ...(hasCoefficientUncertaintyFactor
               ? [
                   "The coefficient uncertainty factor is a caller-supplied signed sigma, not a measured distribution or certification evidence; samples that make positive-only coefficients non-physical fail explicitly.",
+                ]
+              : []),
+            ...(recoveryInflationTimeScale !== 1
+              ? [
+                  "Recovery inflation-time samples are deterministic scenario perturbations around the configured effective-area approximation, not measured deployment distributions.",
                 ]
               : []),
             "The nominal topology, event list, and caller-owned records are not mutated; staged event closures are wrapped only inside the sampled variant.",

@@ -335,7 +335,6 @@ const SWEEP_PARAMETER_DEFINITIONS: readonly SweepParameterDefinition[] = [
 
 const DEFAULT_SWEEP_STEPS = 9;
 const BROWSER_RECOVERY_DRAG_COEFFICIENT = 0.75;
-const BROWSER_RECOVERY_INFLATION_TIME_S = 1.2;
 
 type UncertaintyCorrelationDefinition = Readonly<{
   key: string;
@@ -356,6 +355,7 @@ const UNCERTAINTY_CORRELATION_DEFINITIONS: readonly UncertaintyCorrelationDefini
   { key: "separationImpulseScale", label: "Separation impulse", scope: "coupled" },
   { key: "alignmentOffsetRad", label: "Launch alignment", scope: "coupled" },
   { key: "recoveryDragAreaScale", label: "Vertical recovery area", scope: "vertical" },
+  { key: "recoveryInflationTimeScale", label: "Recovery inflation time", scope: "vertical + coupled" },
   { key: "recoveryAreaScale", label: "Coupled recovery area", scope: "coupled + landing" },
   { key: "recoveryDeploymentSuccess", label: "Recovery deployment", scope: "vertical + coupled + landing" },
   { key: "recoveryDelayS", label: "Vertical recovery delay", scope: "vertical" },
@@ -1344,6 +1344,7 @@ function createStageFlightPreviewInputs({
   coupledGravitySofteningRadiusM,
   recoveryEnabled,
   recoveryDelay,
+  recoveryInflationTime,
   recoveryDeploymentTrigger,
   recoveryDeploymentAltitudeM,
   recoveryDeploymentTimeS,
@@ -1373,6 +1374,7 @@ function createStageFlightPreviewInputs({
   coupledGravitySofteningRadiusM: number;
   recoveryEnabled: boolean;
   recoveryDelay: number;
+  recoveryInflationTime: number;
   recoveryDeploymentTrigger: RecoveryDeploymentTrigger;
   recoveryDeploymentAltitudeM: number;
   recoveryDeploymentTimeS: number;
@@ -1545,7 +1547,7 @@ function createStageFlightPreviewInputs({
             dragCoefficient: BROWSER_RECOVERY_DRAG_COEFFICIENT,
             referenceAreaM2: Math.PI * (stage.recovery.diameterM / 2) ** 2,
             deploymentDelayS: stage.recovery.deploymentDelayS,
-            inflationTimeS: BROWSER_RECOVERY_INFLATION_TIME_S,
+            inflationTimeS: stage.recovery.inflationTimeS ?? 1.2,
           },
         ]
       : undefined;
@@ -1717,7 +1719,7 @@ function createStageFlightPreviewInputs({
           dragCoefficient: BROWSER_RECOVERY_DRAG_COEFFICIENT,
           referenceAreaM2: Math.PI * (recoveryDiameter / 2) ** 2,
           deploymentDelayS: recoveryDelay,
-          inflationTimeS: BROWSER_RECOVERY_INFLATION_TIME_S,
+          inflationTimeS: recoveryInflationTime,
           reefingStages: createBrowserRecoveryReefingStages({
             recoveryReefingEnabled,
             recoveryReefingDurationS,
@@ -1824,6 +1826,7 @@ function createFlightConfig({
   surfaceTemperatureC,
   recoveryEnabled,
   recoveryDelay,
+  recoveryInflationTime,
   recoveryDeploymentTrigger,
   recoveryDeploymentAltitudeM,
   recoveryDeploymentTimeS,
@@ -1848,6 +1851,7 @@ function createFlightConfig({
   surfaceTemperatureC: number;
   recoveryEnabled: boolean;
   recoveryDelay: number;
+  recoveryInflationTime: number;
   recoveryDeploymentTrigger: RecoveryDeploymentTrigger;
   recoveryDeploymentAltitudeM: number;
   recoveryDeploymentTimeS: number;
@@ -1885,6 +1889,7 @@ function createFlightConfig({
       dragAreaM2: Math.PI * Math.pow(recoveryDiameter / 2, 2),
       dragCoefficient: BROWSER_RECOVERY_DRAG_COEFFICIENT,
       deploymentDelayAfterApogeeS: recoveryDelay,
+      inflationTimeS: recoveryInflationTime,
       deploymentTrigger: recoveryDeploymentTrigger,
       deploymentAltitudeAglM: recoveryDeploymentAltitudeM,
       deploymentTimeS: recoveryDeploymentTimeS,
@@ -1988,6 +1993,11 @@ function createUncertaintyResult(
             key: "recoveryDragAreaScale" as const,
             label: "Recovery area",
             distribution: { kind: "triangular" as const, minimum: 0.8, mode: 1, maximum: 1.2 },
+          },
+          {
+            key: "recoveryInflationTimeScale" as const,
+            label: "Recovery inflation time",
+            distribution: { kind: "triangular" as const, minimum: 0.7, mode: 1, maximum: 1.4 },
           },
           {
             key: "recoveryDeploymentSuccess" as const,
@@ -2123,6 +2133,7 @@ function createOptimizationResult(
               ...(inputs.recoveryEnabled
                 ? [
                     { key: "recoveryDragAreaScale" as const, label: "Recovery area", distribution: { kind: "triangular" as const, minimum: 0.8, mode: 1, maximum: 1.2 } },
+                    { key: "recoveryInflationTimeScale" as const, label: "Recovery inflation time", distribution: { kind: "triangular" as const, minimum: 0.7, mode: 1, maximum: 1.4 } },
                     { key: "recoveryDeploymentSuccess" as const, label: "Recovery deployment", distribution: { kind: "bernoulli" as const, successProbability: inputs.recoveryDeploymentSuccessProbability } },
                     { key: "recoveryDelayS" as const, label: "Recovery delay offset", distribution: { kind: "normal" as const, mean: 0, standardDeviation: 0.18, minimum: -0.3, maximum: 0.5 } },
                   ]
@@ -2130,7 +2141,7 @@ function createOptimizationResult(
             ],
             correlations: filterUncertaintyCorrelations(
               inputs.uncertaintyCorrelations ?? [],
-              ["dryMassScale", "propellantMassScale", "dragCoefficientScale", "thrustScale", "windScale", ...(inputs.recoveryEnabled ? ["recoveryDragAreaScale", "recoveryDeploymentSuccess", "recoveryDelayS"] : [])],
+              ["dryMassScale", "propellantMassScale", "dragCoefficientScale", "thrustScale", "windScale", ...(inputs.recoveryEnabled ? ["recoveryDragAreaScale", "recoveryInflationTimeScale", "recoveryDeploymentSuccess", "recoveryDelayS"] : [])],
             ),
           },
         }
@@ -2219,6 +2230,11 @@ function createLandingPrediction(
             distribution: { kind: "triangular" as const, minimum: 0.8, mode: 1, maximum: 1.2 },
           },
           {
+            key: "recoveryInflationTimeScale",
+            label: "Canopy inflation time",
+            distribution: { kind: "triangular" as const, minimum: 0.7, mode: 1, maximum: 1.4 },
+          },
+          {
             key: "deploymentDelayOffsetS",
             label: "Deployment delay",
             distribution: { kind: "normal" as const, mean: 0, standardDeviation: 0.18, minimum: -0.3, maximum: 0.5 },
@@ -2302,7 +2318,8 @@ function createLandingPrediction(
                 0,
                 inputs.recoveryDelay + values.deploymentDelayOffsetS,
               ),
-              inflationTimeS: BROWSER_RECOVERY_INFLATION_TIME_S,
+              inflationTimeS:
+                inputs.recoveryInflationTime * values.recoveryInflationTimeScale,
               reefingStages: createBrowserRecoveryReefingStages(inputs),
             }
           : undefined,
@@ -3655,6 +3672,7 @@ export default function Home() {
   const [sixDofIntegrationMethod, setSixDofIntegrationMethod] = useState<RigidBodyIntegrationMethod>("fixed-rk4");
   const [recoveryEnabled, setRecoveryEnabled] = useState(true);
   const [recoveryDelay, setRecoveryDelay] = useState(0);
+  const [recoveryInflationTime, setRecoveryInflationTime] = useState(1.2);
   const [recoveryDeploymentTrigger, setRecoveryDeploymentTrigger] = useState<RecoveryDeploymentTrigger>("apogee");
   const [recoveryDeploymentAltitudeM, setRecoveryDeploymentAltitudeM] = useState(150);
   const [recoveryDeploymentTimeS, setRecoveryDeploymentTimeS] = useState(8);
@@ -3779,6 +3797,7 @@ export default function Home() {
       launchRailAzimuthDeg,
       recoveryEnabled,
       recoveryDelayS: recoveryDelay,
+      recoveryInflationTimeS: recoveryInflationTime,
       recoveryDeploymentTrigger,
       recoveryDeploymentAltitudeM,
       recoveryDeploymentTimeS,
@@ -3792,7 +3811,7 @@ export default function Home() {
       uncertaintySeed,
       uncertaintyCorrelations,
     }),
-    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, launchSiteName, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
+    [burnTime, diameter, dragCoefficient, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailInclinationDeg, launchRailLengthM, launchSiteName, length, material, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -4020,6 +4039,7 @@ export default function Home() {
       surfaceTemperatureC,
       recoveryEnabled,
       recoveryDelay,
+      recoveryInflationTime,
       recoveryDeploymentTrigger,
       recoveryDeploymentAltitudeM,
       recoveryDeploymentTimeS,
@@ -4074,6 +4094,7 @@ export default function Home() {
       surfaceTemperatureC,
       recoveryEnabled,
       recoveryDelay,
+      recoveryInflationTime,
       recoveryDeploymentTrigger,
       recoveryDeploymentAltitudeM,
       recoveryDeploymentTimeS,
@@ -4112,6 +4133,7 @@ export default function Home() {
           surfaceTemperatureC,
           recoveryEnabled,
           recoveryDelay,
+          recoveryInflationTime,
           recoveryDeploymentTrigger,
           recoveryDeploymentAltitudeM,
           recoveryDeploymentTimeS,
@@ -4153,11 +4175,11 @@ export default function Home() {
       })),
       commandTimeS: stageRecoveryCommandEvent.timeS,
       deploymentDelayS: recoveryDelay,
-      inflationTimeS: BROWSER_RECOVERY_INFLATION_TIME_S,
+      inflationTimeS: recoveryInflationTime,
       dragCoefficient: BROWSER_RECOVERY_DRAG_COEFFICIENT,
       referenceAreaM2: Math.PI * (recoveryDiameter / 2) ** 2,
     });
-  }, [recoveryDelay, recoveryDiameter, recoveryEnabled, stageFlightIsCurrent, stageFlightResult, stageRecoveryCommandEvent]);
+  }, [recoveryDelay, recoveryDiameter, recoveryEnabled, recoveryInflationTime, stageFlightIsCurrent, stageFlightResult, stageRecoveryCommandEvent]);
   const flightDataComparisonState = useMemo<{ comparison: FlightDataComparisonResult | null; error: string }>(() => {
     if (!flightDataSeries) return { comparison: null, error: "" };
     if (flightDataTraceSource === "coupled-6dof") {
@@ -4650,6 +4672,7 @@ export default function Home() {
         setLaunchRailAzimuthDeg(inputs.launchRailAzimuthDeg);
         setRecoveryEnabled(inputs.recoveryEnabled);
         setRecoveryDelay(inputs.recoveryDelayS);
+        setRecoveryInflationTime(inputs.recoveryInflationTimeS);
         setRecoveryDeploymentTrigger(inputs.recoveryDeploymentTrigger);
         setRecoveryDeploymentAltitudeM(inputs.recoveryDeploymentAltitudeM);
         setRecoveryDeploymentTimeS(inputs.recoveryDeploymentTimeS);
@@ -4775,6 +4798,7 @@ export default function Home() {
         setLaunchRailAzimuthDeg(inputs.launchRailAzimuthDeg);
         setRecoveryEnabled(inputs.recoveryEnabled);
         setRecoveryDelay(inputs.recoveryDelayS);
+        setRecoveryInflationTime(inputs.recoveryInflationTimeS);
         setRecoveryDeploymentTrigger(inputs.recoveryDeploymentTrigger);
         setRecoveryDeploymentAltitudeM(inputs.recoveryDeploymentAltitudeM);
         setRecoveryDeploymentTimeS(inputs.recoveryDeploymentTimeS);
@@ -5242,6 +5266,7 @@ export default function Home() {
     setLaunchRailAzimuthDeg(inputs.launchRailAzimuthDeg);
     setRecoveryEnabled(inputs.recoveryEnabled);
     setRecoveryDelay(inputs.recoveryDelayS);
+    setRecoveryInflationTime(inputs.recoveryInflationTimeS);
     setRecoveryDeploymentTrigger(inputs.recoveryDeploymentTrigger);
     setRecoveryDeploymentAltitudeM(inputs.recoveryDeploymentAltitudeM);
     setRecoveryDeploymentTimeS(inputs.recoveryDeploymentTimeS);
@@ -6239,6 +6264,7 @@ export default function Home() {
             deploymentAltitudeAglM: recoveryDeploymentAltitudeM,
             deploymentTimeS: recoveryDeploymentTimeS,
             deploymentDelayS: recoveryDelay,
+            inflationTimeS: recoveryInflationTime,
             reefingEnabled: recoveryReefingEnabled,
             reefingDurationS: recoveryReefingDurationS,
             reefingStartAreaFraction: recoveryReefingStartAreaFraction,
@@ -6304,6 +6330,7 @@ export default function Home() {
       surfaceTemperatureC,
       recoveryEnabled,
       recoveryDelay,
+      recoveryInflationTime,
       recoveryDeploymentTrigger,
       recoveryDeploymentAltitudeM,
       recoveryDeploymentTimeS,
@@ -6379,6 +6406,7 @@ export default function Home() {
             coupledGravitySofteningRadiusM,
             recoveryEnabled,
             recoveryDelay,
+            recoveryInflationTime,
             recoveryDeploymentTrigger,
             recoveryDeploymentAltitudeM,
             recoveryDeploymentTimeS,
@@ -6434,6 +6462,7 @@ export default function Home() {
           coupledGravitySofteningRadiusM,
           recoveryEnabled,
           recoveryDelay,
+          recoveryInflationTime,
           recoveryDeploymentTrigger,
           recoveryDeploymentAltitudeM,
           recoveryDeploymentTimeS,
@@ -6517,6 +6546,11 @@ export default function Home() {
                   key: "recoveryAreaScale" as const,
                   label: "Recovery area",
                   distribution: { kind: "triangular" as const, minimum: 0.8, mode: 1, maximum: 1.2 },
+                },
+                {
+                  key: "recoveryInflationTimeScale" as const,
+                  label: "Recovery inflation time",
+                  distribution: { kind: "triangular" as const, minimum: 0.7, mode: 1, maximum: 1.4 },
                 },
                 {
                   key: "recoveryDeploymentSuccess" as const,
@@ -6612,6 +6646,7 @@ export default function Home() {
           surfaceTemperatureC,
           recoveryEnabled,
           recoveryDelay,
+          recoveryInflationTime,
           recoveryDeploymentTrigger,
           recoveryDeploymentAltitudeM,
           recoveryDeploymentTimeS,
@@ -6662,6 +6697,7 @@ export default function Home() {
           surfaceTemperatureC,
           recoveryEnabled,
           recoveryDelay,
+          recoveryInflationTime,
           recoveryDeploymentTrigger,
           recoveryDeploymentAltitudeM,
           recoveryDeploymentTimeS,
@@ -8452,6 +8488,7 @@ export default function Home() {
             {recoveryEnabled && recoveryDeploymentTrigger === "altitude" && <NumberField id="recovery-deployment-altitude" label="Deployment altitude" value={recoveryDeploymentAltitudeM} unit="m AGL" min={0} max={10000} step={5} slider onChange={(value) => { setRecoveryDeploymentAltitudeM(value); markChanged(); }} />}
             {recoveryEnabled && recoveryDeploymentTrigger === "time" && <NumberField id="recovery-deployment-time" label="Deployment mission time" value={recoveryDeploymentTimeS} unit="s" min={0} max={180} step={0.1} slider onChange={(value) => { setRecoveryDeploymentTimeS(value); markChanged(); }} />}
             {recoveryEnabled && <NumberField id="recovery-delay" label="Deployment delay after trigger" value={recoveryDelay} unit="s" min={0} max={30} step={0.1} slider onChange={(value) => { setRecoveryDelay(value); markChanged(); }} />}
+            {recoveryEnabled && <NumberField id="recovery-inflation-time" label="Canopy inflation time" value={recoveryInflationTime} unit="s" min={0} max={30} step={0.1} slider onChange={(value) => { setRecoveryInflationTime(value); markChanged(); }} />}
             {recoveryEnabled && <NumberField id="recovery-diameter" label="Canopy diameter" value={recoveryDiameter} unit="m" min={0.1} max={3} step={0.01} slider onChange={(value) => { setRecoveryDiameter(value); markChanged(); }} />}
             {recoveryEnabled && <NumberField id="recovery-deployment-success" label="Deployment success assumption" value={recoveryDeploymentSuccessProbability * 100} unit="%" min={0} max={100} step={1} slider onChange={(value) => { setRecoveryDeploymentSuccessProbability(value / 100); markChanged(); }} />}
             {recoveryEnabled && <div className="field-group">
@@ -8466,7 +8503,7 @@ export default function Home() {
               <NumberField id="recovery-reefing-duration" label="Reefing duration" value={recoveryReefingDurationS} unit="s" min={0.1} max={30} step={0.1} slider onChange={(value) => { setRecoveryReefingDurationS(value); markChanged(); }} />
               <p className="recovery-provenance">The preview multiplies canopy drag area from the initial fraction to 100% with a piecewise-linear schedule after inflation. Reefing lines, fabric dynamics, loads, and hardware are not modeled.</p>
             </>}
-            {recoveryEnabled && <p className="recovery-provenance">The primary device can command at apogee, on descent through a target AGL altitude, or at a mission time, then waits the configured delay before inflation. Landing dispersion samples deployment as a Bernoulli outcome. A failed deployment uses ballistic descent with body drag; these are modeling assumptions, not hardware reliability evidence.</p>}
+            {recoveryEnabled && <p className="recovery-provenance">The primary device can command at apogee, on descent through a target AGL altitude, or at a mission time, then waits the configured delay before a smooth effective-area inflation ramp. Landing dispersion samples deployment as a Bernoulli outcome. A failed deployment uses ballistic descent with body drag; these are modeling assumptions, not hardware reliability evidence.</p>}
             <button className="library-button" onClick={() => setAerodynamicLibraryOpen(true)}>
               <span><strong>Aerodynamic data</strong><small>{selectedAerodynamicTable?.name ?? "Constant drag coefficient"}</small></span>
               <em>{aerodynamicTableDefinitions.length} saved · Manage</em>
@@ -9140,6 +9177,7 @@ export default function Home() {
                         {stage.recovery?.deploymentTrigger === "altitude" && <TopologyNumberField id={`${stage.id}-recovery-altitude`} label="Trigger altitude (m AGL)" value={stage.recovery.deploymentAltitudeAglM ?? 150} min={0} max={100000} step={5} disabled={!stage.recovery.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyRecovery(stage, { deploymentAltitudeAglM: value }); }} />}
                         {stage.recovery?.deploymentTrigger === "time" && <TopologyNumberField id={`${stage.id}-recovery-time`} label="Trigger mission time (s)" value={stage.recovery.deploymentTimeS ?? 8} min={0} max={180} step={0.1} disabled={!stage.recovery.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyRecovery(stage, { deploymentTimeS: value }); }} />}
                         <TopologyNumberField id={`${stage.id}-recovery-delay`} label="Recovery delay (s)" value={stage.recovery?.deploymentDelayS ?? 0} min={0} max={60} step={0.1} disabled={!stage.recovery?.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyRecovery(stage, { deploymentDelayS: value }); }} />
+                        <TopologyNumberField id={`${stage.id}-recovery-inflation`} label="Inflation time (s)" value={stage.recovery?.inflationTimeS ?? 1.2} min={0} max={30} step={0.1} disabled={!stage.recovery?.enabled} onChange={(value) => { if (typeof value === "number") updateTopologyRecovery(stage, { inflationTimeS: value }); }} />
                       </>}
                       <label>Failed motors (1-based)<input type="text" inputMode="text" placeholder={stageMotorInstanceCount(stage) > 1 ? "e.g. 1, 3" : "none"} value={topologyFailureDrafts[stage.id] ?? stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")} disabled={stage.role === "payload"} onChange={(event) => { setTopologyFailureDrafts((current) => ({ ...current, [stage.id]: event.target.value })); setTopologyError(""); }} onBlur={() => { const value = topologyFailureDrafts[stage.id]; if (value === undefined) return; if (updateTopologyMotorFailures(stage, value)) { setTopologyFailureDrafts((current) => { const next = { ...current }; delete next[stage.id]; return next; }); } }} /></label>
                       <label className="topology-failure-toggle"><input type="checkbox" checked={stage.ignitionFailure} onChange={(event) => updateTopologyStage(stage.id, { ignitionFailure: event.target.checked })} /> Force ignition failure in preview</label>

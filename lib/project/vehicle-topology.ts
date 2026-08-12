@@ -65,6 +65,8 @@ export type VehicleStageRecoveryPlan = Readonly<{
   enabled: boolean;
   diameterM: number;
   deploymentDelayS: number;
+  /** Seconds from recovery command to fully inflated effective area. */
+  inflationTimeS?: number;
   /** Defaults to branch apogee for legacy topology documents. */
   deploymentTrigger?: VehicleStageRecoveryTrigger;
   /** Descending AGL trigger when deploymentTrigger is altitude. */
@@ -344,6 +346,15 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     ) {
       throw new Error(`Stage ${id} recovery deploymentDelayS must be a finite value from 0 through 60 s.`);
     }
+    const inflationTimeS = recoveryObject.inflationTimeS ?? 1.2;
+    if (
+      typeof inflationTimeS !== "number" ||
+      !Number.isFinite(inflationTimeS) ||
+      inflationTimeS < 0 ||
+      inflationTimeS > 30
+    ) {
+      throw new Error(`Stage ${id} recovery inflationTimeS must be a finite value from 0 through 30 s.`);
+    }
     const deploymentTrigger = recoveryObject.deploymentTrigger ?? "apogee";
     if (deploymentTrigger !== "apogee" && deploymentTrigger !== "altitude" && deploymentTrigger !== "time") {
       throw new Error(`Stage ${id} recovery deploymentTrigger must be apogee, altitude, or time.`);
@@ -370,6 +381,7 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
       enabled,
       diameterM: recoveryDiameterM,
       deploymentDelayS,
+      inflationTimeS,
       deploymentTrigger,
       deploymentAltitudeAglM,
       deploymentTimeS,

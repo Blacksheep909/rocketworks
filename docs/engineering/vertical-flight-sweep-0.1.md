@@ -11,10 +11,10 @@ The browser workflow uses nine rows by default, permits up to twenty-five rows f
 ## Model contract
 
 - Adapter: `kestrel-vertical-sweep-0.1.0`.
-- Underlying trajectory model: `kestrel-vertical-0.3.0-alpha`.
+- Underlying trajectory model: `kestrel-vertical-0.4.0-alpha`.
 - Sampling: linearly spaced inclusive endpoints; no random seed is required.
 - Evaluation: each row calls the same deterministic vertical solver used by the nominal estimate after applying one explicit variant factor.
-- Supported factors: dry-mass scale, drag-coefficient scale, delivered-thrust scale, wind-profile scale, and recovery delay in seconds.
+- Supported factors: dry-mass scale, drag-coefficient scale, delivered-thrust scale, wind-profile scale, recovery delay in seconds, and recovery inflation-time scale.
 - Bounds: the adapter rejects non-finite values and physically unbounded UI ranges before evaluation.
 
 ## Interpretation

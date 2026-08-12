@@ -599,3 +599,62 @@ test("vertical recovery applies the shared reefing area schedule", () => {
   assert.ok(result.warnings.some((warning) => warning.code === "RECOVERY_REEFING_APPROXIMATION"));
   assert.ok(result.assumptions.some((assumption) => assumption.includes("Recovery reefing multiplies")));
 });
+
+test("vertical recovery exposes a smooth canopy inflation fraction", () => {
+  const result = simulateVerticalFlight({
+    vehicle: {
+      dryMassKg: 0.5,
+      propellantMassKg: 0.08,
+      referenceAreaM2: Math.PI * Math.pow(0.054 / 2, 2),
+      dragCoefficient: 0.52,
+    },
+    motor: { thrustCurve: makeConstantThrustCurve(22, 1.65) },
+    recovery: {
+      enabled: true,
+      dragAreaM2: 0.16,
+      dragCoefficient: 0.75,
+      deploymentDelayAfterApogeeS: 0,
+      inflationTimeS: 2,
+    },
+    integration: { timeStepS: 0.02, maxTimeS: 180 },
+  });
+  const deploymentTimeS = result.events.find((event) => event.type === "recovery_deploy").timeS;
+  const early = result.trace.find(
+    (point) => point.timeS >= deploymentTimeS + 0.5 && point.recoveryDeployed,
+  );
+  const full = result.trace.find(
+    (point) => point.timeS >= deploymentTimeS + 2.02 && point.recoveryDeployed,
+  );
+  assert.ok(early);
+  assert.ok(full);
+  const earlyTauS = early.timeS - deploymentTimeS;
+  const earlyX = Math.min(1, Math.max(0, earlyTauS / 2));
+  const expectedEarlyFraction = earlyX * earlyX * (3 - 2 * earlyX);
+  assert.ok(Math.abs(early.recoveryInflationFraction - expectedEarlyFraction) < 1e-12);
+  assert.ok(early.recoveryInflationFraction > 0 && early.recoveryInflationFraction < 1);
+  assert.equal(full.recoveryInflationFraction, 1);
+  assert.ok(result.warnings.some((warning) => warning.code === "RECOVERY_INFLATION_APPROXIMATION"));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("smoothstep inflation ramp")));
+});
+
+test("vertical recovery rejects invalid inflation timing", () => {
+  assert.throws(
+    () => simulateVerticalFlight({
+      vehicle: {
+        dryMassKg: 0.5,
+        propellantMassKg: 0.08,
+        referenceAreaM2: 0.01,
+        dragCoefficient: 0.5,
+      },
+      motor: { thrustCurve: makeConstantThrustCurve(22, 1.65) },
+      recovery: {
+        enabled: true,
+        dragAreaM2: 0.16,
+        dragCoefficient: 0.75,
+        deploymentDelayAfterApogeeS: 0,
+        inflationTimeS: -1,
+      },
+    }),
+    /inflation time/,
+  );
+});

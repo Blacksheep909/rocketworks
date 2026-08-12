@@ -7,7 +7,7 @@ import {
   type UncertaintyAnalysisResult,
 } from "./uncertainty-analysis.ts";
 
-export const VERTICAL_UNCERTAINTY_ADAPTER_VERSION = "kestrel-vertical-uncertainty-0.3.0";
+export const VERTICAL_UNCERTAINTY_ADAPTER_VERSION = "kestrel-vertical-uncertainty-0.4.0";
 
 export type VerticalFlightUncertaintyFactorKey =
   | "dryMassScale"
@@ -16,6 +16,7 @@ export type VerticalFlightUncertaintyFactorKey =
   | "thrustScale"
   | "windScale"
   | "recoveryDragAreaScale"
+  | "recoveryInflationTimeScale"
   | "recoveryDeploymentSuccess"
   | "recoveryDelayS"
   | "launchAltitudeOffsetM";
@@ -36,6 +37,10 @@ export function createVerticalFlightVariant(
   const thrustScale = values.thrustScale ?? 1;
   const windScale = values.windScale ?? 1;
   const recoveryDragAreaScale = values.recoveryDragAreaScale ?? 1;
+  const recoveryInflationTimeScale = values.recoveryInflationTimeScale ?? 1;
+  if (!Number.isFinite(recoveryInflationTimeScale) || recoveryInflationTimeScale <= 0) {
+    throw new Error("recovery inflation time scale must be positive and finite");
+  }
   // The uncertainty factor is an additive timing offset around the configured
   // nominal delay. Truncation at zero keeps bounded negative offsets from
   // producing an invalid recovery configuration while preserving the base
@@ -62,6 +67,9 @@ export function createVerticalFlightVariant(
       ? {
           ...base.recovery,
           dragAreaM2: base.recovery.dragAreaM2 * recoveryDragAreaScale,
+          ...(base.recovery.inflationTimeS !== undefined
+            ? { inflationTimeS: base.recovery.inflationTimeS * recoveryInflationTimeScale }
+            : {}),
           deploymentDelayAfterApogeeS: recoveryDelayS,
         }
       : undefined,

@@ -162,6 +162,7 @@ export type EngineeringReportInput = Readonly<{
     deploymentAltitudeAglM?: number;
     deploymentTimeS?: number;
     deploymentDelayS?: number;
+    inflationTimeS?: number;
     reefingEnabled: boolean;
     reefingDurationS: number;
     reefingStartAreaFraction: number;
@@ -417,6 +418,7 @@ export function createFlightTraceCsv(trace: readonly FlightTracePoint[]): string
     "dynamic_pressure_pa",
     "horizontal_wind_mps",
     "recovery_deployed",
+    "recovery_inflation_fraction",
     "recovery_reefing_fraction",
   ];
   const rows = trace.map((point, index) => {
@@ -437,7 +439,9 @@ export function createFlightTraceCsv(trace: readonly FlightTracePoint[]): string
     );
     const reefingFraction = point.recoveryReefingFraction ?? 1;
     assertFinite(reefingFraction, `flight trace row ${index + 1} column recovery_reefing_fraction`);
-    return [...values, point.recoveryDeployed, reefingFraction].map(csvCell).join(",");
+    const inflationFraction = point.recoveryInflationFraction ?? 1;
+    assertFinite(inflationFraction, `flight trace row ${index + 1} column recovery_inflation_fraction`);
+    return [...values, point.recoveryDeployed, inflationFraction, reefingFraction].map(csvCell).join(",");
   });
   return `${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
 }
@@ -1562,6 +1566,10 @@ export function createEngineeringReportMarkdown(
       assertFinite(input.recovery.deploymentDelayS, "report recovery deployment delay");
       if (input.recovery.deploymentDelayS < 0) throw new Error("report recovery deployment delay cannot be negative");
     }
+    if (input.recovery.inflationTimeS !== undefined) {
+      assertFinite(input.recovery.inflationTimeS, "report recovery inflation time");
+      if (input.recovery.inflationTimeS < 0) throw new Error("report recovery inflation time cannot be negative");
+    }
     assertFinite(input.recovery.reefingDurationS, "report reefing duration");
     assertFinite(input.recovery.reefingStartAreaFraction, "report reefing start area fraction");
     if (input.recovery.reefingDurationS <= 0 || input.recovery.reefingStartAreaFraction < 0 || input.recovery.reefingStartAreaFraction > 1) {
@@ -1661,6 +1669,9 @@ export function createEngineeringReportMarkdown(
           ...(input.recovery.deploymentDelayS === undefined
             ? []
             : [`- Command delay after trigger: ${formatNumber(input.recovery.deploymentDelayS, 2)} s`]),
+          ...(input.recovery.inflationTimeS === undefined
+            ? []
+            : [`- Canopy inflation time: ${formatNumber(input.recovery.inflationTimeS, 2)} s`]),
           `- Opening schedule: ${input.recovery.reefingEnabled ? `${formatNumber(input.recovery.reefingStartAreaFraction * 100, 0)}% to 100% over ${formatNumber(input.recovery.reefingDurationS, 1)} s` : "full open after inflation; no reefing schedule"}`,
           "- Reefing schedule basis: bounded piecewise-linear effective canopy-area multiplier; inflation hardware, opening loads, lines, and fabric dynamics are not modeled.",
           "",

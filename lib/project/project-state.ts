@@ -86,6 +86,8 @@ export type EditableProjectInputs = Readonly<{
   launchRailAzimuthDeg: number;
   recoveryEnabled: boolean;
   recoveryDelayS: number;
+  /** Seconds from recovery command to fully inflated effective area. */
+  recoveryInflationTimeS: number;
   /** Primary recovery command trigger. */
   recoveryDeploymentTrigger: RecoveryDeploymentTrigger;
   /** Descending AGL command altitude when the trigger is altitude. */
@@ -170,6 +172,7 @@ const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material
   launchRailInclinationDeg: [0, 30],
   launchRailAzimuthDeg: [-180, 180],
   recoveryDelayS: [0, 30],
+  recoveryInflationTimeS: [0, 30],
   recoveryDeploymentAltitudeM: [0, 100_000],
   recoveryDeploymentTimeS: [0, 180],
   recoveryDiameterM: [0.1, 3],
@@ -204,6 +207,7 @@ const numericDefaults: Readonly<Partial<Record<keyof typeof numericRanges, numbe
   recoveryDeploymentTimeS: 8,
   recoveryMassKg: 0.06,
   recoveryDeploymentSuccessProbability: 0.9,
+  recoveryInflationTimeS: 1.2,
   recoveryReefingDurationS: 3,
   recoveryReefingStartAreaFraction: 0.35,
   uncertaintySampleCount: DEFAULT_UNCERTAINTY_SAMPLE_COUNT,
@@ -414,6 +418,7 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     launchRailAzimuthDeg: validated.launchRailAzimuthDeg,
     recoveryEnabled: input.recoveryEnabled,
     recoveryDelayS: validated.recoveryDelayS,
+    recoveryInflationTimeS: validated.recoveryInflationTimeS,
     recoveryDeploymentTrigger,
     recoveryDeploymentAltitudeM: validated.recoveryDeploymentAltitudeM,
     recoveryDeploymentTimeS: validated.recoveryDeploymentTimeS,
@@ -539,6 +544,7 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   launchRailAzimuthDeg: "launch rail azimuth",
   recoveryEnabled: "recovery system",
   recoveryDelayS: "recovery delay",
+  recoveryInflationTimeS: "recovery inflation time",
   recoveryDeploymentTrigger: "recovery deployment trigger",
   recoveryDeploymentAltitudeM: "recovery deployment altitude",
   recoveryDeploymentTimeS: "recovery deployment time",

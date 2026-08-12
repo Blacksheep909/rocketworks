@@ -32,6 +32,7 @@ const inputs = {
   launchRailAzimuthDeg: 0,
   recoveryEnabled: true,
   recoveryDelayS: 0,
+  recoveryInflationTimeS: 1.2,
   recoveryDeploymentTrigger: "apogee",
   recoveryDeploymentAltitudeM: 150,
   recoveryDeploymentTimeS: 8,

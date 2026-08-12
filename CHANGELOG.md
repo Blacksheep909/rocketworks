@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add authored recovery canopy inflation timing across vertical, staged, and
+  detached recovery paths. The browser, topology documents, landing dispersion,
+  uncertainty variants, trace CSV, and engineering report now preserve the
+  interval and expose the resulting smooth effective-area fraction. The timing
+  scale is a bounded scenario factor; physical canopy, line, and opening-shock
+  behavior remain outside this analytical preview.
 - Add optional measured retained-body separation impulses. Topology-authored
   body-frame N·s vectors now convert to event delta-v using live post-separation
   mass, remain visible in staged telemetry and audits, and scale through the

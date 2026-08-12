@@ -34,6 +34,7 @@ const inputs = {
   windSpeedMps: 4,
   recoveryEnabled: true,
   recoveryDelayS: 0,
+  recoveryInflationTimeS: 1.2,
   recoveryDeploymentTrigger: "apogee",
   recoveryDeploymentAltitudeM: 150,
   recoveryDeploymentTimeS: 8,
@@ -74,6 +75,7 @@ test("local project snapshots round-trip through a strict versioned schema", () 
   assert.equal(source.inputs.finCount, 3);
   assert.equal(source.inputs.recoveryMassKg, 0.06);
   assert.equal(source.inputs.recoveryDeploymentSuccessProbability, 0.9);
+  assert.equal(source.inputs.recoveryInflationTimeS, 1.2);
   assert.equal(source.inputs.recoveryDeploymentTrigger, "apogee");
   assert.equal(source.inputs.recoveryDeploymentAltitudeM, 150);
   assert.equal(source.inputs.recoveryDeploymentTimeS, 8);
@@ -167,6 +169,7 @@ test("legacy snapshots receive explicit surface-weather defaults", () => {
   assert.equal(legacy.inputs.recoveryDeploymentTrigger, "apogee");
   assert.equal(legacy.inputs.recoveryDeploymentAltitudeM, 150);
   assert.equal(legacy.inputs.recoveryDeploymentTimeS, 8);
+  assert.equal(legacy.inputs.recoveryInflationTimeS, 1.2);
   assert.equal(legacy.inputs.uncertaintySampleCount, 48);
   assert.equal(legacy.inputs.uncertaintySeed, "arc54-preview-v1");
   assert.equal(legacy.inputs.turbulenceScale, 1);

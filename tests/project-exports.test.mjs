@@ -219,11 +219,11 @@ test("flight CSV has stable SI columns, CRLF rows, and boolean deployment state"
   const csv = createFlightTraceCsv(trace);
   const rows = csv.trim().split("\r\n");
   assert.equal(rows.length, 3);
-  assert.equal(rows[0], "time_s,altitude_agl_m,velocity_mps,acceleration_mps2,mass_kg,thrust_n,density_kg_m3,mach,dynamic_pressure_pa,horizontal_wind_mps,recovery_deployed,recovery_reefing_fraction");
-  assert.equal(rows[1].split(",").length, 12);
-  assert.ok(rows[1].endsWith(",false,1"));
-  assert.ok(rows[2].endsWith(",true,1"));
-  assert.match(rows[2], /^1\.5,30,20,-5,0\.5,0,1\.221,0\.058,244,2\.2,true,1$/);
+  assert.equal(rows[0], "time_s,altitude_agl_m,velocity_mps,acceleration_mps2,mass_kg,thrust_n,density_kg_m3,mach,dynamic_pressure_pa,horizontal_wind_mps,recovery_deployed,recovery_inflation_fraction,recovery_reefing_fraction");
+  assert.equal(rows[1].split(",").length, 13);
+  assert.ok(rows[1].endsWith(",false,1,1"));
+  assert.ok(rows[2].endsWith(",true,1,1"));
+  assert.match(rows[2], /^1\.5,30,20,-5,0\.5,0,1\.221,0\.058,244,2\.2,true,1,1$/);
 });
 
 test("staged flight CSV preserves attached-stage topology and SI values", () => {
@@ -763,7 +763,7 @@ test("engineering report leads with status and preserves calculations and limita
     },
     stageUncertainty: {
       ...uncertainty,
-      adapterVersion: "kestrel-stage-flight-uncertainty-0.8.0",
+      adapterVersion: "kestrel-stage-flight-uncertainty-0.9.0",
       metrics: {
         ...uncertainty.metrics,
         maxAltitudeAglM: uncertainty.metrics.response,
@@ -840,7 +840,7 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Separation impulse audit/);
   assert.match(report, /## Uncertainty analysis/);
   assert.match(report, /## Coupled 6DOF uncertainty/);
-  assert.match(report, /kestrel-stage-flight-uncertainty-0.8.0/);
+  assert.match(report, /kestrel-stage-flight-uncertainty-0.9.0/);
   assert.match(report, /## Coupled 6DOF preview/);
   assert.match(report, /### Stage mass-ratio diagnostic/);
   assert.match(report, /Fixture mass-ratio warning/);

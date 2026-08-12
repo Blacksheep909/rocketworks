@@ -23,7 +23,7 @@ import {
   type RecoveryReefingStage,
 } from "./recovery-reefing.ts";
 
-export const VERTICAL_MODEL_VERSION = "kestrel-vertical-0.3.0-alpha";
+export const VERTICAL_MODEL_VERSION = "kestrel-vertical-0.4.0-alpha";
 export const VERTICAL_MODEL_STATUS = "engineering-preview-unvalidated";
 
 export type FlightEventType =
@@ -72,6 +72,8 @@ export type VerticalFlightConfig = {
     dragAreaM2: number;
     dragCoefficient: number;
     deploymentDelayAfterApogeeS: number;
+    /** Seconds from the recovery command to the fully inflated effective area. */
+    inflationTimeS?: number;
     /** Defaults to apogee for backwards-compatible callers. */
     deploymentTrigger?: RecoveryDeploymentTrigger;
     /** Descending AGL trigger when deploymentTrigger is altitude. */
@@ -110,6 +112,8 @@ export type FlightTracePoint = {
   dynamicPressurePa: number;
   horizontalWindMps: number;
   recoveryDeployed: boolean;
+  /** Prescribed smoothstep canopy inflation fraction after the command. */
+  recoveryInflationFraction: number;
   recoveryReefingFraction: number;
 };
 
@@ -197,6 +201,12 @@ function validateConfig(config: VerticalFlightConfig) {
     assertPositive(config.recovery.dragCoefficient, "Recovery drag coefficient");
     if (config.recovery.deploymentDelayAfterApogeeS < 0) {
       throw new Error("Recovery deployment delay cannot be negative.");
+    }
+    if (
+      config.recovery.inflationTimeS !== undefined &&
+      (!Number.isFinite(config.recovery.inflationTimeS) || config.recovery.inflationTimeS < 0)
+    ) {
+      throw new Error("Recovery inflation time must be finite and non-negative.");
     }
     const deploymentTrigger = config.recovery.deploymentTrigger ?? "apogee";
     if (deploymentTrigger !== "apogee" && deploymentTrigger !== "altitude" && deploymentTrigger !== "time") {
@@ -363,9 +373,21 @@ export function simulateVerticalFlight(
             sampleTimeS - scheduledRecoveryTimeS,
           )
         : { areaFraction: 1, stageIndex: null };
+    const inflationTimeS = config.recovery?.inflationTimeS ?? 0;
+    const inflationFraction = chuteDeployed && scheduledRecoveryTimeS !== null
+      ? inflationTimeS <= 0
+        ? 1
+        : (() => {
+            const linearFraction = Math.max(
+              0,
+              Math.min(1, (sampleTimeS - scheduledRecoveryTimeS) / inflationTimeS),
+            );
+            return linearFraction * linearFraction * (3 - 2 * linearFraction);
+          })()
+      : 0;
     const recoveryCdA =
       chuteDeployed && config.recovery?.enabled
-        ? config.recovery.dragCoefficient * config.recovery.dragAreaM2 * reefing.areaFraction
+        ? config.recovery.dragCoefficient * config.recovery.dragAreaM2 * inflationFraction * reefing.areaFraction
         : 0;
     const dragN =
       -Math.sign(relativeVerticalMps) *
@@ -398,6 +420,7 @@ export function simulateVerticalFlight(
         dynamicPressurePa,
         horizontalWindMps: wind.horizontalSpeedMps,
         recoveryDeployed: chuteDeployed,
+        recoveryInflationFraction: inflationFraction,
         recoveryReefingFraction: reefing.areaFraction,
       } satisfies FlightTracePoint,
     };
@@ -662,6 +685,15 @@ export function simulateVerticalFlight(
         "The configured piecewise-linear effective-area schedule starts at recovery command time; canopy inflation dynamics, reefing lines, and hardware loads are not modeled.",
     });
   }
+  if (config.recovery?.enabled && (config.recovery.inflationTimeS ?? 0) > 0) {
+    warnings.push({
+      code: "RECOVERY_INFLATION_APPROXIMATION",
+      severity: "info",
+      title: "Recovery inflation ramp is active",
+      explanation:
+        `Canopy area follows a ${config.recovery.inflationTimeS!.toFixed(2)} s smoothstep ramp after the recovery command; fabric, line, snatch-load, and opening-shock dynamics are not modeled.`,
+    });
+  }
   warnings.push({
     code: "MODEL_UNVALIDATED",
     severity: "info",
@@ -704,6 +736,11 @@ export function simulateVerticalFlight(
       ...(config.recovery?.enabled && (config.recovery.reefingStages?.length ?? 0) > 0
         ? [
             "Recovery reefing multiplies canopy drag area with the supplied piecewise-linear schedule; the schedule begins at recovery command time in this one-dimensional solver.",
+          ]
+        : []),
+      ...(config.recovery?.enabled && (config.recovery.inflationTimeS ?? 0) > 0
+        ? [
+            "Recovery canopy area uses a prescribed smoothstep inflation ramp over the configured duration before the reefing multiplier is applied.",
           ]
         : []),
       ...(humidityActive

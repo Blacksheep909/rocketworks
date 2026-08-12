@@ -103,6 +103,7 @@ mach
 dynamic_pressure_pa
 horizontal_wind_mps
 recovery_deployed
+recovery_inflation_fraction
 recovery_reefing_fraction
 ```
 
@@ -117,6 +118,8 @@ mass, thrust, and attached-stage identifiers. These aerodynamic and recovery
 columns are evaluated from the coupled load diagnostics at each retained
 sample, not reconstructed from the display chart. Recovery values are zero
 when no retained-vehicle recovery device is configured or before its command.
+`recovery_inflation_fraction` is the vertical preview's smoothstep
+effective-area fraction; it is not a fabric-state measurement.
 
 ## Uncertainty-sample CSV
 

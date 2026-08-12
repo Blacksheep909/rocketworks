@@ -512,7 +512,7 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
     sampleCount: 6,
   });
 
-  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-0.8.0");
+  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-0.9.0");
   assert.equal(first.requestedSampleCount, 6);
   assert.equal(first.successfulSampleCount, 6);
   assert.deepEqual(first.samples, second.samples);
@@ -562,13 +562,16 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
         name: "Main canopy",
         dragCoefficient: 0.75,
         referenceAreaM2: 0.2,
+        inflationTimeS: 2,
       },
     ],
   };
   const recoveryVariant = createStageFlightVariant(recoveryBase, {
     recoveryAreaScale: 1.25,
+    recoveryInflationTimeScale: 1.4,
   });
   assert.equal(recoveryVariant.recoveryDevices[0].referenceAreaM2, 0.25);
+  assert.equal(recoveryVariant.recoveryDevices[0].inflationTimeS, 2.8);
   assert.equal(recoveryBase.recoveryDevices[0].referenceAreaM2, 0.2);
   const failedRecoveryVariant = createStageFlightVariant(recoveryBase, {
     recoveryDeploymentSuccess: 0,
@@ -584,6 +587,11 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
       {
         key: "recoveryAreaScale",
         label: "Recovery area",
+        distribution: { kind: "uniform", minimum: 0.9, maximum: 1.1 },
+      },
+      {
+        key: "recoveryInflationTimeScale",
+        label: "Recovery inflation time",
         distribution: { kind: "uniform", minimum: 0.9, maximum: 1.1 },
       },
       {

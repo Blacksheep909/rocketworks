@@ -262,6 +262,7 @@ test("detachable stages can carry a bounded recovery plan", () => {
     enabled: true,
     diameterM: 0.8,
     deploymentDelayS: 2.5,
+    inflationTimeS: 1.2,
     deploymentTrigger: "apogee",
     deploymentAltitudeAglM: 150,
     deploymentTimeS: 8,
@@ -284,6 +285,15 @@ test("detachable stages can carry a bounded recovery plan", () => {
         : stage),
     }),
     /recovery deploymentDelayS/,
+  );
+  assert.throws(
+    () => validateVehicleTopology({
+      ...topology,
+      stages: topology.stages.map((stage) => stage.id === "upper-01"
+        ? { ...stage, recovery: { enabled: true, diameterM: 0.8, deploymentDelayS: 0, inflationTimeS: 31 } }
+        : stage),
+    }),
+    /recovery inflationTimeS/,
   );
   const altitudeRecovery = validateVehicleTopology({
     ...topology,
