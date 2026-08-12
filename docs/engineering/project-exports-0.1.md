@@ -1,4 +1,4 @@
-# Project, analysis, report, and CAD exports 0.8
+# Project, analysis, report, and CAD exports 0.9
 
 Status: `engineering-preview-unvalidated`
 
@@ -37,6 +37,12 @@ the motor's selected propellant depletion source, and, when supplied, the
 integrated measured outflow mass. This keeps report provenance aligned with
 the live source configuration without conflating measured flow with the
 independent thrust curve.
+
+For coupled previews, the report also records the selected relation-based
+normal-force model (`low-speed`, `prandtl-glauert`, `supersonic-linearized`, or
+`mixed` when stage regimes differ). Direct force/moment coefficient tables
+remain authoritative; the relation selector is an engineering-preview trend
+with an explicit transonic applicability gap.
 
 ## RocketWorks project JSON
 
