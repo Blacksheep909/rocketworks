@@ -379,6 +379,7 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
   assert.match(pageSource, /createFlightPathGeoJson/);
   assert.match(pageSource, /flight-path-geojson/);
   assert.match(flightPathExport, /FeatureCollection/);
+  assert.match(flightPathExport, /orientationBodyToWorld/);
   assert.match(flightPathExport, /local tangent approximation/);
   assert.match(flightPathExport, /WGS84/);
   assert.match(pageSource, /rigidBodyCount/);

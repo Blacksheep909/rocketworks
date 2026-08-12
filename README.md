@@ -191,7 +191,8 @@ research, standards, and original code.
   flight/stage/sweep/uncertainty CSV, topology-aware DXF, multi-stage
   triangulated STL reference meshes, OpenSCAD, portable RocketWorks project
   JSON, and a WGS84 GeoJSON flight-path export with retained/released tracks,
-  sample-time arrays, and event markers for GIS review;
+  sample-time arrays, optional attitude/rate telemetry, and event markers for
+  GIS review;
 - local run comparison that pins a reference estimate and exposes explicit
   metric deltas after a design or environment change;
 - measured-flight CSV comparison with strict SI parsing, vertical or coupled

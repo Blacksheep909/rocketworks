@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extend the WGS84 GeoJSON flight-path artifact with optional rigid-body
+  quaternion, angular-velocity, and derived angular-rate arrays. Sparse
+  attitude telemetry remains explicitly display/interchange data and is
+  normalized and preserved without changing the simulation.
 - Extend the world-frame trajectory view to project optional rigid-body
   quaternion attitude as a selected-time nose-direction glyph and expose the
   supplied body angular-rate magnitude. Point-mass traces remain explicitly

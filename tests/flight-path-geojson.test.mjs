@@ -55,6 +55,35 @@ test("flight-path GeoJSON is deterministic, WGS84-shaped, and keeps sample timin
   assert.match(first.metadata.limitations.join(" "), /tangent approximation/);
 });
 
+test("flight-path GeoJSON preserves optional rigid-body attitude telemetry", () => {
+  const document = JSON.parse(createFlightPathGeoJson({
+    ...base,
+    series: [{
+      ...base.series[0],
+      trace: [
+        {
+          ...base.series[0].trace[0],
+          orientationBodyToWorld: { w: 2, x: 0, y: 0, z: 0 },
+        },
+        {
+          ...base.series[0].trace[1],
+          angularVelocityBodyRadS: { x: 0.3, y: 0.4, z: 0 },
+        },
+      ],
+    }],
+  }));
+  const properties = document.features[0].properties;
+  assert.deepEqual(properties.orientationBodyToWorld, [
+    { w: 1, x: 0, y: 0, z: 0 },
+    null,
+  ]);
+  assert.deepEqual(properties.angularVelocityBodyRadS, [
+    null,
+    [0.3, 0.4, 0],
+  ]);
+  assert.deepEqual(properties.angularRateMagnitudeRadS, [null, 0.5]);
+});
+
 test("unreached events remain explicit and empty traces stay valid features", () => {
   const document = JSON.parse(createFlightPathGeoJson({
     ...base,
@@ -89,5 +118,18 @@ test("flight-path validation rejects unsafe identifiers, ordering, and sites", (
   assert.throws(
     () => createFlightPathGeoJson({ ...base, series: [] }),
     /at least one trajectory/,
+  );
+  assert.throws(
+    () => createFlightPathGeoJson({
+      ...base,
+      series: [{
+        ...base.series[0],
+        trace: [{
+          ...base.series[0].trace[0],
+          orientationBodyToWorld: { w: 0, x: 0, y: 0, z: 0 },
+        }],
+      }],
+    }),
+    /orientation quaternion/,
   );
 });

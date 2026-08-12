@@ -1,4 +1,4 @@
-# Flight-path GeoJSON export 0.1
+# Flight-path GeoJSON export 0.2
 
 ## Scope
 
@@ -10,8 +10,10 @@ does not run a simulation, alter a trajectory, or embed third-party data.
 The export contains:
 
 - one `LineString` feature per retained or released trace;
-- `sampleTimesS`, optional altitude and speed arrays, and release-time metadata
-  so a consumer can reconstruct the browser scrubber timeline;
+- `sampleTimesS`, optional altitude, speed, rigid-body quaternion, and angular
+  velocity arrays, plus release-time metadata so a consumer can reconstruct
+  the browser scrubber timeline. Sparse attitude fields retain `null` entries
+  for translation-only samples and include a derived angular-rate magnitude;
 - one `Point` feature per mission event, attached to the nearest retained
   sample when one exists; unreached events deliberately have `null` geometry;
 - a top-level `metadata` member with model identity, provenance, coordinate
@@ -46,3 +48,7 @@ model, collision result, or certification evidence. Earth rotation, geoid
 height, terrain/obstacles, atmospheric refractivity, and datum transformations
 remain outside this export contract.
 
+Attitude telemetry is display/interchange data copied from the supplied
+RocketWorks trace. Quaternion values are normalized for deterministic output;
+the export does not infer attitude, add a force model, or validate the source
+simulation.

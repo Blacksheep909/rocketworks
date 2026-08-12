@@ -1,4 +1,8 @@
 import type { Vector3 } from "../physics/linear-algebra.ts";
+import {
+  normalizeQuaternion,
+  type Quaternion,
+} from "../physics/six-dof.ts";
 
 /**
  * Versioned, display/export-only flight-path interchange.  The simulation
@@ -6,7 +10,7 @@ import type { Vector3 } from "../physics/linear-algebra.ts";
  * those states into RFC 7946-style WGS84 GeoJSON features.
  */
 export const FLIGHT_PATH_GEOJSON_MODEL_VERSION =
-  "rocketworks-flight-path-geojson-0.1.0";
+  "rocketworks-flight-path-geojson-0.2.0";
 export const FLIGHT_PATH_GEOJSON_VALIDATION_STATUS =
   "engineering-preview-unvalidated" as const;
 
@@ -18,6 +22,8 @@ export type FlightPathGeoJsonSample = Readonly<{
   positionWorldM: Vector3;
   altitudeAglM?: number;
   speedMps?: number;
+  orientationBodyToWorld?: Quaternion;
+  angularVelocityBodyRadS?: Vector3;
 }>;
 
 export type FlightPathGeoJsonSeries = Readonly<{
@@ -69,6 +75,14 @@ function assertVector(value: Vector3, label: string): void {
   assertFinite(value.z, `${label} up`);
 }
 
+function assertQuaternion(value: Quaternion, label: string): void {
+  try {
+    normalizeQuaternion(value);
+  } catch {
+    throw new Error(`${label} must have finite non-zero magnitude`);
+  }
+}
+
 function assertIsoDate(value: string): void {
   if (!value.trim() || !Number.isFinite(Date.parse(value))) {
     throw new Error("flight-path export timestamp must be an ISO date-time");
@@ -111,8 +125,64 @@ function validateTrace(
     if (sample.speedMps !== undefined) {
       assertNonNegative(sample.speedMps, `flight path ${seriesId} sample ${index + 1} speed`);
     }
+    if (sample.orientationBodyToWorld !== undefined) {
+      assertQuaternion(
+        sample.orientationBodyToWorld,
+        `flight path ${seriesId} sample ${index + 1} orientation quaternion`,
+      );
+    }
+    if (sample.angularVelocityBodyRadS !== undefined) {
+      assertVector(
+        sample.angularVelocityBodyRadS,
+        `flight path ${seriesId} sample ${index + 1} angular velocity`,
+      );
+    }
     previousTimeS = sample.timeS;
   });
+}
+
+function attitudeProperties(
+  trace: readonly FlightPathGeoJsonSample[],
+): Readonly<Record<string, unknown>> {
+  const hasOrientation = trace.some(
+    (sample) => sample.orientationBodyToWorld !== undefined,
+  );
+  const hasAngularVelocity = trace.some(
+    (sample) => sample.angularVelocityBodyRadS !== undefined,
+  );
+  return {
+    ...(hasOrientation
+      ? {
+          orientationBodyToWorld: trace.map((sample) =>
+            sample.orientationBodyToWorld === undefined
+              ? null
+              : normalizeQuaternion(sample.orientationBodyToWorld),
+          ),
+        }
+      : {}),
+    ...(hasAngularVelocity
+      ? {
+          angularVelocityBodyRadS: trace.map((sample) =>
+            sample.angularVelocityBodyRadS === undefined
+              ? null
+              : [
+                  sample.angularVelocityBodyRadS.x,
+                  sample.angularVelocityBodyRadS.y,
+                  sample.angularVelocityBodyRadS.z,
+                ],
+          ),
+          angularRateMagnitudeRadS: trace.map((sample) =>
+            sample.angularVelocityBodyRadS === undefined
+              ? null
+              : Math.hypot(
+                  sample.angularVelocityBodyRadS.x,
+                  sample.angularVelocityBodyRadS.y,
+                  sample.angularVelocityBodyRadS.z,
+                ),
+          ),
+        }
+      : {}),
+  };
 }
 
 /**
@@ -227,6 +297,7 @@ export function createFlightPathGeoJson(input: FlightPathGeoJsonInput): string {
       ...(series.trace.some((sample) => sample.speedMps !== undefined)
         ? { speedMps: series.trace.map((sample) => sample.speedMps ?? null) }
         : {}),
+      ...attitudeProperties(series.trace),
     },
     geometry: {
       type: "LineString" as const,
