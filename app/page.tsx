@@ -6368,6 +6368,9 @@ export default function Home() {
             surfacePressureHpa,
             surfaceTemperatureC,
             relativeHumidityPercent,
+            normalForceModel: stageFlightIsCurrent
+              ? stageFlightResult?.normalForceModel ?? normalForceModel
+              : normalForceModel,
             modelVersion: previewEnvironment.modelVersion,
             validationStatus: previewEnvironment.validationStatus,
             provenance: `${previewEnvironment.definition.provenance.sourceName} · ${previewEnvironment.definition.provenance.licenseIdentifier} · ${previewEnvironment.definition.provenance.validationStatus}`,

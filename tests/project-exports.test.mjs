@@ -575,6 +575,7 @@ test("engineering report leads with status and preserves calculations and limita
       surfacePressureHpa: 1004,
       surfaceTemperatureC: 15,
       relativeHumidityPercent: 60,
+      normalForceModel: "low-speed",
       modelVersion: "environment-fixture",
       validationStatus: "synthetic-unvalidated",
       provenance: "Synthetic fixture",
@@ -810,6 +811,7 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Pad pressure observation: 1004\.0 hPa/);
   assert.match(report, /Wind azimuth input: 35° ENU/);
   assert.match(report, /Relative humidity observation: 60%/);
+  assert.match(report, /Relation normal-force model: `low-speed`/);
   assert.match(report, /## Recovery configuration/);
   assert.match(report, /Command trigger: descending altitude/);
   assert.match(report, /Command altitude: 180\.0 m AGL/);

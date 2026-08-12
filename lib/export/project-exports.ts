@@ -17,6 +17,7 @@ import type { StructuralScreenResult } from "../physics/structural-screen.ts";
 import type { EngineeringDesignReviewResult } from "../physics/engineering-design-review.ts";
 import type { StageStructuralReviewResult } from "../physics/stage-structural-review.ts";
 import type { StageInterfaceLoadResult } from "../physics/stage-interface-loads.ts";
+import type { NormalForceModelKind } from "../physics/normal-force-compressibility.ts";
 import {
   createAerodynamicCoefficientTable,
   type AerodynamicCoefficientTableDefinition,
@@ -152,6 +153,8 @@ export type EngineeringReportInput = Readonly<{
     surfacePressureHpa?: number;
     surfaceTemperatureC?: number;
     relativeHumidityPercent?: number;
+    /** Relation-based normal-force trend selected for coupled previews. */
+    normalForceModel?: NormalForceModelKind | "mixed";
     modelVersion: string;
     validationStatus: string;
     provenance: string;
@@ -1535,6 +1538,9 @@ export function createEngineeringReportMarkdown(
   if (input.environment.weatherSeed !== undefined && !input.environment.weatherSeed.trim()) {
     throw new Error("report weather seed cannot be empty");
   }
+  if (input.environment.normalForceModel !== undefined && !input.environment.normalForceModel.trim()) {
+    throw new Error("report normal-force model cannot be empty");
+  }
   for (const [label, value, minimum, maximum] of [
     ["report latitude", input.environment.latitudeDeg, -90, 90],
     ["report longitude", input.environment.longitudeDeg, -180, 180],
@@ -1648,6 +1654,9 @@ export function createEngineeringReportMarkdown(
     ...(input.environment.relativeHumidityPercent === undefined
       ? []
       : [`- Relative humidity observation: ${formatNumber(input.environment.relativeHumidityPercent, 0)}%`]),
+    ...(input.environment.normalForceModel === undefined
+      ? []
+      : [`- Relation normal-force model: \`${markdownText(input.environment.normalForceModel)}\``]),
     `- Model: \`${markdownText(input.environment.modelVersion)}\``,
     `- Status: \`${markdownText(input.environment.validationStatus)}\``,
     `- Provenance: ${markdownText(input.environment.provenance)}`,
