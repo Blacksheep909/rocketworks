@@ -616,12 +616,16 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(exportSource, /radial Z offset is projected out/);
   assert.match(page, /computeStructuralScreen/);
   assert.match(page, /stageFlightResult\.massRatio/);
+  assert.match(page, /missionMassRatio/);
+  assert.match(page, /Serial-stack mass-ratio preview/);
+  assert.match(page, /mission-mass-ratio-list/);
   assert.match(page, /stageVectorBudget/);
   assert.match(page, /Stage mass-ratio diagnostic/);
   assert.match(page, /createStageStructuralReview/);
   assert.match(page, /STAGE-AWARE STRUCTURAL REVIEW/);
   assert.match(exportSource, /Stage-aware structural review/);
   assert.match(exportSource, /Stage mass-ratio diagnostic/);
+  assert.match(exportSource, /Serial-stack mass-ratio preview/);
   assert.match(exportSource, /World-frame vector impulse budget/);
   assert.match(page, /flutterFlightCondition/);
   assert.match(page, /Separation impulse audit/);
@@ -638,6 +642,8 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(stylesheet, /\.stage-structural-review-card/);
   assert.match(stylesheet, /\.stage-structural-review-row-review/);
   assert.match(stylesheet, /\.stage-mass-ratio-card/);
+  assert.match(stylesheet, /\.mission-mass-ratio-card/);
+  assert.match(stylesheet, /\.mission-mass-ratio-row/);
   assert.match(stylesheet, /\.stage-vector-budget-card/);
   assert.match(stylesheet, /\.structural-check-review/);
   assert.match(stylesheet, /\.engineering-review-card/);
@@ -981,6 +987,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stagePreview, /half the integration step/);
   assert.match(stagePreview, /separated bodies/);
   assert.match(stagePreview, /coupledMultiBodyGravity/);
+  assert.match(stagePreview, /missionSerialStageIds/);
+  assert.match(stagePreview, /computeMissionMassRatio/);
   assert.match(stageInterfaceLoads, /analytical-axial-load-path-proxy/);
   assert.match(stageInterfaceLoads, /Parallel\/radial interface solver/);
   assert.match(stageInterfaceLoads, /downstream mass/);

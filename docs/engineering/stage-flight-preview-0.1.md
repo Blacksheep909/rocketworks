@@ -24,7 +24,14 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.19.0`.
+`kestrel-stage-flight-preview-0.20.0`.
+
+The result also carries a `rocketworks-mission-mass-ratio-0.1.0` serial-stack
+composition preview. The adapter passes the topology's serial stage IDs in
+burn order, carries retained payload/recovery mass and later serial-stage full
+mass through each ideal burn, and lists parallel/booster stages that were
+excluded rather than flattening their coupled trajectory. This branch is an
+ideal composition trend, not a mission delta-v budget or trajectory result.
 
 Before integration, scheduled and state-triggered declarations pass through the
 independent mission-event allocator. Semantic priorities put rail release,

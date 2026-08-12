@@ -6,6 +6,7 @@ import {
   createScheduledRecoveryDeploymentEvent,
   createScheduledStageIgnitionEvent,
   createScheduledStageSeparationEvent,
+  computeMissionMassRatio,
   computeStageMassRatio,
   computeStageFlightForceBudget,
   createStageFlightVariant,
@@ -189,13 +190,18 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.19.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.20.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.simulation?.integration.method, "adaptive-rk4-step-doubling");
   assert.ok((result.simulation?.integration.acceptedStepCount ?? 0) > 0);
   assert.equal(result.massRatio.overallStatus, "assessed");
   assert.equal(result.massRatio.stages.length, 2);
   assert.ok(result.massRatio.totalIdealDeltaVMps > 0);
+  assert.equal(result.missionMassRatio.overallStatus, "assessed");
+  assert.equal(result.missionMassRatio.retainedPayloadMassKg, 0.4);
+  assert.equal(result.missionMassRatio.stages.length, 2);
+  assert.ok(result.missionMassRatio.totalIdealDeltaVMps > 0);
+  assert.ok(result.missionMassRatio.totalIdealDeltaVMps < result.massRatio.totalIdealDeltaVMps);
   assert.equal(result.forceBudget.status, "assessed");
   assert.equal(result.forceBudget.sampleCount, result.trace.length);
   assert.ok((result.forceBudget.thrustImpulseNs ?? 0) > 0);
@@ -293,6 +299,33 @@ test("stage mass-ratio branch keeps missing propellant evidence unavailable", ()
   assert.equal(result.stages[0].status, "unavailable");
   assert.equal(result.stages[0].massRatio, null);
   assert.ok(result.warnings.some((warning) => warning.includes("No positive initial propellant")));
+});
+
+test("mission mass-ratio branch carries downstream serial stack mass", () => {
+  const result = computeMissionMassRatio({
+    serialStages: stages,
+    retainedPayloadMassKg: 0.4,
+  });
+  assert.equal(result.overallStatus, "assessed");
+  assert.equal(result.retainedPayloadMassKg, 0.4);
+  assert.equal(result.excludedStageIds.length, 0);
+  assert.ok(Math.abs(result.stages[0].upperStackMassKg - 1.05) < 1e-12);
+  assert.ok(Math.abs(result.stages[0].initialAttachedMassKg - 1.85) < 1e-12);
+  assert.ok(Math.abs(result.stages[0].burnoutAttachedMassKg - 1.65) < 1e-12);
+  assert.ok(result.stages[0].idealDeltaVMps > 0);
+  assert.ok(result.totalIdealDeltaVMps > 0);
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("later serial-stage full masses")));
+});
+
+test("mission mass-ratio branch discloses excluded parallel topology", () => {
+  const result = computeMissionMassRatio({
+    serialStages: [stages[1]],
+    retainedPayloadMassKg: 0.4,
+    excludedStageIds: [stages[0].id],
+  });
+  assert.equal(result.overallStatus, "review");
+  assert.deepEqual(result.excludedStageIds, ["booster"]);
+  assert.ok(result.warnings.some((warning) => warning.includes("excluded from the serial-stack preview")));
 });
 
 test("stage-flight adapter couples retained recovery loads and apogee command telemetry", () => {

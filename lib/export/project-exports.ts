@@ -1766,6 +1766,31 @@ export function createEngineeringReportMarkdown(
                 "",
               ]
             : []),
+          ...(input.stageFlight.missionMassRatio
+            ? [
+                "### Serial-stack mass-ratio preview",
+                "",
+                `| Overall status | ${markdownText(input.stageFlight.missionMassRatio.overallStatus)} |`,
+                `| Retained payload/recovery mass | ${formatNumber(input.stageFlight.missionMassRatio.retainedPayloadMassKg, 3)} kg |`,
+                `| Serial stages assessed | ${input.stageFlight.missionMassRatio.assessedStageCount} / ${input.stageFlight.missionMassRatio.stages.length} |`,
+                `| Ideal delta-v sum | ${input.stageFlight.missionMassRatio.totalIdealDeltaVMps === null ? "not assessed" : `${formatNumber(input.stageFlight.missionMassRatio.totalIdealDeltaVMps, 2)} m/s`} |`,
+                `| Model | \`${markdownText(input.stageFlight.missionMassRatio.modelVersion)}\` |`,
+                `| Excluded topology stages | ${input.stageFlight.missionMassRatio.excludedStageIds.length > 0 ? markdownText(input.stageFlight.missionMassRatio.excludedStageIds.join(", ")) : "none"} |`,
+                "",
+                "| Stage | Upper stack | Attached at burn | Attached at burnout | Mass ratio | Ideal delta-v | Status |",
+                "|---|---:|---:|---:|---:|---:|---|",
+                ...input.stageFlight.missionMassRatio.stages.map(
+                  (stage) =>
+                    `| ${stage.sequenceIndex + 1}. ${markdownText(stage.stageName)} | ${formatNumber(stage.upperStackMassKg, 3)} kg | ${formatNumber(stage.initialAttachedMassKg, 3)} kg | ${formatNumber(stage.burnoutAttachedMassKg, 3)} kg | ${stage.massRatio === null ? "not assessed" : formatNumber(stage.massRatio, 3)} | ${stage.idealDeltaVMps === null ? "not assessed" : `${formatNumber(stage.idealDeltaVMps, 2)} m/s`} | ${markdownText(stage.status)} |`,
+                ),
+                "",
+                ...input.stageFlight.missionMassRatio.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+                ...input.stageFlight.missionMassRatio.warnings.map((warning) => `- **Mission mass-ratio warning:** ${markdownText(warning)}`),
+                "",
+                "> This serial-stack calculation carries downstream mass through each ideal burn. It excludes parallel/booster coupling when disclosed and remains a composition preview, not a trajectory, mission-performance, certification, or flight-safety result.",
+                "",
+              ]
+            : []),
           ...(input.stageFlight.forceBudget
             ? [
                 "### Force impulse budget",

@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a serial-stack mass-ratio preview to the staged flight workspace and
+  engineering report. Later serial-stage and retained payload mass now remain
+  visible through each ideal burn; parallel/booster stages are listed as
+  excluded rather than silently flattened. This remains a composition preview,
+  not a mission-performance or flight-safety result.
 - Keep the public CI workflow on the Node 24-compatible checkout and setup-node
   action releases so green builds do not carry the retired Node 20 annotation.
 - Added a versioned local-ENU terrain contact surface to recovery descent and

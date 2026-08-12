@@ -68,7 +68,9 @@ import {
   type CoupledMultiBodyFlightResult,
 } from "./coupled-multi-body-flight.ts";
 import {
+  computeMissionMassRatio,
   computeStageMassRatio,
+  type MissionMassRatioResult,
   type StageMassRatioResult,
 } from "./stage-mass-ratio.ts";
 import {
@@ -81,7 +83,7 @@ import {
 } from "./stage-flight-vector-budget.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.19.0";
+  "kestrel-stage-flight-preview-0.20.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -89,6 +91,8 @@ export type StageFlightPreviewInput = Readonly<{
   retainedMassProperties: MassProperties;
   components: readonly VehicleComponent[];
   stages: readonly RocketStage[];
+  /** Optional serial burn-order subset used by the mission mass-ratio preview. */
+  missionSerialStageIds?: readonly string[];
   regimes: readonly StageAerodynamicRegime[];
   initiallyIgnitedStageIds: readonly string[];
   durationS: number;
@@ -218,6 +222,7 @@ export type StageFlightPreviewResult = Readonly<{
   timeToApogeeS: number;
   clusterDiagnostics: readonly StageFlightClusterDiagnostic[];
   massRatio: StageMassRatioResult;
+  missionMassRatio: MissionMassRatioResult;
   forceBudget: StageFlightForceBudgetResult;
   vectorBudget: StageFlightVectorBudgetResult;
   separatedBodies: readonly SeparatedBodyTrajectory[];
@@ -588,6 +593,24 @@ export function simulateStageFlightPreview(
     stages: input.stages,
   });
   const massRatio = computeStageMassRatio({ stages: input.stages });
+  const missionSerialStageIds = uniqueStrings(
+    input.missionSerialStageIds ?? input.stages.map((stage) => stage.id),
+    "mission serial stage identifiers",
+  );
+  const stageById = new Map(input.stages.map((stage) => [stage.id, stage]));
+  const unknownMissionStageIds = missionSerialStageIds.filter((stageId) => !stageById.has(stageId));
+  if (unknownMissionStageIds.length > 0) {
+    throw new Error(`mission serial mass-ratio references unknown stages: ${unknownMissionStageIds.join(", ")}`);
+  }
+  const missionSerialStages = missionSerialStageIds.map((stageId) => stageById.get(stageId)!);
+  const missionExcludedStageIds = input.stages
+    .filter((stage) => !missionSerialStageIds.includes(stage.id))
+    .map((stage) => stage.id);
+  const missionMassRatio = computeMissionMassRatio({
+    serialStages: missionSerialStages,
+    retainedPayloadMassKg: input.retainedMassProperties.massKg,
+    excludedStageIds: missionExcludedStageIds,
+  });
   const unknownInitialStageIds = initiallyIgnitedStageIds.filter(
     (stageId) => !staging.stageIds.includes(stageId),
   );
@@ -1144,6 +1167,7 @@ export function simulateStageFlightPreview(
     ...separationDynamics.flatMap((audit) => audit.warnings),
     ...separationImpulseSolutions.flatMap((solution) => solution.warnings),
     ...massRatio.warnings,
+    ...missionMassRatio.warnings,
     ...forceBudget.warnings,
     ...vectorBudget.warnings,
   ];
@@ -1176,6 +1200,7 @@ export function simulateStageFlightPreview(
     ...separationDynamics.flatMap((audit) => audit.assumptions),
     ...separationImpulseSolutions.flatMap((solution) => solution.assumptions),
     ...massRatio.assumptions,
+    ...missionMassRatio.assumptions,
     ...forceBudget.assumptions,
     ...vectorBudget.assumptions,
     ...(recovery
@@ -1201,6 +1226,7 @@ export function simulateStageFlightPreview(
     timeToApogeeS: primaryRun.timeToApogeeS,
     clusterDiagnostics,
     massRatio,
+    missionMassRatio,
     forceBudget,
     vectorBudget,
     separatedBodies,

@@ -589,6 +589,27 @@ kbd {
 .stage-mass-ratio-row-unavailable strong { color: #c6d2d9; }
 .stage-mass-ratio-row-unavailable small, .stage-mass-ratio-row-unavailable span { color: #8797a0; }
 .stage-mass-ratio-note { margin: 9px 1px 0; color: #829990; font: 7px/1.5 var(--font-geist-mono),monospace; }
+.mission-mass-ratio-card { margin-top: 12px; border-color: rgba(177,126,255,.28); background: linear-gradient(135deg, rgba(177,126,255,.075), rgba(13,18,24,.86) 64%); }
+.mission-mass-ratio-card .stage-mass-ratio-heading h4 { color: #eee5ff; }
+.mission-mass-ratio-card .stage-mass-ratio-heading p { color: #a092b8; }
+.mission-mass-ratio-card .stage-mass-ratio-heading .uncertainty-status { color: #d1b7ff; border-color: rgba(177,126,255,.42); background: rgba(177,126,255,.1); }
+.mission-mass-ratio-card .stage-mass-ratio-grid { border-color: rgba(177,126,255,.24); background: rgba(177,126,255,.2); }
+.mission-mass-ratio-card .stage-mass-ratio-grid span { color: #a794c4; }
+.mission-mass-ratio-card .stage-mass-ratio-grid strong { color: #eee5ff; }
+.mission-mass-ratio-card .stage-mass-ratio-grid small { color: #9483aa; }
+.mission-mass-ratio-list { display: grid; gap: 1px; margin-top: 10px; }
+.mission-mass-ratio-row { display: grid; grid-template-columns: minmax(0,1fr) 80px 120px; gap: 8px; align-items: center; padding: 8px; border-left: 2px solid rgba(177,126,255,.62); background: rgba(177,126,255,.055); }
+.mission-mass-ratio-row > div { min-width: 0; }
+.mission-mass-ratio-row strong { display: block; overflow: hidden; color: #eee5ff; font: 700 9px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.mission-mass-ratio-row small { display: block; overflow: hidden; margin-top: 3px; color: #a493ba; font: 7px/1.4 var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.mission-mass-ratio-row span { display: block; color: #aa96c3; font-size: 7px; }
+.mission-mass-ratio-row-review { border-left-color: rgba(244,163,64,.72); background: rgba(244,163,64,.065); }
+.mission-mass-ratio-row-review strong { color: #fff0d8; }
+.mission-mass-ratio-row-review small, .mission-mass-ratio-row-review span { color: #b89b7a; }
+.mission-mass-ratio-row-unavailable { border-left-color: rgba(198,212,221,.26); background: rgba(198,212,221,.04); }
+.mission-mass-ratio-row-unavailable strong { color: #c6d2d9; }
+.mission-mass-ratio-row-unavailable small, .mission-mass-ratio-row-unavailable span { color: #8797a0; }
+.stage-mass-ratio-model { display: block; margin-top: 6px; color: #8e7da4; font: 7px var(--font-geist-mono),monospace; }
 .stage-force-budget-card { margin-top: 12px; padding: 12px; border: 1px solid rgba(47,159,255,.24); border-radius: 3px; background: linear-gradient(135deg, rgba(47,159,255,.07), rgba(13,19,24,.72) 62%); }
 .stage-force-budget-not-assessed { border-color: rgba(198,212,221,.24); background: linear-gradient(135deg, rgba(198,212,221,.06), rgba(13,19,24,.72) 62%); }
 .stage-force-budget-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
@@ -1892,6 +1913,8 @@ kbd {
   .stage-mass-ratio-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .stage-mass-ratio-row { grid-template-columns: minmax(0,1fr) minmax(70px,auto); }
   .stage-mass-ratio-row > div:last-child { grid-column: 2; }
+  .mission-mass-ratio-row { grid-template-columns: minmax(0,1fr) minmax(70px,auto); }
+  .mission-mass-ratio-row > div:last-child { grid-column: 2; }
   .stage-force-budget-heading { flex-direction: column; }
   .stage-force-budget-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .stage-force-budget-row { grid-template-columns: minmax(0,1fr) minmax(76px,auto); }

@@ -37,6 +37,40 @@ export type StageMassRatioResult = Readonly<{
   warnings: readonly string[];
 }>;
 
+export const MISSION_MASS_RATIO_MODEL_VERSION =
+  "rocketworks-mission-mass-ratio-0.1.0";
+export const MISSION_MASS_RATIO_VALIDATION_STATUS =
+  "analytical-serial-stack-preview" as const;
+
+export type MissionMassRatioStatus = "assessed" | "review" | "unavailable";
+
+export type MissionMassRatioDiagnostic = Readonly<{
+  stageId: string;
+  stageName: string;
+  sequenceIndex: number;
+  upperStackMassKg: number;
+  initialAttachedMassKg: number;
+  burnoutAttachedMassKg: number;
+  massRatio: number | null;
+  effectiveSpecificImpulseS: number | null;
+  idealDeltaVMps: number | null;
+  status: MissionMassRatioStatus;
+  note: string;
+}>;
+
+export type MissionMassRatioResult = Readonly<{
+  modelVersion: typeof MISSION_MASS_RATIO_MODEL_VERSION;
+  validationStatus: typeof MISSION_MASS_RATIO_VALIDATION_STATUS;
+  overallStatus: "assessed" | "review" | "not-assessed";
+  retainedPayloadMassKg: number;
+  excludedStageIds: readonly string[];
+  stages: readonly MissionMassRatioDiagnostic[];
+  assessedStageCount: number;
+  totalIdealDeltaVMps: number | null;
+  assumptions: readonly string[];
+  warnings: readonly string[];
+}>;
+
 function assertFinite(value: number, label: string): void {
   if (!Number.isFinite(value)) throw new Error(`${label} must be finite`);
 }
@@ -196,6 +230,114 @@ export function computeStageMassRatio(
     warnings: [
       "This is an analytical ideal-rocket-equation diagnostic, not flight validation, performance certification, or a flight-safety result.",
       ...(stages.length === 0 ? ["No propulsive stages were supplied, so mass-ratio analysis is not assessed."] : []),
+      ...warnings,
+    ],
+  };
+}
+
+/**
+ * Calculate a serial-stack ideal rocket-equation preview that carries each
+ * stage's downstream stack mass through its burn. The caller must supply the
+ * stages in burn order; parallel or booster stages should be omitted and
+ * disclosed through excludedStageIds rather than silently treated as serial.
+ */
+export function computeMissionMassRatio(input: Readonly<{
+  serialStages: readonly RocketStage[];
+  retainedPayloadMassKg: number;
+  excludedStageIds?: readonly string[];
+}>): MissionMassRatioResult {
+  assertNonNegative(input.retainedPayloadMassKg, "mission retained payload mass");
+  const excludedStageIds = [...(input.excludedStageIds ?? [])];
+  const excludedIdSet = new Set<string>();
+  for (const stageId of excludedStageIds) {
+    if (!stageId.trim()) throw new Error("mission excluded stage identifiers cannot be empty");
+    if (excludedIdSet.has(stageId)) {
+      throw new Error(`duplicate mission excluded stage identifier: ${stageId}`);
+    }
+    excludedIdSet.add(stageId);
+  }
+  const serialIdSet = new Set(input.serialStages.map((stage) => stage.id));
+  for (const stageId of excludedStageIds) {
+    if (serialIdSet.has(stageId)) {
+      throw new Error(`mission stage cannot be both serial and excluded: ${stageId}`);
+    }
+  }
+
+  const stageOnly = computeStageMassRatio({ stages: input.serialStages });
+  const upperStackMassKg = new Array<number>(stageOnly.stages.length);
+  let downstreamMassKg = input.retainedPayloadMassKg;
+  for (let index = stageOnly.stages.length - 1; index >= 0; index -= 1) {
+    upperStackMassKg[index] = downstreamMassKg;
+    downstreamMassKg += stageOnly.stages[index]!.fullStageMassKg;
+  }
+
+  const stages = stageOnly.stages.map((stage, index): MissionMassRatioDiagnostic => {
+    const upperStack = upperStackMassKg[index]!;
+    const initialAttachedMassKg = stage.fullStageMassKg + upperStack;
+    const burnoutAttachedMassKg = stage.burnoutStageMassKg + upperStack;
+    const massRatio = stage.status === "assessed" && burnoutAttachedMassKg > 0
+      ? initialAttachedMassKg / burnoutAttachedMassKg
+      : null;
+    const idealDeltaVMps = massRatio !== null && stage.effectiveSpecificImpulseS !== null && massRatio > 1
+      ? stage.effectiveSpecificImpulseS * STAGE_MASS_RATIO_GRAVITY_MPS2 * Math.log(massRatio)
+      : null;
+    const status: MissionMassRatioStatus = idealDeltaVMps !== null
+      ? "assessed"
+      : stage.status === "unavailable"
+        ? "unavailable"
+        : "review";
+    const note = status === "assessed"
+      ? "Serial-stack ideal rocket-equation proxy; the downstream stack remains attached through this burn."
+      : stage.note;
+    return {
+      stageId: stage.stageId,
+      stageName: stage.stageName,
+      sequenceIndex: index,
+      upperStackMassKg: upperStack,
+      initialAttachedMassKg,
+      burnoutAttachedMassKg,
+      massRatio,
+      effectiveSpecificImpulseS: stage.effectiveSpecificImpulseS,
+      idealDeltaVMps,
+      status,
+      note,
+    };
+  });
+  const assessedStages = stages.filter((stage) => stage.status === "assessed");
+  const overallStatus: MissionMassRatioResult["overallStatus"] = stages.length === 0
+    ? "not-assessed"
+    : stages.some((stage) => stage.status !== "assessed") || excludedStageIds.length > 0
+      ? "review"
+      : "assessed";
+  const warnings = [
+    ...stageOnly.warnings,
+    ...(input.serialStages.length === 0
+      ? ["No serial propulsive stages were supplied, so mission mass-ratio analysis is not assessed."]
+      : []),
+    ...(excludedStageIds.length > 0
+      ? [`${excludedStageIds.length} parallel or booster stage(s) were excluded from the serial-stack preview: ${excludedStageIds.join(", ")}.`]
+      : []),
+  ];
+  return {
+    modelVersion: MISSION_MASS_RATIO_MODEL_VERSION,
+    validationStatus: MISSION_MASS_RATIO_VALIDATION_STATUS,
+    overallStatus,
+    retainedPayloadMassKg: input.retainedPayloadMassKg,
+    excludedStageIds,
+    stages,
+    assessedStageCount: assessedStages.length,
+    totalIdealDeltaVMps: assessedStages.length > 0
+      ? assessedStages.reduce((total, stage) => total + stage.idealDeltaVMps!, 0)
+      : null,
+    assumptions: [
+      "Serial stages are supplied in burn order; each stage carries the retained payload plus all later serial-stage full masses during its burn.",
+      "Burnout attached mass includes the current stage dry/structural mass until separation; separation timing and residual propellant are not solved by this composition preview.",
+      "Effective specific impulse is derived from the supplied thrust-curve impulse and initial propellant mass using standard gravity.",
+      "Parallel and booster stages are excluded when the caller identifies them; their staging and simultaneous-burn coupling require the trajectory model.",
+      "The summed result is an ideal serial-stack composition trend, not a trajectory, mission-performance, certification, or flight-safety result.",
+    ],
+    warnings: [
+      "This serial-stack mass-ratio branch is an analytical engineering preview and is not validated for flight decisions.",
       ...warnings,
     ],
   };

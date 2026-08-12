@@ -1725,6 +1725,9 @@ function createStageFlightPreviewInputs({
     retainedMassProperties,
     components,
     stages,
+    missionSerialStageIds: stages
+      .filter((stage) => stageById.get(stage.id)?.attachment !== "parallel")
+      .map((stage) => stage.id),
     regimes,
     initiallyIgnitedStageIds,
     durationS: Math.max(12, maximumMotorBurnDurationS * (stages.length + 2) + 8),
@@ -7053,6 +7056,38 @@ export default function Home() {
                         ))}
                       </div>
                       <p className="stage-mass-ratio-note">{stageFlightResult.massRatio.warnings[0] ?? "Analytical ideal-rocket-equation diagnostic only; do not interpret as flight-safe performance."}</p>
+                    </section>
+                    <section className={`mission-mass-ratio-card stage-mass-ratio-card stage-mass-ratio-${stageFlightResult.missionMassRatio.overallStatus}`} aria-labelledby="mission-mass-ratio-title">
+                      <div className="stage-mass-ratio-heading">
+                        <div>
+                          <span className="eyebrow">Mission stack</span>
+                          <h4 id="mission-mass-ratio-title">Serial-stack mass-ratio preview</h4>
+                          <p>Carries the retained payload and later serial-stage mass through each burn so downstream loading is visible. Parallel and booster stages remain explicitly excluded when the topology cannot be reduced to one serial stack.</p>
+                        </div>
+                        <span className={`uncertainty-status uncertainty-status-${stageFlightResult.missionMassRatio.overallStatus}`}>
+                          {stageFlightResult.missionMassRatio.overallStatus === "assessed" ? "SERIAL PROXY" : stageFlightResult.missionMassRatio.overallStatus === "review" ? "REVIEW" : "NOT ASSESSED"}
+                        </span>
+                      </div>
+                      <div className="stage-mass-ratio-grid">
+                        <div><span>Retained payload</span><strong>{stageFlightResult.missionMassRatio.retainedPayloadMassKg.toFixed(3)} kg</strong><small>payload + recovery mass</small></div>
+                        <div><span>Serial stages assessed</span><strong>{stageFlightResult.missionMassRatio.assessedStageCount} / {stageFlightResult.missionMassRatio.stages.length}</strong><small>burn-order rows</small></div>
+                        <div><span>Ideal delta-v sum</span><strong>{stageFlightResult.missionMassRatio.totalIdealDeltaVMps === null ? "Not assessed" : `${stageFlightResult.missionMassRatio.totalIdealDeltaVMps.toFixed(1)} m/s`}</strong><small>serial-stack proxy</small></div>
+                      </div>
+                      <div className="mission-mass-ratio-list">
+                        {stageFlightResult.missionMassRatio.stages.map((stage) => (
+                          <div className={`mission-mass-ratio-row stage-mass-ratio-row-${stage.status}`} key={stage.stageId}>
+                            <div>
+                              <strong>{stage.sequenceIndex + 1}. {stage.stageName}</strong>
+                              <small>upper stack {stage.upperStackMassKg.toFixed(3)} kg · burn {stage.initialAttachedMassKg.toFixed(3)} → {stage.burnoutAttachedMassKg.toFixed(3)} kg</small>
+                            </div>
+                            <div><span>R</span><strong>{stage.massRatio === null ? "—" : stage.massRatio.toFixed(2)}</strong></div>
+                            <div><span>Ideal delta-v</span><strong>{stage.idealDeltaVMps === null ? "—" : `${stage.idealDeltaVMps.toFixed(1)} m/s`}</strong></div>
+                          </div>
+                        ))}
+                      </div>
+                      {stageFlightResult.missionMassRatio.excludedStageIds.length > 0 && <p className="stage-mass-ratio-note">Excluded topology stages: {stageFlightResult.missionMassRatio.excludedStageIds.join(", ")}. Their parallel burn/separation coupling remains in the trajectory preview rather than this serial composition diagnostic.</p>}
+                      <p className="stage-mass-ratio-note">{stageFlightResult.missionMassRatio.warnings[0] ?? "Analytical serial-stack diagnostic only; do not interpret as flight-safe performance."}</p>
+                      <small className="stage-mass-ratio-model">{publicModelVersion(stageFlightResult.missionMassRatio.modelVersion)} · {stageFlightResult.missionMassRatio.validationStatus}</small>
                     </section>
                     <section className={`stage-force-budget-card stage-force-budget-${stageFlightResult.forceBudget.status}`} aria-labelledby="stage-force-budget-title">
                       <div className="stage-force-budget-heading">

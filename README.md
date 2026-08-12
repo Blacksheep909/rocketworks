@@ -150,6 +150,9 @@ research, standards, and original code.
 - an inspectable stage mass-ratio branch using supplied impulse and propellant
   mass to expose stage-only ideal rocket-equation delta-v trends with explicit
   downstream-payload and loss-model limits;
+- a serial-stack mass-ratio preview that carries retained payload and later
+  serial-stage mass through each ideal burn, while explicitly listing excluded
+  parallel/booster stages instead of flattening their coupled trajectory;
 - a bounded stage-interface axial load-path review that transfers downstream
   mass across serial topology edges, compares supplied parent/child section
   proxies, uses a current staged trace peak when available while retaining the

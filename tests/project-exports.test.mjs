@@ -657,6 +657,30 @@ test("engineering report leads with status and preserves calculations and limita
         assumptions: ["Fixture mass-ratio assumption."],
         warnings: ["Fixture mass-ratio warning."],
       },
+      missionMassRatio: {
+        modelVersion: "rocketworks-mission-mass-ratio-0.1.0",
+        validationStatus: "analytical-serial-stack-preview",
+        overallStatus: "review",
+        retainedPayloadMassKg: 0.42,
+        excludedStageIds: ["booster"],
+        assessedStageCount: 1,
+        totalIdealDeltaVMps: 95,
+        stages: [{
+          stageId: "upper",
+          stageName: "Upper stage",
+          sequenceIndex: 0,
+          upperStackMassKg: 0.42,
+          initialAttachedMassKg: 1.12,
+          burnoutAttachedMassKg: 0.82,
+          massRatio: 1.365,
+          effectiveSpecificImpulseS: 182,
+          idealDeltaVMps: 95,
+          status: "assessed",
+          note: "Fixture serial-stack proxy.",
+        }],
+        assumptions: ["Fixture serial-stack assumption."],
+        warnings: ["Fixture serial-stack warning."],
+      },
       forceBudget,
       eventAllocation: {
         modelVersion: "rocketworks-event-allocator-0.1.0",
@@ -798,6 +822,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.ok(report.indexOf("Not flight-safe or manufacturing-approved") < report.indexOf("## Vehicle summary"));
   assert.match(report, /\| Static margin \| 2\.93 calibres \|/);
   assert.match(report, /## Recovery landing footprint/);
+  assert.match(report, /### Serial-stack mass-ratio preview/);
+  assert.match(report, /Excluded topology stages \| booster/);
   assert.match(report, /## Preliminary structural screen/);
   assert.match(report, /## Stage-aware structural review/);
   assert.match(report, /## Stage-interface axial load path/);
