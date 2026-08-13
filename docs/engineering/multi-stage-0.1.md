@@ -29,7 +29,7 @@ This makes staging a topology change rather than a cosmetic event: a separated
 stage immediately stops contributing mass, inertia, propellant, or thrust to
 the retained vehicle.
 
-The current implementation is model version `kestrel-multi-stage-0.6.0`.
+The current implementation is model version `kestrel-multi-stage-0.7.0`.
 `RocketStage.instances` can describe physical copies of one logical stage.
 When present, each copy has its own structure, motors, burnout offset, and
 event state while `attachedStageIds` continues to expose the logical topology
@@ -41,6 +41,16 @@ schedule. The staged evaluator linearly interpolates the authored body-frame
 directions and normalizes each result before computing force and moment. The
 browser topology editor authors these schedules as bounded pitch/yaw offsets
 relative to each stage instance's nominal canted axis.
+
+An optional `gimbalResponseTimeS` applies a bounded first-order response to the
+schedule. The response starts from the nominal axis, treats each authored knot
+as a new command, advances the vector lag analytically between knots, and
+normalizes the result before force and moment evaluation. This is useful for
+seeing the effect of a deliberately slow actuator in a deterministic preview;
+it is not a servo transfer function, rate limiter, saturation model, feedback
+controller, flexure model, or plume-interaction model. The value is bounded to
+0 < `gimbalResponseTimeS` <= 10 s and is accepted only when a gimbal schedule
+is present.
 
 Detachable stages may optionally carry a measured retained-body separation
 impulse vector in N·s. At the event boundary the model divides that vector by

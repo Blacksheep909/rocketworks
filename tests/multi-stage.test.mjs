@@ -288,6 +288,44 @@ test("motor-local gimbal schedules interpolate thrust direction and moment", () 
   );
 });
 
+test("gimbal response time applies a deterministic first-order vector lag", () => {
+  const gimballedStage = stage("response", 1, 1, {
+    thrustAxisSchedule: [
+      { timeS: 0, axisBody: { x: -1, y: 1, z: 0 } },
+      { timeS: 1, axisBody: { x: -1, y: 0, z: 0 } },
+    ],
+    gimbalResponseTimeS: 0.5,
+  });
+  const staging = createMultiStageVehicleModel({
+    retainedMassProperties: properties(1, 0),
+    stages: [gimballedStage],
+  });
+  const midpoint = staging.evaluate(ignitedAtZero(0.5, "response"));
+  const motorState = midpoint.stages[0].motors[0];
+  const command = { x: -1 / Math.sqrt(2), y: 1 / Math.sqrt(2), z: 0 };
+  const decay = Math.exp(-1);
+  const expectedUnnormalized = {
+    x: command.x + (-1 - command.x) * decay,
+    y: command.y * (1 - decay),
+    z: 0,
+  };
+  const expectedMagnitude = magnitude(expectedUnnormalized);
+  close(motorState.thrustAxisBody.x, expectedUnnormalized.x / expectedMagnitude, 1e-12, "lagged gimbal x");
+  close(motorState.thrustAxisBody.y, expectedUnnormalized.y / expectedMagnitude, 1e-12, "lagged gimbal y");
+  assert.ok(motorState.thrustAxisBody.y < command.y, "response should not instantly reach the commanded axis");
+  assert.ok(staging.assumptions.some((assumption) => assumption.includes("first-order vector lag")));
+  assert.ok(staging.warnings.some((warning) => warning.includes("first-order vector-lag approximation")));
+  assert.throws(
+    () => createMultiStageVehicleModel({
+      retainedMassProperties: properties(1, 0),
+      stages: [stage("invalid-response", 1, 1, {
+        gimbalResponseTimeS: 0.2,
+      })],
+    }),
+    /requires a thrust-axis schedule/,
+  );
+});
+
 test("ignition failure leaves propellant intact and suppresses thrust", () => {
   const staging = model();
   const failed = failStageIgnition(

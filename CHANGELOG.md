@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an optional first-order motor-gimbal response time to staged previews.
+  The topology editor now exposes a bounded response control, the independent
+  multi-stage evaluator carries the setting through each physical motor
+  instance, and regression/export-facing contracts disclose the vector-lag
+  approximation and its actuator-model limits.
+
 - Add an opt-in shared-grid spherical-envelope contact-force branch for active
   released bodies. The browser now persists and fingerprints stiffness,
   closing-speed damping, and force-cap settings, exposes sliders and explicit

@@ -50,8 +50,8 @@ research, standards, and original code.
   regimes;
 - bounded canted-motor configuration with radial instance alignment;
 - bounded motor-local gimbal schedules with piecewise-linear thrust-axis
-  interpolation, per-instance radial basis mapping, and explicit actuator-model
-  limitations;
+  interpolation, per-instance radial basis mapping, optional first-order vector
+  response, and explicit actuator-model limitations;
 - deterministic per-motor cluster-failure preview with retained failed-motor
   propellant and explicit imbalance warnings;
 - bounded retained-body separation delta-v controls with body/world-frame event

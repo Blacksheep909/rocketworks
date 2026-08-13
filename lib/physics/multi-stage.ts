@@ -38,7 +38,7 @@ import {
 } from "./six-dof.ts";
 import type { RecoveryCommandTrigger, RecoveryDevice } from "./recovery-system.ts";
 
-export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.6.0";
+export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.7.0";
 
 /** A motor-local body-frame thrust direction sample for deterministic gimbal interpolation. */
 export type MotorGimbalPoint = Readonly<{
@@ -61,6 +61,8 @@ export type MultiStageMotor = Readonly<{
   thrustAxisBody?: Vector3;
   /** Optional strictly time-ordered motor-local thrust-axis schedule. */
   thrustAxisSchedule?: readonly MotorGimbalPoint[];
+  /** Optional first-order gimbal response time for the commanded schedule. */
+  gimbalResponseTimeS?: number;
   /** A configured ignition failure leaves this motor attached with its propellant intact. */
   ignitionFailure?: boolean;
 }>;
@@ -215,6 +217,7 @@ type PreparedMotor = MultiStageMotor & Readonly<{
   totalMassFlowKg?: number;
   normalizedThrustAxisBody: Vector3;
   normalizedThrustAxisSchedule?: readonly MotorGimbalPoint[];
+  normalizedGimbalResponseTimeS?: number;
   totalImpulseNs: number;
 }>;
 
@@ -308,6 +311,58 @@ function prepareThrustAxisSchedule(
   });
 }
 
+function prepareGimbalResponseTime(
+  value: number | undefined,
+  label: string,
+): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isFinite(value) || value <= 0 || value > 10) {
+    throw new Error(`${label} must be positive, finite, and at most 10 seconds`);
+  }
+  return value;
+}
+
+/**
+ * Apply a bounded first-order response to the commanded unit vector. The
+ * vector-space lag is intentionally explicit and deterministic: it is a
+ * small actuator approximation, not a servo, rate-limit, or control-loop
+ * model. Each schedule knot is treated as a new command and the response is
+ * advanced analytically between knots.
+ */
+function responseLimitedThrustAxisAtLocalTime(
+  motor: PreparedMotor,
+  localTimeS: number,
+  responseTimeS: number,
+): Vector3 {
+  const schedule = motor.normalizedThrustAxisSchedule;
+  if (!schedule || schedule.length === 0) return motor.normalizedThrustAxisBody;
+  const targetTimeS = Math.max(0, localTimeS);
+  let response = motor.normalizedThrustAxisBody;
+  let command = motor.normalizedThrustAxisBody;
+  let cursorTimeS = 0;
+  for (const point of schedule) {
+    const segmentEndS = Math.min(targetTimeS, point.timeS);
+    if (segmentEndS > cursorTimeS) {
+      const decay = Math.exp(-(segmentEndS - cursorTimeS) / responseTimeS);
+      response = normalizeThrustAxis(
+        addVectors(command, scaleVector(subtractVectors(response, command), decay)),
+        `motor ${motor.id} gimbal-response axis`,
+      );
+      cursorTimeS = segmentEndS;
+    }
+    if (targetTimeS <= point.timeS) return response;
+    command = point.axisBody;
+  }
+  if (targetTimeS > cursorTimeS) {
+    const decay = Math.exp(-(targetTimeS - cursorTimeS) / responseTimeS);
+    response = normalizeThrustAxis(
+      addVectors(command, scaleVector(subtractVectors(response, command), decay)),
+      `motor ${motor.id} gimbal-response axis`,
+    );
+  }
+  return response;
+}
+
 function thrustAxisAtLocalTime(
   motor: PreparedMotor,
   localTimeS: number | null,
@@ -315,6 +370,13 @@ function thrustAxisAtLocalTime(
   const schedule = motor.normalizedThrustAxisSchedule;
   if (!schedule || schedule.length === 0 || localTimeS === null) {
     return motor.normalizedThrustAxisBody;
+  }
+  if (motor.normalizedGimbalResponseTimeS !== undefined) {
+    return responseLimitedThrustAxisAtLocalTime(
+      motor,
+      localTimeS,
+      motor.normalizedGimbalResponseTimeS,
+    );
   }
   const timeS = Math.max(0, localTimeS);
   if (timeS <= schedule[0]!.timeS) return schedule[0]!.axisBody;
@@ -764,6 +826,13 @@ export function createMultiStageVehicleModel(input: Readonly<{
         motor.thrustAxisSchedule,
         `motor ${motor.id} thrust-axis schedule`,
       );
+      const normalizedGimbalResponseTimeS = prepareGimbalResponseTime(
+        motor.gimbalResponseTimeS,
+        `motor ${motor.id} gimbal response time`,
+      );
+      if (normalizedGimbalResponseTimeS !== undefined && normalizedThrustAxisSchedule === undefined) {
+        throw new Error(`motor ${motor.id} gimbal response time requires a thrust-axis schedule`);
+      }
       const ignitionFailure = motor.ignitionFailure ?? false;
       if (typeof ignitionFailure !== "boolean") {
         throw new Error(`motor ${motor.id} ignition failure must be boolean`);
@@ -776,6 +845,9 @@ export function createMultiStageVehicleModel(input: Readonly<{
         normalizedThrustAxisBody,
         ...(normalizedThrustAxisSchedule
           ? { normalizedThrustAxisSchedule }
+          : {}),
+        ...(normalizedGimbalResponseTimeS !== undefined
+          ? { normalizedGimbalResponseTimeS }
           : {}),
         totalImpulseNs,
       };
@@ -881,6 +953,9 @@ export function createMultiStageVehicleModel(input: Readonly<{
     ...stage.instances.flatMap((instance) => instance.motors),
   ]).filter((motor) => motor.normalizedThrustAxisSchedule);
   const hasGimbalSchedule = gimbalMotors.length > 0;
+  const hasGimbalResponse = gimbalMotors.some(
+    (motor) => motor.normalizedGimbalResponseTimeS !== undefined,
+  );
   const measuredSeparationStages = stages.filter((stage) =>
     stage.separationImpulseBodyNs !== undefined ||
     stage.instances.some((instance) => instance.separationImpulseBodyNs !== undefined),
@@ -1379,7 +1454,13 @@ export function createMultiStageVehicleModel(input: Readonly<{
       "Stage ignition commands establish motor-local time; each motor may add a deterministic delay",
       ...(hasGimbalSchedule
         ? [
-            "Motor thrust-axis schedules are linearly interpolated in motor-local time and normalized before force and moment evaluation",
+            ...(hasGimbalResponse
+              ? [
+                  "Motor thrust-axis schedules are evaluated in motor-local time; response-free stages linearly interpolate between knots, while stages with a response time treat each knot as a command and apply a deterministic first-order vector lag",
+                ]
+              : [
+                  "Motor thrust-axis schedules are linearly interpolated in motor-local time and normalized before force and moment evaluation",
+                ]),
           ]
         : []),
       ...(hasMeasuredSeparationImpulse
@@ -1402,7 +1483,13 @@ export function createMultiStageVehicleModel(input: Readonly<{
       "Stage separation is an instantaneous topology change; use a dedicated multi-body model for separation-clearance analysis.",
       ...(hasGimbalSchedule
         ? [
-            "Gimbal schedules are deterministic commanded-axis previews; actuator dynamics, rate limits, flexure, plume effects, and control-loop coupling are not modeled.",
+            ...(hasGimbalResponse
+              ? [
+                  "Gimbal response is a bounded first-order vector-lag approximation; rate limits, saturation, servo dynamics, flexure, plume effects, and control-loop coupling are not modeled.",
+                ]
+              : [
+                  "Gimbal schedules are deterministic commanded-axis previews; actuator dynamics, rate limits, flexure, plume effects, and control-loop coupling are not modeled.",
+                ]),
           ]
         : []),
       ...(hasMeasuredSeparationImpulse

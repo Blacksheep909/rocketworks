@@ -96,6 +96,8 @@ export type VehicleStagePlan = Readonly<{
   thrustCantAzimuthDeg: number;
   /** Optional strictly time-ordered commanded gimbal offsets shared by stage instances. */
   gimbalSchedule?: readonly VehicleStageGimbalPoint[];
+  /** Optional first-order motor gimbal response time, in seconds. */
+  gimbalResponseTimeS?: number;
   ignitionDelayS: number;
   separationDelayS: number;
   /** Retained-body axial separation delta-v in m/s (+X nose direction). */
@@ -243,6 +245,18 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
   });
   if (stage.role === "payload" && gimbalSchedule && gimbalSchedule.length > 0) {
     throw new Error(`Payload stage ${id} cannot configure a motor gimbal schedule.`);
+  }
+  const gimbalResponseTimeS = stage.gimbalResponseTimeS;
+  if (gimbalResponseTimeS !== undefined) {
+    if (typeof gimbalResponseTimeS !== "number" || !Number.isFinite(gimbalResponseTimeS) || gimbalResponseTimeS <= 0 || gimbalResponseTimeS > 10) {
+      throw new Error(`Stage ${id} gimbalResponseTimeS must be a positive finite value from 0 through 10 seconds.`);
+    }
+    if (!gimbalSchedule || gimbalSchedule.length === 0) {
+      throw new Error(`Stage ${id} gimbalResponseTimeS requires a gimbalSchedule.`);
+    }
+    if (stage.role === "payload") {
+      throw new Error(`Payload stage ${id} cannot configure a gimbal response time.`);
+    }
   }
   if (stage.parentStageId !== undefined && (typeof stage.parentStageId !== "string" || !ID_PATTERN.test(stage.parentStageId))) {
     throw new Error(`Stage ${id} parentStageId is invalid.`);
@@ -404,6 +418,7 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     thrustCantAngleDeg,
     thrustCantAzimuthDeg,
     ...(gimbalSchedule && gimbalSchedule.length > 0 ? { gimbalSchedule } : {}),
+    ...(gimbalResponseTimeS === undefined ? {} : { gimbalResponseTimeS }),
     ignitionDelayS,
     separationDelayS,
     separationDeltaVBodyMps,
@@ -578,6 +593,7 @@ export function createStagePlan(input: Readonly<{
   thrustCantAngleDeg?: number;
   thrustCantAzimuthDeg?: number;
   gimbalSchedule?: readonly VehicleStageGimbalPoint[];
+  gimbalResponseTimeS?: number;
   ignitionDelayS?: number;
   separationDelayS?: number;
   separationDeltaVBodyMps?: number;
