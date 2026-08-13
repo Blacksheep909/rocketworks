@@ -44,7 +44,7 @@ import {
 
 export const KESTREL_PROJECT_SCHEMA_ID = "org.kestrel-lab.project";
 export const KESTREL_PROJECT_SCHEMA_VERSION = 1;
-export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.9.0";
+export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.10.0";
 export const KESTREL_EXPORT_VALIDATION_STATUS =
   "engineering-preview-unvalidated";
 
@@ -539,6 +539,92 @@ export function createStageFlightTraceCsv(
     ].map(csvCell).join(",");
   });
   return `${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
+}
+
+/**
+ * Serialize one independent detached-body trajectory as a flat, SI-unit CSV.
+ * The first row is a deterministic metadata record so a spreadsheet can be
+ * opened directly while a downstream tool can still recover release and model
+ * provenance without the full project JSON.
+ */
+export function createSeparatedBodyTraceCsv(
+  trajectories: readonly StageFlightPreviewResult["separatedBodies"][number][],
+): string {
+  if (trajectories.length === 0 || trajectories.some((trajectory) => trajectory.trace.length === 0)) {
+    throw new Error("separated-body trajectories cannot be empty");
+  }
+  const metadata = [
+    ["# rocketworks_export", KESTREL_EXPORT_MODEL_VERSION],
+    ["# trace_count", trajectories.length],
+    ["# trace_model_versions", [...new Set(trajectories.map((trajectory) => trajectory.modelVersion))].join("|")],
+    ["# validation_status", [...new Set(trajectories.map((trajectory) => trajectory.validationStatus))].join("|")],
+    ["# aerodynamic_basis_count", trajectories.filter((trajectory) => trajectory.aerodynamicBasis !== undefined).length],
+  ].map(([key, value]) => `${key},${csvCell(value)}`);
+  const headers = [
+    "body_id",
+    "stage_id",
+    "stage_name",
+    "release_time_s",
+    "time_s",
+    "altitude_agl_m",
+    "speed_mps",
+    "position_world_x_m",
+    "position_world_y_m",
+    "position_world_z_m",
+    "velocity_world_x_mps",
+    "velocity_world_y_mps",
+    "velocity_world_z_mps",
+    "recovery_drag_n",
+    "recovery_effective_area_m2",
+    "aerodynamic_drag_n",
+    "aerodynamic_normal_force_n",
+    "aerodynamic_angle_of_attack_deg",
+    "aerodynamic_sideslip_deg",
+    "aerodynamic_dynamic_pressure_pa",
+    "aerodynamic_static_moment_x_nm",
+    "aerodynamic_static_moment_y_nm",
+    "aerodynamic_static_moment_z_nm",
+    "aerodynamic_damping_moment_x_nm",
+    "aerodynamic_damping_moment_y_nm",
+    "aerodynamic_damping_moment_z_nm",
+    "aerodynamic_model_version",
+  ];
+  const rows = trajectories.flatMap((trajectory) => trajectory.trace.map((point, index) => {
+    const values: readonly (number | string | null | undefined)[] = [
+      `${trajectory.stageId}/${trajectory.instanceId ?? "logical"}`,
+      trajectory.stageId,
+      trajectory.stageName,
+      trajectory.releaseTimeS,
+      point.timeS,
+      point.altitudeAglM,
+      point.speedMps,
+      point.positionWorldM.x,
+      point.positionWorldM.y,
+      point.positionWorldM.z,
+      point.velocityWorldMps.x,
+      point.velocityWorldMps.y,
+      point.velocityWorldMps.z,
+      point.recoveryDragN,
+      point.recoveryEffectiveAreaM2,
+      point.aerodynamicDragN,
+      point.aerodynamicNormalForceN,
+      point.aerodynamicAngleOfAttackRad === undefined ? undefined : (point.aerodynamicAngleOfAttackRad * 180) / Math.PI,
+      point.aerodynamicSideslipRad === undefined ? undefined : (point.aerodynamicSideslipRad * 180) / Math.PI,
+      point.aerodynamicDynamicPressurePa,
+      point.aerodynamicStaticMomentBodyNm?.x,
+      point.aerodynamicStaticMomentBodyNm?.y,
+      point.aerodynamicStaticMomentBodyNm?.z,
+      point.aerodynamicDampingMomentBodyNm?.x,
+      point.aerodynamicDampingMomentBodyNm?.y,
+      point.aerodynamicDampingMomentBodyNm?.z,
+      point.aerodynamicModelVersion,
+    ];
+    values.forEach((value, valueIndex) => {
+      if (typeof value === "number") assertFinite(value, `separated-body trace row ${index + 1} column ${headers[valueIndex]}`);
+    });
+    return values.map(csvCell).join(",");
+  }));
+  return `${metadata.join("\r\n")}\r\n${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
 }
 
 export function createParameterSweepCsv(

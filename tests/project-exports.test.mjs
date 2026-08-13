@@ -8,6 +8,7 @@ import {
   createFlightTraceCsv,
   createParameterSweepCsv,
   createStageFlightTraceCsv,
+  createSeparatedBodyTraceCsv,
   createUncertaintyCsv,
   createKestrelProjectJson,
   parseKestrelProjectJson,
@@ -263,6 +264,64 @@ test("staged flight CSV preserves attitude and angular-rate state", () => {
   }]);
   const row = csv.trim().split("\r\n")[1];
   assert.match(row, /,29\.999999999999996,11\.459155902616464,1,0,0,0,0\.1,-0\.2,0\.3,40,/);
+});
+
+test("released-body CSV preserves release provenance and aerodynamic diagnostics", () => {
+  const csv = createSeparatedBodyTraceCsv([{
+    stageId: "booster",
+    instanceId: "booster-1",
+    stageName: "Booster",
+    massKg: 0.2,
+    modelVersion: "kestrel-separated-body-flight-0.7.0",
+    validationStatus: "analytical-component-checks-only",
+    releaseTimeS: 4.2,
+    releasePositionWorldM: { x: 0, y: 0, z: 30 },
+    releaseVelocityWorldMps: { x: 2, y: 0, z: 12 },
+    retainedBodyDeltaVBodyMps: { x: 0, y: 0, z: 0 },
+    retainedBodyDeltaVWorldMps: { x: 0, y: 0, z: 0 },
+    detachedBodyDeltaVBodyMps: { x: 0, y: 0, z: 0 },
+    detachedBodyDeltaVWorldMps: { x: 0, y: 0, z: 0 },
+    separationImpulseModel: "not-modeled",
+    referenceAreaM2: 0.01,
+    dragCoefficient: 0.5,
+    aerodynamicBasis: {
+      referenceAreaM2: 0.01,
+      dragCoefficient: 0.5,
+      normalForceSlopePerRad: 2,
+      centerOfPressureMinusCenterOfMassM: 0.1,
+    },
+    trace: [{
+      timeS: 4.2,
+      altitudeAglM: 30,
+      speedMps: 12.1655,
+      positionWorldM: { x: 0, y: 0, z: 30 },
+      velocityWorldMps: { x: 2, y: 0, z: 12 },
+      recoveryDragN: 0,
+      recoveryEffectiveAreaM2: 0,
+      aerodynamicDragN: 0.8,
+      aerodynamicNormalForceN: 0.2,
+      aerodynamicAngleOfAttackRad: 0.05,
+      aerodynamicSideslipRad: 0.01,
+      aerodynamicDynamicPressurePa: 75,
+      aerodynamicStaticMomentBodyNm: { x: 0, y: 0.02, z: 0 },
+      aerodynamicDampingMomentBodyNm: { x: 0, y: -0.01, z: 0 },
+      aerodynamicModelVersion: "rocketworks-detached-body-aerodynamics-0.1.0",
+    }],
+    simulation: {},
+    maxAltitudeAglM: 30,
+    maxSpeedMps: 12.1655,
+    impactTimeS: null,
+    warnings: [],
+    assumptions: [],
+  }]);
+  const rows = csv.trim().split("\r\n");
+  assert.match(rows[0], /^# rocketworks_export,kestrel-export-0\.10\.0$/);
+  assert.match(rows[0], /kestrel-export-0\.10\.0/);
+  const headerIndex = rows.findIndex((row) => row.startsWith("body_id,"));
+  assert.ok(headerIndex > 0);
+  assert.equal(rows[headerIndex + 1].split(",").length, 27);
+  assert.match(rows[headerIndex + 1], /^booster\/booster-1,booster,Booster,4\.2,4\.2,30,12\.1655/);
+  assert.match(rows[headerIndex + 1], /,2\.864788975654116,0\.5729577951308232,75,0,0\.02,0,0,-0\.01,0,rocketworks-detached-body-aerodynamics-0\.1\.0$/);
 });
 
 test("parameter sweep CSV preserves rows, null outputs, and evaluator errors", () => {

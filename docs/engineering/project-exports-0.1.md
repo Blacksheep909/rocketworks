@@ -1,4 +1,4 @@
-# Project, analysis, report, and CAD exports 0.9
+# Project, analysis, report, and CAD exports 0.10
 
 Status: `engineering-preview-unvalidated`
 
@@ -23,10 +23,11 @@ Version 0.9 offers eight inspectable formats plus a validated project-import pat
 2. Flight-trace CSV
 3. Vertical uncertainty-sample CSV
 4. Staged 6DOF trace CSV
-5. Parameter-sweep CSV
-6. Preliminary engineering report in Markdown
-7. R11/R12-compatible ASCII DXF side profile
-8. Parametric OpenSCAD reference geometry
+5. Released-body trajectory CSV
+6. Parameter-sweep CSV
+7. Preliminary engineering report in Markdown
+8. R11/R12-compatible ASCII DXF side profile
+9. Parametric OpenSCAD reference geometry
 
 Every engineering or CAD surface presents manufacturing and validation limits
 before download. The DXF, SCAD, project, and report files also embed status or
@@ -54,7 +55,7 @@ The root document declares:
 ```text
 schema: org.kestrel-lab.project
 schemaVersion: 1
-exportModelVersion: kestrel-export-0.9.0
+exportModelVersion: kestrel-export-0.10.0
 validationStatus: engineering-preview-unvalidated
 ```
 
@@ -81,6 +82,16 @@ Explicitly separated stages are also retained as ballistic analytical
 component checks, including release state, peak altitude/speed, impact time,
 and the gravity-only model warnings. These traces do not imply aerodynamic
 clearance, range-safety, or flight-safety coverage.
+
+The Export center also offers a released-body trajectory CSV when at least one
+detached branch is present. It flattens all detached branches into one table,
+with `body_id`, stage identity, release time, position and velocity in SI units,
+recovery drag/area, static aerodynamic normal force, angle of attack, sideslip,
+dynamic pressure, CP-to-CG static moment, damping moment, and the aerodynamic
+model version. Deterministic `# key,value` metadata rows preserve the export
+version, trace model versions, validation status, and count of branches with a
+static aerodynamic basis. Blank aerodynamic cells mean the branch did not have
+that optional basis; they are not zeros inferred by the exporter.
 
 ## Portable project import
 
@@ -283,6 +294,8 @@ Automated tests cover:
 - schema identity, version, clean-room notice, and nested data
 - CSV headers, SI units, CRLF rows, column count, recovery booleans, and the
   effective reefing-area fraction
+- released-body CSV metadata, branch identity, release provenance, optional
+  aerodynamic diagnostics, CRLF rows, and finite-value rejection
 - uncertainty-sample provenance comments, deterministic input/output column
   ordering, null-output cells, retained evaluator errors, and non-finite-value
   rejection
@@ -310,6 +323,8 @@ part.
 - OpenSCAD geometry is a solid visual/reference CSG model without engineering
   tolerances or construction detail.
 - No unit selector; JSON/CSV use SI and CAD outputs use millimetres.
+- Released-body CSV is a flat replay extract; it does not include the complete
+  rigid-body quaternion/inertia state or replace the project JSON.
 - Browser downloads rely on Blob URLs and the user's browser download policy.
 - Reports are Markdown only and contain no cryptographic signature or frozen
   source-data attachment.

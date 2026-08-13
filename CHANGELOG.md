@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a released-body trajectory CSV export. The artifact center now flattens
+  every detached branch into an SI-unit replay table with release identity,
+  position/velocity, recovery loads, optional static aerodynamic diagnostics,
+  deterministic metadata, and model/validation provenance. The extract is
+  complementary to (not a replacement for) the full project JSON.
 - Extend the opt-in released-body aerodynamic basis beyond projected drag.
   Detached rigid bodies can now carry a bounded low-speed normal-force relation,
   induced-drag polar, CP-to-CG static moment, and optional supplied rate

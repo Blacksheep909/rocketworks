@@ -1003,6 +1003,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /ArrowLeft/);
   assert.match(page, /Staged 6DOF trace/);
   assert.match(page, /createStageFlightTraceCsv/);
+  assert.match(page, /Released-body traces/);
+  assert.match(page, /createSeparatedBodyTraceCsv/);
   assert.match(page, /MODEL BOUNDARY/);
   assert.match(page, /LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY/);
   assert.match(page, /createVehicleAssemblyModel\(assemblyDefinition\)/);

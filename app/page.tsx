@@ -13,6 +13,7 @@ import {
   createFlightTraceCsv,
   createParameterSweepCsv,
   createStageFlightTraceCsv,
+  createSeparatedBodyTraceCsv,
   createUncertaintyCsv,
   createKestrelProjectJson,
   parseKestrelProjectJson,
@@ -235,7 +236,7 @@ type DesignViewKey = UiDesignView;
 type MaterialKey = "kraft" | "fiberglass" | "carbon";
 type ReleasedBodyDragModel = "isotropic-point" | "attitude-projected-area";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
-type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad";
+type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "separated-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad";
 type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
@@ -6205,7 +6206,7 @@ export default function Home() {
       if ((format === "flight-csv" || format === "uncertainty-csv" || format === "report") && !resultIsCurrent) {
         throw new Error("Run the vertical estimate again before exporting simulation results for this design.");
       }
-      if ((format === "stage-flight-csv" || format === "flight-path-geojson") && !stageFlightIsCurrent) {
+      if ((format === "stage-flight-csv" || format === "separated-body-csv" || format === "flight-path-geojson") && !stageFlightIsCurrent) {
         throw new Error("Rerun the coupled 6DOF preview before exporting its trace for this design.");
       }
       const generatedAtIso = new Date().toISOString();
@@ -6355,6 +6356,13 @@ export default function Home() {
         filename = `${fileStem}-stage-flight-trace.csv`;
         mediaType = "text/csv;charset=utf-8";
         content = createStageFlightTraceCsv(stageFlightResult.trace);
+      } else if (format === "separated-body-csv") {
+        if (!stageFlightResult || stageFlightResult.separatedBodies.length === 0) {
+          throw new Error("Run a staged preview with at least one released body before exporting detached traces.");
+        }
+        filename = `${fileStem}-separated-body-traces.csv`;
+        mediaType = "text/csv;charset=utf-8";
+        content = createSeparatedBodyTraceCsv(stageFlightResult.separatedBodies);
       } else if (format === "flight-path-geojson") {
         if (!stageFlightResult) throw new Error("Run the staged preview before exporting its flight path.");
         filename = `${fileStem}-flight-path.geojson`;
@@ -9842,6 +9850,11 @@ export default function Home() {
                 <span><strong>Staged 6DOF trace</strong><small>Attached-stage topology, mass, thrust, altitude, and speed at each integration sample; convergence is retained in project JSON and the engineering report.</small></span>
                 <em>↓</em>
               </button>}
+              {stageFlightResult?.separatedBodies.length ? <button onClick={() => exportArtifact("separated-body-csv")}>
+                <span className="export-extension">CSV</span>
+                <span><strong>Released-body traces</strong><small>One flat SI-unit table for every detached stage, including release provenance, attitude-aware aero loads, recovery drag, and model versions.</small></span>
+                <em>↓</em>
+              </button> : null}
               {stageFlightResult && <button onClick={() => exportArtifact("flight-path-geojson")}>
                 <span className="export-extension">GEO</span>
                 <span><strong>Flight path</strong><small>WGS84 GeoJSON with retained/released paths, sample times, and event markers for GIS review.</small></span>
