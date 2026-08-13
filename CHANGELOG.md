@@ -11,6 +11,9 @@ flight-readiness claims.
   metrics, and sampled topology counts (trace samples, events, released bodies).
 - Add a standalone, tested staged-run comparison contract that keeps the
   diagnostic-only status and current-minus-reference semantics explicit.
+- Extend staged comparisons into the Artifact center and engineering Markdown
+  report. The CSV retains both simulation fingerprints, metric deltas, warnings,
+  assumptions, and the explicit current-minus-reference semantic.
 
 - Add a geometry-only attached-flow interference screen for the assembly and
   engineering report. Current axisymmetric and fin envelopes now expose clear,

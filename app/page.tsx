@@ -13,6 +13,7 @@ import {
   createFlightTraceCsv,
   createParameterSweepCsv,
   createStageFlightTraceCsv,
+  createStageFlightComparisonCsv,
   createSeparatedBodyTraceCsv,
   createUncertaintyCsv,
   createKestrelProjectJson,
@@ -243,7 +244,7 @@ type ViewKey = "design" | "flight";
 type DesignViewKey = UiDesignView;
 type MaterialKey = "kraft" | "fiberglass" | "carbon";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
-type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "separated-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad";
+type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "stage-flight-comparison-csv" | "separated-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad";
 type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
@@ -6425,8 +6426,11 @@ export default function Home() {
       if ((format === "flight-csv" || format === "uncertainty-csv" || format === "report") && !resultIsCurrent) {
         throw new Error("Run the vertical estimate again before exporting simulation results for this design.");
       }
-      if ((format === "stage-flight-csv" || format === "separated-body-csv" || format === "flight-path-geojson") && !stageFlightIsCurrent) {
+      if ((format === "stage-flight-csv" || format === "stage-flight-comparison-csv" || format === "separated-body-csv" || format === "flight-path-geojson") && !stageFlightIsCurrent) {
         throw new Error("Rerun the coupled 6DOF preview before exporting its trace for this design.");
+      }
+      if (format === "stage-flight-comparison-csv" && !stageComparisonReference) {
+        throw new Error("Pin a staged comparison reference before exporting its delta.");
       }
       const generatedAtIso = new Date().toISOString();
       const fileStem = projectFileStem(projectName);
@@ -6576,6 +6580,19 @@ export default function Home() {
         filename = `${fileStem}-stage-flight-trace.csv`;
         mediaType = "text/csv;charset=utf-8";
         content = createStageFlightTraceCsv(stageFlightResult.trace);
+      } else if (format === "stage-flight-comparison-csv") {
+        if (!stageFlightResult || !stageComparisonReference) {
+          throw new Error("Run the staged preview and pin a reference before exporting its comparison.");
+        }
+        filename = `${fileStem}-stage-flight-comparison.csv`;
+        mediaType = "text/csv;charset=utf-8";
+        content = createStageFlightComparisonCsv(
+          createStageFlightComparison(stageComparisonReference, stageFlightResult),
+          {
+            referenceFingerprint: stageComparisonReferenceFingerprint ?? undefined,
+            currentFingerprint: stageFlightFingerprint ?? simulationFingerprint,
+          },
+        );
       } else if (format === "separated-body-csv") {
         if (!stageFlightResult || stageFlightResult.separatedBodies.length === 0) {
           throw new Error("Run a staged preview with at least one released body before exporting detached traces.");
@@ -6706,6 +6723,9 @@ export default function Home() {
           flight: result,
           verticalConvergence: verticalConvergenceIsCurrent ? verticalConvergence : null,
           stageFlight: stageFlightIsCurrent ? stageFlightResult : null,
+          stageFlightComparison: stageFlightIsCurrent && stageFlightResult && stageComparisonReference
+            ? createStageFlightComparison(stageComparisonReference, stageFlightResult)
+            : null,
           stageUncertainty: stageUncertaintyIsCurrent ? stageUncertainty : null,
           uncertainty,
           landing: landingPrediction,
@@ -10133,6 +10153,11 @@ export default function Home() {
               {stageFlightResult && <button onClick={() => exportArtifact("stage-flight-csv")}>
                 <span className="export-extension">CSV</span>
                 <span><strong>Staged 6DOF trace</strong><small>Attached-stage topology, mass, thrust, altitude, and speed at each integration sample; convergence is retained in project JSON and the engineering report.</small></span>
+                <em>↓</em>
+              </button>}
+              {stageFlightResult && stageFlightIsCurrent && stageComparisonReference && <button onClick={() => exportArtifact("stage-flight-comparison-csv")}>
+                <span className="export-extension">CSV</span>
+                <span><strong>Staged run comparison</strong><small>Current-minus-reference deltas for coupled metrics, sampled events, released bodies, and exact run fingerprints.</small></span>
                 <em>↓</em>
               </button>}
               {stageFlightResult?.separatedBodies.length ? <button onClick={() => exportArtifact("separated-body-csv")}>

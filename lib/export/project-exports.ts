@@ -8,6 +8,7 @@ import type {
   StageFlightPreviewResult,
   StageFlightTracePoint,
 } from "../physics/stage-flight-preview.ts";
+import type { StageFlightComparisonResult } from "../physics/stage-flight-comparison.ts";
 import type { StageFlightUncertaintyResult } from "../physics/stage-flight-uncertainty.ts";
 import type {
   ParameterSweepResult,
@@ -179,6 +180,8 @@ export type EngineeringReportInput = Readonly<{
   flight: VerticalFlightResult;
   verticalConvergence?: VerticalFlightConvergenceDiagnostic | null;
   stageFlight?: StageFlightPreviewResult | null;
+  /** Optional session-local current-minus-reference staged run delta. */
+  stageFlightComparison?: StageFlightComparisonResult | null;
   stageUncertainty?: StageFlightUncertaintyResult | null;
   uncertainty?: UncertaintyAnalysisResult | null;
   landing?: LandingDispersionResult | null;
@@ -541,6 +544,65 @@ export function createStageFlightTraceCsv(
     ].map(csvCell).join(",");
   });
   return `${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
+}
+
+/**
+ * Serialize a staged-run design delta as a compact, inspectable CSV.
+ *
+ * The reference is intentionally supplied by the caller rather than loaded
+ * from project state: comparisons remain session-local, and this artifact
+ * records the exact fingerprints that made the exported delta decision-ready.
+ */
+export function createStageFlightComparisonCsv(
+  comparison: StageFlightComparisonResult,
+  fingerprints: Readonly<{
+    referenceFingerprint?: string;
+    currentFingerprint?: string;
+  }> = {},
+): string {
+  if (!comparison || comparison.metrics.length === 0) {
+    throw new Error("stage-flight comparison cannot be empty");
+  }
+  const metadata = [
+    ["# rocketworks_export", KESTREL_EXPORT_MODEL_VERSION],
+    ["# comparison_model_version", comparison.modelVersion],
+    ["# validation_status", comparison.validationStatus],
+    ["# delta_semantics", "current-minus-reference"],
+    ["# reference_fingerprint", fingerprints.referenceFingerprint],
+    ["# current_fingerprint", fingerprints.currentFingerprint],
+    ...comparison.warnings.map((warning) => ["# warning", warning]),
+    ...comparison.assumptions.map((assumption) => ["# assumption", assumption]),
+  ].map(([key, value]) => `${key},${csvCell(value)}`);
+  const headers = [
+    "metric_key",
+    "metric_label",
+    "unit",
+    "decimals",
+    "reference",
+    "current",
+    "delta_current_minus_reference",
+  ];
+  const rows = comparison.metrics.map((metric) => {
+    if (!metric.key.trim() || !metric.label.trim() || !metric.unit.trim()) {
+      throw new Error("stage-flight comparison metrics require labels and units");
+    }
+    if (!Number.isInteger(metric.decimals) || metric.decimals < 0 || metric.decimals > 12) {
+      throw new Error(`stage-flight comparison metric ${metric.key} decimals are invalid`);
+    }
+    [metric.reference, metric.current, metric.delta].forEach((value) => {
+      if (value !== null) assertFinite(value, `stage-flight comparison ${metric.key}`);
+    });
+    return [
+      metric.key,
+      metric.label,
+      metric.unit,
+      metric.decimals,
+      metric.reference,
+      metric.current,
+      metric.delta,
+    ].map(csvCell).join(",");
+  });
+  return `${metadata.join("\r\n")}\r\n${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
 }
 
 /**
@@ -1955,6 +2017,27 @@ export function createEngineeringReportMarkdown(
           `| Apogee timing difference | ${input.stageFlight.convergence.apogeeTimeDifferenceS === null ? "not available" : `${formatNumber(input.stageFlight.convergence.apogeeTimeDifferenceS, 4)} s`} |`,
           `| Event timing difference | ${input.stageFlight.convergence.maximumEventTimeDifferenceS === null ? "not available" : `${formatNumber(input.stageFlight.convergence.maximumEventTimeDifferenceS, 4)} s`} |`,
           "",
+          ...(input.stageFlightComparison
+            ? [
+                "### Staged run comparison",
+                "",
+                `Model: \`${markdownText(input.stageFlightComparison.modelVersion)}\`  `,
+                `Status: \`${markdownText(input.stageFlightComparison.validationStatus)}\`  `,
+                "Delta semantics: current minus reference",
+                "",
+                "| Metric | Reference | Current | Delta |",
+                "|---|---:|---:|---:|",
+                ...input.stageFlightComparison.metrics.map(
+                  (metric) => `| ${markdownText(metric.label)} | ${metric.reference === null ? "not available" : `${formatNumber(metric.reference, metric.decimals)} ${markdownText(metric.unit)}`} | ${metric.current === null ? "not available" : `${formatNumber(metric.current, metric.decimals)} ${markdownText(metric.unit)}`} | ${metric.delta === null ? "not available" : `${metric.delta > 0 ? "+" : ""}${formatNumber(metric.delta, metric.decimals)} ${markdownText(metric.unit)}`} |`,
+                ),
+                "",
+                ...input.stageFlightComparison.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+                ...input.stageFlightComparison.warnings.map((warning) => `- **Comparison warning:** ${markdownText(warning)}`),
+                "",
+                "> The reference is held in browser memory and is exported only when the current staged result is fresh. This delta is a design-review artifact, not validation, reliability, manufacturing, range-safety, or flight-safety evidence.",
+                "",
+              ]
+            : []),
           ...(input.stageFlight.rail
             ? [
                 "### Launch-rail handoff",

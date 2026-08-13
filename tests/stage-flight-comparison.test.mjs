@@ -6,6 +6,7 @@ import {
   STAGE_FLIGHT_COMPARISON_MODEL_VERSION,
   STAGE_FLIGHT_COMPARISON_VALIDATION_STATUS,
 } from "../lib/physics/index.ts";
+import { createStageFlightComparisonCsv } from "../lib/export/project-exports.ts";
 
 function run(overrides = {}) {
   return {
@@ -60,4 +61,22 @@ test("staged run comparison keeps non-finite values unavailable", () => {
     current: metric.current,
     delta: metric.delta,
   }, { reference: null, current: null, delta: null });
+});
+
+test("staged run comparison exports provenance, fingerprints, and signed CSV rows", () => {
+  const comparison = createStageFlightComparison(
+    run(),
+    run({ maxAltitudeAglM: 1210 }),
+  );
+  const csv = createStageFlightComparisonCsv(comparison, {
+    referenceFingerprint: "reference-v1",
+    currentFingerprint: "current-v2",
+  });
+  assert.match(csv, /# comparison_model_version,rocketworks-stage-flight-comparison-0\.1\.0/);
+  assert.match(csv, /# delta_semantics,current-minus-reference/);
+  assert.match(csv, /# reference_fingerprint,reference-v1/);
+  assert.match(csv, /# current_fingerprint,current-v2/);
+  assert.match(csv, /metric_key,metric_label,unit,decimals,reference,current,delta_current_minus_reference/);
+  assert.match(csv, /maxAltitudeAglM,Apogee,m,1,1200,1210,10/);
+  assert.match(csv, /\r\n$/);
 });

@@ -16,7 +16,7 @@ import {
   createRocketProfileDxf,
   createRocketStl,
 } from "../lib/export/project-exports.ts";
-import { analyzeAttachedAeroInterference, analyzeLandingFootprint, computeStageFlightForceBudget, computeStructuralScreen, createAttachedAeroInterferenceBody, createEngineeringDesignReview, createStageInterfaceLoadReview, createStageStructuralReview, runUncertaintyAnalysis } from "../lib/physics/index.ts";
+import { analyzeAttachedAeroInterference, analyzeLandingFootprint, computeStageFlightForceBudget, computeStructuralScreen, createAttachedAeroInterferenceBody, createEngineeringDesignReview, createStageFlightComparison, createStageInterfaceLoadReview, createStageStructuralReview, runUncertaintyAnalysis } from "../lib/physics/index.ts";
 
 const trace = [
   {
@@ -653,6 +653,24 @@ test("engineering report leads with status and preserves calculations and limita
     { timeS: 0, massKg: 0.58, thrustN: 22, dragN: 1, recoveryDragN: 0, dynamicPressurePa: 0, speedMps: 0, attachedStageIds: ["booster"] },
     { timeS: 1, massKg: 0.56, thrustN: 18, dragN: 2, recoveryDragN: 0.2, dynamicPressurePa: 900, speedMps: 40, attachedStageIds: ["booster"] },
   ], { stageLabels: { booster: "Booster" } });
+  const stageFlightComparison = createStageFlightComparison(
+    {
+      maxAltitudeAglM: 298,
+      maxSpeedMps: 49.4,
+      timeToApogeeS: 6.1,
+      trace: [{}],
+      events: [{}, {}],
+      separatedBodies: [{}],
+    },
+    {
+      maxAltitudeAglM: 305,
+      maxSpeedMps: 48.8,
+      timeToApogeeS: 6.25,
+      trace: [{}, {}, {}],
+      events: [{}, {}, {}],
+      separatedBodies: [{}, {}],
+    },
+  );
   const report = createEngineeringReportMarkdown({
     projectName: "ARC 54",
     generatedAtIso: "2026-08-01T00:00:00.000Z",
@@ -1113,6 +1131,7 @@ test("engineering report leads with status and preserves calculations and limita
         assumptions: ["Coupled fixture assumption."],
       },
     },
+    stageFlightComparison,
     stageUncertainty: {
       ...uncertainty,
       adapterVersion: "kestrel-stage-flight-uncertainty-1.1.0",
@@ -1213,6 +1232,10 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /## Coupled 6DOF uncertainty/);
   assert.match(report, /kestrel-stage-flight-uncertainty-1.1.0/);
   assert.match(report, /## Coupled 6DOF preview/);
+  assert.match(report, /### Staged run comparison/);
+  assert.match(report, /rocketworks-stage-flight-comparison-0\.1\.0/);
+  assert.match(report, /Delta semantics: current minus reference/);
+  assert.match(report, /\| Apogee \| 298\.0 m \| 305\.0 m \| \+7\.0 m \|/);
   assert.match(report, /### Stage mass-ratio diagnostic/);
   assert.match(report, /Fixture mass-ratio warning/);
   assert.match(report, /### Force impulse budget/);

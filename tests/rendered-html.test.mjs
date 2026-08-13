@@ -965,6 +965,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /stage-flight-comparison/);
   assert.match(page, /StageFlightComparisonCard/);
   assert.match(page, /stageComparisonReference/);
+  assert.match(page, /stage-flight-comparison-csv/);
+  assert.match(page, /Staged run comparison/);
   assert.match(page, /Pin current run/);
   assert.match(page, /Staged run comparison/);
   assert.match(page, /Rerun required/);

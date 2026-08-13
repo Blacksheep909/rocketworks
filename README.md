@@ -244,7 +244,8 @@ research, standards, and original code.
   GIS review;
 - local vertical and coupled/staged run comparisons that pin a reference
   estimate, expose signed metric deltas after a design or environment change,
-  and keep sampled event/released-body counts visible;
+  keep sampled event/released-body counts visible, and export the staged delta
+  with run fingerprints into CSV and engineering reports;
 - measured-flight CSV comparison with strict SI parsing, vertical or coupled
   6DOF trace selection, interpolation-based residuals, event-timestamp
   normalization, optional positive one-sigma measurement uncertainty with

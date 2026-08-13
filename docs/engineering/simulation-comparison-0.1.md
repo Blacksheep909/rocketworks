@@ -28,6 +28,13 @@ while an in-memory reference avoids silently growing their storage footprint.
 Vertical and coupled/staged references are independent, so pinning one does
 not replace the other.
 
+When a fresh staged result and a pinned staged reference are available, the
+Artifact center offers a **Staged run comparison** CSV. It includes the
+comparison model/version, validation status, current-minus-reference semantic,
+both simulation fingerprints, metric rows, warnings, and assumptions. The
+engineering Markdown report includes the same delta table when generated from
+that fresh result.
+
 ## Compared metrics
 
 The vertical table reports deterministic differences for:
