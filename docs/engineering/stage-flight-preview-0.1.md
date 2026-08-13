@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.28.0`.
+`kestrel-stage-flight-preview-0.29.0`.
 
 Relation-based aerodynamics retain both the selected normal-force trend and
 the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions
@@ -217,6 +217,22 @@ contact reactions, plume interaction, structural loads, or omitted constraint
 forces. Coast intervals without an active thrust direction remain partial
 coverage, and event vectors without an active thrust sample are left
 unprojected. See `mission-loss-budget-0.1.md` for the equations and limits.
+
+## Contact-load scenario
+
+When the fixed spherical-envelope screen is available, the adapter also
+returns `separationContactLoad` from `separation-contact-load.ts`. The browser
+controls an effective stopping distance and a one-dimensional coefficient of
+restitution. For every detected potential contact with positive closing speed
+and reduced mass, the result reports normal incident/rebound/absorbed energy,
+normal impulse, average absorbed force, and the idealized linear-stop force
+scale. Tangential relative kinetic energy remains separate.
+
+This branch is post-trace explanatory telemetry only. It never applies a
+contact force to the active retained or detached trajectory and does not solve
+stiffness, damping, friction, joint response, angular impulse, deformation,
+structural loads, collision response, or flight safety. See
+`stage-separation-contact-load-0.1.md` for the equations and limits.
 
 ## Stability telemetry
 

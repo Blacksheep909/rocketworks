@@ -161,6 +161,13 @@ projections only; they are not a validated mission delta-v or loss budget,
 performance certification, or flight-safety result. See
 `mission-loss-budget-0.1.md`.
 
+The staged project JSON and engineering report also retain the optional
+`separationContactLoad` scenario. It records the authored stopping distance
+and restitution, normal impulse, absorbed/rebound energy, average absorption
+force, linear-stop force scale, and per-pair assessment state. These are
+post-trace compliance estimates only and never represent structural loads or
+flight-safety evidence. See `stage-separation-contact-load-0.1.md`.
+
 ## Uncertainty-sample CSV
 
 The uncertainty export writes one row per seeded scenario, including the

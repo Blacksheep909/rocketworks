@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a post-trace separation contact compliance scenario with stopping-distance
+  and restitution controls. The Flight workspace and engineering report now
+  expose normal impulse, absorbed/rebound energy, tangential-energy separation,
+  and average/linear-stop force scales while keeping contact mechanics,
+  structural loads, collision response, and flight-safety claims out of scope.
 - Add an independent thrust-axis loss-accounting screen to the staged Flight
   workspace and engineering report. It exposes thrust impulse-equivalent speed,
   steering dispersion, positive opposing/assisting projections, axis coverage,

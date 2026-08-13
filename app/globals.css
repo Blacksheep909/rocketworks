@@ -2879,6 +2879,24 @@ body {
 .stage-separation-contact-grid strong { display: block; overflow: hidden; margin-top: 4px; color: #efe5ff; font: 700 9px var(--font-geist-mono), monospace; text-overflow: ellipsis; white-space: nowrap; }
 .stage-separation-contact-grid small { display: block; overflow: hidden; margin-top: 3px; color: #8f819e; font: 7px var(--font-geist-mono), monospace; text-overflow: ellipsis; white-space: nowrap; }
 .stage-separation-contact-warnings { display: flex; flex-direction: column; gap: 3px; margin: 8px 0 0; padding: 0 0 0 13px; color: #b8a7c6; font-size: 7px; line-height: 1.45; }
+.stage-separation-contact-load { margin-top: 9px; padding: 9px; border: 1px solid rgba(255, 177, 79, .28); border-radius: 3px; background: linear-gradient(135deg, rgba(255, 177, 79, .08), rgba(12, 18, 24, .78) 68%); }
+.stage-separation-contact-load-partial { border-color: rgba(244, 163, 64, .4); background: linear-gradient(135deg, rgba(244, 163, 64, .09), rgba(12, 18, 24, .78) 68%); }
+.stage-separation-contact-load-not-assessed { border-color: rgba(198, 212, 221, .24); background: linear-gradient(135deg, rgba(198, 212, 221, .06), rgba(12, 18, 24, .78) 68%); }
+.stage-separation-contact-load-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.stage-separation-contact-load-heading h5 { margin-top: 4px; color: #fff0d8; font-size: 10px; letter-spacing: .02em; }
+.stage-separation-contact-load-heading p { max-width: 720px; margin-top: 4px; color: #aa9478; font-size: 8px; line-height: 1.45; }
+.stage-separation-contact-load-status { flex: 0 0 auto; padding: 5px 7px; border: 1px solid rgba(255, 177, 79, .45); border-radius: 2px; color: #ffd49a; font: 650 7px var(--font-geist-mono), monospace; letter-spacing: .08em; text-transform: uppercase; }
+.stage-separation-contact-load-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin-top: 9px; overflow: hidden; border: 1px solid rgba(255, 177, 79, .2); border-radius: 3px; background: rgba(255, 177, 79, .18); }
+.stage-separation-contact-load-grid div { min-width: 0; padding: 8px; background: rgba(13, 18, 23, .92); }
+.stage-separation-contact-load-grid span { display: block; color: #aa9478; font-size: 7px; }
+.stage-separation-contact-load-grid strong { display: block; overflow: hidden; margin-top: 4px; color: #fff0d8; font: 700 9px var(--font-geist-mono), monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-separation-contact-load-grid small { display: block; overflow: hidden; margin-top: 3px; color: #8f7d69; font: 7px var(--font-geist-mono), monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-separation-contact-load-list { display: grid; gap: 1px; margin-top: 8px; }
+.stage-separation-contact-load-list div { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 8px; border-left: 2px solid rgba(255, 177, 79, .52); background: rgba(255, 177, 79, .045); }
+.stage-separation-contact-load-list strong { overflow: hidden; color: #ffe5b8; font: 650 8px var(--font-geist-mono), monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-separation-contact-load-list span { color: #aa9478; font: 7px var(--font-geist-mono), monospace; text-align: right; }
+.stage-separation-contact-load-note { margin: 8px 1px 0; color: #a08b74; font: 7px/1.5 var(--font-geist-mono), monospace; }
+.stage-separation-contact-load-model { display: block; margin-top: 5px; color: #8c7863; font: 7px var(--font-geist-mono), monospace; }
 .stage-separated-body-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin-top: 10px; overflow: hidden; border: 1px solid rgba(244, 163, 64, .2); border-radius: 3px; background: rgba(244, 163, 64, .2); }
 .stage-separated-body { min-width: 0; padding: 10px; background: rgba(13, 18, 23, .93); }
 .stage-separated-body-title { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
@@ -2936,6 +2954,9 @@ body {
   .stage-separation-envelope-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stage-separation-contact-heading { flex-direction: column; }
   .stage-separation-contact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stage-separation-contact-load-heading { flex-direction: column; }
+  .stage-separation-contact-load-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stage-separation-contact-load-list div { align-items: flex-start; flex-direction: column; gap: 3px; }
   .stage-separated-body-grid { grid-template-columns: 1fr; }
   .flight-comparison-heading { flex-direction: column; }
   .flight-comparison-actions { justify-content: flex-start; }

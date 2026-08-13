@@ -72,6 +72,11 @@ import {
   type SeparationContactTracePoint,
 } from "./separation-contact.ts";
 import {
+  analyzeSeparationContactLoad,
+  type SeparationContactLoadOptions,
+  type SeparationContactLoadResult,
+} from "./separation-contact-load.ts";
+import {
   auditSeparationDynamics,
   solveCoupledSeparationImpulse,
   type CoupledSeparationImpulseResult,
@@ -107,7 +112,7 @@ import {
 } from "./mission-loss-budget.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.28.0";
+  "kestrel-stage-flight-preview-0.29.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -146,6 +151,8 @@ export type StageFlightPreviewInput = Readonly<{
   recoveryDevices?: readonly RecoveryDevice[];
   /** Fixed spherical bounds keyed by `retained-vehicle` or `${stageId}/${instanceId}`. */
   separationEnvelopeRadiiM?: Readonly<Record<string, number | null | undefined>>;
+  /** Optional compliance scenario used only by the post-trace contact-load screen. */
+  separationContactLoad?: SeparationContactLoadOptions;
   /** Optional pairwise gravity mode for the shared released-body track. */
   coupledMultiBodyGravity?: CoupledMultiBodyGravityOptions;
   launchRail?: LaunchRailConfig;
@@ -295,6 +302,7 @@ export type StageFlightPreviewResult = Readonly<{
   multiBodySeparation: MultiBodySeparationResult | null;
   separationEnvelope: SeparationEnvelopeResult | null;
   separationContact: SeparationContactResult | null;
+  separationContactLoad: SeparationContactLoadResult | null;
   coupledMultiBodyFlight: CoupledMultiBodyFlightResult | null;
   convergence: StageFlightConvergenceDiagnostic;
   eventAllocation: MissionEventAllocation;
@@ -1421,6 +1429,19 @@ export function simulateStageFlightPreview(
       }
     }
   }
+  let separationContactLoad: SeparationContactLoadResult | null = null;
+  if (separationContact) {
+    try {
+      separationContactLoad = analyzeSeparationContactLoad(
+        separationContact,
+        input.separationContactLoad,
+      );
+    } catch (error) {
+      separatedBodyWarnings.push(
+        `Contact-load scenario unavailable: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+    }
+  }
   const warnings = [
     ...(input.additionalWarnings ?? []),
     ...staging.warnings,
@@ -1435,6 +1456,7 @@ export function simulateStageFlightPreview(
     ...(coupledMultiBodyFlight?.warnings ?? []),
     ...(separationEnvelope?.warnings ?? []),
     ...(separationContact?.warnings ?? []),
+    ...(separationContactLoad?.warnings ?? []),
     ...separationDynamics.flatMap((audit) => audit.warnings),
     ...separationImpulseSolutions.flatMap((solution) => solution.warnings),
     ...massRatio.warnings,
@@ -1472,6 +1494,7 @@ export function simulateStageFlightPreview(
     ...(coupledMultiBodyFlight?.assumptions ?? []),
     ...(separationEnvelope?.assumptions ?? []),
     ...(separationContact?.assumptions ?? []),
+    ...(separationContactLoad?.assumptions ?? []),
     ...separationDynamics.flatMap((audit) => audit.assumptions),
     ...separationImpulseSolutions.flatMap((solution) => solution.assumptions),
     ...massRatio.assumptions,
@@ -1517,6 +1540,7 @@ export function simulateStageFlightPreview(
     multiBodySeparation,
     separationEnvelope,
     separationContact,
+    separationContactLoad,
     coupledMultiBodyFlight,
     convergence,
     eventAllocation,

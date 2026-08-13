@@ -247,7 +247,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.28.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.29.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);
@@ -324,6 +324,10 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.equal(result.separationContact.bodies.length, 2);
   assert.ok(["assessed", "partial", "not-assessed"].includes(result.separationContact.status));
   assert.ok(["contact-detected", "no-contact", "partial", "not-assessed"].includes(result.separationContact.contactStatus));
+  assert.ok(result.separationContactLoad);
+  assert.ok(["assessed", "partial", "not-assessed"].includes(result.separationContactLoad.status));
+  assert.equal(result.separationContactLoad.stoppingDistanceM, 0.01);
+  assert.equal(result.separationContactLoad.coefficientOfRestitution, 0);
   assert.ok(result.coupledMultiBodyFlight);
   assert.equal(result.coupledMultiBodyFlight.trajectories.length, 1);
   assert.equal(result.coupledMultiBodyFlight.rigidBodyCount, 1);

@@ -361,6 +361,7 @@ test("ships the separated-body telemetry branch with explicit ballistic limits",
   assert.match(source, /multiBodySeparation/);
   assert.match(source, /separationEnvelope/);
   assert.match(source, /separationContact/);
+  assert.match(source, /separationContactLoad/);
   assert.match(source, /simulateCoupledMultiBodyFlight/);
   assert.match(source, /coupledMultiBodyFlight/);
   assert.match(pageSource, /FlightTrajectoryViewport/);
@@ -1120,6 +1121,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /separationEnvelope/);
   assert.match(page, /Potential contact and relative-load/);
   assert.match(page, /separationContact/);
+  assert.match(page, /separationContactLoad/);
+  assert.match(page, /Contact impulse and force-scale estimate/);
   assert.match(stylesheet, /\.stage-separation-envelope/);
   assert.match(stylesheet, /\.stage-separation-contact/);
   assert.match(stylesheet, /\.stage-interface-load-card/);

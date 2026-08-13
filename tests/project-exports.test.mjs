@@ -856,6 +856,44 @@ test("engineering report leads with status and preserves calculations and limita
         warnings: ["Contact fixture warning."],
         assumptions: ["Contact fixture assumption."],
       },
+      separationContactLoad: {
+        modelVersion: "rocketworks-separation-contact-load-0.1.0",
+        validationStatus: "analytical-compliance-scenario",
+        status: "assessed",
+        stoppingDistanceM: 0.01,
+        coefficientOfRestitution: 0.1,
+        pairs: [{
+          firstBodyId: "retained-vehicle",
+          firstBodyLabel: "Retained vehicle",
+          secondBodyId: "booster/logical-1",
+          secondBodyLabel: "Booster",
+          contactStatus: "contact-detected",
+          status: "assessed",
+          firstContactTimeS: 4.6,
+          closingSpeedMps: 3.1,
+          reducedMassKg: 0.149,
+          normalIncidentEnergyJ: 0.716,
+          totalRelativeKineticEnergyJ: 0.76,
+          tangentialKineticEnergyJ: 0.044,
+          coefficientOfRestitution: 0.1,
+          stoppingDistanceM: 0.01,
+          normalImpulseNs: 0.508,
+          reboundSpeedMps: 0.31,
+          absorbedNormalEnergyJ: 0.709,
+          reboundNormalEnergyJ: 0.007,
+          averageAbsorptionForceN: 70.9,
+          linearStopPeakForceN: 143.2,
+          note: "Fixture compliance scenario.",
+        }],
+        assessedPairCount: 1,
+        contactPairCount: 1,
+        maximumNormalImpulseNs: 0.508,
+        maximumAverageAbsorptionForceN: 70.9,
+        maximumLinearStopPeakForceN: 143.2,
+        maximumAbsorbedNormalEnergyJ: 0.709,
+        warnings: ["Contact-load fixture warning."],
+        assumptions: ["Contact-load fixture assumption."],
+      },
     },
     stageUncertainty: {
       ...uncertainty,
@@ -968,6 +1006,9 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Contact status \| contact-detected/);
   assert.match(report, /Relative COM kinetic energy/);
   assert.match(report, /Contact fixture warning/);
+  assert.match(report, /### Contact impulse and force-scale scenario/);
+  assert.match(report, /rocketworks-separation-contact-load-0.1.0/);
+  assert.match(report, /Contact-load fixture warning/);
   assert.match(report, /### Coupled separation impulse allocation/);
   assert.match(report, /Impulse allocator fixture warning/);
   assert.match(report, /Convergence status: converged/);

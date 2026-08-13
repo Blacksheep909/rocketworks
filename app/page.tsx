@@ -1358,6 +1358,8 @@ function createStageFlightPreviewInputs({
   launchRailTipOffYawRateDegS,
   coupledMutualGravityEnabled,
   coupledGravitySofteningRadiusM,
+  separationContactStoppingDistanceM,
+  separationContactCoefficientOfRestitution,
   recoveryEnabled,
   recoveryDelay,
   recoveryInflationTime,
@@ -1394,6 +1396,8 @@ function createStageFlightPreviewInputs({
   launchRailTipOffYawRateDegS: number;
   coupledMutualGravityEnabled: boolean;
   coupledGravitySofteningRadiusM: number;
+  separationContactStoppingDistanceM: number;
+  separationContactCoefficientOfRestitution: number;
   recoveryEnabled: boolean;
   recoveryDelay: number;
   recoveryInflationTime: number;
@@ -1816,6 +1820,10 @@ function createStageFlightPreviewInputs({
           softeningRadiusM: coupledGravitySofteningRadiusM,
         }
       : ({ enabled: false } satisfies CoupledMultiBodyGravityOptions),
+    separationContactLoad: {
+      stoppingDistanceM: separationContactStoppingDistanceM,
+      coefficientOfRestitution: separationContactCoefficientOfRestitution,
+    },
     additionalWarnings: [
       ...(retainedInertiaWarning ? [retainedInertiaWarning] : []),
       ...motorAssignmentWarnings,
@@ -3753,6 +3761,8 @@ export default function Home() {
   const [launchRailTipOffYawRateDegS, setLaunchRailTipOffYawRateDegS] = useState(0);
   const [coupledMutualGravityEnabled, setCoupledMutualGravityEnabled] = useState(false);
   const [coupledGravitySofteningRadiusM, setCoupledGravitySofteningRadiusM] = useState(0.02);
+  const [separationContactStoppingDistanceM, setSeparationContactStoppingDistanceM] = useState(0.01);
+  const [separationContactCoefficientOfRestitution, setSeparationContactCoefficientOfRestitution] = useState(0);
   const [sixDofIntegrationMethod, setSixDofIntegrationMethod] = useState<RigidBodyIntegrationMethod>("fixed-rk4");
   const [recoveryEnabled, setRecoveryEnabled] = useState(true);
   const [recoveryDelay, setRecoveryDelay] = useState(0);
@@ -4086,10 +4096,14 @@ export default function Home() {
             enabled: coupledMutualGravityEnabled,
             softeningRadiusM: coupledGravitySofteningRadiusM,
           },
+          separationContactLoad: {
+            stoppingDistanceM: separationContactStoppingDistanceM,
+            coefficientOfRestitution: separationContactCoefficientOfRestitution,
+          },
           sixDofIntegrationMethod,
         },
       }),
-    [coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, editableInputs, previewMotor, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, sixDofIntegrationMethod, vehicleTopology],
+    [coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, editableInputs, previewMotor, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, vehicleTopology],
   );
   const previewEnvironment = useMemo(
     () => createPreviewEnvironment(launchAltitude, windSpeed, { siteName: launchSiteName, latitudeDeg: launchLatitudeDeg, longitudeDeg: launchLongitudeDeg, windAzimuthDeg, windProfileLayers, turbulenceScale, earthRotationEnabled, normalGravityEnabled, seed: weatherSeed, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
@@ -6585,6 +6599,8 @@ export default function Home() {
             launchRailTipOffYawRateDegS,
             coupledMutualGravityEnabled,
             coupledGravitySofteningRadiusM,
+            separationContactStoppingDistanceM,
+            separationContactCoefficientOfRestitution,
             normalForceModel,
             inducedDragModel,
             inducedDragFactor,
@@ -6647,6 +6663,8 @@ export default function Home() {
           launchRailTipOffYawRateDegS,
           coupledMutualGravityEnabled,
           coupledGravitySofteningRadiusM,
+          separationContactStoppingDistanceM,
+          separationContactCoefficientOfRestitution,
           normalForceModel,
           inducedDragModel,
           inducedDragFactor,
@@ -7414,7 +7432,30 @@ export default function Home() {
                       onChange={setCoupledGravitySofteningRadiusM}
                     />
                   )}
+                  <NumberField
+                    id="separation-contact-stopping-distance"
+                    label="Contact stopping distance"
+                    value={separationContactStoppingDistanceM}
+                    unit="m"
+                    min={0.0001}
+                    max={0.25}
+                    step={0.0001}
+                    slider
+                    onChange={setSeparationContactStoppingDistanceM}
+                  />
+                  <NumberField
+                    id="separation-contact-restitution"
+                    label="Contact restitution"
+                    value={separationContactCoefficientOfRestitution}
+                    unit="e"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    slider
+                    onChange={setSeparationContactCoefficientOfRestitution}
+                  />
                   <p className="field-help">The default track propagates released bodies in a common atmosphere and wind without inventing body-to-body forces. Mutual gravity is an opt-in point-mass extension; a non-zero softening radius regularizes close approaches and is not a contact or collision model.</p>
+                  <p className="field-help">Contact stopping distance and restitution feed only the post-trace compliance scenario. They estimate normal impulse and force scales after a potential envelope crossing; they never apply contact forces to the flight trajectory.</p>
                 </div>
                 {stageFlightError && <div className="stage-flight-error" role="alert">{stageFlightError}</div>}
                 {stageFlightResult && !stageFlightIsCurrent && (
@@ -7931,6 +7972,36 @@ export default function Home() {
                                 {stageFlightResult.separationContact.warnings.slice(0, 3).map((warning) => <li key={warning}>{warning}</li>)}
                               </ul>
                             )}
+                          </div>
+                        )}
+                        {stageFlightResult.separationContactLoad && (
+                          <div className={`stage-separation-contact-load stage-separation-contact-load-${stageFlightResult.separationContactLoad.status}`}>
+                            <div className="stage-separation-contact-load-heading">
+                              <div>
+                                <span className="eyebrow">Compliance scenario</span>
+                                <h5>Contact impulse and force-scale estimate</h5>
+                                <p>Applies the selected stopping distance and restitution to detected envelope contacts. This is a post-trace normal compliance scenario; it never feeds forces back into the flight path.</p>
+                              </div>
+                              <span className="stage-separation-contact-load-status">{stageFlightResult.separationContactLoad.status}</span>
+                            </div>
+                            <div className="stage-separation-contact-load-grid">
+                              <div><span>Contact pairs assessed</span><strong>{stageFlightResult.separationContactLoad.assessedPairCount} / {stageFlightResult.separationContactLoad.contactPairCount}</strong><small>positive closing speed + mass</small></div>
+                              <div><span>Stopping distance</span><strong>{(stageFlightResult.separationContactLoad.stoppingDistanceM * 1000).toFixed(1)} mm</strong><small>scenario input</small></div>
+                              <div><span>Restitution</span><strong>{stageFlightResult.separationContactLoad.coefficientOfRestitution.toFixed(2)}</strong><small>normal e</small></div>
+                              <div><span>Maximum normal impulse</span><strong>{stageFlightResult.separationContactLoad.maximumNormalImpulseNs === null ? "Not assessed" : `${stageFlightResult.separationContactLoad.maximumNormalImpulseNs.toFixed(2)} N·s`}</strong><small>J = (1 + e) μ vₙ</small></div>
+                              <div><span>Peak force scale</span><strong>{stageFlightResult.separationContactLoad.maximumLinearStopPeakForceN === null ? "Not assessed" : `${stageFlightResult.separationContactLoad.maximumLinearStopPeakForceN.toFixed(1)} N`}</strong><small>linear compliance 2Eₙ/d</small></div>
+                              <div><span>Absorbed normal energy</span><strong>{stageFlightResult.separationContactLoad.maximumAbsorbedNormalEnergyJ === null ? "Not assessed" : `${stageFlightResult.separationContactLoad.maximumAbsorbedNormalEnergyJ.toFixed(2)} J`}</strong><small>after rebound allowance</small></div>
+                            </div>
+                            <div className="stage-separation-contact-load-list">
+                              {stageFlightResult.separationContactLoad.pairs.filter((pair) => pair.contactStatus === "contact-detected").map((pair) => (
+                                <div key={`${pair.firstBodyId}-${pair.secondBodyId}`}>
+                                  <strong>{pair.firstBodyLabel} / {pair.secondBodyLabel}</strong>
+                                  <span>{pair.averageAbsorptionForceN === null ? "Not assessed" : `${pair.averageAbsorptionForceN.toFixed(1)} N avg absorption`} · {pair.linearStopPeakForceN === null ? "no peak scale" : `${pair.linearStopPeakForceN.toFixed(1)} N linear-stop scale`}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <p className="stage-separation-contact-load-note">{stageFlightResult.separationContactLoad.warnings[0] ?? "Compliance scenario only; not a structural or flight-safety result."}</p>
+                            <small className="stage-separation-contact-load-model">{publicModelVersion(stageFlightResult.separationContactLoad.modelVersion)} · {stageFlightResult.separationContactLoad.validationStatus}</small>
                           </div>
                         )}
                         <div className="stage-separated-body-grid">

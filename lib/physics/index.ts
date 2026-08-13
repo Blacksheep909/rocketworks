@@ -17,6 +17,7 @@ export * from "./recovery-opening-load.ts";
 export * from "./recovery-reefing.ts";
 export * from "./separation-envelope.ts";
 export * from "./separation-contact.ts";
+export * from "./separation-contact-load.ts";
 export * from "./separation-dynamics.ts";
 export * from "./rocket-loads.ts";
 export * from "./six-dof.ts";

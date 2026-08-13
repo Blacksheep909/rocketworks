@@ -2109,6 +2109,35 @@ export function createEngineeringReportMarkdown(
                 "> This fixed-envelope screen reports potential contact and relative centre-of-mass energy only. It does not resolve contact forces, impulse distribution, rebound, deformation, structural load, plume interaction, aerodynamic interference, range safety, or flight safety.",
               ]
             : []),
+          ...(input.stageFlight.separationContactLoad
+            ? [
+                "",
+                "### Contact impulse and force-scale scenario",
+                "",
+                "| Diagnostic | Value |",
+                "|---|---:|",
+                `| Status | ${markdownText(input.stageFlight.separationContactLoad.status)} |`,
+                `| Contact pairs assessed | ${input.stageFlight.separationContactLoad.assessedPairCount} / ${input.stageFlight.separationContactLoad.contactPairCount} |`,
+                `| Stopping distance | ${formatNumber(input.stageFlight.separationContactLoad.stoppingDistanceM, 5)} m |`,
+                `| Coefficient of restitution | ${formatNumber(input.stageFlight.separationContactLoad.coefficientOfRestitution, 3)} |`,
+                `| Maximum normal impulse | ${input.stageFlight.separationContactLoad.maximumNormalImpulseNs === null ? "not assessed" : `${formatNumber(input.stageFlight.separationContactLoad.maximumNormalImpulseNs, 3)} N·s`} |`,
+                `| Maximum average absorption force | ${input.stageFlight.separationContactLoad.maximumAverageAbsorptionForceN === null ? "not assessed" : `${formatNumber(input.stageFlight.separationContactLoad.maximumAverageAbsorptionForceN, 3)} N`} |`,
+                `| Maximum linear-stop force scale | ${input.stageFlight.separationContactLoad.maximumLinearStopPeakForceN === null ? "not assessed" : `${formatNumber(input.stageFlight.separationContactLoad.maximumLinearStopPeakForceN, 3)} N`} |`,
+                `| Maximum absorbed normal energy | ${input.stageFlight.separationContactLoad.maximumAbsorbedNormalEnergyJ === null ? "not assessed" : `${formatNumber(input.stageFlight.separationContactLoad.maximumAbsorbedNormalEnergyJ, 3)} J`} |`,
+                `| Model | \`${markdownText(input.stageFlight.separationContactLoad.modelVersion)}\` |`,
+                "",
+                "| Pair | Closing speed | Normal impulse | Average absorption force | Linear-stop force | Status |",
+                "|---|---:|---:|---:|---:|---|",
+                ...input.stageFlight.separationContactLoad.pairs
+                  .filter((pair) => pair.contactStatus === "contact-detected")
+                  .map((pair) => `| ${markdownText(pair.firstBodyLabel)} / ${markdownText(pair.secondBodyLabel)} | ${pair.closingSpeedMps === null ? "not assessed" : `${formatNumber(pair.closingSpeedMps, 3)} m/s`} | ${pair.normalImpulseNs === null ? "not assessed" : `${formatNumber(pair.normalImpulseNs, 3)} N·s`} | ${pair.averageAbsorptionForceN === null ? "not assessed" : `${formatNumber(pair.averageAbsorptionForceN, 3)} N`} | ${pair.linearStopPeakForceN === null ? "not assessed" : `${formatNumber(pair.linearStopPeakForceN, 3)} N`} | ${markdownText(pair.status)} |`),
+                "",
+                ...input.stageFlight.separationContactLoad.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+                ...input.stageFlight.separationContactLoad.warnings.map((warning) => `- **Contact-load warning:** ${markdownText(warning)}`),
+                "",
+                "> This compliance scenario uses prescribed stopping distance and restitution to estimate normal force scales. It does not resolve contact mechanics, structural loads, rebound direction, damage, certification, range safety, or flight safety.",
+              ]
+            : []),
           ...(input.stageFlight.coupledMultiBodyFlight
             ? [
                 "",

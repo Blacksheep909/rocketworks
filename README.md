@@ -29,6 +29,10 @@ research, standards, and original code.
 - a conservative staged separation contact screen that root-finds potential
   fixed-envelope crossings on shared released-body paths and reports relative
   closing speed plus an explicitly non-structural kinetic-energy proxy;
+- a separate contact compliance scenario with authored stopping-distance and
+  restitution controls, normal impulse, absorbed/rebound energy, and explicit
+  average/linear-stop force scales that never feed forces back into the flight
+  trajectory;
 - serial, parallel, radial, clustered, and multi-stage vehicle topology;
 - editable topology point-mass equipment and cylindrical pod primitives with
   slider/exact-number placement controls and optional principal local inertia
