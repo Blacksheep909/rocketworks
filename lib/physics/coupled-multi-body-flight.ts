@@ -11,6 +11,7 @@ import {
 import {
   addVectors,
   cross,
+  dot,
   multiplyMatrixVector,
   magnitude,
   scaleVector,
@@ -50,21 +51,42 @@ import {
  * This is intentionally a bounded point-mass component model. Every released
  * body is integrated on the same mission-time grid against the same gravity,
  * atmosphere, and wind provider, then the resulting traces are compared as a
- * group. It is a real simultaneous propagation path, but it does not invent
- * contact forces, plume interaction, or aerodynamic interference that the
- * supplied inputs cannot support.
+ * group. It can optionally apply a bounded spherical-envelope penalty force
+ * when the caller enables the contact contract; plume interaction and
+ * aerodynamic interference remain outside the model.
  */
 export const COUPLED_MULTI_BODY_FLIGHT_MODEL_VERSION =
-  "rocketworks-coupled-multi-body-flight-0.6.0";
+  "rocketworks-coupled-multi-body-flight-0.7.0";
 export const COUPLED_MULTI_BODY_FLIGHT_STATUS =
   "analytical-component-checks-only" as const;
 export const STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2 = 6.67430e-11;
+
+export const COUPLED_MULTI_BODY_CONTACT_MODEL_VERSION =
+  "rocketworks-coupled-multi-body-contact-0.1.0";
+export const COUPLED_MULTI_BODY_CONTACT_STATUS =
+  "analytical-compliance-solver" as const;
 
 export type CoupledMultiBodyGravityOptions = Readonly<{
   /** Enables direct pairwise point-mass gravity between released bodies. */
   enabled?: boolean;
   /** Optional Plummer-style softening radius for close approaches. */
   softeningRadiusM?: number;
+}>;
+
+/**
+ * Optional bounded spherical-envelope contact force for the shared released-
+ * body track. Contact is deliberately disabled by default. When enabled,
+ * overlapping envelopes receive equal-and-opposite normal penalty forces;
+ * missing envelope radii remain outside the solver.
+ */
+export type CoupledMultiBodyContactOptions = Readonly<{
+  enabled?: boolean;
+  /** Linear normal stiffness in N/m. */
+  stiffnessNPerM?: number;
+  /** Linear closing-speed damping in N/(m/s). */
+  dampingNsPerM?: number;
+  /** Safety cap on each pair's normal force. */
+  maximumNormalForceN?: number;
 }>;
 
 export type CoupledMultiBodyIntegrationOptions = Readonly<{
@@ -143,6 +165,14 @@ export type CoupledMultiBodyTracePoint = Readonly<{
   aerodynamicCoefficientTableModelVersion?: string;
   aerodynamicCoefficientApplicabilityCount?: number;
   aerodynamicModelVersion?: string;
+  /** Equal-and-opposite normal contact force from the optional envelope solver. */
+  contactForceWorldN?: Vector3;
+  /** Magnitude of the normal contact force applied to this body. */
+  contactForceN?: number;
+  /** Maximum spherical-envelope penetration involving this body at the sample. */
+  contactPenetrationM?: number;
+  /** Number of active contact pairs involving this body at the sample. */
+  contactPairCount?: number;
   orientationBodyToWorld?: Quaternion;
   angularVelocityBodyRadS?: Vector3;
 }>;
@@ -179,6 +209,8 @@ export type CoupledMultiBodyFlightInput = Readonly<{
   timeStepS: number;
   /** Optional pairwise gravity model; disabled by default for compatibility. */
   mutualGravity?: CoupledMultiBodyGravityOptions;
+  /** Optional equal-and-opposite spherical-envelope contact force model. */
+  contact?: CoupledMultiBodyContactOptions;
   launchAltitudeM?: number;
   environmentAt?: LaunchEnvironmentProvider;
   maximumSteps?: number;
@@ -196,6 +228,18 @@ export type CoupledMultiBodyFlightResult = Readonly<{
     enabled: boolean;
     softeningRadiusM: number;
     gravitationalConstantM3KgS2: typeof STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2;
+  }>;
+  contact: Readonly<{
+    modelVersion: typeof COUPLED_MULTI_BODY_CONTACT_MODEL_VERSION;
+    validationStatus: typeof COUPLED_MULTI_BODY_CONTACT_STATUS;
+    enabled: boolean;
+    stiffnessNPerM: number;
+    dampingNsPerM: number;
+    maximumNormalForceN: number;
+    maximumPenetrationM: number | null;
+    maximumNormalForceNObserved: number | null;
+    contactPairCount: number;
+    contactSampleCount: number;
   }>;
   rigidBodyCount: number;
   aerodynamicBodyCount: number;
@@ -245,6 +289,9 @@ type CoupledGroupDerivative = Readonly<{
   positionRatesWorldMps: readonly Vector3[];
   velocityRatesWorldMps2: readonly Vector3[];
   accelerationsWorldMps2: readonly Vector3[];
+  contactForceWorldNs: readonly Vector3[];
+  contactPenetrationsM: readonly number[];
+  contactPairCounts: readonly number[];
   orientationRates: readonly (Quaternion | null)[];
   angularVelocityRatesBodyRadS2: readonly (Vector3 | null)[];
 }>;
@@ -350,6 +397,42 @@ function normalizeMutualGravityOptions(
     "coupled multi-body mutual gravity softening radius",
   );
   return { enabled, softeningRadiusM };
+}
+
+const DEFAULT_CONTACT_STIFFNESS_N_PER_M = 50_000;
+const DEFAULT_CONTACT_DAMPING_NS_PER_M = 100;
+const DEFAULT_CONTACT_MAXIMUM_FORCE_N = 1_000_000;
+
+type NormalizedContactOptions = Readonly<{
+  enabled: boolean;
+  stiffnessNPerM: number;
+  dampingNsPerM: number;
+  maximumNormalForceN: number;
+}>;
+
+function normalizeContactOptions(
+  options: CoupledMultiBodyContactOptions | undefined,
+): NormalizedContactOptions {
+  const enabled = options?.enabled ?? false;
+  if (typeof enabled !== "boolean") {
+    throw new Error("coupled multi-body contact enabled flag must be boolean");
+  }
+  const stiffnessNPerM = options?.stiffnessNPerM ?? DEFAULT_CONTACT_STIFFNESS_N_PER_M;
+  const dampingNsPerM = options?.dampingNsPerM ?? DEFAULT_CONTACT_DAMPING_NS_PER_M;
+  const maximumNormalForceN = options?.maximumNormalForceN ?? DEFAULT_CONTACT_MAXIMUM_FORCE_N;
+  assertPositiveFinite(stiffnessNPerM, "coupled multi-body contact stiffness");
+  assertNonNegativeFinite(dampingNsPerM, "coupled multi-body contact damping");
+  assertPositiveFinite(maximumNormalForceN, "coupled multi-body contact maximum force");
+  if (stiffnessNPerM > 1e9) {
+    throw new Error("coupled multi-body contact stiffness cannot exceed 1e9 N/m");
+  }
+  if (dampingNsPerM > 1e7) {
+    throw new Error("coupled multi-body contact damping cannot exceed 1e7 N/(m/s)");
+  }
+  if (maximumNormalForceN > 1e10) {
+    throw new Error("coupled multi-body contact maximum force cannot exceed 1e10 N");
+  }
+  return { enabled, stiffnessNPerM, dampingNsPerM, maximumNormalForceN };
 }
 
 function interpolateVector(a: Vector3, b: Vector3, fraction: number): Vector3 {
@@ -667,6 +750,85 @@ function mutualGravityAccelerationAt(
   return acceleration;
 }
 
+type CoupledContactEvaluation = Readonly<{
+  forcesWorldN: readonly Vector3[];
+  penetrationsM: readonly number[];
+  pairCounts: readonly number[];
+  maximumPenetrationM: number | null;
+  maximumNormalForceN: number | null;
+  contactPairCount: number;
+}>;
+
+function evaluateCoupledContact(
+  bodies: readonly CoupledMultiBodyFlightBodyInput[],
+  state: CoupledGroupState,
+  options: NormalizedContactOptions,
+): CoupledContactEvaluation {
+  const forcesWorldN = bodies.map(() => ZERO_VECTOR);
+  const penetrationsM = bodies.map(() => 0);
+  const pairCounts = bodies.map(() => 0);
+  if (!options.enabled) {
+    return {
+      forcesWorldN,
+      penetrationsM,
+      pairCounts,
+      maximumPenetrationM: null,
+      maximumNormalForceN: null,
+      contactPairCount: 0,
+    };
+  }
+  let maximumPenetrationM = 0;
+  let maximumNormalForceN = 0;
+  let contactPairCount = 0;
+  for (let firstIndex = 0; firstIndex < bodies.length; firstIndex += 1) {
+    if (!state.active[firstIndex]) continue;
+    const firstRadiusM = bodies[firstIndex]!.envelopeRadiusM;
+    if (firstRadiusM === undefined || firstRadiusM <= 0) continue;
+    for (let secondIndex = firstIndex + 1; secondIndex < bodies.length; secondIndex += 1) {
+      if (!state.active[secondIndex]) continue;
+      const secondRadiusM = bodies[secondIndex]!.envelopeRadiusM;
+      if (secondRadiusM === undefined || secondRadiusM <= 0) continue;
+      const relativePositionM = subtractVectors(
+        state.positionsWorldM[secondIndex]!,
+        state.positionsWorldM[firstIndex]!,
+      );
+      const distanceM = magnitude(relativePositionM);
+      const penetrationM = firstRadiusM + secondRadiusM - distanceM;
+      if (penetrationM <= 0) continue;
+      const normalWorld = distanceM > 1e-12
+        ? scaleVector(relativePositionM, 1 / distanceM)
+        : { x: 1, y: 0, z: 0 };
+      const relativeVelocityMps = subtractVectors(
+        state.velocitiesWorldMps[secondIndex]!,
+        state.velocitiesWorldMps[firstIndex]!,
+      );
+      const closingSpeedMps = Math.max(0, -dot(normalWorld, relativeVelocityMps));
+      const normalForceN = Math.min(
+        options.maximumNormalForceN,
+        Math.max(0, options.stiffnessNPerM * penetrationM + options.dampingNsPerM * closingSpeedMps),
+      );
+      const forceWorldN = scaleVector(normalWorld, normalForceN);
+      forcesWorldN[firstIndex] = subtractVectors(forcesWorldN[firstIndex]!, forceWorldN);
+      forcesWorldN[secondIndex] = addVectors(forcesWorldN[secondIndex]!, forceWorldN);
+      penetrationsM[firstIndex] = Math.max(penetrationsM[firstIndex]!, penetrationM);
+      penetrationsM[secondIndex] = Math.max(penetrationsM[secondIndex]!, penetrationM);
+      pairCounts[firstIndex] += 1;
+      pairCounts[secondIndex] += 1;
+      maximumPenetrationM = Math.max(maximumPenetrationM, penetrationM);
+      maximumNormalForceN = Math.max(maximumNormalForceN, normalForceN);
+      contactPairCount += 1;
+    }
+  }
+  return {
+    forcesWorldN,
+    penetrationsM,
+    pairCounts,
+    maximumPenetrationM: contactPairCount > 0 ? maximumPenetrationM : null,
+    maximumNormalForceN: contactPairCount > 0 ? maximumNormalForceN : null,
+    contactPairCount,
+  };
+}
+
 function quaternionRate(
   orientationBodyToWorld: Quaternion,
   angularVelocityBodyRadS: Vector3,
@@ -746,17 +908,25 @@ function coupledGroupDerivativeAt(
   input: CoupledMultiBodyFlightInput,
   state: CoupledGroupState,
   mutualGravity: Required<CoupledMultiBodyGravityOptions>,
+  contact: NormalizedContactOptions,
 ): CoupledGroupDerivative {
   const positionRatesWorldMps: Vector3[] = [];
   const velocityRatesWorldMps2: Vector3[] = [];
   const accelerationsWorldMps2: Vector3[] = [];
+  const contactForceWorldNs: Vector3[] = [];
+  const contactPenetrationsM: number[] = [];
+  const contactPairCounts: number[] = [];
   const orientationRates: (Quaternion | null)[] = [];
   const angularVelocityRatesBodyRadS2: (Vector3 | null)[] = [];
+  const contactEvaluation = evaluateCoupledContact(bodies, state, contact);
   for (let index = 0; index < bodies.length; index += 1) {
     if (!state.active[index]) {
       positionRatesWorldMps.push(ZERO_VECTOR);
       velocityRatesWorldMps2.push(ZERO_VECTOR);
       accelerationsWorldMps2.push(ZERO_VECTOR);
+      contactForceWorldNs.push(ZERO_VECTOR);
+      contactPenetrationsM.push(0);
+      contactPairCounts.push(0);
       orientationRates.push(null);
       angularVelocityRatesBodyRadS2.push(null);
       continue;
@@ -776,26 +946,31 @@ function coupledGroupDerivativeAt(
     );
     const baseAcceleration = addVectors(
       addVectors(
-        accelerationAt(
-          body,
-          input,
-          state.timeS,
-          state.positionsWorldM[index]!,
-          state.velocitiesWorldMps[index]!,
-          state.orientationsBodyToWorld[index] ?? undefined,
+        addVectors(
+          accelerationAt(
+            body,
+            input,
+            state.timeS,
+            state.positionsWorldM[index]!,
+            state.velocitiesWorldMps[index]!,
+            state.orientationsBodyToWorld[index] ?? undefined,
+          ),
+          aerodynamic && body.aerodynamicBasis
+            ? scaleVector(aerodynamic.forceWorldN, 1 / body.massKg)
+            : ZERO_VECTOR,
         ),
-        aerodynamic && body.aerodynamicBasis
-          ? scaleVector(aerodynamic.forceWorldN, 1 / body.massKg)
+        mutualGravity.enabled
+          ? mutualGravityAccelerationAt(
+              index,
+              bodies,
+              state.positionsWorldM,
+              state.active,
+              mutualGravity.softeningRadiusM,
+            )
           : ZERO_VECTOR,
       ),
-      mutualGravity.enabled
-        ? mutualGravityAccelerationAt(
-            index,
-            bodies,
-            state.positionsWorldM,
-            state.active,
-            mutualGravity.softeningRadiusM,
-          )
+      contact.enabled
+        ? scaleVector(contactEvaluation.forcesWorldN[index]!, 1 / body.massKg)
         : ZERO_VECTOR,
     );
     let acceleration = baseAcceleration;
@@ -846,6 +1021,9 @@ function coupledGroupDerivativeAt(
     positionRatesWorldMps.push(state.velocitiesWorldMps[index]);
     velocityRatesWorldMps2.push(acceleration);
     accelerationsWorldMps2.push(acceleration);
+    contactForceWorldNs.push(contactEvaluation.forcesWorldN[index]!);
+    contactPenetrationsM.push(contactEvaluation.penetrationsM[index]!);
+    contactPairCounts.push(contactEvaluation.pairCounts[index]!);
     orientationRates.push(orientationRate);
     angularVelocityRatesBodyRadS2.push(angularVelocityRate);
   }
@@ -853,6 +1031,9 @@ function coupledGroupDerivativeAt(
     positionRatesWorldMps,
     velocityRatesWorldMps2,
     accelerationsWorldMps2,
+    contactForceWorldNs,
+    contactPenetrationsM,
+    contactPairCounts,
     orientationRates,
     angularVelocityRatesBodyRadS2,
   };
@@ -864,6 +1045,7 @@ function integrateCoupledGroupRungeKutta4(
   state: CoupledGroupState,
   stepS: number,
   mutualGravity: Required<CoupledMultiBodyGravityOptions>,
+  contact: NormalizedContactOptions,
 ): CoupledGroupState {
   const addScaledQuaternion = (
     value: Quaternion,
@@ -875,7 +1057,7 @@ function integrateCoupledGroupRungeKutta4(
     y: value.y + derivative.y * scale,
     z: value.z + derivative.z * scale,
   });
-  const k1 = coupledGroupDerivativeAt(bodies, input, state, mutualGravity);
+  const k1 = coupledGroupDerivativeAt(bodies, input, state, mutualGravity, contact);
   const halfState = (
     base: CoupledGroupState,
     derivative: CoupledGroupDerivative,
@@ -908,18 +1090,21 @@ function integrateCoupledGroupRungeKutta4(
     input,
     halfState(state, k1, stepS / 2, state.timeS + stepS / 2),
     mutualGravity,
+    contact,
   );
   const k3 = coupledGroupDerivativeAt(
     bodies,
     input,
     halfState(state, k2, stepS / 2, state.timeS + stepS / 2),
     mutualGravity,
+    contact,
   );
   const k4 = coupledGroupDerivativeAt(
     bodies,
     input,
     halfState(state, k3, stepS, state.timeS + stepS),
     mutualGravity,
+    contact,
   );
   const weighted = (
     index: number,
@@ -1119,6 +1304,7 @@ function integrateCoupledGroupAdaptive(
   state: CoupledGroupState,
   durationS: number,
   mutualGravity: Required<CoupledMultiBodyGravityOptions>,
+  contact: NormalizedContactOptions,
   options: Required<AdaptiveRigidBodyIntegrationOptions>,
 ): CoupledAdaptiveStepResult {
   if (!Number.isFinite(durationS) || durationS <= 0) {
@@ -1152,6 +1338,7 @@ function integrateCoupledGroupAdaptive(
       current,
       candidateStepS,
       mutualGravity,
+      contact,
     );
     const halfStep = integrateCoupledGroupRungeKutta4(
       bodies,
@@ -1159,6 +1346,7 @@ function integrateCoupledGroupAdaptive(
       current,
       candidateStepS / 2,
       mutualGravity,
+      contact,
     );
     const refinedStep = integrateCoupledGroupRungeKutta4(
       bodies,
@@ -1166,6 +1354,7 @@ function integrateCoupledGroupAdaptive(
       halfStep,
       candidateStepS / 2,
       mutualGravity,
+      contact,
     );
     const normalizedError = adaptiveCoupledStateErrorNorm(
       fullStep,
@@ -1247,6 +1436,7 @@ function integrateCoupledGroupInterval(
   state: CoupledGroupState,
   durationS: number,
   mutualGravity: Required<CoupledMultiBodyGravityOptions>,
+  contact: NormalizedContactOptions,
   integration: CoupledIntegrationConfig,
   diagnostics: MutableCoupledIntegrationDiagnostics,
 ): CoupledGroupState {
@@ -1258,6 +1448,7 @@ function integrateCoupledGroupInterval(
       state,
       durationS,
       mutualGravity,
+      contact,
     );
     recordCoupledAcceptedSteps(
       diagnostics,
@@ -1275,6 +1466,7 @@ function integrateCoupledGroupInterval(
     state,
     durationS,
     mutualGravity,
+    contact,
     integration.adaptive!,
   );
   recordCoupledAcceptedSteps(
@@ -1378,6 +1570,11 @@ function tracePointWithAcceleration(
   accelerationWorldMps2: Vector3,
   orientationBodyToWorld?: Quaternion,
   angularVelocityBodyRadS?: Vector3,
+  contactDiagnostics?: Readonly<{
+    forceWorldN: Vector3;
+    penetrationM: number;
+    pairCount: number;
+  }>,
 ): CoupledMultiBodyTracePoint {
   const aerodynamic = evaluateCoupledBodyAerodynamics(
     body,
@@ -1430,6 +1627,14 @@ function tracePointWithAcceleration(
     velocityWorldMps: state.velocityWorldMps,
     accelerationWorldMps2,
     ...aerodynamicTelemetry,
+    ...(contactDiagnostics
+      ? {
+          contactForceWorldN: contactDiagnostics.forceWorldN,
+          contactForceN: magnitude(contactDiagnostics.forceWorldN),
+          contactPenetrationM: contactDiagnostics.penetrationM,
+          contactPairCount: contactDiagnostics.pairCount,
+        }
+      : {}),
     ...(orientationBodyToWorld ? { orientationBodyToWorld } : {}),
     ...(angularVelocityBodyRadS ? { angularVelocityBodyRadS } : {}),
   };
@@ -1578,6 +1783,7 @@ function propagateCoupledBodies(
   grid: readonly number[],
   integrationStepS: number,
   mutualGravity: Required<CoupledMultiBodyGravityOptions>,
+  contact: NormalizedContactOptions,
   integration: CoupledIntegrationConfig,
   diagnostics: MutableCoupledIntegrationDiagnostics,
 ): CoupledMultiBodyFlightTrajectory[] {
@@ -1633,12 +1839,13 @@ function propagateCoupledBodies(
       newlyReleased.push(index);
     }
     for (const index of newlyReleased) {
-      const initialAcceleration = coupledGroupDerivativeAt(
+      const initialDerivative = coupledGroupDerivativeAt(
         bodies,
         input,
         state,
         mutualGravity,
-      ).accelerationsWorldMps2[index];
+        contact,
+      );
       appendTrace(index, tracePointWithAcceleration(
         bodies[index],
         input,
@@ -1647,9 +1854,16 @@ function propagateCoupledBodies(
           positionWorldM: state.positionsWorldM[index],
           velocityWorldMps: state.velocitiesWorldMps[index],
         },
-        initialAcceleration,
+        initialDerivative.accelerationsWorldMps2[index]!,
         state.orientationsBodyToWorld[index] ?? undefined,
         state.angularVelocitiesBodyRadS[index] ?? undefined,
+        contact.enabled
+          ? {
+              forceWorldN: initialDerivative.contactForceWorldNs[index]!,
+              penetrationM: initialDerivative.contactPenetrationsM[index]!,
+              pairCount: initialDerivative.contactPairCounts[index]!,
+            }
+          : undefined,
       ));
       if (
         state.positionsWorldM[index].z <= 0 &&
@@ -1672,6 +1886,7 @@ function propagateCoupledBodies(
         previousState,
         stepS,
         mutualGravity,
+        contact,
         integration,
         diagnostics,
       );
@@ -1735,21 +1950,29 @@ function propagateCoupledBodies(
             ),
             active: previousState.active,
           };
-          const impactAcceleration = coupledGroupDerivativeAt(
+          const impactDerivative = coupledGroupDerivativeAt(
             bodies,
             input,
             impactGroupState,
             mutualGravity,
-          ).accelerationsWorldMps2[index];
+            contact,
+          );
           appendTrace(
             index,
             tracePointWithAcceleration(
               bodies[index],
               input,
               impactState,
-              impactAcceleration,
+              impactDerivative.accelerationsWorldMps2[index]!,
               impactOrientation ?? undefined,
               impactAngularVelocity ?? undefined,
+              contact.enabled
+                ? {
+                    forceWorldN: impactDerivative.contactForceWorldNs[index]!,
+                    penetrationM: impactDerivative.contactPenetrationsM[index]!,
+                    pairCount: impactDerivative.contactPairCounts[index]!,
+                  }
+                : undefined,
             ),
           );
           impactTimes[index] = impactState.timeS;
@@ -1769,12 +1992,13 @@ function propagateCoupledBodies(
     }
     for (let index = 0; index < bodies.length; index += 1) {
       if (state.active[index]) {
-        const acceleration = coupledGroupDerivativeAt(
+        const derivative = coupledGroupDerivativeAt(
           bodies,
           input,
           state,
           mutualGravity,
-        ).accelerationsWorldMps2[index];
+          contact,
+        );
         appendTrace(index, tracePointWithAcceleration(
           bodies[index],
           input,
@@ -1783,9 +2007,16 @@ function propagateCoupledBodies(
             positionWorldM: state.positionsWorldM[index],
             velocityWorldMps: state.velocitiesWorldMps[index],
           },
-          acceleration,
+          derivative.accelerationsWorldMps2[index]!,
           state.orientationsBodyToWorld[index] ?? undefined,
           state.angularVelocitiesBodyRadS[index] ?? undefined,
+          contact.enabled
+            ? {
+                forceWorldN: derivative.contactForceWorldNs[index]!,
+                penetrationM: derivative.contactPenetrationsM[index]!,
+                pairCount: derivative.contactPairCounts[index]!,
+              }
+            : undefined,
         ));
       }
     }
@@ -1802,7 +2033,8 @@ function propagateCoupledBodies(
  *
  * The coupling here is explicit and bounded: bodies share the same
  * environment provider and time grid, while pairwise relative motion is
- * evaluated from the resulting traces. No body-to-body force is synthesized.
+ * evaluated from the resulting traces. An opt-in envelope contact force may
+ * act only between active released bodies with supplied positive radii.
  */
 export function simulateCoupledMultiBodyFlight(
   input: CoupledMultiBodyFlightInput,
@@ -1839,6 +2071,7 @@ export function simulateCoupledMultiBodyFlight(
     ...(adaptiveIntegrationOptions ? { adaptive: adaptiveIntegrationOptions } : {}),
   };
   const mutualGravity = normalizeMutualGravityOptions(input.mutualGravity);
+  const contact = normalizeContactOptions(input.contact);
   const ids = new Set<string>();
   input.bodies.forEach((body) => {
     validateBody(body);
@@ -1864,6 +2097,7 @@ export function simulateCoupledMultiBodyFlight(
   let grid: number[];
   if (
     mutualGravity.enabled ||
+    contact.enabled ||
     rigidBodyCount > 0 ||
     integrationMethod === "adaptive-rk4-step-doubling"
   ) {
@@ -1897,6 +2131,7 @@ export function simulateCoupledMultiBodyFlight(
   };
   const usesCoupledGroup =
     mutualGravity.enabled ||
+    contact.enabled ||
     rigidBodyCount > 0 ||
     integrationMethod === "adaptive-rk4-step-doubling";
   const trajectories = usesCoupledGroup
@@ -1906,6 +2141,7 @@ export function simulateCoupledMultiBodyFlight(
         grid,
         effectiveTimeStepS,
         mutualGravity,
+        contact,
         integration,
         integrationDiagnostics,
       )
@@ -1936,11 +2172,25 @@ export function simulateCoupledMultiBodyFlight(
         })),
       })
     : null;
+  const contactTraceSamples = trajectories.flatMap((trajectory) =>
+    trajectory.trace.filter((point) => (point.contactPairCount ?? 0) > 0),
+  );
+  const contactMaximumPenetrationM = contactTraceSamples.length > 0
+    ? Math.max(...contactTraceSamples.map((point) => point.contactPenetrationM ?? 0))
+    : null;
+  const contactMaximumNormalForceN = contactTraceSamples.length > 0
+    ? Math.max(...contactTraceSamples.map((point) => point.contactForceN ?? 0))
+    : null;
+  const contactPairCount = contactTraceSamples.length > 0
+    ? Math.max(...contactTraceSamples.map((point) => point.contactPairCount ?? 0))
+    : 0;
   const warnings = [
     "All released bodies were propagated simultaneously on a shared mission-time grid with a common environment provider.",
-    mutualGravity.enabled
-      ? "Mutual point-mass gravity was included between active released bodies; contact forces, collision response, plume interaction, and aerodynamic interference remain outside the model."
-      : "The shared-grid coupling evaluates relative motion together but does not synthesize contact forces, collision response, plume interaction, or aerodynamic interference.",
+    contact.enabled
+      ? "The opt-in spherical-envelope contact solver applies equal-and-opposite normal penalty forces between active released bodies with positive envelope radii; retained-vehicle contact, friction, rotation from off-centre contact, plume interaction, and aerodynamic interference remain outside the shared track."
+      : mutualGravity.enabled
+        ? "Mutual point-mass gravity was included between active released bodies; contact forces, collision response, plume interaction, and aerodynamic interference remain outside the model."
+        : "The shared-grid coupling evaluates relative motion together but does not synthesize contact forces, collision response, plume interaction, or aerodynamic interference.",
     ...(rigidBodyCount > 0
       ? [`${rigidBodyCount} released bod${rigidBodyCount === 1 ? "y" : "ies"} used the opt-in rigid-body attitude state; supplied external loads were evaluated in the body/world frames.`]
       : []),
@@ -1953,6 +2203,15 @@ export function simulateCoupledMultiBodyFlight(
     "An optional earthRotationAccelerationWorldMps2 field from the environment provider is added to each body's shared acceleration; the provider remains responsible for its provenance and validation status.",
     ...(mutualGravity.enabled && mutualGravity.softeningRadiusM > 0
       ? [`Mutual gravity uses a Plummer-style softening radius of ${mutualGravity.softeningRadiusM.toFixed(6)} m for close approaches; this is a numerical approximation, not a contact model.`]
+      : []),
+    ...(contact.enabled
+      ? [
+          `Envelope contact uses ${COUPLED_MULTI_BODY_CONTACT_MODEL_VERSION}: F_n = min(F_max, k δ + c v_closing), with k=${contact.stiffnessNPerM.toFixed(3)} N/m, c=${contact.dampingNsPerM.toFixed(3)} N/(m/s), and F_max=${contact.maximumNormalForceN.toFixed(3)} N.`,
+          "Contact forces are applied at the body centres and therefore produce no angular impulse; envelope radii are conservative spherical bounds, not collision meshes or structural stiffness data.",
+          ...(contactTraceSamples.length === 0
+            ? ["The contact branch was enabled but no active released-body envelope overlap was sampled; no contact force was applied."]
+            : []),
+        ]
       : []),
     aerodynamicBodyCount > 0
       ? "Bodies with a detached-body aerodynamic basis use altitude-dependent gravity and the supplied relation/projected-area force basis against environment-relative wind; other bodies retain their configured point-drag path."
@@ -1985,7 +2244,9 @@ export function simulateCoupledMultiBodyFlight(
     ...(mutualGravity.enabled
       ? [`Pairwise point-mass gravity uses F = G m₁ m₂ r / (|r|² + ε²)^(3/2), with G=${STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2.toExponential(5)} m³ kg⁻¹ s⁻² and ε=${mutualGravity.softeningRadiusM.toFixed(6)} m.`]
       : []),
-    "Pairwise separation is a continuous piecewise-linear trace diagnostic; spherical envelope bounds, contact, collision response, and range-safety margins remain outside this model.",
+    contact.enabled
+      ? "Pairwise separation remains a continuous diagnostic alongside the contact branch; F_n = min(F_max, k * penetration + c * closing speed) is bounded by the caller cap and does not model deformation, friction, rebound geometry, joints, or range-safety margins."
+      : "Pairwise separation is a continuous piecewise-linear trace diagnostic; spherical envelope bounds, contact, collision response, and range-safety margins remain outside this model.",
     ...(input.bodies.some((body) => body.velocityAdjustment)
       ? ["Velocity adjustments are treated as instantaneous release-state corrections supplied by the caller; separation mechanism, joint compliance, and angular impulse are not modeled."]
       : []),
@@ -2028,6 +2289,18 @@ export function simulateCoupledMultiBodyFlight(
       enabled: mutualGravity.enabled,
       softeningRadiusM: mutualGravity.softeningRadiusM,
       gravitationalConstantM3KgS2: STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2,
+    },
+    contact: {
+      modelVersion: COUPLED_MULTI_BODY_CONTACT_MODEL_VERSION,
+      validationStatus: COUPLED_MULTI_BODY_CONTACT_STATUS,
+      enabled: contact.enabled,
+      stiffnessNPerM: contact.stiffnessNPerM,
+      dampingNsPerM: contact.dampingNsPerM,
+      maximumNormalForceN: contact.maximumNormalForceN,
+      maximumPenetrationM: contactMaximumPenetrationM,
+      maximumNormalForceNObserved: contactMaximumNormalForceN,
+      contactPairCount,
+      contactSampleCount: contactTraceSamples.length,
     },
     rigidBodyCount,
     aerodynamicBodyCount,

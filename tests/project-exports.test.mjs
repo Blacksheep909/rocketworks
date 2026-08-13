@@ -8,6 +8,7 @@ import {
   createFlightTraceCsv,
   createParameterSweepCsv,
   createStageFlightTraceCsv,
+  createCoupledMultiBodyTraceCsv,
   createSeparatedBodyTraceCsv,
   createUncertaintyCsv,
   createKestrelProjectJson,
@@ -16,7 +17,7 @@ import {
   createRocketProfileDxf,
   createRocketStl,
 } from "../lib/export/project-exports.ts";
-import { analyzeAttachedAeroInterference, analyzeLandingFootprint, computeStageFlightForceBudget, computeStructuralScreen, createAttachedAeroInterferenceBody, createEngineeringDesignReview, createStageFlightComparison, createStageInterfaceLoadReview, createStageStructuralReview, runPhysicsBenchmarkSuite, runUncertaintyAnalysis } from "../lib/physics/index.ts";
+import { analyzeAttachedAeroInterference, analyzeLandingFootprint, computeStageFlightForceBudget, computeStructuralScreen, createAttachedAeroInterferenceBody, createEngineeringDesignReview, createStageFlightComparison, createStageInterfaceLoadReview, createStageStructuralReview, runPhysicsBenchmarkSuite, runUncertaintyAnalysis, simulateCoupledMultiBodyFlight } from "../lib/physics/index.ts";
 
 const trace = [
   {
@@ -328,6 +329,41 @@ test("released-body CSV preserves release provenance and aerodynamic diagnostics
   assert.equal(rows[headerIndex + 1].split(",").length, 33);
   assert.match(rows[headerIndex + 1], /^booster\/booster-1,booster,Booster,4\.2,4\.2,30,12\.1655/);
   assert.match(rows[headerIndex + 1], /,2\.864788975654116,0\.5729577951308232,75,0,0\.02,0,0,-0\.01,0,rocketworks-detached-body-aerodynamics-0\.2\.0,1000000,mach-reynolds-force-moment-table,true,true,rocketworks-aero-force-moment-table-0\.1\.0,2$/);
+});
+
+test("shared coupled-body CSV preserves contact settings and per-sample diagnostics", () => {
+  const result = simulateCoupledMultiBodyFlight({
+    bodies: [
+      {
+        id: "left",
+        label: "Left body",
+        massKg: 1,
+        releaseTimeS: 0,
+        releasePositionWorldM: { x: -0.4, y: 0, z: 100 },
+        releaseVelocityWorldMps: { x: 0, y: 0, z: 0 },
+        envelopeRadiusM: 0.5,
+      },
+      {
+        id: "right",
+        label: "Right body",
+        massKg: 1,
+        releaseTimeS: 0,
+        releasePositionWorldM: { x: 0.4, y: 0, z: 100 },
+        releaseVelocityWorldMps: { x: 0, y: 0, z: 0 },
+        envelopeRadiusM: 0.5,
+      },
+    ],
+    durationS: 0.05,
+    timeStepS: 0.01,
+    contact: { enabled: true, stiffnessNPerM: 100, dampingNsPerM: 10, maximumNormalForceN: 1000 },
+  });
+  const csv = createCoupledMultiBodyTraceCsv(result);
+  assert.match(csv, /# contact_enabled,true/);
+  assert.match(csv, /# contact_pair_count,1/);
+  assert.match(csv, /contact_force_world_x_n/);
+  assert.match(csv, /contact_penetration_m/);
+  assert.match(csv, /left,Left body,1,0,0,100/);
+  assert.doesNotMatch(csv, /NaN|Infinity/);
 });
 
 test("parameter sweep CSV preserves rows, null outputs, and evaluator errors", () => {
@@ -1063,7 +1099,7 @@ test("engineering report leads with status and preserves calculations and limita
         assumptions: ["Relative-flow fixture assumption."],
       },
       coupledMultiBodyFlight: {
-        modelVersion: "rocketworks-coupled-multi-body-flight-0.6.0",
+        modelVersion: "rocketworks-coupled-multi-body-flight-0.7.0",
         validationStatus: "analytical-component-checks-only",
         startTimeS: 4.2,
         endTimeS: 8,

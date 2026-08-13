@@ -168,6 +168,68 @@ test("mutual gravity exposes singularity and softening controls explicitly", () 
   assert.ok(softened.warnings.some((warning) => warning.includes("softening radius")));
 });
 
+test("opt-in envelope contact applies bounded equal-and-opposite normal force", () => {
+  const result = simulateCoupledMultiBodyFlight({
+    bodies: [
+      body({
+        id: "contact-left",
+        releaseTimeS: 0,
+        releasePositionWorldM: { x: -0.4, y: 0, z: 100 },
+        releaseVelocityWorldMps: { x: 0, y: 0, z: 0 },
+        envelopeRadiusM: 0.5,
+      }),
+      body({
+        id: "contact-right",
+        releaseTimeS: 0,
+        releasePositionWorldM: { x: 0.4, y: 0, z: 100 },
+        releaseVelocityWorldMps: { x: 0, y: 0, z: 0 },
+        envelopeRadiusM: 0.5,
+      }),
+    ],
+    durationS: 0.1,
+    timeStepS: 0.01,
+    contact: {
+      enabled: true,
+      stiffnessNPerM: 100,
+      dampingNsPerM: 10,
+      maximumNormalForceN: 1_000,
+    },
+  });
+  assert.equal(result.contact.enabled, true);
+  assert.equal(result.contact.contactPairCount, 1);
+  assert.ok(result.contact.contactSampleCount > 0);
+  assert.ok(result.contact.maximumPenetrationM > 0);
+  assert.ok(result.contact.maximumNormalForceNObserved > 0);
+  const initialLeft = result.trajectories[0].trace[0];
+  const initialRight = result.trajectories[1].trace[0];
+  assert.equal(initialLeft.contactPairCount, 1);
+  assert.equal(initialRight.contactPairCount, 1);
+  assert.ok(initialLeft.contactForceWorldN.x < 0);
+  assert.ok(initialRight.contactForceWorldN.x > 0);
+  assert.ok(Math.abs(initialLeft.contactForceWorldN.x + initialRight.contactForceWorldN.x) < 1e-12);
+  const finalLeft = result.trajectories[0].trace.at(-1).positionWorldM.x;
+  const finalRight = result.trajectories[1].trace.at(-1).positionWorldM.x;
+  assert.ok(finalRight - finalLeft > 0.8);
+  assert.ok(result.warnings.some((warning) => warning.includes("spherical-envelope contact solver")));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("F_n = min")));
+});
+
+test("contact options reject unsafe stiffness, damping, and force caps", () => {
+  const options = { enabled: true };
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({ bodies: [body()], durationS: 1, timeStepS: 0.1, contact: { ...options, stiffnessNPerM: 0 } }),
+    /contact stiffness/,
+  );
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({ bodies: [body()], durationS: 1, timeStepS: 0.1, contact: { ...options, dampingNsPerM: -1 } }),
+    /contact damping/,
+  );
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({ bodies: [body()], durationS: 1, timeStepS: 0.1, contact: { ...options, maximumNormalForceN: 1e11 } }),
+    /maximum force/,
+  );
+});
+
 test("coupled point-mass propagation consumes optional environment rotation acceleration", () => {
   const result = simulateCoupledMultiBodyFlight({
     bodies: [body({ releaseTimeS: 0, releasePositionWorldM: { x: 0, y: 0, z: 100 } })],

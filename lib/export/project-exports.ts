@@ -8,6 +8,7 @@ import type {
   StageFlightPreviewResult,
   StageFlightTracePoint,
 } from "../physics/stage-flight-preview.ts";
+import type { CoupledMultiBodyFlightResult } from "../physics/coupled-multi-body-flight.ts";
 import type { StageFlightComparisonResult } from "../physics/stage-flight-comparison.ts";
 import type { PhysicsBenchmarkSuiteResult } from "../physics/benchmark-suite.ts";
 import type { StageFlightUncertaintyResult } from "../physics/stage-flight-uncertainty.ts";
@@ -779,6 +780,98 @@ export function createSeparatedBodyTraceCsv(
     ];
     values.forEach((value, valueIndex) => {
       if (typeof value === "number") assertFinite(value, `separated-body trace row ${index + 1} column ${headers[valueIndex]}`);
+    });
+    return values.map(csvCell).join(",");
+  }));
+  return `${metadata.join("\r\n")}\r\n${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
+}
+
+/**
+ * Serialize the shared-grid released-body track, including optional contact
+ * force diagnostics. This is separate from the independent detached branch
+ * export because the shared solver may apply equal-and-opposite forces.
+ */
+export function createCoupledMultiBodyTraceCsv(
+  result: CoupledMultiBodyFlightResult,
+): string {
+  if (!result || result.trajectories.length === 0 || result.trajectories.some((trajectory) => trajectory.trace.length === 0)) {
+    throw new Error("coupled multi-body trajectories cannot be empty");
+  }
+  const metadata = [
+    ["# rocketworks_export", KESTREL_EXPORT_MODEL_VERSION],
+    ["# model_version", result.modelVersion],
+    ["# validation_status", result.validationStatus],
+    ["# body_count", result.trajectories.length],
+    ["# contact_model_version", result.contact.modelVersion],
+    ["# contact_validation_status", result.contact.validationStatus],
+    ["# contact_enabled", result.contact.enabled],
+    ["# contact_stiffness_n_per_m", result.contact.stiffnessNPerM],
+    ["# contact_damping_ns_per_m", result.contact.dampingNsPerM],
+    ["# contact_maximum_normal_force_n", result.contact.maximumNormalForceN],
+    ["# contact_pair_count", result.contact.contactPairCount],
+    ["# contact_sample_count", result.contact.contactSampleCount],
+    ["# contact_maximum_penetration_m", result.contact.maximumPenetrationM],
+    ["# contact_maximum_normal_force_observed_n", result.contact.maximumNormalForceNObserved],
+    ...result.assumptions.map((assumption) => ["# assumption", assumption]),
+    ...result.warnings.map((warning) => ["# warning", warning]),
+  ].map(([key, value]) => `${key},${csvCell(value)}`);
+  const headers = [
+    "body_id",
+    "body_label",
+    "mass_kg",
+    "release_time_s",
+    "time_s",
+    "altitude_agl_m",
+    "speed_mps",
+    "position_world_x_m",
+    "position_world_y_m",
+    "position_world_z_m",
+    "velocity_world_x_mps",
+    "velocity_world_y_mps",
+    "velocity_world_z_mps",
+    "acceleration_world_x_mps2",
+    "acceleration_world_y_mps2",
+    "acceleration_world_z_mps2",
+    "relative_air_speed_mps",
+    "dynamic_pressure_pa",
+    "aerodynamic_drag_n",
+    "contact_force_world_x_n",
+    "contact_force_world_y_n",
+    "contact_force_world_z_n",
+    "contact_force_n",
+    "contact_penetration_m",
+    "contact_pair_count",
+  ];
+  const rows = result.trajectories.flatMap((trajectory) => trajectory.trace.map((point, index) => {
+    const values: readonly (number | string | null | undefined)[] = [
+      trajectory.id,
+      trajectory.label,
+      trajectory.massKg,
+      trajectory.releaseTimeS,
+      point.timeS,
+      point.altitudeAglM,
+      point.speedMps,
+      point.positionWorldM.x,
+      point.positionWorldM.y,
+      point.positionWorldM.z,
+      point.velocityWorldMps.x,
+      point.velocityWorldMps.y,
+      point.velocityWorldMps.z,
+      point.accelerationWorldMps2.x,
+      point.accelerationWorldMps2.y,
+      point.accelerationWorldMps2.z,
+      point.relativeAirSpeedMps,
+      point.dynamicPressurePa,
+      point.aerodynamicDragN,
+      point.contactForceWorldN?.x,
+      point.contactForceWorldN?.y,
+      point.contactForceWorldN?.z,
+      point.contactForceN,
+      point.contactPenetrationM,
+      point.contactPairCount,
+    ];
+    values.forEach((value, valueIndex) => {
+      if (typeof value === "number") assertFinite(value, `coupled trace row ${index + 1} column ${headers[valueIndex]}`);
     });
     return values.map(csvCell).join(",");
   }));
@@ -2519,6 +2612,15 @@ export function createEngineeringReportMarkdown(
                 `| Shared-grid steps | ${input.stageFlight.coupledMultiBodyFlight.stepCount} |`,
                 `| Effective time step | ${formatNumber(input.stageFlight.coupledMultiBodyFlight.timeStepS, 4)} s |`,
                 `| Released-body force model | ${input.stageFlight.coupledMultiBodyFlight.mutualGravity?.enabled ? `mutual point-mass gravity (softening ${formatNumber(input.stageFlight.coupledMultiBodyFlight.mutualGravity.softeningRadiusM, 6)} m)` : "shared environment only"} |`,
+                `| Envelope contact response | ${input.stageFlight.coupledMultiBodyFlight.contact?.enabled ? `enabled (${input.stageFlight.coupledMultiBodyFlight.contact.contactPairCount} pair(s), ${input.stageFlight.coupledMultiBodyFlight.contact.contactSampleCount} samples)` : "disabled / diagnostic screen only"} |`,
+                ...(input.stageFlight.coupledMultiBodyFlight.contact?.enabled
+                  ? [
+                      `| Contact stiffness / damping | ${formatNumber(input.stageFlight.coupledMultiBodyFlight.contact.stiffnessNPerM, 3)} N/m / ${formatNumber(input.stageFlight.coupledMultiBodyFlight.contact.dampingNsPerM, 3)} N/(m/s) |`,
+                      `| Contact force cap / observed peak | ${formatNumber(input.stageFlight.coupledMultiBodyFlight.contact.maximumNormalForceN, 3)} N / ${input.stageFlight.coupledMultiBodyFlight.contact.maximumNormalForceNObserved === null ? "not assessed" : `${formatNumber(input.stageFlight.coupledMultiBodyFlight.contact.maximumNormalForceNObserved, 3)} N`} |`,
+                      `| Maximum contact penetration | ${input.stageFlight.coupledMultiBodyFlight.contact.maximumPenetrationM === null ? "not assessed" : `${formatNumber(input.stageFlight.coupledMultiBodyFlight.contact.maximumPenetrationM, 6)} m`} |`,
+                      `| Contact model | \`${markdownText(input.stageFlight.coupledMultiBodyFlight.contact.modelVersion)}\` (${markdownText(input.stageFlight.coupledMultiBodyFlight.contact.validationStatus)}) |`,
+                    ]
+                  : []),
                 `| Attitude-dependent drag bodies | ${input.stageFlight.coupledMultiBodyFlight.trajectories.filter((trajectory) => trajectory.attitudeDependentDrag && trajectory.aerodynamicBasis === undefined).length} / ${input.stageFlight.coupledMultiBodyFlight.trajectories.length} |`,
                 `| Static aerodynamic-load bodies | ${coupledAerodynamicBodyCount} / ${input.stageFlight.coupledMultiBodyFlight.trajectories.length} |`,
                 `| Incidence diagnostic samples | ${input.stageFlight.coupledMultiBodyFlight.trajectories.reduce((total, trajectory) => total + trajectory.trace.filter((point) => point.attitudeIncidenceRad !== undefined).length, 0)} |`,
@@ -2532,7 +2634,7 @@ export function createEngineeringReportMarkdown(
                 ...input.stageFlight.coupledMultiBodyFlight.warnings.map((warning) => `- **Shared-grid warning:** ${markdownText(warning)}`),
                 "",
                 `| Shared coefficient-table samples | ${coupledCoefficientTableSampleCount} |`,
-                "> This shared-grid track propagates released bodies together against common environment queries. Rigid-body states add quaternion attitude and Euler angular momentum from supplied inertia/loads; static normal force, induced drag, CP moments, projected-area CdA, and supplied coefficient-table resultants remain bounded analytical previews; mutual gravity remains a point-mass approximation, and neither path models contact forces, collision response, plume interaction, aerodynamic interference, or flight safety.",
+                "> This shared-grid track propagates released bodies together against common environment queries. Rigid-body states add quaternion attitude and Euler angular momentum from supplied inertia/loads; static normal force, induced drag, CP moments, projected-area CdA, supplied coefficient-table resultants, and the optional spherical-envelope contact branch remain bounded analytical previews. The contact branch acts only on active released bodies with positive radii and does not model retained-vehicle contact, friction, off-centre moments, collision geometry, plume interaction, aerodynamic interference, or flight safety.",
               ]
             : []),
           ...((input.stageFlight.separationDynamics ?? []).length > 0

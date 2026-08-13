@@ -6,6 +6,14 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an opt-in shared-grid spherical-envelope contact-force branch for active
+  released bodies. The browser now persists and fingerprints stiffness,
+  closing-speed damping, and force-cap settings, exposes sliders and explicit
+  retained-vehicle/contact-model limitations, reports per-sample force and
+  penetration diagnostics, and offers a dedicated coupled-body CSV export.
+  The branch remains an analytical compliance solver, not a collision mesh,
+  structural model, or flight-safety result.
+
 - Add deterministic physics benchmark evidence export. The Artifact center
   now offers a provenance-first CSV after an on-demand suite run, and the
   engineering report records the same fixture values, tolerances, assumptions,

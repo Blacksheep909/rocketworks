@@ -131,6 +131,14 @@ export type EditableProjectInputs = Readonly<{
   coupledMutualGravityEnabled?: boolean;
   /** Plummer-style close-approach softening radius for pairwise gravity, in metres. */
   coupledGravitySofteningRadiusM?: number;
+  /** Enables bounded spherical-envelope contact response between active released bodies. */
+  coupledContactEnabled?: boolean;
+  /** Linear spherical-envelope contact stiffness in N/m. */
+  coupledContactStiffnessNPerM?: number;
+  /** Linear closing-speed contact damping in N/(m/s). */
+  coupledContactDampingNsPerM?: number;
+  /** Per-pair cap for spherical-envelope contact normal force in N. */
+  coupledContactMaximumNormalForceN?: number;
   /** Aerodynamic contract used for released-body tracks in the coupled preview. */
   releasedBodyDragModel?: ReleasedBodyDragModel;
   /** Positive distance used by the non-trajectory contact-load screen, in metres. */
@@ -175,7 +183,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "releasedBodyDragModel" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "coupledContactEnabled" | "coupledContactStiffnessNPerM" | "coupledContactDampingNsPerM" | "coupledContactMaximumNormalForceN" | "releasedBodyDragModel" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -459,6 +467,40 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   ) {
     throw new Error("coupledGravitySofteningRadiusM must be a finite number from 0 through 1.");
   }
+  const coupledContactEnabled = input.coupledContactEnabled;
+  if (coupledContactEnabled !== undefined && typeof coupledContactEnabled !== "boolean") {
+    throw new Error("coupledContactEnabled must be boolean.");
+  }
+  const coupledContactStiffnessNPerM = input.coupledContactStiffnessNPerM;
+  if (
+    coupledContactStiffnessNPerM !== undefined &&
+    (typeof coupledContactStiffnessNPerM !== "number" ||
+      !Number.isFinite(coupledContactStiffnessNPerM) ||
+      coupledContactStiffnessNPerM <= 0 ||
+      coupledContactStiffnessNPerM > 1e9)
+  ) {
+    throw new Error("coupledContactStiffnessNPerM must be a positive finite number no greater than 1e9.");
+  }
+  const coupledContactDampingNsPerM = input.coupledContactDampingNsPerM;
+  if (
+    coupledContactDampingNsPerM !== undefined &&
+    (typeof coupledContactDampingNsPerM !== "number" ||
+      !Number.isFinite(coupledContactDampingNsPerM) ||
+      coupledContactDampingNsPerM < 0 ||
+      coupledContactDampingNsPerM > 1e7)
+  ) {
+    throw new Error("coupledContactDampingNsPerM must be a finite number from 0 through 1e7.");
+  }
+  const coupledContactMaximumNormalForceN = input.coupledContactMaximumNormalForceN;
+  if (
+    coupledContactMaximumNormalForceN !== undefined &&
+    (typeof coupledContactMaximumNormalForceN !== "number" ||
+      !Number.isFinite(coupledContactMaximumNormalForceN) ||
+      coupledContactMaximumNormalForceN <= 0 ||
+      coupledContactMaximumNormalForceN > 1e10)
+  ) {
+    throw new Error("coupledContactMaximumNormalForceN must be a positive finite number no greater than 1e10.");
+  }
   const releasedBodyDragModel = input.releasedBodyDragModel;
   if (
     releasedBodyDragModel !== undefined &&
@@ -529,6 +571,10 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     ...(input.inducedDragFactor === undefined ? {} : { inducedDragFactor }),
     ...(coupledMutualGravityEnabled === undefined ? {} : { coupledMutualGravityEnabled }),
     ...(coupledGravitySofteningRadiusM === undefined ? {} : { coupledGravitySofteningRadiusM }),
+    ...(coupledContactEnabled === undefined ? {} : { coupledContactEnabled }),
+    ...(coupledContactStiffnessNPerM === undefined ? {} : { coupledContactStiffnessNPerM }),
+    ...(coupledContactDampingNsPerM === undefined ? {} : { coupledContactDampingNsPerM }),
+    ...(coupledContactMaximumNormalForceN === undefined ? {} : { coupledContactMaximumNormalForceN }),
     ...(releasedBodyDragModel === undefined ? {} : { releasedBodyDragModel }),
     ...(separationContactStoppingDistanceM === undefined ? {} : { separationContactStoppingDistanceM }),
     ...(separationContactCoefficientOfRestitution === undefined ? {} : { separationContactCoefficientOfRestitution }),
@@ -702,6 +748,10 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   uncertaintyCorrelations: "uncertainty correlation model",
   coupledMutualGravityEnabled: "mutual point-mass gravity",
   coupledGravitySofteningRadiusM: "mutual-gravity softening radius",
+  coupledContactEnabled: "released-body envelope contact",
+  coupledContactStiffnessNPerM: "contact normal stiffness",
+  coupledContactDampingNsPerM: "contact closing-speed damping",
+  coupledContactMaximumNormalForceN: "contact normal-force cap",
   releasedBodyDragModel: "released-body aerodynamic mode",
   separationContactStoppingDistanceM: "contact stopping distance",
   separationContactCoefficientOfRestitution: "contact restitution",

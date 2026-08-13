@@ -13,6 +13,7 @@ import {
   createFlightTraceCsv,
   createParameterSweepCsv,
   createStageFlightTraceCsv,
+  createCoupledMultiBodyTraceCsv,
   createStageFlightComparisonCsv,
   createPhysicsBenchmarkCsv,
   createSeparatedBodyTraceCsv,
@@ -114,6 +115,7 @@ import {
   type StageFlightComparisonResult,
   type ReleasedBodyDragModel,
   type StageFlightUncertaintyResult,
+  type CoupledMultiBodyContactOptions,
   type CoupledMultiBodyGravityOptions,
   type RigidBodyIntegrationMethod,
   type VerticalFlightSweepParameterKey,
@@ -245,7 +247,7 @@ type ViewKey = "design" | "flight";
 type DesignViewKey = UiDesignView;
 type MaterialKey = "kraft" | "fiberglass" | "carbon";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
-type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "stage-flight-comparison-csv" | "separated-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "benchmark-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad";
+type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "stage-flight-comparison-csv" | "separated-body-csv" | "coupled-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "benchmark-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad";
 type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
@@ -1436,6 +1438,10 @@ function createStageFlightPreviewInputs({
   launchRailTipOffYawRateDegS,
   coupledMutualGravityEnabled,
   coupledGravitySofteningRadiusM,
+  coupledContactEnabled,
+  coupledContactStiffnessNPerM,
+  coupledContactDampingNsPerM,
+  coupledContactMaximumNormalForceN,
   releasedBodyDragModel,
   separationContactStoppingDistanceM,
   separationContactCoefficientOfRestitution,
@@ -1475,6 +1481,10 @@ function createStageFlightPreviewInputs({
   launchRailTipOffYawRateDegS: number;
   coupledMutualGravityEnabled: boolean;
   coupledGravitySofteningRadiusM: number;
+  coupledContactEnabled: boolean;
+  coupledContactStiffnessNPerM: number;
+  coupledContactDampingNsPerM: number;
+  coupledContactMaximumNormalForceN: number;
   releasedBodyDragModel: ReleasedBodyDragModel;
   separationContactStoppingDistanceM: number;
   separationContactCoefficientOfRestitution: number;
@@ -1900,6 +1910,14 @@ function createStageFlightPreviewInputs({
           softeningRadiusM: coupledGravitySofteningRadiusM,
         }
       : ({ enabled: false } satisfies CoupledMultiBodyGravityOptions),
+    coupledMultiBodyContact: coupledContactEnabled
+      ? {
+          enabled: true,
+          stiffnessNPerM: coupledContactStiffnessNPerM,
+          dampingNsPerM: coupledContactDampingNsPerM,
+          maximumNormalForceN: coupledContactMaximumNormalForceN,
+        }
+      : ({ enabled: false } satisfies CoupledMultiBodyContactOptions),
     releasedBodyDragModel,
     separationContactLoad: {
       stoppingDistanceM: separationContactStoppingDistanceM,
@@ -3936,6 +3954,10 @@ export default function Home() {
   const [launchRailTipOffYawRateDegS, setLaunchRailTipOffYawRateDegS] = useState(0);
   const [coupledMutualGravityEnabled, setCoupledMutualGravityEnabled] = useState(false);
   const [coupledGravitySofteningRadiusM, setCoupledGravitySofteningRadiusM] = useState(0.02);
+  const [coupledContactEnabled, setCoupledContactEnabled] = useState(false);
+  const [coupledContactStiffnessNPerM, setCoupledContactStiffnessNPerM] = useState(50_000);
+  const [coupledContactDampingNsPerM, setCoupledContactDampingNsPerM] = useState(100);
+  const [coupledContactMaximumNormalForceN, setCoupledContactMaximumNormalForceN] = useState(1_000_000);
   const [releasedBodyDragModel, setReleasedBodyDragModel] = useState<ReleasedBodyDragModel>("isotropic-point");
   const [separationContactStoppingDistanceM, setSeparationContactStoppingDistanceM] = useState(0.01);
   const [separationContactCoefficientOfRestitution, setSeparationContactCoefficientOfRestitution] = useState(0);
@@ -4090,12 +4112,16 @@ export default function Home() {
       uncertaintyCorrelations,
       coupledMutualGravityEnabled,
       coupledGravitySofteningRadiusM,
+      coupledContactEnabled,
+      coupledContactStiffnessNPerM,
+      coupledContactDampingNsPerM,
+      coupledContactMaximumNormalForceN,
       releasedBodyDragModel,
       separationContactStoppingDistanceM,
       separationContactCoefficientOfRestitution,
       sixDofIntegrationMethod,
     }),
-    [burnTime, coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, inducedDragFactor, inducedDragModel, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalForceModel, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, releasedBodyDragModel, relativeHumidityPercent, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
+    [burnTime, coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, inducedDragFactor, inducedDragModel, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalForceModel, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, releasedBodyDragModel, relativeHumidityPercent, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -4289,6 +4315,12 @@ export default function Home() {
             enabled: coupledMutualGravityEnabled,
             softeningRadiusM: coupledGravitySofteningRadiusM,
           },
+          coupledMultiBodyContact: {
+            enabled: coupledContactEnabled,
+            stiffnessNPerM: coupledContactStiffnessNPerM,
+            dampingNsPerM: coupledContactDampingNsPerM,
+            maximumNormalForceN: coupledContactMaximumNormalForceN,
+          },
           releasedBodyDragModel,
           separationContactLoad: {
             stoppingDistanceM: separationContactStoppingDistanceM,
@@ -4297,7 +4329,7 @@ export default function Home() {
           sixDofIntegrationMethod,
         },
       }),
-    [coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, editableInputs, previewMotor, releasedBodyDragModel, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, vehicleTopology],
+    [coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, editableInputs, previewMotor, releasedBodyDragModel, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, vehicleTopology],
   );
   const previewEnvironment = useMemo(
     () => createPreviewEnvironment(launchAltitude, windSpeed, { siteName: launchSiteName, latitudeDeg: launchLatitudeDeg, longitudeDeg: launchLongitudeDeg, windAzimuthDeg, windProfileLayers, turbulenceScale, earthRotationEnabled, normalGravityEnabled, seed: weatherSeed, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
@@ -5022,6 +5054,10 @@ export default function Home() {
         setUncertaintyCorrelations([...(inputs.uncertaintyCorrelations ?? [])]);
         setCoupledMutualGravityEnabled(inputs.coupledMutualGravityEnabled ?? false);
         setCoupledGravitySofteningRadiusM(inputs.coupledGravitySofteningRadiusM ?? 0.02);
+        setCoupledContactEnabled(inputs.coupledContactEnabled ?? false);
+        setCoupledContactStiffnessNPerM(inputs.coupledContactStiffnessNPerM ?? 50_000);
+        setCoupledContactDampingNsPerM(inputs.coupledContactDampingNsPerM ?? 100);
+        setCoupledContactMaximumNormalForceN(inputs.coupledContactMaximumNormalForceN ?? 1_000_000);
         setReleasedBodyDragModel(inputs.releasedBodyDragModel ?? "isotropic-point");
         setSeparationContactStoppingDistanceM(inputs.separationContactStoppingDistanceM ?? 0.01);
         setSeparationContactCoefficientOfRestitution(inputs.separationContactCoefficientOfRestitution ?? 0);
@@ -5162,6 +5198,10 @@ export default function Home() {
         setUncertaintyCorrelations([...(inputs.uncertaintyCorrelations ?? [])]);
         setCoupledMutualGravityEnabled(inputs.coupledMutualGravityEnabled ?? false);
         setCoupledGravitySofteningRadiusM(inputs.coupledGravitySofteningRadiusM ?? 0.02);
+        setCoupledContactEnabled(inputs.coupledContactEnabled ?? false);
+        setCoupledContactStiffnessNPerM(inputs.coupledContactStiffnessNPerM ?? 50_000);
+        setCoupledContactDampingNsPerM(inputs.coupledContactDampingNsPerM ?? 100);
+        setCoupledContactMaximumNormalForceN(inputs.coupledContactMaximumNormalForceN ?? 1_000_000);
         setReleasedBodyDragModel(inputs.releasedBodyDragModel ?? "isotropic-point");
         setSeparationContactStoppingDistanceM(inputs.separationContactStoppingDistanceM ?? 0.01);
         setSeparationContactCoefficientOfRestitution(inputs.separationContactCoefficientOfRestitution ?? 0);
@@ -5658,6 +5698,10 @@ export default function Home() {
     setUncertaintyCorrelations([...(inputs.uncertaintyCorrelations ?? [])]);
     setCoupledMutualGravityEnabled(inputs.coupledMutualGravityEnabled ?? false);
     setCoupledGravitySofteningRadiusM(inputs.coupledGravitySofteningRadiusM ?? 0.02);
+    setCoupledContactEnabled(inputs.coupledContactEnabled ?? false);
+    setCoupledContactStiffnessNPerM(inputs.coupledContactStiffnessNPerM ?? 50_000);
+    setCoupledContactDampingNsPerM(inputs.coupledContactDampingNsPerM ?? 100);
+    setCoupledContactMaximumNormalForceN(inputs.coupledContactMaximumNormalForceN ?? 1_000_000);
     setReleasedBodyDragModel(inputs.releasedBodyDragModel ?? "isotropic-point");
     setSeparationContactStoppingDistanceM(inputs.separationContactStoppingDistanceM ?? 0.01);
     setSeparationContactCoefficientOfRestitution(inputs.separationContactCoefficientOfRestitution ?? 0);
@@ -6427,7 +6471,7 @@ export default function Home() {
       if ((format === "flight-csv" || format === "uncertainty-csv" || format === "report") && !resultIsCurrent) {
         throw new Error("Run the vertical estimate again before exporting simulation results for this design.");
       }
-      if ((format === "stage-flight-csv" || format === "stage-flight-comparison-csv" || format === "separated-body-csv" || format === "flight-path-geojson") && !stageFlightIsCurrent) {
+      if ((format === "stage-flight-csv" || format === "stage-flight-comparison-csv" || format === "separated-body-csv" || format === "coupled-body-csv" || format === "flight-path-geojson") && !stageFlightIsCurrent) {
         throw new Error("Rerun the coupled 6DOF preview before exporting its trace for this design.");
       }
       if (format === "stage-flight-comparison-csv" && !stageComparisonReference) {
@@ -6605,6 +6649,13 @@ export default function Home() {
         filename = `${fileStem}-separated-body-traces.csv`;
         mediaType = "text/csv;charset=utf-8";
         content = createSeparatedBodyTraceCsv(stageFlightResult.separatedBodies);
+      } else if (format === "coupled-body-csv") {
+        if (!stageFlightResult?.coupledMultiBodyFlight) {
+          throw new Error("Run a staged preview with released bodies before exporting the shared coupled trace.");
+        }
+        filename = `${fileStem}-coupled-body-traces.csv`;
+        mediaType = "text/csv;charset=utf-8";
+        content = createCoupledMultiBodyTraceCsv(stageFlightResult.coupledMultiBodyFlight);
       } else if (format === "flight-path-geojson") {
         if (!stageFlightResult) throw new Error("Run the staged preview before exporting its flight path.");
         filename = `${fileStem}-flight-path.geojson`;
@@ -6873,6 +6924,10 @@ export default function Home() {
             launchRailTipOffYawRateDegS,
             coupledMutualGravityEnabled,
             coupledGravitySofteningRadiusM,
+            coupledContactEnabled,
+            coupledContactStiffnessNPerM,
+            coupledContactDampingNsPerM,
+            coupledContactMaximumNormalForceN,
             releasedBodyDragModel,
             separationContactStoppingDistanceM,
             separationContactCoefficientOfRestitution,
@@ -6938,6 +6993,10 @@ export default function Home() {
           launchRailTipOffYawRateDegS,
           coupledMutualGravityEnabled,
           coupledGravitySofteningRadiusM,
+          coupledContactEnabled,
+          coupledContactStiffnessNPerM,
+          coupledContactDampingNsPerM,
+          coupledContactMaximumNormalForceN,
           releasedBodyDragModel,
           separationContactStoppingDistanceM,
           separationContactCoefficientOfRestitution,
@@ -7753,6 +7812,67 @@ export default function Home() {
                       }}
                     />
                   )}
+                  <div className="field-group">
+                    <label htmlFor="released-body-contact-mode">Released-body envelope contact</label>
+                    <select
+                      id="released-body-contact-mode"
+                      value={coupledContactEnabled ? "enabled" : "disabled"}
+                      onChange={(event) => {
+                        setCoupledContactEnabled(event.target.value === "enabled");
+                        markChanged();
+                      }}
+                    >
+                      <option value="disabled">Disabled (diagnostic screen only)</option>
+                      <option value="enabled">Enabled (bounded normal force)</option>
+                    </select>
+                    <small>Applies equal-and-opposite spherical-envelope forces only between active released bodies with positive geometry radii.</small>
+                  </div>
+                  {coupledContactEnabled && (
+                    <>
+                      <NumberField
+                        id="released-body-contact-stiffness"
+                        label="Contact normal stiffness"
+                        value={coupledContactStiffnessNPerM}
+                        unit="N/m"
+                        min={1}
+                        max={1_000_000}
+                        step={100}
+                        slider
+                        onChange={(value) => {
+                          setCoupledContactStiffnessNPerM(value);
+                          markChanged();
+                        }}
+                      />
+                      <NumberField
+                        id="released-body-contact-damping"
+                        label="Contact closing-speed damping"
+                        value={coupledContactDampingNsPerM}
+                        unit="N/(m/s)"
+                        min={0}
+                        max={10_000}
+                        step={10}
+                        slider
+                        onChange={(value) => {
+                          setCoupledContactDampingNsPerM(value);
+                          markChanged();
+                        }}
+                      />
+                      <NumberField
+                        id="released-body-contact-force-cap"
+                        label="Maximum normal force"
+                        value={coupledContactMaximumNormalForceN}
+                        unit="N"
+                        min={1}
+                        max={5_000_000}
+                        step={1_000}
+                        slider
+                        onChange={(value) => {
+                          setCoupledContactMaximumNormalForceN(value);
+                          markChanged();
+                        }}
+                      />
+                    </>
+                  )}
                   <NumberField
                     id="separation-contact-stopping-distance"
                     label="Contact stopping distance"
@@ -7782,7 +7902,8 @@ export default function Home() {
                     }}
                   />
                   <p className="field-help">The default track propagates released bodies in a common atmosphere and wind without inventing body-to-body forces. Mutual gravity is an opt-in point-mass extension; a non-zero softening radius regularizes close approaches and is not a contact or collision model.</p>
-                  <p className="field-help">Contact stopping distance and restitution feed only the post-trace compliance scenario. They estimate normal impulse and force scales after a potential envelope crossing; they never apply contact forces to the flight trajectory.</p>
+                  <p className="field-help">The envelope-contact branch is an opt-in bounded force feedback model for detached bodies. Retained-vehicle contact, friction, off-centre moments, deformation, plume interaction, and aerodynamic interference remain outside the solver.</p>
+                  <p className="field-help">Contact stopping distance and restitution still feed only the post-trace compliance scenario. They estimate normal impulse and force scales after a potential envelope crossing; they never apply contact forces to the flight trajectory.</p>
                 </div>
                 {stageFlightError && <div className="stage-flight-error" role="alert">{stageFlightError}</div>}
                 {stageFlightResult && !stageFlightIsCurrent && (
@@ -8188,7 +8309,7 @@ export default function Home() {
                               <div>
                                 <span className="eyebrow">Shared-grid propagation</span>
                                 <h5>Coupled detached-body flight</h5>
-                                 <p>Runs every released body together on one mission-time grid with shared gravity, atmosphere, and wind queries. Bodies may opt into an explicit quaternion/inertia state; contact, plume, and aerodynamic interference remain out of scope.</p>
+                                  <p>Runs every released body together on one mission-time grid with shared gravity, atmosphere, and wind queries. Bodies may opt into an explicit quaternion/inertia state and bounded spherical-envelope contact; retained-vehicle contact, plume, and aerodynamic interference remain out of scope.</p>
                               </div>
                               <span className={`stage-coupled-multi-body-flight-status stage-coupled-multi-body-flight-status-${stageFlightResult.coupledMultiBodyFlight.status}`}>
                                 {stageFlightResult.coupledMultiBodyFlight.status}
@@ -8209,6 +8330,13 @@ export default function Home() {
                               <strong>{stageFlightResult.coupledMultiBodyFlight.trajectories.filter((trajectory) => trajectory.attitudeDependentDrag && trajectory.aerodynamicBasis === undefined).length} bodies</strong>
                               <small>{stageFlightResult.coupledMultiBodyFlight.trajectories.some((trajectory) => trajectory.attitudeDependentDrag && trajectory.aerodynamicBasis === undefined) ? "Incidence-aware CdA diagnostics are retained on the shared trace." : "Isotropic point-drag baseline is active unless a static aero basis is supplied."}</small>
                             </div>
+                            {stageFlightResult.coupledMultiBodyFlight.contact.enabled && (
+                              <div className="stage-coupled-multi-body-flight-contact-summary">
+                                <span>Envelope contact diagnostics</span>
+                                <strong>{stageFlightResult.coupledMultiBodyFlight.contact.maximumPenetrationM === null ? "No overlap" : `${(stageFlightResult.coupledMultiBodyFlight.contact.maximumPenetrationM * 1000).toFixed(1)} mm max penetration`}</strong>
+                                <small>{stageFlightResult.coupledMultiBodyFlight.contact.maximumNormalForceNObserved === null ? "No normal force applied" : `${stageFlightResult.coupledMultiBodyFlight.contact.maximumNormalForceNObserved.toFixed(1)} N peak normal force · ${publicModelVersion(stageFlightResult.coupledMultiBodyFlight.contact.modelVersion)}`}</small>
+                              </div>
+                            )}
                             <div className="stage-coupled-multi-body-flight-aero-summary">
                               <span>Static aerodynamic loads</span>
                               <strong>{stageFlightResult.coupledMultiBodyFlight.aerodynamicBodyCount} bodies</strong>
@@ -10181,6 +10309,11 @@ export default function Home() {
                 <span><strong>Released-body traces</strong><small>One flat SI-unit table for every detached stage, including release provenance, attitude-aware aero loads, recovery drag, and model versions.</small></span>
                 <em>↓</em>
               </button> : null}
+              {stageFlightResult?.coupledMultiBodyFlight && <button onClick={() => exportArtifact("coupled-body-csv")}>
+                <span className="export-extension">CSV</span>
+                <span><strong>Shared coupled traces</strong><small>Common-grid released-body positions, accelerations, and optional spherical-envelope contact force diagnostics.</small></span>
+                <em>↓</em>
+              </button>}
               {stageFlightResult && <button onClick={() => exportArtifact("flight-path-geojson")}>
                 <span className="export-extension">GEO</span>
                 <span><strong>Flight path</strong><small>WGS84 GeoJSON with retained/released paths, sample times, and event markers for GIS review.</small></span>

@@ -160,6 +160,12 @@ research, standards, and original code.
 - an opt-in mutual point-mass gravity mode for the shared released-body track,
   with exact-release grid alignment, close-approach softening controls,
   singular-state rejection, and explicit force-model provenance;
+- an opt-in bounded spherical-envelope contact-force mode for the shared
+  released-body track, with stiffness, closing-speed damping, force-cap
+  sliders, per-sample force/penetration diagnostics, persisted settings, and a
+  dedicated CSV export; retained-vehicle contact, friction, off-centre moments,
+  deformation, plume/aero interference, and flight safety remain outside the
+  contract;
 - an opt-in projected-area attitude-drag mode for released rigid bodies that
   blends caller-supplied axial and broadside CdA pairs, retains incidence and
   effective-area diagnostics on the shared trace;

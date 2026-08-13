@@ -1,4 +1,4 @@
-# Shared-grid coupled multi-body flight 0.5
+# Shared-grid coupled multi-body flight 0.7
 
 Status: implemented analytical component check; mathematical regression tests
 only. This model is not flight-safety, range-safety, contact, or collision
@@ -122,6 +122,46 @@ The optional `epsilon` is a Plummer-style softening radius for close
 approaches. With `epsilon = 0`, coincident bodies are rejected as a singular
 state rather than silently inventing a force.
 
+## Optional spherical-envelope contact branch
+
+`contact.enabled` adds a deliberately narrow force-feedback contract for the
+shared released-body state vector. A pair participates only while both bodies
+are active and both supply a positive `envelopeRadiusM`. For centre positions
+`r_1`, `r_2`, radii `R_1`, `R_2`, and relative velocity `v_rel = v_2 - v_1`,
+the penetration and inward closing speed are
+
+```text
+delta = max(0, R_1 + R_2 - ||r_2 - r_1||)
+v_closing = max(0, -n . v_rel)
+n = (r_2 - r_1) / ||r_2 - r_1||
+```
+
+An overlap receives equal-and-opposite centre-applied normal forces:
+
+```text
+F_n = min(F_max, k delta + c v_closing)
+F_1 = -n F_n
+F_2 =  n F_n
+```
+
+`k` is caller-configured stiffness in N/m, `c` is closing-speed damping in
+N/(m/s), and `F_max` is a positive per-pair cap. Defaults are 50,000 N/m,
+100 N/(m/s), and 1,000,000 N respectively; all values are bounded by the
+module validator. The result reports model/status identity, maximum sampled
+penetration, maximum observed force, pair count, and contact-sample count.
+Trace samples retain the applied world force, magnitude, penetration, and
+number of active pairs involving each body. The browser persists the switch
+and three controls, includes them in the simulation fingerprint, and exposes a
+dedicated shared-coupled-trace CSV.
+
+This branch is not a collision mesh, rigid contact solver, impact law, or
+structural model. It applies no friction, restitution, tangential impulse,
+off-centre moment, deformation, joint compliance, rebound geometry, plume or
+aerodynamic interference, or retained-vehicle reaction. The stage adapter's
+retained vehicle is propagated in its own primary track, so this branch only
+couples released bodies that enter the shared detached track. Positive
+envelopes are conservative geometry bounds, not measured stiffness data.
+
 For bodies with the rigid-body option, the state additionally follows
 
 ```text
@@ -148,12 +188,13 @@ default and mutual-gravity branches remain point-mass translation; the opt-in
 rigid-body branch adds attitude and angular-rate propagation. Detached static
 aerodynamic loads add the bounded relation or supplied coefficient-table
 equations above, while the projected-area option adds the supplied CdA blend.
-It is not a full contact or structural multi-body solver. It does not infer fin
-interference, unsteady flow, body-to-body contact forces, collision response,
-joint or spring compliance, plume interaction, wake/interference, structural
-flexibility, separation mechanism dynamics, or range-safety margins. Pairwise
-COM distance is a diagnostic, not clearance approval. Fixed spherical
-envelopes remain a separate geometry screen.
+It is not a full contact or structural multi-body solver. Unless the explicit
+`contact.enabled` branch is selected, it does not infer body-to-body contact
+forces. Even when selected, it does not infer fin interference, unsteady flow,
+collision meshes, joint or spring compliance, plume interaction,
+wake/interference, structural flexibility, separation mechanism dynamics, or
+range-safety margins. Pairwise COM distance and spherical envelopes remain
+diagnostics, not clearance approval.
 
 The stage-flight adapter applies a solved minimum-norm release correction only
 when the event-level separation allocator reports a balanced result. The

@@ -2894,6 +2894,10 @@ body {
 .stage-coupled-multi-body-flight-aero-summary span { color: #d8b184; font-size: 7px; }
 .stage-coupled-multi-body-flight-aero-summary strong { color: #ffe7c7; font: 700 8px var(--font-geist-mono), monospace; }
 .stage-coupled-multi-body-flight-aero-summary small { grid-column: 1 / -1; color: #aa8b6b; font: 7px var(--font-geist-mono), monospace; line-height: 1.4; }
+.stage-coupled-multi-body-flight-contact-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: baseline; margin-top: 6px; padding: 8px; border-left: 2px solid rgba(255, 112, 67, .7); background: rgba(255, 112, 67, .08); }
+.stage-coupled-multi-body-flight-contact-summary span { color: #ffad93; font-size: 7px; }
+.stage-coupled-multi-body-flight-contact-summary strong { color: #ffe2d8; font: 700 8px var(--font-geist-mono), monospace; }
+.stage-coupled-multi-body-flight-contact-summary small { grid-column: 1 / -1; color: #c99686; font: 7px var(--font-geist-mono), monospace; line-height: 1.4; }
 .stage-coupled-multi-body-flight-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin-top: 9px; overflow: hidden; border: 1px solid rgba(111, 213, 255, .16); border-radius: 3px; background: rgba(111, 213, 255, .12); }
 .stage-coupled-multi-body-flight-list div { min-width: 0; padding: 8px; background: rgba(12, 18, 24, .8); }
 .stage-coupled-multi-body-flight-list span { display: block; overflow: hidden; color: #c9e9f3; font-size: 7px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
@@ -3042,6 +3046,7 @@ body {
   .stage-coupled-multi-body-flight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stage-coupled-multi-body-flight-drag-summary { grid-template-columns: minmax(0, 1fr) auto; }
   .stage-coupled-multi-body-flight-aero-summary { grid-template-columns: minmax(0, 1fr) auto; }
+  .stage-coupled-multi-body-flight-contact-summary { grid-template-columns: minmax(0, 1fr) auto; }
   .stage-coupled-multi-body-flight-list { grid-template-columns: minmax(0, 1fr); }
   .stage-separation-dynamics-heading { flex-direction: column; }
   .stage-separation-dynamics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -936,6 +936,11 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Validated coefficient-table loads/);
   assert.match(page, /Include mutual point-mass gravity/);
   assert.match(page, /coupledGravitySofteningRadiusM/);
+  assert.match(page, /released-body-contact-mode/);
+  assert.match(page, /released-body-contact-stiffness/);
+  assert.match(page, /released-body-contact-damping/);
+  assert.match(page, /released-body-contact-force-cap/);
+  assert.match(page, /createCoupledMultiBodyTraceCsv/);
   assert.match(page, /Launch rail constraint/);
   assert.match(page, /launchRailEnabled/);
   assert.match(page, /Inclination from vertical/);
@@ -1169,6 +1174,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stylesheet, /\.stage-relative-aero-interaction/);
   assert.match(stylesheet, /\.stage-coupled-multi-body-flight-drag-summary/);
   assert.match(stylesheet, /\.stage-coupled-multi-body-flight-aero-summary/);
+  assert.match(stylesheet, /\.stage-coupled-multi-body-flight-contact-summary/);
   assert.match(stylesheet, /\.stage-interface-load-card/);
   assert.match(stylesheet, /\.stage-interface-load-row-unavailable/);
   assert.match(stylesheet, /\.stage-parallel-load-audit/);

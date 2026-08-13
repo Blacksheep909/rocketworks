@@ -250,6 +250,10 @@ test("project snapshots preserve coupled-flight contract settings and legacy def
   const source = snapshot(1, {
     coupledMutualGravityEnabled: true,
     coupledGravitySofteningRadiusM: 0.08,
+    coupledContactEnabled: true,
+    coupledContactStiffnessNPerM: 75_000,
+    coupledContactDampingNsPerM: 125,
+    coupledContactMaximumNormalForceN: 250_000,
     releasedBodyDragModel: "coefficient-table",
     separationContactStoppingDistanceM: 0.025,
     separationContactCoefficientOfRestitution: 0.35,
@@ -258,6 +262,10 @@ test("project snapshots preserve coupled-flight contract settings and legacy def
   const parsed = parseLocalProjectSnapshot(serializeLocalProjectSnapshot(source));
   assert.equal(parsed.inputs.coupledMutualGravityEnabled, true);
   assert.equal(parsed.inputs.coupledGravitySofteningRadiusM, 0.08);
+  assert.equal(parsed.inputs.coupledContactEnabled, true);
+  assert.equal(parsed.inputs.coupledContactStiffnessNPerM, 75_000);
+  assert.equal(parsed.inputs.coupledContactDampingNsPerM, 125);
+  assert.equal(parsed.inputs.coupledContactMaximumNormalForceN, 250_000);
   assert.equal(parsed.inputs.releasedBodyDragModel, "coefficient-table");
   assert.equal(parsed.inputs.separationContactStoppingDistanceM, 0.025);
   assert.equal(parsed.inputs.separationContactCoefficientOfRestitution, 0.35);
@@ -270,6 +278,22 @@ test("project snapshots reject invalid coupled-flight contract settings", () => 
   assert.throws(
     () => snapshot(1, { coupledGravitySofteningRadiusM: 1.01 }),
     /coupledGravitySofteningRadiusM must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { coupledContactEnabled: "yes" }),
+    /coupledContactEnabled must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { coupledContactStiffnessNPerM: 0 }),
+    /coupledContactStiffnessNPerM must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { coupledContactDampingNsPerM: -1 }),
+    /coupledContactDampingNsPerM must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { coupledContactMaximumNormalForceN: 1e10 + 1 }),
+    /coupledContactMaximumNormalForceN must be/,
   );
   assert.throws(
     () => snapshot(1, { releasedBodyDragModel: "unsupported" }),

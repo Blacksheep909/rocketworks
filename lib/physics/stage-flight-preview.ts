@@ -95,6 +95,7 @@ import {
 import {
   simulateCoupledMultiBodyFlight,
   type CoupledMultiBodyFlightBodyInput,
+  type CoupledMultiBodyContactOptions,
   type CoupledMultiBodyGravityOptions,
   type CoupledMultiBodyFlightResult,
 } from "./coupled-multi-body-flight.ts";
@@ -173,6 +174,8 @@ export type StageFlightPreviewInput = Readonly<{
   separationContactLoad?: SeparationContactLoadOptions;
   /** Optional pairwise gravity mode for the shared released-body track. */
   coupledMultiBodyGravity?: CoupledMultiBodyGravityOptions;
+  /** Optional equal-and-opposite envelope-contact force mode for released bodies. */
+  coupledMultiBodyContact?: CoupledMultiBodyContactOptions;
   /** Optional detached-body force contract for shared-grid and branch tracks. */
   releasedBodyDragModel?: ReleasedBodyDragModel;
   /** Optional post-trace wake/relative-flow screen; it never feeds forces back into flight. */
@@ -1499,6 +1502,7 @@ export function simulateStageFlightPreview(
         launchAltitudeM: input.launchAltitudeM,
         environmentAt: input.environmentAt,
         mutualGravity: input.coupledMultiBodyGravity,
+        contact: input.coupledMultiBodyContact,
         integration: input.integration,
       });
     } catch (error) {
@@ -1750,6 +1754,11 @@ export function simulateStageFlightPreview(
     ...(coupledMultiBodyFlight
       ? [
           "The shared-grid detached-body track applies event-level velocity corrections only when the associated impulse allocator is balanced; the independent detached 6DOF branches remain on their baseline release states.",
+          ...(coupledMultiBodyFlight.contact.enabled
+            ? [
+                "The shared-grid contact branch applies bounded equal-and-opposite spherical-envelope normal forces only between active released bodies with positive radii; retained-vehicle contact, friction, off-centre moments, deformation, plume interaction, and aerodynamic interference remain outside this preview.",
+              ]
+            : []),
         ]
       : []),
     ...(multiBodySeparation?.assumptions ?? []),
