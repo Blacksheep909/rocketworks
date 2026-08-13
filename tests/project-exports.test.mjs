@@ -946,6 +946,59 @@ test("engineering report leads with status and preserves calculations and limita
         warnings: ["Relative-flow fixture warning."],
         assumptions: ["Relative-flow fixture assumption."],
       },
+      coupledMultiBodyFlight: {
+        modelVersion: "rocketworks-coupled-multi-body-flight-0.4.0",
+        validationStatus: "analytical-component-checks-only",
+        startTimeS: 4.2,
+        endTimeS: 8,
+        timeStepS: 0.02,
+        stepCount: 190,
+        mutualGravity: {
+          enabled: false,
+          softeningRadiusM: 0,
+          gravitationalConstantM3KgS2: 6.67430e-11,
+        },
+        rigidBodyCount: 1,
+        integration: {
+          method: "fixed-rk4",
+          acceptedStepCount: 190,
+          rejectedStepCount: 0,
+          maximumNormalizedError: null,
+          minimumAcceptedStepS: 0.02,
+          maximumAcceptedStepS: 0.02,
+        },
+        trajectories: [{
+          id: "booster/logical-1",
+          label: "Booster",
+          massKg: 0.2,
+          releaseTimeS: 4.2,
+          releasePositionWorldM: { x: 0, y: 0, z: 30 },
+          releaseVelocityWorldMps: { x: 1, y: 0, z: 10 },
+          baselineReleaseVelocityWorldMps: { x: 1, y: 0, z: 10 },
+          velocityAdjustmentWorldMps: { x: 0, y: 0, z: 0 },
+          trace: [{ timeS: 4.2, attitudeIncidenceRad: 0.4 }],
+          maxAltitudeAglM: 100,
+          maxSpeedMps: 20,
+          impactTimeS: null,
+          attitudeDependentDrag: {
+            axialReferenceAreaM2: 0.01,
+            crossflowReferenceAreaM2: 0.02,
+            axialDragCoefficient: 0.5,
+            crossflowDragCoefficient: 1,
+          },
+          rigidBody: {
+            enabled: true,
+            initialOrientationBodyToWorld: { w: 1, x: 0, y: 0, z: 0 },
+            initialAngularVelocityBodyRadS: { x: 0, y: 0, z: 0 },
+          },
+        }],
+        pairwise: null,
+        minimumDistanceM: null,
+        closestPair: null,
+        status: "assessed",
+        warnings: ["Coupled fixture warning."],
+        assumptions: ["Coupled fixture assumption."],
+      },
     },
     stageUncertainty: {
       ...uncertainty,
@@ -1024,6 +1077,10 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Parallel\/radial interface solver|Interface rows/);
   assert.match(report, /Booster pair/);
   assert.match(report, /Fixture geometry omitted/);
+  assert.match(report, /### Shared-grid coupled detached-body flight/);
+  assert.match(report, /Attitude-dependent drag bodies \| 1 \/ 1/);
+  assert.match(report, /Incidence diagnostic samples \| 1/);
+  assert.match(report, /Coupled fixture warning/);
   assert.match(report, /Euler column buckling/);
   assert.match(report, /Fin flutter margin/);
   assert.match(report, /## Engineering design review/);

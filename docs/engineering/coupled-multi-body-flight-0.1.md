@@ -1,4 +1,4 @@
-# Shared-grid coupled multi-body flight 0.3
+# Shared-grid coupled multi-body flight 0.4
 
 Status: implemented analytical component check; mathematical regression tests
 only. This model is not flight-safety, range-safety, contact, or collision
@@ -52,6 +52,34 @@ F_drag = -0.5 * rho * |v - w|² * Cd * A * (v - w)/|v - w|
 a_drag = F_drag / m
 ```
 
+When `attitudeDependentDrag` is supplied with a rigid-body state, the point
+drag basis is replaced by a bounded projected-area blend. Let `c = |u . a|`
+be the absolute alignment between the environment-relative flow unit vector
+`u` and the body +X axis `a`:
+
+```text
+w_axial = c^2
+w_cross = 1 - w_axial
+A_eff = w_axial A_axial + w_cross A_cross
+(Cd A)_eff = w_axial Cd_axial A_axial
+           + w_cross Cd_cross A_cross
+D = q (Cd A)_eff
+```
+
+The resulting force is `-D u`. The trace retains incidence angle, dynamic
+pressure, effective reference area, effective Cd, and drag magnitude. This is
+an explicit smooth interpolation between caller-supplied axial and broadside
+coefficient/area pairs; it is not a lift or moment model. Bodies without this
+option keep the constant isotropic point-drag path. A body cannot use this
+option without a rigid-body attitude state.
+
+The base `D = q Cd A` relationship and the dependence of drag on inclination
+and reference-area convention follow NASA Glenn's public drag-equation
+overview: <https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/drag-equation/>.
+NASA also notes that coefficient values are normally established
+experimentally; the RocketWorks projected-area blend therefore remains
+`analytical-component-checks-only` until independently benchmarked.
+
 The environment provider is queried at each Runge–Kutta substep for each
 body, so atmosphere and wind can vary with time and position. Bodies share the
 provider and grid but do not modify the environment. The default mode still
@@ -90,13 +118,14 @@ minimum-step failure is reported rather than silently relaxing the tolerance.
 
 This is a simultaneous shared-environment and relative-motion track. The
 default and mutual-gravity branches remain point-mass translation; the opt-in
-rigid-body branch adds attitude and angular-rate propagation but is not a full
-contact or structural multi-body solver. It does not infer lift, aerodynamic
-torque, body-to-body contact forces, collision response, joint or spring
-compliance, plume interaction, wake/interference, structural flexibility,
-separation mechanism dynamics, or range-safety margins. Pairwise COM distance
-is a diagnostic, not clearance approval. Fixed spherical envelopes remain a
-separate geometry screen.
+rigid-body branch adds attitude and angular-rate propagation, and the
+projected-area option adds only the bounded translational drag blend described
+above. It is not a full contact or structural multi-body solver. It does not
+infer lift, aerodynamic torque, body-to-body contact forces, collision
+response, joint or spring compliance, plume interaction, wake/interference,
+structural flexibility, separation mechanism dynamics, or range-safety
+margins. Pairwise COM distance is a diagnostic, not clearance approval. Fixed
+spherical envelopes remain a separate geometry screen.
 
 The stage-flight adapter applies a solved minimum-norm release correction only
 when the event-level separation allocator reports a balanced result. The

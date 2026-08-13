@@ -233,6 +233,7 @@ type ComponentKey = "nose" | "body" | "fins" | "mount" | "recovery";
 type ViewKey = "design" | "flight";
 type DesignViewKey = UiDesignView;
 type MaterialKey = "kraft" | "fiberglass" | "carbon";
+type ReleasedBodyDragModel = "isotropic-point" | "attitude-projected-area";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
 type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad";
 type OptimizationPreview = Readonly<{
@@ -1358,6 +1359,7 @@ function createStageFlightPreviewInputs({
   launchRailTipOffYawRateDegS,
   coupledMutualGravityEnabled,
   coupledGravitySofteningRadiusM,
+  releasedBodyDragModel,
   separationContactStoppingDistanceM,
   separationContactCoefficientOfRestitution,
   recoveryEnabled,
@@ -1396,6 +1398,7 @@ function createStageFlightPreviewInputs({
   launchRailTipOffYawRateDegS: number;
   coupledMutualGravityEnabled: boolean;
   coupledGravitySofteningRadiusM: number;
+  releasedBodyDragModel: ReleasedBodyDragModel;
   separationContactStoppingDistanceM: number;
   separationContactCoefficientOfRestitution: number;
   recoveryEnabled: boolean;
@@ -1820,6 +1823,7 @@ function createStageFlightPreviewInputs({
           softeningRadiusM: coupledGravitySofteningRadiusM,
         }
       : ({ enabled: false } satisfies CoupledMultiBodyGravityOptions),
+    releasedBodyDragModel,
     separationContactLoad: {
       stoppingDistanceM: separationContactStoppingDistanceM,
       coefficientOfRestitution: separationContactCoefficientOfRestitution,
@@ -3765,6 +3769,7 @@ export default function Home() {
   const [launchRailTipOffYawRateDegS, setLaunchRailTipOffYawRateDegS] = useState(0);
   const [coupledMutualGravityEnabled, setCoupledMutualGravityEnabled] = useState(false);
   const [coupledGravitySofteningRadiusM, setCoupledGravitySofteningRadiusM] = useState(0.02);
+  const [releasedBodyDragModel, setReleasedBodyDragModel] = useState<ReleasedBodyDragModel>("isotropic-point");
   const [separationContactStoppingDistanceM, setSeparationContactStoppingDistanceM] = useState(0.01);
   const [separationContactCoefficientOfRestitution, setSeparationContactCoefficientOfRestitution] = useState(0);
   const [sixDofIntegrationMethod, setSixDofIntegrationMethod] = useState<RigidBodyIntegrationMethod>("fixed-rk4");
@@ -4100,6 +4105,7 @@ export default function Home() {
             enabled: coupledMutualGravityEnabled,
             softeningRadiusM: coupledGravitySofteningRadiusM,
           },
+          releasedBodyDragModel,
           separationContactLoad: {
             stoppingDistanceM: separationContactStoppingDistanceM,
             coefficientOfRestitution: separationContactCoefficientOfRestitution,
@@ -4107,7 +4113,7 @@ export default function Home() {
           sixDofIntegrationMethod,
         },
       }),
-    [coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, editableInputs, previewMotor, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, vehicleTopology],
+    [coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, editableInputs, previewMotor, releasedBodyDragModel, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, vehicleTopology],
   );
   const previewEnvironment = useMemo(
     () => createPreviewEnvironment(launchAltitude, windSpeed, { siteName: launchSiteName, latitudeDeg: launchLatitudeDeg, longitudeDeg: launchLongitudeDeg, windAzimuthDeg, windProfileLayers, turbulenceScale, earthRotationEnabled, normalGravityEnabled, seed: weatherSeed, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
@@ -6607,6 +6613,7 @@ export default function Home() {
             launchRailTipOffYawRateDegS,
             coupledMutualGravityEnabled,
             coupledGravitySofteningRadiusM,
+            releasedBodyDragModel,
             separationContactStoppingDistanceM,
             separationContactCoefficientOfRestitution,
             normalForceModel,
@@ -6671,6 +6678,7 @@ export default function Home() {
           launchRailTipOffYawRateDegS,
           coupledMutualGravityEnabled,
           coupledGravitySofteningRadiusM,
+          releasedBodyDragModel,
           separationContactStoppingDistanceM,
           separationContactCoefficientOfRestitution,
           normalForceModel,
@@ -7451,6 +7459,18 @@ export default function Home() {
                       <option value="mutual-gravity">Include mutual point-mass gravity</option>
                     </select>
                   </div>
+                  <div className="field-group">
+                    <label htmlFor="released-body-drag-model">Released-body aerodynamics</label>
+                    <select
+                      id="released-body-drag-model"
+                      value={releasedBodyDragModel}
+                      onChange={(event) => setReleasedBodyDragModel(event.target.value as ReleasedBodyDragModel)}
+                    >
+                      <option value="isotropic-point">Isotropic point drag (baseline)</option>
+                      <option value="attitude-projected-area">Projected-area attitude drag (preview)</option>
+                    </select>
+                    <small>Uses detached-stage geometry when available; lift and aerodynamic moments remain outside scope.</small>
+                  </div>
                   {coupledMutualGravityEnabled && (
                     <NumberField
                       id="released-body-softening"
@@ -7906,6 +7926,11 @@ export default function Home() {
                                <div><span>Coupled integrator</span><strong>{stageFlightResult.coupledMultiBodyFlight.integration.method === "adaptive-rk4-step-doubling" ? "Adaptive RK4" : "Fixed RK4"}</strong><small>{stageFlightResult.coupledMultiBodyFlight.integration.acceptedStepCount} accepted · {stageFlightResult.coupledMultiBodyFlight.integration.rejectedStepCount} rejected</small></div>
                               <div><span>Released-body force model</span><strong>{stageFlightResult.coupledMultiBodyFlight.mutualGravity.enabled ? "Mutual gravity" : "Shared environment"}</strong><small>{stageFlightResult.coupledMultiBodyFlight.mutualGravity.enabled && stageFlightResult.coupledMultiBodyFlight.mutualGravity.softeningRadiusM > 0 ? `ε ${stageFlightResult.coupledMultiBodyFlight.mutualGravity.softeningRadiusM.toFixed(3)} m` : "point-path coupling"}</small></div>
                               <div><span>Release window</span><strong>{stageFlightResult.coupledMultiBodyFlight.startTimeS.toFixed(2)} → {stageFlightResult.coupledMultiBodyFlight.endTimeS.toFixed(2)} s</strong><small>{publicModelVersion(stageFlightResult.coupledMultiBodyFlight.modelVersion)}</small></div>
+                            </div>
+                            <div className="stage-coupled-multi-body-flight-drag-summary">
+                              <span>Attitude-dependent drag</span>
+                              <strong>{stageFlightResult.coupledMultiBodyFlight.trajectories.filter((trajectory) => trajectory.attitudeDependentDrag).length} bodies</strong>
+                              <small>{stageFlightResult.coupledMultiBodyFlight.trajectories.some((trajectory) => trajectory.attitudeDependentDrag) ? "Incidence-aware CdA diagnostics are retained on the shared trace." : "Isotropic point-drag baseline is active."}</small>
                             </div>
                             <div className="stage-coupled-multi-body-flight-list">
                               {stageFlightResult.coupledMultiBodyFlight.trajectories.map((trajectory) => (

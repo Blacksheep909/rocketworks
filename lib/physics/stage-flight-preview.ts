@@ -97,6 +97,7 @@ import {
   type CoupledMultiBodyGravityOptions,
   type CoupledMultiBodyFlightResult,
 } from "./coupled-multi-body-flight.ts";
+import type { AttitudeDependentDragGeometry } from "./attitude-dependent-drag.ts";
 import {
   computeMissionMassRatio,
   computeStageMassRatio,
@@ -121,7 +122,7 @@ import {
 } from "./mission-delta-v-bridge.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.31.0";
+  "kestrel-stage-flight-preview-0.32.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -164,6 +165,8 @@ export type StageFlightPreviewInput = Readonly<{
   separationContactLoad?: SeparationContactLoadOptions;
   /** Optional pairwise gravity mode for the shared released-body track. */
   coupledMultiBodyGravity?: CoupledMultiBodyGravityOptions;
+  /** Optional projected-area drag for detached rigid-body shared-grid tracks. */
+  releasedBodyDragModel?: "isotropic-point" | "attitude-projected-area";
   /** Optional post-trace wake/relative-flow screen; it never feeds forces back into flight. */
   relativeAeroInteraction?: RelativeAeroInteractionOptions;
   launchRail?: LaunchRailConfig;
@@ -440,6 +443,7 @@ function detachedStageInstancesBetween(
 type DetachedStageAerodynamicBasis = Readonly<{
   referenceAreaM2: number;
   dragCoefficient: number;
+  attitudeDependentDrag?: AttitudeDependentDragGeometry;
 }>;
 
 /**
@@ -483,8 +487,41 @@ function detachedStageAerodynamicBasis(
       ? regime.coefficientTable.evaluate(regime.coefficientTableDesignPoint).dragCoefficient
       : undefined
   );
+  const stageAxisymmetricComponents = components.filter(
+    (component): component is Extract<VehicleComponent, { kind: "axisymmetric" }> =>
+      component.stageId === stageId && component.enabled !== false && component.kind === "axisymmetric",
+  );
+  const profileExtents = stageAxisymmetricComponents.flatMap((component) => {
+    const offsetXM = component.positionM?.x ?? 0;
+    return component.stations.map((station) => ({
+      xM: offsetXM + station.xM,
+      radiusM: station.outerRadiusM,
+    }));
+  });
+  const maximumRadiusM = profileExtents.length > 0
+    ? Math.max(...profileExtents.map((point) => point.radiusM))
+    : 0;
+  const profileLengthM = profileExtents.length > 1
+    ? Math.max(...profileExtents.map((point) => point.xM)) - Math.min(...profileExtents.map((point) => point.xM))
+    : 0;
+  const crossflowReferenceAreaM2 = profileLengthM > 0 && maximumRadiusM > 0
+    ? profileLengthM * maximumRadiusM * 2
+    : undefined;
   return referenceAreaM2 !== undefined && dragCoefficient !== undefined
-    ? { referenceAreaM2, dragCoefficient }
+    ? {
+        referenceAreaM2,
+        dragCoefficient,
+        ...(crossflowReferenceAreaM2 !== undefined
+          ? {
+              attitudeDependentDrag: {
+                axialReferenceAreaM2: referenceAreaM2,
+                crossflowReferenceAreaM2,
+                axialDragCoefficient: dragCoefficient,
+                crossflowDragCoefficient: dragCoefficient,
+              },
+            }
+          : {}),
+      }
     : null;
 }
 
@@ -1224,6 +1261,14 @@ export function simulateStageFlightPreview(
         input.regimes,
         stageId,
       );
+      if (
+        input.releasedBodyDragModel === "attitude-projected-area" &&
+        !detachedAero?.attitudeDependentDrag
+      ) {
+        separatedBodyWarnings.push(
+          `${stageId}/${instanceId} projected-area drag unavailable: stage geometry did not provide a positive axisymmetric profile; isotropic point drag remains the fallback.`,
+        );
+      }
       const stageDefinition = input.stages.find((stage) => stage.id === stageId);
       const detachedRecoveryDevices = stageDefinition?.recoveryDevices;
       try {
@@ -1297,6 +1342,9 @@ export function simulateStageFlightPreview(
             : {}),
           ...(separatedBody.envelopeRadiusM !== undefined
             ? { envelopeRadiusM: separatedBody.envelopeRadiusM }
+            : {}),
+          ...(input.releasedBodyDragModel === "attitude-projected-area" && detachedAero?.attitudeDependentDrag
+            ? { attitudeDependentDrag: detachedAero.attitudeDependentDrag }
             : {}),
           rigidBody: {
             orientationBodyToWorld: detachedInitialState.orientationBodyToWorld,
@@ -1551,6 +1599,12 @@ export function simulateStageFlightPreview(
     ...eventAllocation.assumptions,
     ...convergence.assumptions,
     `Explicit separation events spawn a separate ballistic-capable trajectory for each newly detached stage; separated bodies are represented independently; ${separatedBodies.filter((body) => body.recoveryModelVersion !== undefined).length} branch(es) carry configured recovery devices, ${separatedBodies.filter((body) => body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined).length} branch(es) use bounded isotropic point drag, and ${separatedBodies.filter((body) => body.referenceAreaM2 === undefined || body.dragCoefficient === undefined).length} branch(es) use the gravity-only fallback.`,
+    ...(input.releasedBodyDragModel === "attitude-projected-area"
+      ? [
+          "The shared-grid released-body track uses projected-area attitude drag when a detached stage supplies a positive axisymmetric profile; missing profiles retain the isotropic point-drag or gravity-only fallback.",
+          "The stage adapter reuses the selected detached stage Cd for both axial and crossflow CdA because no independent crossflow coefficient is supplied; calibrate this preview basis before relying on it.",
+        ]
+      : []),
     "When one separation event releases multiple physical copies, the equal-and-opposite impulse uses their combined detached mass and assigns one shared detached velocity increment to each copy; individual separation-mechanism impulses are not modeled.",
     "Separated-body previews apply a mass-ratio equal-and-opposite linear-momentum delta-v when the separation event carries a configured retained-body delta-v; a single event releasing multiple copies uses their combined detached mass and assigns one shared detached velocity increment. Separation mechanism dynamics, angular impulse, lift, attitude-dependent aerodynamic torque, plume interaction, aerodynamic interference, and contact/collision response remain outside the model; the separate fixed spherical-envelope screen is only a potential-overlap diagnostic. Detached-stage recovery devices are propagated only when explicitly configured on that stage and remain a deterministic canopy-load approximation.",
     ...(separatedBodies.some((body) => body.recoveryModelVersion !== undefined)

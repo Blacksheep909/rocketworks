@@ -247,7 +247,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.31.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.32.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);
@@ -347,6 +347,37 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.ok(result.separatedBodies[0].warnings.some((warning) => warning.includes("equal-and-opposite")));
   assert.ok(result.separatedBodies[0].warnings.some((warning) => warning.includes("ballistic")));
   assert.deepEqual(result.clusterDiagnostics, []);
+});
+
+test("stage-flight adapter forwards projected-area drag to the detached shared track", () => {
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages,
+    regimes: [
+      ...regimes,
+      {
+        id: "booster-only",
+        label: "Booster",
+        activeStageIds: ["booster"],
+        dragCoefficient: 0.72,
+      },
+    ],
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 2.5,
+    timeStepS: 0.05,
+    releasedBodyDragModel: "attitude-projected-area",
+    events: [createScheduledStageSeparationEvent({ stageId: "booster", timeS: 1 })],
+  });
+
+  const coupled = result.coupledMultiBodyFlight;
+  assert.ok(coupled);
+  const detached = coupled.trajectories.find((trajectory) => trajectory.attitudeDependentDrag);
+  assert.ok(detached);
+  assert.ok(detached.attitudeDependentDrag);
+  assert.ok(detached.trace.some((point) => point.attitudeIncidenceRad !== undefined));
+  assert.ok(detached.trace.every((point) => Number.isFinite(point.effectiveReferenceAreaM2 ?? 0)));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("reuses the selected detached stage Cd")));
 });
 
 test("stage mass-ratio branch exposes ideal rocket-equation diagnostics", () => {

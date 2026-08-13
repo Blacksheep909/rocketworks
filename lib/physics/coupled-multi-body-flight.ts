@@ -30,6 +30,13 @@ import {
   type RigidBodyIntegrationMethod,
   type RigidBodyState,
 } from "./six-dof.ts";
+import {
+  ATTITUDE_DEPENDENT_DRAG_BODY_AXIS,
+  ATTITUDE_DEPENDENT_DRAG_MODEL_VERSION,
+  evaluateAttitudeDependentDrag,
+  validateAttitudeDependentDragGeometry,
+  type AttitudeDependentDragGeometry,
+} from "./attitude-dependent-drag.ts";
 
 /**
  * RocketWorks clean-room shared-grid propagator for released bodies.
@@ -42,7 +49,7 @@ import {
  * supplied inputs cannot support.
  */
 export const COUPLED_MULTI_BODY_FLIGHT_MODEL_VERSION =
-  "rocketworks-coupled-multi-body-flight-0.3.0";
+  "rocketworks-coupled-multi-body-flight-0.4.0";
 export const COUPLED_MULTI_BODY_FLIGHT_STATUS =
   "analytical-component-checks-only" as const;
 export const STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2 = 6.67430e-11;
@@ -94,6 +101,8 @@ export type CoupledMultiBodyFlightBodyInput = Readonly<{
   /** Constant isotropic drag basis for this point-mass branch. */
   referenceAreaM2?: number;
   dragCoefficient?: number;
+  /** Optional incidence-dependent projected-area drag for a rigid body. */
+  attitudeDependentDrag?: AttitudeDependentDragGeometry;
   envelopeRadiusM?: number;
   /** Optional 6DOF attitude and inertia state for this released body. */
   rigidBody?: CoupledMultiBodyRigidBodyInput;
@@ -106,6 +115,13 @@ export type CoupledMultiBodyTracePoint = Readonly<{
   positionWorldM: Vector3;
   velocityWorldMps: Vector3;
   accelerationWorldMps2: Vector3;
+  relativeAirSpeedMps?: number;
+  dynamicPressurePa?: number;
+  attitudeIncidenceRad?: number;
+  effectiveReferenceAreaM2?: number;
+  effectiveDragCoefficient?: number;
+  aerodynamicDragN?: number;
+  aerodynamicDragModelVersion?: string;
   orientationBodyToWorld?: Quaternion;
   angularVelocityBodyRadS?: Vector3;
 }>;
@@ -125,6 +141,7 @@ export type CoupledMultiBodyFlightTrajectory = Readonly<{
   impactTimeS: number | null;
   referenceAreaM2?: number;
   dragCoefficient?: number;
+  attitudeDependentDrag?: AttitudeDependentDragGeometry;
   envelopeRadiusM?: number;
   rigidBody: Readonly<{
     enabled: true;
@@ -356,6 +373,12 @@ function validateBody(body: CoupledMultiBodyFlightBodyInput): void {
     assertPositiveFinite(body.referenceAreaM2!, `coupled-flight body ${body.id} reference area`);
     assertPositiveFinite(body.dragCoefficient!, `coupled-flight body ${body.id} drag coefficient`);
   }
+  if (body.attitudeDependentDrag) {
+    if (!body.rigidBody) {
+      throw new Error(`coupled-flight body ${body.id} attitude-dependent drag requires a rigid-body state`);
+    }
+    validateAttitudeDependentDragGeometry(body.attitudeDependentDrag);
+  }
   if (body.envelopeRadiusM !== undefined) {
     assertNonNegativeFinite(body.envelopeRadiusM, `coupled-flight body ${body.id} envelope radius`);
   }
@@ -414,6 +437,7 @@ function accelerationAt(
   timeS: number,
   positionWorldM: Vector3,
   velocityWorldMps: Vector3,
+  orientationBodyToWorld?: Quaternion,
 ): Vector3 {
   const environment = environmentAt(input, timeS, positionWorldM, velocityWorldMps);
   const altitudeAslM =
@@ -426,16 +450,38 @@ function accelerationAt(
     },
     environment?.earthRotationAccelerationWorldMps2 ?? { x: 0, y: 0, z: 0 },
   );
-  if (body.referenceAreaM2 === undefined || body.dragCoefficient === undefined) {
+  if (
+    (body.referenceAreaM2 === undefined || body.dragCoefficient === undefined) &&
+    !body.attitudeDependentDrag
+  ) {
     return gravityAccelerationWorldMps2;
   }
-  const atmosphere = environment?.atmosphere ?? standardAtmosphere(altitudeAslM);
   const relativeAirVelocityMps = subtractVectors(
     velocityWorldMps,
     environment?.windWorldMps ?? ZERO_VECTOR,
   );
   const relativeAirSpeedMps = magnitude(relativeAirVelocityMps);
   if (relativeAirSpeedMps <= 0) return gravityAccelerationWorldMps2;
+  if (body.attitudeDependentDrag && orientationBodyToWorld) {
+    const atmosphere = environment?.atmosphere ?? standardAtmosphere(altitudeAslM);
+    const drag = evaluateAttitudeDependentDrag({
+      geometry: body.attitudeDependentDrag,
+      densityKgM3: atmosphere.densityKgM3,
+      relativeAirVelocityWorldMps: relativeAirVelocityMps,
+      bodyAxisWorldM: rotateBodyToWorld(
+        orientationBodyToWorld,
+        ATTITUDE_DEPENDENT_DRAG_BODY_AXIS,
+      ),
+    });
+    return addVectors(
+      gravityAccelerationWorldMps2,
+      scaleVector(drag.dragForceWorldN, 1 / body.massKg),
+    );
+  }
+  if (body.referenceAreaM2 === undefined || body.dragCoefficient === undefined) {
+    return gravityAccelerationWorldMps2;
+  }
+  const atmosphere = environment?.atmosphere ?? standardAtmosphere(altitudeAslM);
   const dragAccelerationMagnitudeMps2 =
     (0.5 * atmosphere.densityKgM3 * relativeAirSpeedMps ** 2 * body.dragCoefficient * body.referenceAreaM2) /
     body.massKg;
@@ -581,6 +627,7 @@ function coupledGroupDerivativeAt(
         state.timeS,
         state.positionsWorldM[index]!,
         state.velocitiesWorldMps[index]!,
+        state.orientationsBodyToWorld[index] ?? undefined,
       ),
       mutualGravity.enabled
         ? mutualGravityAccelerationAt(
@@ -1151,11 +1198,46 @@ function tracePoint(
 
 function tracePointWithAcceleration(
   body: CoupledMultiBodyFlightBodyInput,
+  input: CoupledMultiBodyFlightInput,
   state: PointState,
   accelerationWorldMps2: Vector3,
   orientationBodyToWorld?: Quaternion,
   angularVelocityBodyRadS?: Vector3,
 ): CoupledMultiBodyTracePoint {
+  const attitudeDrag = body.attitudeDependentDrag && orientationBodyToWorld
+    ? (() => {
+        const environment = environmentAt(
+          input,
+          state.timeS,
+          state.positionWorldM,
+          state.velocityWorldMps,
+        );
+        const altitudeAslM =
+          environment?.altitudeAslM ?? (input.launchAltitudeM ?? 0) + state.positionWorldM.z;
+        const atmosphere = environment?.atmosphere ?? standardAtmosphere(altitudeAslM);
+        const drag = evaluateAttitudeDependentDrag({
+          geometry: body.attitudeDependentDrag,
+          densityKgM3: atmosphere.densityKgM3,
+          relativeAirVelocityWorldMps: subtractVectors(
+            state.velocityWorldMps,
+            environment?.windWorldMps ?? ZERO_VECTOR,
+          ),
+          bodyAxisWorldM: rotateBodyToWorld(
+            orientationBodyToWorld,
+            ATTITUDE_DEPENDENT_DRAG_BODY_AXIS,
+          ),
+        });
+        return {
+          relativeAirSpeedMps: drag.relativeAirSpeedMps,
+          dynamicPressurePa: drag.dynamicPressurePa,
+          attitudeIncidenceRad: drag.incidenceRad,
+          effectiveReferenceAreaM2: drag.effectiveReferenceAreaM2,
+          effectiveDragCoefficient: drag.effectiveDragCoefficient,
+          aerodynamicDragN: magnitude(drag.dragForceWorldN),
+          aerodynamicDragModelVersion: ATTITUDE_DEPENDENT_DRAG_MODEL_VERSION,
+        };
+      })()
+    : {};
   return {
     timeS: state.timeS,
     altitudeAglM: state.positionWorldM.z,
@@ -1163,6 +1245,7 @@ function tracePointWithAcceleration(
     positionWorldM: state.positionWorldM,
     velocityWorldMps: state.velocityWorldMps,
     accelerationWorldMps2,
+    ...attitudeDrag,
     ...(orientationBodyToWorld ? { orientationBodyToWorld } : {}),
     ...(angularVelocityBodyRadS ? { angularVelocityBodyRadS } : {}),
   };
@@ -1207,6 +1290,9 @@ function trajectoryFromTrace(
     impactTimeS,
     ...(body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined
       ? { referenceAreaM2: body.referenceAreaM2, dragCoefficient: body.dragCoefficient }
+      : {}),
+    ...(body.attitudeDependentDrag
+      ? { attitudeDependentDrag: body.attitudeDependentDrag }
       : {}),
     ...(body.envelopeRadiusM !== undefined ? { envelopeRadiusM: body.envelopeRadiusM } : {}),
     rigidBody: body.rigidBody
@@ -1368,6 +1454,7 @@ function propagateCoupledBodies(
       ).accelerationsWorldMps2[index];
       appendTrace(index, tracePointWithAcceleration(
         bodies[index],
+        input,
         {
           timeS: state.timeS,
           positionWorldM: state.positionsWorldM[index],
@@ -1471,6 +1558,7 @@ function propagateCoupledBodies(
             index,
             tracePointWithAcceleration(
               bodies[index],
+              input,
               impactState,
               impactAcceleration,
               impactOrientation ?? undefined,
@@ -1502,6 +1590,7 @@ function propagateCoupledBodies(
         ).accelerationsWorldMps2[index];
         appendTrace(index, tracePointWithAcceleration(
           bodies[index],
+          input,
           {
             timeS: state.timeS,
             positionWorldM: state.positionsWorldM[index],
@@ -1573,6 +1662,9 @@ export function simulateCoupledMultiBodyFlight(
     }
   });
   const rigidBodyCount = input.bodies.filter((body) => body.rigidBody !== undefined).length;
+  const attitudeDependentDragBodyCount = input.bodies.filter(
+    (body) => body.attitudeDependentDrag !== undefined,
+  ).length;
   const startTimeS = Math.min(...input.bodies.map((body) => body.releaseTimeS));
   const nominalStepCount = Math.ceil((input.durationS - startTimeS) / input.timeStepS);
   const budgetAdjusted = nominalStepCount > maximumSteps - 1;
@@ -1662,11 +1754,16 @@ export function simulateCoupledMultiBodyFlight(
     ...(rigidBodyCount > 0
       ? [`${rigidBodyCount} released bod${rigidBodyCount === 1 ? "y" : "ies"} used the opt-in rigid-body attitude state; supplied external loads were evaluated in the body/world frames.`]
       : []),
+    ...(attitudeDependentDragBodyCount > 0
+      ? [`${attitudeDependentDragBodyCount} released bod${attitudeDependentDragBodyCount === 1 ? "y" : "ies"} used the opt-in projected-area attitude drag model; the trace retains incidence, effective area, and Cd diagnostics.`]
+      : []),
     "An optional earthRotationAccelerationWorldMps2 field from the environment provider is added to each body's shared acceleration; the provider remains responsible for its provenance and validation status.",
     ...(mutualGravity.enabled && mutualGravity.softeningRadiusM > 0
       ? [`Mutual gravity uses a Plummer-style softening radius of ${mutualGravity.softeningRadiusM.toFixed(6)} m for close approaches; this is a numerical approximation, not a contact model.`]
       : []),
-    "Each body uses altitude-dependent gravity and, when supplied, constant isotropic point drag against environment-relative wind.",
+    attitudeDependentDragBodyCount > 0
+      ? "Bodies with an attitude-dependent drag basis use altitude-dependent gravity and a bounded projected-area CdA blend against environment-relative wind; other bodies retain the constant isotropic point-drag basis when configured."
+      : "Each body uses altitude-dependent gravity and, when supplied, constant isotropic point drag against environment-relative wind.",
     ...(rigidBodyCount > 0
       ? ["Rigid-body attitude uses quaternion kinematics and Euler angular momentum with the supplied constant inertia tensor; flexible-body, contact, plume, and unprovided aerodynamic moment models remain outside the solver."]
       : []),
@@ -1701,6 +1798,11 @@ export function simulateCoupledMultiBodyFlight(
       ? [
           "Rigid-body attitude uses quaternion kinematics and Euler angular momentum with the supplied constant inertia tensor; flexible-body, contact, plume, and unprovided aerodynamic moment models remain outside the solver.",
           "Rigid-body loads are caller-supplied additions to the shared gravity/drag force basis; omitted moments are zero and no contact or aerodynamic-interference force is inferred.",
+        ]
+      : []),
+    ...(attitudeDependentDragBodyCount > 0
+      ? [
+          "Projected-area drag uses the supplied axial and crossflow CdA pairs blended by the squared cosine of the body-axis incidence; lift, aerodynamic moments, fins, and unsteady flow are not inferred.",
         ]
       : []),
     ...(integrationMethod === "adaptive-rk4-step-doubling"

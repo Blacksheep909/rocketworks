@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an opt-in projected-area attitude-drag branch to the shared released-body
+  track. Detached rigid bodies can now blend supplied axial and broadside CdA
+  pairs from their body-axis incidence, retain effective-area/Cd/dynamic-
+  pressure diagnostics, expose the model in the browser and engineering
+  report, and keep the explicit lift, moment, interference, calibration, and
+  flight-safety boundaries.
 - Add a directed released-body relative-flow/wake review to staged flight
   results. The clean-room post-processing screen checks finite expanding-cone
   overlap and reports bounded velocity-deficit and dynamic-pressure proxies
