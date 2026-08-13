@@ -21,6 +21,7 @@ import {
   rotateWorldToBody,
   simulateRigidBody6D,
   type AppliedRigidBodyEvent,
+  type Quaternion,
   type RigidBodyLoads,
   type RigidBodyState,
   type ScheduledRigidBodyEvent,
@@ -97,7 +98,7 @@ import {
 } from "./stage-flight-vector-budget.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.25.0";
+  "kestrel-stage-flight-preview-0.26.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -168,6 +169,14 @@ export type StageFlightTracePoint = Readonly<{
   staticMarginCalibers: number | null;
   /** Active normal-force slope used by the aerodynamic evaluator. */
   normalForceSlopePerRad: number | null;
+  /** Body-to-world attitude quaternion retained from the 6DOF state. */
+  orientationBodyToWorld: Quaternion;
+  /** Body-frame angular velocity retained from the 6DOF state, in rad/s. */
+  angularVelocityBodyRadS: Vector3;
+  /** Angle between the vehicle nose axis and local vertical, in radians. */
+  attitudeTiltRad: number;
+  /** Magnitude of body angular velocity, in rad/s. */
+  angularRateRadS: number;
   directForceApplied?: boolean;
   directMomentApplied?: boolean;
   coefficientBasis?: string | null;
@@ -915,6 +924,9 @@ export function simulateStageFlightPreview(
         state.orientationBodyToWorld,
         { x: -1, y: 0, z: 0 },
       );
+      const attitudeTiltRad = Math.acos(
+        Math.min(1, Math.max(-1, dot(noseDirectionWorld, { x: 0, y: 0, z: 1 }))),
+      );
       return {
         timeS: state.timeS,
         altitudeAglM: state.positionWorldM.z,
@@ -939,6 +951,10 @@ export function simulateStageFlightPreview(
         centerOfMassXM: loadEvaluation.diagnostics.centerOfMassXM,
         staticMarginCalibers: loadEvaluation.diagnostics.staticMarginCalibers,
         normalForceSlopePerRad: loadEvaluation.diagnostics.normalForceSlopePerRad,
+        orientationBodyToWorld: state.orientationBodyToWorld,
+        angularVelocityBodyRadS: state.angularVelocityBodyRadS,
+        attitudeTiltRad,
+        angularRateRadS: magnitude(state.angularVelocityBodyRadS),
         directForceApplied: loadEvaluation.diagnostics.directForceApplied,
         directMomentApplied: loadEvaluation.diagnostics.directMomentApplied,
         coefficientBasis: loadEvaluation.diagnostics.coefficientBasis,

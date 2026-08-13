@@ -2,7 +2,7 @@
 
 Status: `engineering-preview-unvalidated`  
 Implementation: `lib/physics/stage-flight-preview.ts`, `lib/export/project-exports.ts`  
-Model: `kestrel-stage-flight-preview-0.25.0`
+Model: `kestrel-stage-flight-preview-0.26.0`
 
 ## Purpose
 
@@ -56,4 +56,3 @@ diagnostics.
 - CSV headers remain deterministic and include explicit SI units;
 - rendered UI source includes the three stability plot modes;
 - the complete regression suite and type/lint/build gates remain required.
-

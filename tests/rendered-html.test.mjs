@@ -959,6 +959,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /key: "centerOfPressure", label: "CP"/);
   assert.match(page, /key: "centerOfMass", label: "CG"/);
   assert.match(page, /key: "staticMargin", label: "Static margin"/);
+  assert.match(page, /key: "attitudeTilt", label: "Attitude tilt"/);
+  assert.match(page, /key: "angularRate", label: "Angular rate"/);
   assert.match(page, /point\.dynamicPressurePa/);
   assert.match(page, /point\.angleOfAttackRad/);
   assert.match(page, /point\.sideslipRad/);

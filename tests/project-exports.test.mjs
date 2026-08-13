@@ -232,9 +232,37 @@ test("staged flight CSV preserves attached-stage topology and SI values", () => 
     { timeS: 1, altitudeAglM: 42.5, speedMps: 28.2, mach: 0.08, angleOfAttackRad: 0.02, sideslipRad: -0.01, dynamicPressurePa: 480, dragN: 2.5, recoveryDragN: 4.2, recoveryEffectiveAreaM2: 0.18, massKg: 0.8, thrustN: 18, attachedStageIds: ["upper"] },
   ]);
   const rows = csv.trim().split("\r\n");
-  assert.equal(rows[0], "time_s,altitude_agl_m,speed_mps,mach,angle_of_attack_deg,sideslip_deg,center_of_pressure_x_m,center_of_mass_x_m,static_margin_calibers,normal_force_slope_per_rad,dynamic_pressure_pa,drag_n,aerodynamic_force_n,aerodynamic_moment_nm,aerodynamic_damping_moment_nm,direct_force_applied,direct_moment_applied,coefficient_basis,recovery_drag_n,recovery_effective_area_m2,mass_kg,thrust_n,attached_stage_ids");
-  assert.equal(rows[1], "0,0,0,0,0,0,,,,,0,0,0,0,0,false,false,,0,0,1.2,30,booster|upper");
-  assert.equal(rows[2], "1,42.5,28.2,0.08,1.1459155902616465,-0.5729577951308232,,,,,480,2.5,0,0,0,false,false,,4.2,0.18,0.8,18,upper");
+  assert.equal(rows[0], "time_s,altitude_agl_m,speed_mps,mach,angle_of_attack_deg,sideslip_deg,center_of_pressure_x_m,center_of_mass_x_m,static_margin_calibers,normal_force_slope_per_rad,attitude_tilt_deg,angular_rate_deg_s,quaternion_w,quaternion_x,quaternion_y,quaternion_z,angular_velocity_x_rad_s,angular_velocity_y_rad_s,angular_velocity_z_rad_s,dynamic_pressure_pa,drag_n,aerodynamic_force_n,aerodynamic_moment_nm,aerodynamic_damping_moment_nm,direct_force_applied,direct_moment_applied,coefficient_basis,recovery_drag_n,recovery_effective_area_m2,mass_kg,thrust_n,attached_stage_ids");
+  assert.equal(rows[1], "0,0,0,0,0,0,,,,,,,,,,,,,,0,0,0,0,0,false,false,,0,0,1.2,30,booster|upper");
+  assert.equal(rows[2], "1,42.5,28.2,0.08,1.1459155902616465,-0.5729577951308232,,,,,,,,,,,,,,480,2.5,0,0,0,false,false,,4.2,0.18,0.8,18,upper");
+});
+
+test("staged flight CSV preserves attitude and angular-rate state", () => {
+  const csv = createStageFlightTraceCsv([{
+    timeS: 1,
+    altitudeAglM: 12,
+    speedMps: 8,
+    mach: 0.02,
+    angleOfAttackRad: 0,
+    sideslipRad: 0,
+    centerOfPressureXM: 0.8,
+    centerOfMassXM: 0.6,
+    staticMarginCalibers: 1.5,
+    normalForceSlopePerRad: 4,
+    attitudeTiltRad: Math.PI / 6,
+    angularRateRadS: 0.2,
+    orientationBodyToWorld: { w: 1, x: 0, y: 0, z: 0 },
+    angularVelocityBodyRadS: { x: 0.1, y: -0.2, z: 0.3 },
+    dynamicPressurePa: 40,
+    dragN: 0.4,
+    recoveryDragN: 0,
+    recoveryEffectiveAreaM2: 0,
+    massKg: 1,
+    thrustN: 5,
+    attachedStageIds: ["core"],
+  }]);
+  const row = csv.trim().split("\r\n")[1];
+  assert.match(row, /,29\.999999999999996,11\.459155902616464,1,0,0,0,0\.1,-0\.2,0\.3,40,/);
 });
 
 test("parameter sweep CSV preserves rows, null outputs, and evaluator errors", () => {
@@ -634,6 +662,13 @@ test("engineering report leads with status and preserves calculations and limita
       maxAltitudeAglM: 298,
       maxSpeedMps: 49.4,
       timeToApogeeS: 6.1,
+      trace: [{
+        staticMarginCalibers: 1.2,
+        centerOfPressureXM: 0.8,
+        centerOfMassXM: 0.7,
+        attitudeTiltRad: 0.1,
+        angularRateRadS: 0.2,
+      }],
       massRatio: {
         modelVersion: "rocketworks-stage-mass-ratio-0.1.0",
         validationStatus: "analytical-ideal-rocket-equation",
@@ -815,6 +850,9 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Relative humidity observation: 60%/);
   assert.match(report, /Relation normal-force model: `low-speed`/);
   assert.match(report, /Relation induced-drag polar: `quadratic-normal-force` \(k = 0\.750\)/);
+  assert.match(report, /Static-margin samples \| 1 \/ 1/);
+  assert.match(report, /Peak attitude tilt/);
+  assert.match(report, /Peak angular rate/);
   assert.match(report, /## Recovery configuration/);
   assert.match(report, /Command trigger: descending altitude/);
   assert.match(report, /Command altitude: 180\.0 m AGL/);

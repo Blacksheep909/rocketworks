@@ -2993,6 +2993,8 @@ type StageFlightMetricKey =
   | "centerOfPressure"
   | "centerOfMass"
   | "staticMargin"
+  | "attitudeTilt"
+  | "angularRate"
   | "mass"
   | "thrust";
 
@@ -3019,6 +3021,8 @@ const STAGE_FLIGHT_METRICS: readonly StageFlightMetricDefinition[] = [
   { key: "centerOfPressure", label: "CP", unit: "m", color: "#f8b84e" },
   { key: "centerOfMass", label: "CG", unit: "m", color: "#7dd3fc" },
   { key: "staticMargin", label: "Static margin", unit: "cal", color: "#58d68d" },
+  { key: "attitudeTilt", label: "Attitude tilt", unit: "deg", color: "#fb7185" },
+  { key: "angularRate", label: "Angular rate", unit: "deg/s", color: "#c084fc" },
   { key: "mass", label: "Mass", unit: "kg", color: "#a5c7d8" },
   { key: "thrust", label: "Thrust", unit: "N", color: "#f4a340" },
 ];
@@ -3042,6 +3046,8 @@ function stageFlightMetricValue(
   if (key === "centerOfPressure") return point.centerOfPressureXM ?? 0;
   if (key === "centerOfMass") return point.centerOfMassXM ?? 0;
   if (key === "staticMargin") return point.staticMarginCalibers ?? 0;
+  if (key === "attitudeTilt") return ((point.attitudeTiltRad ?? 0) * 180) / Math.PI;
+  if (key === "angularRate") return ((point.angularRateRadS ?? 0) * 180) / Math.PI;
   if (key === "mass") return point.massKg;
   return point.thrustN;
 }
@@ -3053,6 +3059,8 @@ function stageFlightMetricUnavailable(
   if (key === "centerOfPressure") return point.centerOfPressureXM === null || point.centerOfPressureXM === undefined;
   if (key === "centerOfMass") return point.centerOfMassXM === null || point.centerOfMassXM === undefined;
   if (key === "staticMargin") return point.staticMarginCalibers === null || point.staticMarginCalibers === undefined;
+  if (key === "attitudeTilt") return point.attitudeTiltRad === null || point.attitudeTiltRad === undefined;
+  if (key === "angularRate") return point.angularRateRadS === null || point.angularRateRadS === undefined;
   return false;
 }
 
@@ -3063,6 +3071,7 @@ function formatStageFlightMetric(value: number, key: StageFlightMetricKey): stri
   if (key === "dynamicPressure") return value.toFixed(0);
   if (key === "recoveryArea") return value.toFixed(3);
   if (key === "centerOfPressure" || key === "centerOfMass" || key === "staticMargin") return value.toFixed(3);
+  if (key === "attitudeTilt" || key === "angularRate") return value.toFixed(2);
   if (key === "aerodynamicMoment" || key === "aerodynamicDampingMoment") return value.toFixed(3);
   if (key === "thrust") return value.toFixed(1);
   if (key === "drag") return value.toFixed(1);

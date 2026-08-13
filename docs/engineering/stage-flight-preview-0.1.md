@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.25.0`.
+`kestrel-stage-flight-preview-0.26.0`.
 
 Relation-based aerodynamics retain both the selected normal-force trend and
 the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions
@@ -214,6 +214,12 @@ dynamic derivatives, control authority, flutter, contact loads, plume
 interference, or flight validation. Missing values remain unavailable rather
 than being replaced with a guessed margin. See
 `stage-flight-stability-telemetry-0.1.md` for the schema and limits.
+
+The same trace also preserves the solver's normalized body-to-world quaternion
+and body angular-rate vector. It derives local-vertical attitude tilt and
+angular-rate magnitude for the profile inspector, CSV, and report. These are
+state projections for inspection, not guidance, actuator, structural, or
+flight-safety evidence; see `stage-flight-attitude-telemetry-0.1.md`.
 
 ## Separated-body analytical branch
 

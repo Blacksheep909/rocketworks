@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Preserve staged 6DOF quaternion attitude and body angular-rate telemetry in
+  the Flight trace. The profile now exposes local-vertical attitude tilt and
+  angular-rate plots, while staged CSV and reports retain the state projections
+  with explicit display-only and validation limits.
 - Preserve topology-specific CP, CG, static-margin, and normal-force-slope
   telemetry in staged 6DOF traces. The Flight profile now plots CP, CG, and
   static margin, staged CSV exports retain the SI values, and engineering

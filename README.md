@@ -24,6 +24,8 @@ research, standards, and original code.
   calculations with model versions and assumptions;
 - staged 6DOF trace telemetry for topology-specific CP, CG, static margin, and
   normal-force slope, with interactive plots, SI CSV columns, and report ranges;
+- staged 6DOF attitude and angular-rate telemetry, including quaternion/rate
+  export, local-vertical tilt, and interactive profile modes;
 - serial, parallel, radial, clustered, and multi-stage vehicle topology;
 - editable topology point-mass equipment and cylindrical pod primitives with
   slider/exact-number placement controls and optional principal local inertia

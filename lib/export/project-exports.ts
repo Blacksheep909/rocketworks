@@ -470,6 +470,15 @@ export function createStageFlightTraceCsv(
     "center_of_mass_x_m",
     "static_margin_calibers",
     "normal_force_slope_per_rad",
+    "attitude_tilt_deg",
+    "angular_rate_deg_s",
+    "quaternion_w",
+    "quaternion_x",
+    "quaternion_y",
+    "quaternion_z",
+    "angular_velocity_x_rad_s",
+    "angular_velocity_y_rad_s",
+    "angular_velocity_z_rad_s",
     "dynamic_pressure_pa",
     "drag_n",
     "aerodynamic_force_n",
@@ -496,6 +505,15 @@ export function createStageFlightTraceCsv(
       point.centerOfMassXM,
       point.staticMarginCalibers,
       point.normalForceSlopePerRad,
+      point.attitudeTiltRad === undefined ? undefined : (point.attitudeTiltRad * 180) / Math.PI,
+      point.angularRateRadS === undefined ? undefined : (point.angularRateRadS * 180) / Math.PI,
+      point.orientationBodyToWorld?.w,
+      point.orientationBodyToWorld?.x,
+      point.orientationBodyToWorld?.y,
+      point.orientationBodyToWorld?.z,
+      point.angularVelocityBodyRadS?.x,
+      point.angularVelocityBodyRadS?.y,
+      point.angularVelocityBodyRadS?.z,
       point.dynamicPressurePa,
       point.dragN,
       point.aerodynamicForceN ?? 0,
@@ -512,11 +530,11 @@ export function createStageFlightTraceCsv(
       }
     });
     return [
-      ...values.slice(0, 15),
+      ...values.slice(0, 24),
       point.directForceApplied ?? false,
       point.directMomentApplied ?? false,
       point.coefficientBasis ?? "",
-      ...values.slice(15),
+      ...values.slice(24),
       point.attachedStageIds.join("|"),
     ].map(csvCell).join(",");
   });
@@ -1535,6 +1553,12 @@ export function createEngineeringReportMarkdown(
   const stageCenterOfMassValues = stageStabilityTrace
     .map((point) => point.centerOfMassXM)
     .filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value));
+  const stageAttitudeTiltValues = stageStabilityTrace
+    .map((point) => point.attitudeTiltRad === undefined ? undefined : (point.attitudeTiltRad * 180) / Math.PI)
+    .filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value));
+  const stageAngularRateValues = stageStabilityTrace
+    .map((point) => point.angularRateRadS === undefined ? undefined : (point.angularRateRadS * 180) / Math.PI)
+    .filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value));
   for (const [label, value] of [
     ["selected motor source ID", input.selectedMotorId],
     ["selected aerodynamic source ID", input.selectedAerodynamicTableId],
@@ -1799,6 +1823,9 @@ export function createEngineeringReportMarkdown(
           `| Static-margin samples | ${stageStaticMarginValues.length} / ${stageStabilityTrace.length} |`,
           `| Static-margin range | ${stageStaticMarginValues.length > 0 ? `${formatNumber(Math.min(...stageStaticMarginValues), 3)} to ${formatNumber(Math.max(...stageStaticMarginValues), 3)} calibres` : "not available"} |`,
           `| CP / CG range | ${stageCenterOfPressureValues.length > 0 && stageCenterOfMassValues.length > 0 ? `${formatNumber(Math.min(...stageCenterOfPressureValues), 3)}–${formatNumber(Math.max(...stageCenterOfPressureValues), 3)} m / ${formatNumber(Math.min(...stageCenterOfMassValues), 3)}–${formatNumber(Math.max(...stageCenterOfMassValues), 3)} m` : "not available"} |`,
+          `| Attitude telemetry samples | ${stageAttitudeTiltValues.length} / ${stageStabilityTrace.length} |`,
+          `| Peak attitude tilt | ${stageAttitudeTiltValues.length > 0 ? `${formatNumber(Math.max(...stageAttitudeTiltValues), 2)}°` : "not available"} |`,
+          `| Peak angular rate | ${stageAngularRateValues.length > 0 ? `${formatNumber(Math.max(...stageAngularRateValues), 2)}°/s` : "not available"} |`,
           `| Step convergence | ${markdownText(input.stageFlight.convergence.status)} |`,
           `| Coarse step | ${formatNumber(input.stageFlight.convergence.baseTimeStepS, 4)} s |`,
           `| Half-step | ${formatNumber(input.stageFlight.convergence.refinedTimeStepS, 4)} s |`,
