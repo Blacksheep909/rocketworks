@@ -126,6 +126,10 @@ export type EngineeringReportInput = Readonly<{
     pitchInertiaKgM2: number;
     massModelVersion: string;
     aerodynamicModelVersion: string;
+    /** Optional airframe material identity and provenance for portable reports. */
+    materialLabel?: string;
+    materialModelVersion?: string;
+    materialValidationStatus?: string;
   }>;
   motor: Readonly<{
     designation: string;
@@ -2047,6 +2051,15 @@ export function createEngineeringReportMarkdown(
     `| Pitch inertia | ${formatNumber(input.vehicle.pitchInertiaKgM2, 6)} kg·m² |`,
     `| Mass model | \`${markdownText(input.vehicle.massModelVersion)}\` |`,
     `| Aerodynamic model | \`${markdownText(input.vehicle.aerodynamicModelVersion)}\` |`,
+    ...(input.vehicle.materialLabel === undefined
+      ? []
+      : [`| Airframe material | ${markdownText(input.vehicle.materialLabel)} |`]),
+    ...(input.vehicle.materialModelVersion === undefined
+      ? []
+      : [`| Material model | \`${markdownText(input.vehicle.materialModelVersion)}\` |`]),
+    ...(input.vehicle.materialValidationStatus === undefined
+      ? []
+      : [`| Material status | \`${markdownText(input.vehicle.materialValidationStatus)}\` |`]),
     "",
     "## Motor data",
     "",

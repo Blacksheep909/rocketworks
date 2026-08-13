@@ -6,6 +6,13 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add bounded custom airframe material profiles. Users can name a profile and
+  edit density, wall thickness, modulus, Poisson ratio, and preliminary
+  allowables with exact fields or sliders. The profile participates in
+  independent mass/structural previews, local projects, share links,
+  component presets, project JSON, and engineering-report provenance while
+  remaining explicitly user-supplied and unvalidated.
+
 - Add persisted, bounded controls for the released-body relative-flow screen.
   Staged previews now expose wake half-angle, recovery distance, and peak/max
   deficit sliders, return the normalized configuration used by the diagnostic,

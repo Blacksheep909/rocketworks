@@ -6,6 +6,11 @@ import type { NormalForceModelKind } from "../physics/normal-force-compressibili
 import type { InducedDragModelKind } from "../physics/induced-drag.ts";
 import type { RigidBodyIntegrationMethod } from "../physics/six-dof.ts";
 import type { ReleasedBodyDragModel } from "../physics/stage-flight-preview.ts";
+import {
+  DEFAULT_CUSTOM_MATERIAL_PROFILE,
+  validateCustomMaterialProfile,
+  type CustomMaterialProfile,
+} from "./material-profile.ts";
 
 export const LOCAL_PROJECT_SCHEMA_ID = "dev.kestrel-lab.local-project";
 export const LOCAL_PROJECT_SCHEMA_VERSION = 1;
@@ -17,7 +22,7 @@ export const DEFAULT_UNCERTAINTY_SAMPLE_COUNT = 48;
 export const DEFAULT_UNCERTAINTY_SEED = "arc54-preview-v1";
 export const DEFAULT_WEATHER_SEED = "arc54-weather-v1";
 
-export type ProjectMaterial = "kraft" | "fiberglass" | "carbon";
+export type ProjectMaterial = "kraft" | "fiberglass" | "carbon" | "custom";
 export type NoseProfile = "ogive" | "conical" | "elliptical";
 export type RecoveryDeploymentTrigger = "apogee" | "altitude" | "time";
 export type ProjectTerrainModel = "flat" | "planar";
@@ -57,6 +62,8 @@ export type EditableProjectInputs = Readonly<{
   finThicknessMm: number;
   payloadMassKg: number;
   material: ProjectMaterial;
+  /** User-authored material values used when material is `custom`. */
+  customMaterial?: CustomMaterialProfile;
   thrustN: number;
   burnTimeS: number;
   dragCoefficient: number;
@@ -193,7 +200,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "coupledContactEnabled" | "coupledContactStiffnessNPerM" | "coupledContactDampingNsPerM" | "coupledContactMaximumNormalForceN" | "releasedBodyDragModel" | "relativeAeroInteractionEnabled" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "customMaterial" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "coupledContactEnabled" | "coupledContactStiffnessNPerM" | "coupledContactDampingNsPerM" | "coupledContactMaximumNormalForceN" | "releasedBodyDragModel" | "relativeAeroInteractionEnabled" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -414,9 +421,12 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   if (validated.finSweepMm + validated.finTipChordMm > validated.finRootChordMm) {
     throw new Error("finSweepMm plus finTipChordMm must remain within finRootChordMm.");
   }
-  if (input.material !== "kraft" && input.material !== "fiberglass" && input.material !== "carbon") {
-    throw new Error("material must be kraft, fiberglass, or carbon.");
+  if (input.material !== "kraft" && input.material !== "fiberglass" && input.material !== "carbon" && input.material !== "custom") {
+    throw new Error("material must be kraft, fiberglass, carbon, or custom.");
   }
+  const customMaterial = input.material === "custom"
+    ? validateCustomMaterialProfile(input.customMaterial ?? DEFAULT_CUSTOM_MATERIAL_PROFILE)
+    : undefined;
   const launchSiteName = input.launchSiteName === undefined
     ? "ARC 54 synthetic range"
     : nonEmptyString(input.launchSiteName, "launchSiteName", 120);
@@ -584,6 +594,7 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     finThicknessMm: validated.finThicknessMm,
     payloadMassKg: validated.payloadMassKg,
     material: input.material,
+    ...(customMaterial === undefined ? {} : { customMaterial }),
     thrustN: validated.thrustN,
     burnTimeS: validated.burnTimeS,
     dragCoefficient: validated.dragCoefficient,
@@ -733,6 +744,7 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   finThicknessMm: "fin thickness",
   payloadMassKg: "payload mass",
   material: "airframe material",
+  customMaterial: "custom airframe material profile",
   thrustN: "motor thrust",
   burnTimeS: "burn duration",
   dragCoefficient: "drag coefficient",

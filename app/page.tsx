@@ -171,6 +171,11 @@ import {
   type RecoveryDeploymentTrigger,
 } from "../lib/project/project-state.ts";
 import {
+  DEFAULT_CUSTOM_MATERIAL_PROFILE,
+  resolveCustomMaterialProfile,
+  type CustomMaterialProfile,
+} from "../lib/project/material-profile.ts";
+import {
   EXPERIENCE_MODE_STORAGE_KEY,
   PROJECT_TEMPLATES,
   type ExperienceMode,
@@ -246,7 +251,7 @@ import { getUiCopy, type UiCopy, type UiLocale } from "../lib/project/ui-copy.ts
 type ComponentKey = "nose" | "body" | "fins" | "mount" | "recovery";
 type ViewKey = "design" | "flight";
 type DesignViewKey = UiDesignView;
-type MaterialKey = "kraft" | "fiberglass" | "carbon";
+type MaterialKey = "kraft" | "fiberglass" | "carbon" | "custom";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
 type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "stage-flight-comparison-csv" | "separated-body-csv" | "coupled-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "benchmark-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad";
 type OptimizationPreview = Readonly<{
@@ -577,9 +582,21 @@ function componentPresetSummary(record: LocalComponentRecord): string {
   return `${(parameters.diameterM * 1000).toFixed(0)} mm canopy · ${trigger} · ${parameters.delayS.toFixed(1)} s delay · ${parameters.reefingEnabled ? "reefed" : "full open"}`;
 }
 
+type BrowserMaterialModel = StructuralMaterialModel & Readonly<{
+  densityKgM3: number;
+  wallThicknessM: number;
+  modelVersion?: string;
+  validationStatus?: string;
+}>;
+
+const BROWSER_MATERIAL_MODEL_VERSION =
+  "rocketworks-representative-materials-0.1.0";
+const BROWSER_MATERIAL_VALIDATION_STATUS =
+  "representative-preview-unvalidated";
+
 const materialModels: Record<
-  MaterialKey,
-  StructuralMaterialModel & Readonly<{ densityKgM3: number; wallThicknessM: number }>
+  Exclude<MaterialKey, "custom">,
+  BrowserMaterialModel
 > = {
   kraft: {
     label: "Kraft phenolic",
@@ -590,6 +607,8 @@ const materialModels: Record<
     allowableCompressionPa: 20e6,
     allowableBendingPa: 20e6,
     allowableShearPa: 8e6,
+    modelVersion: BROWSER_MATERIAL_MODEL_VERSION,
+    validationStatus: BROWSER_MATERIAL_VALIDATION_STATUS,
   },
   fiberglass: {
     label: "Fiberglass",
@@ -600,6 +619,8 @@ const materialModels: Record<
     allowableCompressionPa: 80e6,
     allowableBendingPa: 80e6,
     allowableShearPa: 35e6,
+    modelVersion: BROWSER_MATERIAL_MODEL_VERSION,
+    validationStatus: BROWSER_MATERIAL_VALIDATION_STATUS,
   },
   carbon: {
     label: "Carbon composite",
@@ -610,8 +631,19 @@ const materialModels: Record<
     allowableCompressionPa: 180e6,
     allowableBendingPa: 180e6,
     allowableShearPa: 70e6,
+    modelVersion: BROWSER_MATERIAL_MODEL_VERSION,
+    validationStatus: BROWSER_MATERIAL_VALIDATION_STATUS,
   },
 };
+
+function resolveBrowserMaterialModel(
+  material: MaterialKey,
+  customMaterial: CustomMaterialProfile,
+): BrowserMaterialModel {
+  return material === "custom"
+    ? resolveCustomMaterialProfile(customMaterial)
+    : materialModels[material];
+}
 
 function resolveStageMotorMassKg(
   stage: VehicleStagePlan,
@@ -742,6 +774,7 @@ function makeDesignComponents({
   finSpanM = 0.075,
   finThicknessM = 0.003,
   material,
+  customMaterial = DEFAULT_CUSTOM_MATERIAL_PROFILE,
   payloadMassKg,
   motorMassKg = 0.16,
   recoveryMassKg = 0.06,
@@ -757,12 +790,13 @@ function makeDesignComponents({
   finSpanM?: number;
   finThicknessM?: number;
   material: MaterialKey;
+  customMaterial?: CustomMaterialProfile;
   payloadMassKg: number;
   motorMassKg?: number;
   recoveryMassKg?: number;
 }): VehicleComponent[] {
   const radiusM = diameterM / 2;
-  const airframe = materialModels[material];
+  const airframe = resolveBrowserMaterialModel(material, customMaterial);
   const noseStations = noseProfile === "conical"
     ? [
         { xM: 0, outerRadiusM: 0 },
@@ -1136,6 +1170,7 @@ function makePlacedStageComponents(
     finSpanM: number;
     finThicknessM: number;
     material: MaterialKey;
+    customMaterial?: CustomMaterialProfile;
     payloadMassKg: number;
     recoveryMassKg: number;
     motorMassKgByStageId?: Readonly<Record<string, number>>;
@@ -1378,6 +1413,7 @@ function makeAssemblyStageComponents(
     finSpanM: number;
     finThicknessM: number;
     material: MaterialKey;
+    customMaterial?: CustomMaterialProfile;
     payloadMassKg: number;
     recoveryMassKg: number;
     motorMassKgByStageId?: Readonly<Record<string, number>>;
@@ -1401,6 +1437,7 @@ function makeAssemblyStageComponents(
     finSpanM: inputs.finSpanM * stageScale * Math.min(lengthOverrideScale, diameterOverrideScale),
     finThicknessM: inputs.finThicknessM,
     material: inputs.material,
+    customMaterial: inputs.customMaterial,
     payloadMassKg: stage.role === "payload" ? inputs.payloadMassKg * 0.7 : inputs.payloadMassKg * 0.18,
     recoveryMassKg: inputs.recoveryMassKg * stageScale,
     motorMassKg: inputs.motorMassKgByStageId?.[stage.id] ?? 0.16,
@@ -4009,6 +4046,7 @@ export default function Home() {
   const [recoveryReefingEnabled, setRecoveryReefingEnabled] = useState(false);
   const [recoveryReefingDurationS, setRecoveryReefingDurationS] = useState(3);
   const [recoveryReefingStartAreaFraction, setRecoveryReefingStartAreaFraction] = useState(0.35);
+  const [customMaterial, setCustomMaterial] = useState<CustomMaterialProfile>(DEFAULT_CUSTOM_MATERIAL_PROFILE);
   const [uncertaintySampleCount, setUncertaintySampleCount] = useState(DEFAULT_UNCERTAINTY_SAMPLE_COUNT);
   const [uncertaintySeed, setUncertaintySeed] = useState(DEFAULT_UNCERTAINTY_SEED);
   const [uncertaintyCorrelations, setUncertaintyCorrelations] = useState<ProjectUncertaintyCorrelation[]>([]);
@@ -4100,6 +4138,7 @@ export default function Home() {
       finThicknessMm: finThickness,
       payloadMassKg: payloadMass,
       material,
+      ...(material === "custom" ? { customMaterial } : {}),
       thrustN: thrust,
       burnTimeS: burnTime,
       dragCoefficient,
@@ -4161,7 +4200,7 @@ export default function Home() {
       separationContactCoefficientOfRestitution,
       sixDofIntegrationMethod,
     }),
-    [burnTime, coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, inducedDragFactor, inducedDragModel, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalForceModel, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, releasedBodyDragModel, relativeAeroInteractionEnabled, relativeAeroMaximumVelocityDeficitFraction, relativeAeroPeakVelocityDeficitFraction, relativeAeroWakeHalfAngleDeg, relativeAeroWakeRecoveryDistanceBodyDiameters, relativeHumidityPercent, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
+    [burnTime, coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, customMaterial, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, inducedDragFactor, inducedDragModel, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalForceModel, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, releasedBodyDragModel, relativeAeroInteractionEnabled, relativeAeroMaximumVelocityDeficitFraction, relativeAeroPeakVelocityDeficitFraction, relativeAeroWakeHalfAngleDeg, relativeAeroWakeRecoveryDistanceBodyDiameters, relativeHumidityPercent, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -4183,6 +4222,7 @@ export default function Home() {
         finSpanM: finSpan / 1000,
         finThicknessM: finThickness / 1000,
         material,
+        customMaterial,
         payloadMassKg: payloadMass,
         recoveryMassKg: recoveryMass,
         motorMassKg: stageMotorMassKgById[coreStageId] ?? 0.16,
@@ -4194,7 +4234,7 @@ export default function Home() {
           .map(topologyComponentToVehicleComponent),
       ];
     },
-    [diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, material, noseLength, noseProfile, payloadMass, recoveryMass, stageMotorMassKgById, vehicleTopology.components, vehicleTopology.stages],
+    [customMaterial, diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, material, noseLength, noseProfile, payloadMass, recoveryMass, stageMotorMassKgById, vehicleTopology.components, vehicleTopology.stages],
   );
   const stageFlightComponents = useMemo(
     () => makePlacedStageComponents(vehicleTopology.stages, vehicleComponents, {
@@ -4209,11 +4249,12 @@ export default function Home() {
       finSpanM: finSpan / 1000,
       finThicknessM: finThickness / 1000,
       material,
+      customMaterial,
       payloadMassKg: payloadMass,
       recoveryMassKg: recoveryMass,
       motorMassKgByStageId: stageMotorMassKgById,
     }, vehicleTopology.components ?? []),
-    [diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, material, noseLength, noseProfile, payloadMass, recoveryMass, stageMotorMassKgById, vehicleComponents, vehicleTopology.components, vehicleTopology.stages],
+    [customMaterial, diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, material, noseLength, noseProfile, payloadMass, recoveryMass, stageMotorMassKgById, vehicleComponents, vehicleTopology.components, vehicleTopology.stages],
   );
   const assemblyDefinition = useMemo(() => {
     const placements = createStagePlacements(vehicleTopology.stages, {
@@ -4237,6 +4278,7 @@ export default function Home() {
         finSpanM: finSpan / 1000,
         finThicknessM: finThickness / 1000,
         material,
+        customMaterial,
         payloadMassKg: payloadMass,
         recoveryMassKg: recoveryMass,
         motorMassKgByStageId: stageMotorMassKgById,
@@ -4265,7 +4307,7 @@ export default function Home() {
       };
       }),
     };
-  }, [diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, material, noseLength, noseProfile, payloadMass, recoveryMass, stageMotorMassKgById, vehicleComponents, vehicleTopology.components, vehicleTopology.stages]);
+  }, [customMaterial, diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, material, noseLength, noseProfile, payloadMass, recoveryMass, stageMotorMassKgById, vehicleComponents, vehicleTopology.components, vehicleTopology.stages]);
   const assembly = useMemo(
     () => createVehicleAssemblyModel(assemblyDefinition).evaluate(),
     [assemblyDefinition],
@@ -4625,10 +4667,10 @@ export default function Home() {
       flutterAtmosphere: flutterFlightCondition.atmosphere,
       flutterSafetyFactor: 1.25,
       staticMarginCalibers: staticStability.staticMarginCalibers,
-      material: materialModels[material],
+      material: resolveBrowserMaterialModel(material, customMaterial),
       flightResultCurrent: resultIsCurrent,
     });
-  }, [flutterFlightCondition, mass, material, previewMotor, result.maxDynamicPressurePa, resultIsCurrent, staticStability.staticMarginCalibers, structuralBody, structuralFins]);
+  }, [customMaterial, flutterFlightCondition, mass, material, previewMotor, result.maxDynamicPressurePa, resultIsCurrent, staticStability.staticMarginCalibers, structuralBody, structuralFins]);
   const stageStructuralReview = useMemo<StageStructuralReviewResult>(() => {
     const stages = vehicleTopology.stages
       .filter((stage) => stage.enabled)
@@ -4700,7 +4742,7 @@ export default function Home() {
               flutterAtmosphere: flutterFlightCondition.atmosphere,
               flutterSafetyFactor: 1.25,
               staticMarginCalibers: stage.role === "core" ? staticStability.staticMarginCalibers : null,
-              material: materialModels[material],
+              material: resolveBrowserMaterialModel(material, customMaterial),
               flightResultCurrent: resultIsCurrent,
             }),
           };
@@ -4716,7 +4758,7 @@ export default function Home() {
         }
       });
     return createStageStructuralReview(stages);
-  }, [assembly.componentInstances, flutterFlightCondition, material, previewMotor, result.maxDynamicPressurePa, resultIsCurrent, stageFlightComponents, staticStability.staticMarginCalibers, userMotorRecords, vehicleTopology.stages]);
+  }, [assembly.componentInstances, customMaterial, flutterFlightCondition, material, previewMotor, result.maxDynamicPressurePa, resultIsCurrent, stageFlightComponents, staticStability.staticMarginCalibers, userMotorRecords, vehicleTopology.stages]);
   const stageInterfaceLoadReview = useMemo<StageInterfaceLoadResult>(() => {
     const stageById = new Map(vehicleTopology.stages.map((stage) => [stage.id, stage]));
     const isRetainedComponent = (instance: VehicleAssemblyEvaluation["componentInstances"][number]) =>
@@ -5047,6 +5089,7 @@ export default function Home() {
         setFinThickness(inputs.finThicknessMm);
         setPayloadMass(inputs.payloadMassKg);
         setMaterial(inputs.material);
+        setCustomMaterial(inputs.customMaterial ?? DEFAULT_CUSTOM_MATERIAL_PROFILE);
         setThrust(inputs.thrustN);
         setBurnTime(inputs.burnTimeS);
         setDragCoefficient(inputs.dragCoefficient);
@@ -5196,6 +5239,7 @@ export default function Home() {
         setFinThickness(inputs.finThicknessMm);
         setPayloadMass(inputs.payloadMassKg);
         setMaterial(inputs.material);
+        setCustomMaterial(inputs.customMaterial ?? DEFAULT_CUSTOM_MATERIAL_PROFILE);
         setThrust(inputs.thrustN);
         setBurnTime(inputs.burnTimeS);
         setDragCoefficient(inputs.dragCoefficient);
@@ -5599,6 +5643,10 @@ export default function Home() {
     setSweepResult(null);
     setSweepError("");
   };
+  const updateCustomMaterial = <K extends keyof CustomMaterialProfile>(key: K, value: CustomMaterialProfile[K]) => {
+    setCustomMaterial((current) => ({ ...current, [key]: value }));
+    markChanged();
+  };
   const enableCustomWindProfile = () => {
     const angleRad = (windAzimuthDeg * Math.PI) / 180;
     const eastMps = windSpeed * Math.cos(angleRad);
@@ -5701,6 +5749,7 @@ export default function Home() {
     setFinThickness(inputs.finThicknessMm);
     setPayloadMass(inputs.payloadMassKg);
     setMaterial(inputs.material);
+    setCustomMaterial(inputs.customMaterial ?? DEFAULT_CUSTOM_MATERIAL_PROFILE);
     setThrust(inputs.thrustN);
     setBurnTime(inputs.burnTimeS);
     setDragCoefficient(inputs.dragCoefficient);
@@ -5908,7 +5957,16 @@ export default function Home() {
       return { kind: "nose", parameters: { kind: "nose", lengthMm: noseLength, profile: noseProfile } };
     }
     if (selected === "body") {
-      return { kind: "airframe", parameters: { kind: "airframe", lengthMm: length, diameterMm: diameter, material } };
+      return {
+        kind: "airframe",
+        parameters: {
+          kind: "airframe",
+          lengthMm: length,
+          diameterMm: diameter,
+          material,
+          ...(material === "custom" ? { customMaterial } : {}),
+        },
+      };
     }
     if (selected === "fins") {
       return {
@@ -5985,6 +6043,7 @@ export default function Home() {
       setLength(parameters.lengthMm);
       setDiameter(parameters.diameterMm);
       setMaterial(parameters.material);
+      setCustomMaterial(parameters.customMaterial ?? DEFAULT_CUSTOM_MATERIAL_PROFILE);
       setSelected("body");
     } else if (parameters.kind === "fin-set") {
       setFinCount(parameters.count);
@@ -6613,6 +6672,8 @@ export default function Home() {
           vehicle: {
             geometry: cadGeometry,
             material,
+            ...(material === "custom" ? { customMaterial } : {}),
+            materialModel: resolveBrowserMaterialModel(material, customMaterial),
             payloadMassKg: payloadMass,
             massProperties,
             staticStability,
@@ -6805,7 +6866,7 @@ export default function Home() {
           selectedMotorId,
           selectedAerodynamicTableId,
           vehicle: {
-             lengthM: (length + noseLength) / 1000,
+            lengthM: (length + noseLength) / 1000,
             diameterM: diameter / 1000,
             massKg: mass,
             centerOfMassXM: massProperties.centerOfMassM.x,
@@ -6817,6 +6878,13 @@ export default function Home() {
               massProperties.inertiaAtCenterKgM2[1][1],
             massModelVersion: assembly.modelVersion,
             aerodynamicModelVersion: staticStability.modelVersion,
+            materialLabel: resolveBrowserMaterialModel(material, customMaterial).label,
+            materialModelVersion:
+              resolveBrowserMaterialModel(material, customMaterial).modelVersion
+              ?? BROWSER_MATERIAL_MODEL_VERSION,
+            materialValidationStatus:
+              resolveBrowserMaterialModel(material, customMaterial).validationStatus
+              ?? BROWSER_MATERIAL_VALIDATION_STATUS,
           },
           motor: {
             designation: `${previewMotor.manufacturer} ${previewMotor.designation}`,
@@ -9218,12 +9286,35 @@ export default function Home() {
               <>
                 <NumberField id="length" label="Airframe length" value={length} unit="mm" min={200} max={1600} slider onChange={changeAirframeLength} />
                 <NumberField id="diameter" label="Outer diameter" value={diameter} unit="mm" min={20} max={200} slider onChange={(value) => { setDiameter(value); markChanged(); }} />
-                <div className="field-group">
-                  <label htmlFor="material">Airframe material model</label>
-                  <select id="material" value={material} onChange={(event) => { setMaterial(event.target.value as MaterialKey); markChanged(); }}>
+                  <div className="field-group">
+                    <label htmlFor="material">Airframe material model</label>
+                    <select id="material" value={material} onChange={(event) => { setMaterial(event.target.value as MaterialKey); markChanged(); }}>
                     {Object.entries(materialModels).map(([key, model]) => <option value={key} key={key}>{model.label}</option>)}
-                  </select>
-                </div>
+                      <option value="custom">{customMaterial.label || "Custom engineering material"}</option>
+                    </select>
+                  </div>
+                {material === "custom" && (
+                  <div className="custom-material-panel">
+                    <div className="field-group">
+                      <label htmlFor="custom-material-label">Profile name</label>
+                      <input
+                        id="custom-material-label"
+                        type="text"
+                        value={customMaterial.label}
+                        maxLength={120}
+                        onChange={(event) => updateCustomMaterial("label", event.target.value)}
+                      />
+                    </div>
+                    <NumberField id="custom-material-density" label="Density" value={customMaterial.densityKgM3} unit="kg/m³" min={50} max={20_000} step={10} slider onChange={(value) => updateCustomMaterial("densityKgM3", value)} />
+                    <NumberField id="custom-material-wall" label="Wall thickness" value={customMaterial.wallThicknessMm} unit="mm" min={0.1} max={20} step={0.1} slider onChange={(value) => updateCustomMaterial("wallThicknessMm", value)} />
+                    <NumberField id="custom-material-youngs" label="Young's modulus" value={customMaterial.youngsModulusGPa} unit="GPa" min={0.01} max={500} step={0.1} slider onChange={(value) => updateCustomMaterial("youngsModulusGPa", value)} />
+                    <NumberField id="custom-material-poisson" label="Poisson ratio" value={customMaterial.poissonRatio} unit="ν" min={0} max={0.49} step={0.01} slider onChange={(value) => updateCustomMaterial("poissonRatio", value)} />
+                    <NumberField id="custom-material-compression" label="Compression allowable" value={customMaterial.allowableCompressionMPa} unit="MPa" min={0.01} max={2_000} step={1} slider onChange={(value) => updateCustomMaterial("allowableCompressionMPa", value)} />
+                    <NumberField id="custom-material-bending" label="Bending allowable" value={customMaterial.allowableBendingMPa} unit="MPa" min={0.01} max={2_000} step={1} slider onChange={(value) => updateCustomMaterial("allowableBendingMPa", value)} />
+                    <NumberField id="custom-material-shear" label="Shear allowable" value={customMaterial.allowableShearMPa} unit="MPa" min={0.01} max={2_000} step={1} slider onChange={(value) => updateCustomMaterial("allowableShearMPa", value)} />
+                    <p className="field-help">User-authored values feed the independent mass and preliminary structural screens. Record source, test method, laminate direction, and allowables separately; this profile is unvalidated and never becomes flight-safety evidence.</p>
+                  </div>
+                )}
                 <NumberField id="payload-mass" label="Payload + avionics allowance" value={payloadMass} unit="kg" min={0.001} max={20} step={0.01} slider onChange={(value) => { setPayloadMass(value); markChanged(); }} />
               </>
             )}

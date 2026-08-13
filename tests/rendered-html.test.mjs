@@ -535,6 +535,11 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(page, /id="launch-rail-tipoff-pitch".*slider/);
   assert.match(page, /id="launch-rail-tipoff-yaw".*slider/);
   assert.match(page, /id="recovery-diameter".*slider/);
+  assert.match(page, /value="custom"/);
+  assert.match(page, /custom-material-label/);
+  assert.match(page, /custom-material-density/);
+  assert.match(page, /custom-material-youngs/);
+  assert.match(page, /this profile is unvalidated/);
   assert.match(page, /id="correlation-coefficient".*slider/);
   assert.match(page, /UI_PREFERENCES_STORAGE_KEY/);
   assert.match(page, /UI_PREFERENCES_LEGACY_STORAGE_KEYS/);

@@ -723,6 +723,9 @@ test("engineering report leads with status and preserves calculations and limita
       pitchInertiaKgM2: 0.03435,
       massModelVersion: "mass-fixture",
       aerodynamicModelVersion: "aero-fixture",
+      materialLabel: "Test laminate",
+      materialModelVersion: "rocketworks-custom-material-profile-0.1.0",
+      materialValidationStatus: "user-supplied-unvalidated",
     },
     motor: {
       designation: "Synthetic preview",
@@ -1249,6 +1252,9 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Selected aerodynamic source ID: `constant`/);
   assert.ok(report.indexOf("Not flight-safe or manufacturing-approved") < report.indexOf("## Vehicle summary"));
   assert.match(report, /\| Static margin \| 2\.93 calibres \|/);
+  assert.match(report, /\| Airframe material \| Test laminate \|/);
+  assert.match(report, /\| Material model \| `rocketworks-custom-material-profile-0\.1\.0` \|/);
+  assert.match(report, /\| Material status \| `user-supplied-unvalidated` \|/);
   assert.match(report, /## Recovery landing footprint/);
   assert.match(report, /### Serial-stack mass-ratio preview/);
   assert.match(report, /Excluded topology stages \| booster/);

@@ -22,6 +22,10 @@ research, standards, and original code.
   display-only boundary;
 - mass, centre-of-gravity, inertia, static stability, and centre-of-pressure
   calculations with model versions and assumptions;
+- bounded custom airframe material profiles with exact-number/slider editing,
+  thin-wall mass and preliminary structural participation, portable project
+  and component-preset persistence, and explicit user-supplied/unvalidated
+  provenance;
 - staged 6DOF trace telemetry for topology-specific CP, CG, static margin, and
   normal-force slope, with interactive plots, SI CSV columns, and report ranges;
 - staged 6DOF attitude and angular-rate telemetry, including quaternion/rate

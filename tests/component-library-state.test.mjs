@@ -96,8 +96,31 @@ const cylindricalPod = {
   provenance,
 };
 
+const customAirframe = {
+  id: "airframe-custom-laminate",
+  name: "Custom laminate airframe",
+  kind: "airframe",
+  parameters: {
+    kind: "airframe",
+    lengthMm: 710,
+    diameterMm: 54,
+    material: "custom",
+    customMaterial: {
+      label: "Test laminate",
+      densityKgM3: 1_280,
+      wallThicknessMm: 1.1,
+      youngsModulusGPa: 32,
+      poissonRatio: 0.28,
+      allowableCompressionMPa: 90,
+      allowableBendingMPa: 84,
+      allowableShearMPa: 26,
+    },
+  },
+  provenance,
+};
+
 test("component presets round-trip with an explicit schema and normalized parameters", () => {
-  const serialized = serializeLocalComponentLibrary([nose, finSet, recovery, equipmentMass, cylindricalPod]);
+  const serialized = serializeLocalComponentLibrary([nose, finSet, recovery, equipmentMass, cylindricalPod, customAirframe]);
   assert.match(serialized, new RegExp(LOCAL_COMPONENT_LIBRARY_SCHEMA_ID));
   assert.match(serialized, new RegExp(`"schemaVersion": ${LOCAL_COMPONENT_LIBRARY_SCHEMA_VERSION}`));
   assert.deepEqual(parseLocalComponentLibrary(serialized), [
@@ -106,7 +129,25 @@ test("component presets round-trip with an explicit schema and normalized parame
     validateLocalComponentRecord(recovery),
     validateLocalComponentRecord(equipmentMass),
     validateLocalComponentRecord(cylindricalPod),
+    validateLocalComponentRecord(customAirframe),
   ]);
+});
+
+test("custom airframe presets retain their user-authored material profile", () => {
+  const normalized = validateLocalComponentRecord(customAirframe);
+  assert.equal(normalized.parameters.kind, "airframe");
+  assert.equal(normalized.parameters.material, "custom");
+  assert.equal(normalized.parameters.customMaterial?.label, "Test laminate");
+  assert.throws(
+    () => validateLocalComponentRecord({
+      ...customAirframe,
+      parameters: {
+        ...customAirframe.parameters,
+        customMaterial: { ...customAirframe.parameters.customMaterial, poissonRatio: 0.5 },
+      },
+    }),
+    /poissonRatio must be a finite number/,
+  );
 });
 
 test("legacy recovery component presets receive apogee trigger defaults", () => {

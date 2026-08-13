@@ -346,6 +346,47 @@ test("project snapshots reject invalid coupled-flight contract settings", () => 
   );
 });
 
+test("custom material profiles persist only when selected and remain bounded", () => {
+  const customMaterial = {
+    label: "Test laminate",
+    densityKgM3: 1_280,
+    wallThicknessMm: 1.1,
+    youngsModulusGPa: 32,
+    poissonRatio: 0.28,
+    allowableCompressionMPa: 90,
+    allowableBendingMPa: 84,
+    allowableShearMPa: 26,
+  };
+  const custom = validateEditableProjectInputs({
+    ...inputs,
+    material: "custom",
+    customMaterial,
+  });
+  assert.deepEqual(custom.customMaterial, customMaterial);
+  const parsed = parseLocalProjectSnapshot(serializeLocalProjectSnapshot(snapshot(3, {
+    material: "custom",
+    customMaterial,
+  })));
+  assert.deepEqual(parsed.inputs.customMaterial, customMaterial);
+  assert.equal(snapshot(4).inputs.customMaterial, undefined);
+  assert.throws(
+    () => validateEditableProjectInputs({
+      ...inputs,
+      material: "custom",
+      customMaterial: { ...customMaterial, wallThicknessMm: 0.01 },
+    }),
+    /wallThicknessMm must be a finite number/,
+  );
+  assert.throws(
+    () => validateEditableProjectInputs({
+      ...inputs,
+      material: "custom",
+      customMaterial: { ...customMaterial, label: "" },
+    }),
+    /label must be a non-empty string/,
+  );
+});
+
 test("project snapshots persist bounded uncertainty dependence assumptions", () => {
   const source = snapshot(1, {
     uncertaintyCorrelations: [

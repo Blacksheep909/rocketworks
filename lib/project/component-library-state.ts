@@ -1,3 +1,9 @@
+import {
+  DEFAULT_CUSTOM_MATERIAL_PROFILE,
+  validateCustomMaterialProfile,
+  type CustomMaterialProfile,
+} from "./material-profile.ts";
+
 export const LOCAL_COMPONENT_LIBRARY_SCHEMA_ID =
   "dev.kestrel-lab.local-component-library";
 export const LOCAL_COMPONENT_LIBRARY_SCHEMA_VERSION = 1;
@@ -17,7 +23,8 @@ export type ComponentPresetParameters =
       kind: "airframe";
       lengthMm: number;
       diameterMm: number;
-      material: "kraft" | "fiberglass" | "carbon";
+      material: "kraft" | "fiberglass" | "carbon" | "custom";
+      customMaterial?: CustomMaterialProfile;
     }>
   | Readonly<{
       kind: "fin-set";
@@ -173,11 +180,15 @@ function validateParameters(value: unknown, expectedKind: ComponentPresetKind): 
     };
   }
   if (kind === "airframe") {
+    const material = oneOf(parameters.material, "airframe material", ["kraft", "fiberglass", "carbon", "custom"] as const);
     return {
       kind,
       lengthMm: positiveNumber(parameters.lengthMm, "airframe lengthMm", 5_000),
       diameterMm: positiveNumber(parameters.diameterMm, "airframe diameterMm", 1_000),
-      material: oneOf(parameters.material, "airframe material", ["kraft", "fiberglass", "carbon"] as const),
+      material,
+      ...(material === "custom"
+        ? { customMaterial: validateCustomMaterialProfile(parameters.customMaterial ?? DEFAULT_CUSTOM_MATERIAL_PROFILE, "airframe customMaterial") }
+        : {}),
     };
   }
   if (kind === "fin-set") {
