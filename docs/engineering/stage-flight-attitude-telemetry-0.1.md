@@ -2,7 +2,7 @@
 
 Status: `engineering-preview-unvalidated`  
 Implementation: `lib/physics/stage-flight-preview.ts`, `app/page.tsx`, and `lib/export/project-exports.ts`  
-Model: `kestrel-stage-flight-preview-0.34.0`
+Model: `kestrel-stage-flight-preview-0.35.0`
 
 ## Purpose
 

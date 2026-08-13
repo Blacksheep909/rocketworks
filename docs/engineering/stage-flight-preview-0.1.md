@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.34.0`.
+`kestrel-stage-flight-preview-0.35.0`.
 
 Relation-based aerodynamics retain both the selected normal-force trend and
 the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions
@@ -290,6 +290,17 @@ normal-force relation, an induced-drag term when configured, the CP-to-CG
 angle of attack, sideslip, dynamic pressure, normal-force application, and
 static/damping moment diagnostics. A missing static basis does not disable
 projected drag; it explicitly falls back to drag-only behavior.
+
+The separate coefficient-table released-body option uses the selected
+provenance-qualified Mach/Reynolds/angular table at each detached-body sample
+without requiring projected-area presentation drag. The table query uses the
+current atmospheric dynamic viscosity and supplied reference length for
+Reynolds number. If direct body-axis force or static-moment volumes are present,
+they are authoritative for that sample; otherwise the table's drag, normal
+slope, CP station, and damping surfaces feed the bounded relation path. Missing
+table-backed geometry or source selection is reported and retains the
+isotropic point-drag fallback rather than silently borrowing a full-stack
+source.
 
 When the event carries a retained-body delta-v, including one derived from a
 measured retained-body impulse, the adapter derives the

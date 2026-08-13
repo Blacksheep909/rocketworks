@@ -124,9 +124,15 @@ import {
 } from "./mission-delta-v-bridge.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.34.0";
+  "kestrel-stage-flight-preview-0.35.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
+
+/** Detached-body force-model selection exposed by the browser preview. */
+export type ReleasedBodyDragModel =
+  | "isotropic-point"
+  | "attitude-projected-area"
+  | "coefficient-table";
 
 export type StageFlightPreviewInput = Readonly<{
   retainedMassProperties: MassProperties;
@@ -167,8 +173,8 @@ export type StageFlightPreviewInput = Readonly<{
   separationContactLoad?: SeparationContactLoadOptions;
   /** Optional pairwise gravity mode for the shared released-body track. */
   coupledMultiBodyGravity?: CoupledMultiBodyGravityOptions;
-  /** Optional projected-area drag for detached rigid-body shared-grid tracks. */
-  releasedBodyDragModel?: "isotropic-point" | "attitude-projected-area";
+  /** Optional detached-body force contract for shared-grid and branch tracks. */
+  releasedBodyDragModel?: ReleasedBodyDragModel;
   /** Optional post-trace wake/relative-flow screen; it never feeds forces back into flight. */
   relativeAeroInteraction?: RelativeAeroInteractionOptions;
   launchRail?: LaunchRailConfig;
@@ -298,6 +304,8 @@ export type StageFlightPreviewResult = Readonly<{
   inducedDragModel: InducedDragModelKind | "mixed";
   inducedDragModelVersion: string;
   inducedDragFactor: number | "mixed";
+  /** Selected detached-body aerodynamic contract, retained for report provenance. */
+  releasedBodyDragModel?: ReleasedBodyDragModel;
   recoveryModelVersion: string | null;
   simulation: SixDofSimulationResult | null;
   rail: RailGuidedLaunchResult | null;
@@ -452,10 +460,12 @@ type DetachedStageAerodynamicBasis = Readonly<{
 /**
  * Resolves a deliberately small aerodynamic basis for an independently
  * propagated discarded stage. A topology-specific regime supplies the
- * coefficient (a table is sampled at its declared design point); geometry
- * supplies the largest axisymmetric cross-section when no explicit diameter
- * is present. If either side is unavailable, the caller keeps the documented
- * gravity-only fallback instead of borrowing a full-stack coefficient.
+ * coefficient metadata (a table's design point provides the fallback Cd),
+ * while table-backed detached modes query the source at each live sample.
+ * Geometry supplies the largest axisymmetric cross-section when no explicit
+ * diameter is present. If either side is unavailable, the caller keeps the
+ * documented gravity-only fallback instead of borrowing a full-stack
+ * coefficient.
  */
 function detachedStageAerodynamicBasis(
   components: readonly VehicleComponent[],
@@ -1345,8 +1355,18 @@ export function simulateStageFlightPreview(
         massProperties.centerOfMassM.x,
         input.coefficientUncertaintyScale,
       );
+      const projectedAreaMode = input.releasedBodyDragModel === "attitude-projected-area";
+      const coefficientTableMode = input.releasedBodyDragModel === "coefficient-table";
+      const detachedCoefficientTableAvailable = Boolean(detachedAero?.aerodynamicBasis?.coefficientTable);
+      const useDetachedAerodynamicBasis = Boolean(
+        detachedAero?.aerodynamicBasis &&
+        (projectedAreaMode || (coefficientTableMode && detachedCoefficientTableAvailable)),
+      );
+      const selectedDetachedAerodynamicBasis = useDetachedAerodynamicBasis
+        ? detachedAero?.aerodynamicBasis
+        : undefined;
       if (
-        input.releasedBodyDragModel === "attitude-projected-area" &&
+        projectedAreaMode &&
         !detachedAero?.attitudeDependentDrag
       ) {
         separatedBodyWarnings.push(
@@ -1354,12 +1374,17 @@ export function simulateStageFlightPreview(
         );
       }
       if (
-        input.releasedBodyDragModel === "attitude-projected-area" &&
+        projectedAreaMode &&
         detachedAero?.attitudeDependentDrag &&
         !detachedAero.aerodynamicBasis
       ) {
         separatedBodyWarnings.push(
           `${stageId}/${instanceId} static aerodynamic loads unavailable: stage geometry did not produce a positive normal-force basis; projected drag remains active without lift or CP moment.`,
+        );
+      }
+      if (coefficientTableMode && !useDetachedAerodynamicBasis) {
+        separatedBodyWarnings.push(
+          `${stageId}/${instanceId} coefficient-table loads unavailable: the detached topology has no validated table-backed aerodynamic basis; isotropic point drag remains the fallback.`,
         );
       }
       const stageDefinition = input.stages.find((stage) => stage.id === stageId);
@@ -1388,8 +1413,8 @@ export function simulateStageFlightPreview(
                   dragCoefficient: detachedAero.dragCoefficient,
                 }
               : {}),
-            ...(input.releasedBodyDragModel === "attitude-projected-area" && detachedAero?.aerodynamicBasis
-              ? { aerodynamicBasis: detachedAero.aerodynamicBasis }
+            ...(selectedDetachedAerodynamicBasis
+              ? { aerodynamicBasis: selectedDetachedAerodynamicBasis }
               : {}),
             ...(detachedRecoveryDevices && detachedRecoveryDevices.length > 0
               ? { recoveryDevices: detachedRecoveryDevices }
@@ -1444,11 +1469,11 @@ export function simulateStageFlightPreview(
           ...(separatedBody.envelopeRadiusM !== undefined
             ? { envelopeRadiusM: separatedBody.envelopeRadiusM }
             : {}),
-          ...(input.releasedBodyDragModel === "attitude-projected-area" && detachedAero?.attitudeDependentDrag
+          ...(projectedAreaMode && detachedAero?.attitudeDependentDrag
             ? { attitudeDependentDrag: detachedAero.attitudeDependentDrag }
             : {}),
-          ...(input.releasedBodyDragModel === "attitude-projected-area" && detachedAero?.aerodynamicBasis
-            ? { aerodynamicBasis: detachedAero.aerodynamicBasis }
+          ...(selectedDetachedAerodynamicBasis
+            ? { aerodynamicBasis: selectedDetachedAerodynamicBasis }
             : {}),
           rigidBody: {
             orientationBodyToWorld: detachedInitialState.orientationBodyToWorld,
@@ -1710,6 +1735,11 @@ export function simulateStageFlightPreview(
           "When the active stage geometry produces a positive static normal-force basis, the same detached track adds bounded linear normal force, an r x F CP-to-CG moment, and supplied rate damping when available; otherwise projected drag remains a drag-only fallback.",
         ]
       : []),
+    ...(input.releasedBodyDragModel === "coefficient-table"
+      ? [
+          "The released-body track uses the selected validated aerodynamic table at each detached-body sample; declared direct body-axis force/moment volumes take precedence over the relation/projected fallback, and missing table-backed bases retain isotropic point drag.",
+        ]
+      : []),
     "When one separation event releases multiple physical copies, the equal-and-opposite impulse uses their combined detached mass and assigns one shared detached velocity increment to each copy; individual separation-mechanism impulses are not modeled.",
     "Separated-body previews apply a mass-ratio equal-and-opposite linear-momentum delta-v when the separation event carries a configured retained-body delta-v; a single event releasing multiple copies uses their combined detached mass and assigns one shared detached velocity increment. Separation mechanism dynamics, angular impulse, lift, attitude-dependent aerodynamic torque, plume interaction, aerodynamic interference, and contact/collision response remain outside the model; the separate fixed spherical-envelope screen is only a potential-overlap diagnostic. Detached-stage recovery devices are propagated only when explicitly configured on that stage and remain a deterministic canopy-load approximation.",
     ...(separatedBodies.some((body) => body.recoveryModelVersion !== undefined)
@@ -1754,6 +1784,7 @@ export function simulateStageFlightPreview(
     inducedDragModel,
     inducedDragModelVersion: INDUCED_DRAG_MODEL_VERSION,
     inducedDragFactor,
+    ...(input.releasedBodyDragModel ? { releasedBodyDragModel: input.releasedBodyDragModel } : {}),
     recoveryModelVersion: recovery?.modelVersion ?? null,
     simulation: primaryRun.simulation,
     rail: primaryRun.rail,

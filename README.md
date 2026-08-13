@@ -163,6 +163,10 @@ research, standards, and original code.
 - an opt-in projected-area attitude-drag mode for released rigid bodies that
   blends caller-supplied axial and broadside CdA pairs, retains incidence and
   effective-area diagnostics on the shared trace;
+- an explicit released-body coefficient-table mode that queries the selected
+  Mach/Reynolds/angular source at each sample and gives declared direct
+  body-axis force/moment volumes precedence without requiring projected-area
+  presentation drag;
 - a clean-room detached-body static-load path that can add bounded normal
   force, induced drag, CP-to-CG moment, and supplied rate damping when stage
   geometry and coefficient inputs support it, with traceable assumptions and

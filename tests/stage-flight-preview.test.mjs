@@ -288,7 +288,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.34.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.35.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);
@@ -444,7 +444,7 @@ test("stage-flight adapter forwards live detached coefficient-table loads", () =
     initiallyIgnitedStageIds: ["booster"],
     durationS: 2.5,
     timeStepS: 0.05,
-    releasedBodyDragModel: "attitude-projected-area",
+    releasedBodyDragModel: "coefficient-table",
     coefficientUncertaintyScale: 1,
     initialState: {
       velocityWorldMps: { x: -20, y: 0, z: 0 },
@@ -461,6 +461,32 @@ test("stage-flight adapter forwards live detached coefficient-table loads", () =
   assert.ok(detached.trace.some((point) => point.aerodynamicCoefficientBasis === "mach-reynolds-force-moment-table"));
   assert.ok(detached.trace.some((point) => (point.aerodynamicReynoldsNumber ?? 0) > 0));
   assert.ok(result.separatedBodies[0].trace.some((point) => point.aerodynamicDirectForceApplied === true));
+});
+
+test("coefficient-table mode keeps an explicit isotropic fallback without a selected table", () => {
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages,
+    regimes: [
+      ...regimes,
+      {
+        id: "booster-constant-only",
+        label: "Booster constant only",
+        activeStageIds: ["booster"],
+        dragCoefficient: 0.72,
+      },
+    ],
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 2.5,
+    timeStepS: 0.05,
+    releasedBodyDragModel: "coefficient-table",
+    events: [createScheduledStageSeparationEvent({ stageId: "booster", timeS: 1 })],
+  });
+
+  assert.ok(result.warnings.some((warning) => warning.includes("coefficient-table loads unavailable")));
+  assert.ok(result.separatedBodies[0].aerodynamicBasis === undefined);
+  assert.equal(result.coupledMultiBodyFlight?.trajectories[0].aerodynamicBasis, undefined);
 });
 
 test("stage mass-ratio branch exposes ideal rocket-equation diagnostics", () => {

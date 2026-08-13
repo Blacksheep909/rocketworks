@@ -1937,6 +1937,7 @@ export function createEngineeringReportMarkdown(
           `| Peak altitude | ${formatNumber(input.stageFlight.maxAltitudeAglM, 1)} m |`,
           `| Peak speed | ${formatNumber(input.stageFlight.maxSpeedMps, 2)} m/s |`,
           `| Apogee estimate | ${formatNumber(input.stageFlight.timeToApogeeS, 2)} s |`,
+          `| Released-body aerodynamic mode | ${input.stageFlight.releasedBodyDragModel ? markdownText(input.stageFlight.releasedBodyDragModel) : "legacy/default not recorded"} |`,
           `| Recovery load model | ${input.stageFlight.recoveryModelVersion ? `\`${markdownText(input.stageFlight.recoveryModelVersion)}\`` : "Not configured"} |`,
           `| Peak recovery drag | ${input.stageFlight.recoveryModelVersion ? `${formatNumber(Math.max(0, ...input.stageFlight.trace.map((point) => point.recoveryDragN)), 2)} N` : "Not configured"} |`,
           `| Static-margin samples | ${stageStaticMarginValues.length} / ${stageStabilityTrace.length} |`,

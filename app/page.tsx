@@ -105,6 +105,7 @@ import {
   type Matrix3,
   type MotorDataRecord,
   type StageFlightPreviewResult,
+  type ReleasedBodyDragModel,
   type StageFlightUncertaintyResult,
   type CoupledMultiBodyGravityOptions,
   type RigidBodyIntegrationMethod,
@@ -234,7 +235,6 @@ type ComponentKey = "nose" | "body" | "fins" | "mount" | "recovery";
 type ViewKey = "design" | "flight";
 type DesignViewKey = UiDesignView;
 type MaterialKey = "kraft" | "fiberglass" | "carbon";
-type ReleasedBodyDragModel = "isotropic-point" | "attitude-projected-area";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
 type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "separated-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad";
 type OptimizationPreview = Readonly<{
@@ -7476,8 +7476,9 @@ export default function Home() {
                     >
                       <option value="isotropic-point">Isotropic point drag (baseline)</option>
                       <option value="attitude-projected-area">Projected-area + static aero loads (preview)</option>
+                      <option value="coefficient-table">Validated coefficient-table loads</option>
                     </select>
-                    <small>Uses detached-stage geometry when available for projected drag, bounded normal force, CP moment, supplied damping, and live Mach/Reynolds table loads; direct body-axis force/moment volumes take precedence when supplied.</small>
+                    <small>Projected mode blends geometry CdA with bounded normal force and moments. Coefficient-table mode queries the selected source at live Mach, Reynolds, angle, and sideslip; direct body-axis force/moment volumes take precedence when supplied.</small>
                   </div>
                   {coupledMutualGravityEnabled && (
                     <NumberField
@@ -7931,6 +7932,7 @@ export default function Home() {
                               <div><span>Integration steps</span><strong>{stageFlightResult.coupledMultiBodyFlight.stepCount}</strong><small>{stageFlightResult.coupledMultiBodyFlight.timeStepS.toFixed(3)} s effective step</small></div>
                                <div><span>Minimum COM separation</span><strong>{stageFlightResult.coupledMultiBodyFlight.minimumDistanceM === null ? "Not assessed" : `${stageFlightResult.coupledMultiBodyFlight.minimumDistanceM.toFixed(2)} m`}</strong><small>{stageFlightResult.coupledMultiBodyFlight.closestPair ? `closest at ${stageFlightResult.coupledMultiBodyFlight.closestPair.timeS.toFixed(2)} s` : "no pairwise overlap"}</small></div>
                                <div><span>Rigid-body states</span><strong>{stageFlightResult.coupledMultiBodyFlight.rigidBodyCount}</strong><small>{stageFlightResult.coupledMultiBodyFlight.rigidBodyCount > 0 ? "attitude + angular-rate traces" : "point-mass translation"}</small></div>
+                              <div><span>Detached aero mode</span><strong>{stageFlightResult.releasedBodyDragModel === "coefficient-table" ? "Coefficient table" : stageFlightResult.releasedBodyDragModel === "attitude-projected-area" ? "Projected area" : "Isotropic point"}</strong><small>selected released-body contract</small></div>
                                <div><span>Coupled integrator</span><strong>{stageFlightResult.coupledMultiBodyFlight.integration.method === "adaptive-rk4-step-doubling" ? "Adaptive RK4" : "Fixed RK4"}</strong><small>{stageFlightResult.coupledMultiBodyFlight.integration.acceptedStepCount} accepted · {stageFlightResult.coupledMultiBodyFlight.integration.rejectedStepCount} rejected</small></div>
                               <div><span>Released-body force model</span><strong>{stageFlightResult.coupledMultiBodyFlight.mutualGravity.enabled ? "Mutual gravity" : "Shared environment"}</strong><small>{stageFlightResult.coupledMultiBodyFlight.mutualGravity.enabled && stageFlightResult.coupledMultiBodyFlight.mutualGravity.softeningRadiusM > 0 ? `ε ${stageFlightResult.coupledMultiBodyFlight.mutualGravity.softeningRadiusM.toFixed(3)} m` : "point-path coupling"}</small></div>
                               <div><span>Release window</span><strong>{stageFlightResult.coupledMultiBodyFlight.startTimeS.toFixed(2)} → {stageFlightResult.coupledMultiBodyFlight.endTimeS.toFixed(2)} s</strong><small>{publicModelVersion(stageFlightResult.coupledMultiBodyFlight.modelVersion)}</small></div>

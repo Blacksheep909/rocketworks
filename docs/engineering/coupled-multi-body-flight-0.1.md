@@ -164,7 +164,9 @@ the projected-area selection as the opt-in detached aerodynamic-load basis.
 The stage-flight adapter forwards each detached stage's release attitude,
 angular rate, center-of-mass inertia, static aerodynamic basis, and (when
 configured) coefficient-table reference length and provenance into the shared
-audit track.
+audit track. The browser's coefficient-table mode can select that table-backed
+load path without also enabling projected-area display drag; a missing table
+keeps the explicit isotropic fallback.
 
 Adaptive step diagnostics describe numerical truncation only. They do not
 validate the environment, supplied loads, geometry, separation mechanism, or

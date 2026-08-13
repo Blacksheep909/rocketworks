@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an explicit released-body coefficient-table force model. The browser can
+  now select live Mach/Reynolds/angular table loads independently of projected
+  area, with direct body-axis force/moment volumes taking precedence and clear
+  isotropic fallback warnings when a table-backed detached basis is unavailable.
 - Add clean-room detached-body coefficient-table coupling. Released rigid
   bodies can now query validated Mach/Reynolds/angular surfaces at each sample,
   apply declared direct body-axis force and moment volumes when available, and
