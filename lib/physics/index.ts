@@ -20,6 +20,7 @@ export * from "./separation-contact.ts";
 export * from "./separation-contact-load.ts";
 export * from "./relative-aero-interaction.ts";
 export * from "./attitude-dependent-drag.ts";
+export * from "./detached-body-aerodynamics.ts";
 export * from "./separation-dynamics.ts";
 export * from "./rocket-loads.ts";
 export * from "./six-dof.ts";

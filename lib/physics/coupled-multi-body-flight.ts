@@ -32,11 +32,16 @@ import {
 } from "./six-dof.ts";
 import {
   ATTITUDE_DEPENDENT_DRAG_BODY_AXIS,
-  ATTITUDE_DEPENDENT_DRAG_MODEL_VERSION,
   evaluateAttitudeDependentDrag,
   validateAttitudeDependentDragGeometry,
   type AttitudeDependentDragGeometry,
 } from "./attitude-dependent-drag.ts";
+import {
+  DETACHED_BODY_AERODYNAMICS_MODEL_VERSION,
+  evaluateDetachedBodyAerodynamics,
+  validateDetachedBodyAerodynamicBasis,
+  type DetachedBodyAerodynamicBasis,
+} from "./detached-body-aerodynamics.ts";
 
 /**
  * RocketWorks clean-room shared-grid propagator for released bodies.
@@ -49,7 +54,7 @@ import {
  * supplied inputs cannot support.
  */
 export const COUPLED_MULTI_BODY_FLIGHT_MODEL_VERSION =
-  "rocketworks-coupled-multi-body-flight-0.4.0";
+  "rocketworks-coupled-multi-body-flight-0.5.0";
 export const COUPLED_MULTI_BODY_FLIGHT_STATUS =
   "analytical-component-checks-only" as const;
 export const STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2 = 6.67430e-11;
@@ -103,6 +108,8 @@ export type CoupledMultiBodyFlightBodyInput = Readonly<{
   dragCoefficient?: number;
   /** Optional incidence-dependent projected-area drag for a rigid body. */
   attitudeDependentDrag?: AttitudeDependentDragGeometry;
+  /** Optional static normal-force / CP-moment basis for a rigid body. */
+  aerodynamicBasis?: DetachedBodyAerodynamicBasis;
   envelopeRadiusM?: number;
   /** Optional 6DOF attitude and inertia state for this released body. */
   rigidBody?: CoupledMultiBodyRigidBodyInput;
@@ -122,6 +129,13 @@ export type CoupledMultiBodyTracePoint = Readonly<{
   effectiveDragCoefficient?: number;
   aerodynamicDragN?: number;
   aerodynamicDragModelVersion?: string;
+  aerodynamicAngleOfAttackRad?: number;
+  aerodynamicSideslipRad?: number;
+  aerodynamicNormalForceN?: number;
+  aerodynamicNormalForceApplied?: boolean;
+  aerodynamicStaticMomentBodyNm?: Vector3;
+  aerodynamicDampingMomentBodyNm?: Vector3;
+  aerodynamicModelVersion?: string;
   orientationBodyToWorld?: Quaternion;
   angularVelocityBodyRadS?: Vector3;
 }>;
@@ -142,6 +156,7 @@ export type CoupledMultiBodyFlightTrajectory = Readonly<{
   referenceAreaM2?: number;
   dragCoefficient?: number;
   attitudeDependentDrag?: AttitudeDependentDragGeometry;
+  aerodynamicBasis?: DetachedBodyAerodynamicBasis;
   envelopeRadiusM?: number;
   rigidBody: Readonly<{
     enabled: true;
@@ -176,6 +191,7 @@ export type CoupledMultiBodyFlightResult = Readonly<{
     gravitationalConstantM3KgS2: typeof STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2;
   }>;
   rigidBodyCount: number;
+  aerodynamicBodyCount: number;
   integration: Readonly<{
     method: RigidBodyIntegrationMethod;
     acceptedStepCount: number;
@@ -379,6 +395,12 @@ function validateBody(body: CoupledMultiBodyFlightBodyInput): void {
     }
     validateAttitudeDependentDragGeometry(body.attitudeDependentDrag);
   }
+  if (body.aerodynamicBasis) {
+    if (!body.rigidBody) {
+      throw new Error(`coupled-flight body ${body.id} aerodynamic basis requires a rigid-body state`);
+    }
+    validateDetachedBodyAerodynamicBasis(body.aerodynamicBasis);
+  }
   if (body.envelopeRadiusM !== undefined) {
     assertNonNegativeFinite(body.envelopeRadiusM, `coupled-flight body ${body.id} envelope radius`);
   }
@@ -431,6 +453,94 @@ function environmentAt(
   });
 }
 
+type CoupledBodyAerodynamicEvaluation = Readonly<{
+  modelVersion: string;
+  forceWorldN: Vector3;
+  relativeAirSpeedMps: number;
+  dynamicPressurePa: number;
+  dragN: number;
+  effectiveReferenceAreaM2: number;
+  effectiveDragCoefficient: number;
+  attitudeIncidenceRad: number | null;
+  angleOfAttackRad: number | null;
+  sideslipRad: number | null;
+  normalForceN: number | null;
+  normalForceApplied: boolean | null;
+  staticMomentBodyNm: Vector3;
+  dampingMomentBodyNm: Vector3;
+}>;
+
+function evaluateCoupledBodyAerodynamics(
+  body: CoupledMultiBodyFlightBodyInput,
+  input: CoupledMultiBodyFlightInput,
+  timeS: number,
+  positionWorldM: Vector3,
+  velocityWorldMps: Vector3,
+  orientationBodyToWorld: Quaternion | undefined,
+  angularVelocityBodyRadS: Vector3 = ZERO_VECTOR,
+): CoupledBodyAerodynamicEvaluation | null {
+  if (!orientationBodyToWorld || (!body.aerodynamicBasis && !body.attitudeDependentDrag)) return null;
+  const environment = environmentAt(input, timeS, positionWorldM, velocityWorldMps);
+  const altitudeAslM =
+    environment?.altitudeAslM ?? (input.launchAltitudeM ?? 0) + positionWorldM.z;
+  const atmosphere = environment?.atmosphere ?? standardAtmosphere(altitudeAslM);
+  const relativeAirVelocityWorldMps = subtractVectors(
+    velocityWorldMps,
+    environment?.windWorldMps ?? ZERO_VECTOR,
+  );
+  if (body.aerodynamicBasis) {
+    const result = evaluateDetachedBodyAerodynamics({
+      basis: body.aerodynamicBasis,
+      densityKgM3: atmosphere.densityKgM3,
+      speedOfSoundMps: atmosphere.speedOfSoundMps,
+      relativeAirVelocityWorldMps,
+      orientationBodyToWorld,
+      angularVelocityBodyRadS,
+    });
+    return {
+      modelVersion: result.modelVersion,
+      forceWorldN: result.aerodynamicForceWorldN,
+      relativeAirSpeedMps: result.airspeedMps,
+      dynamicPressurePa: result.dynamicPressurePa,
+      dragN: result.dragN,
+      effectiveReferenceAreaM2: result.effectiveReferenceAreaM2,
+      effectiveDragCoefficient: result.effectiveDragCoefficient,
+      attitudeIncidenceRad: result.projectedIncidenceRad,
+      angleOfAttackRad: result.angleOfAttackRad,
+      sideslipRad: result.sideslipRad,
+      normalForceN: result.normalForceN,
+      normalForceApplied: result.normalForceApplied,
+      staticMomentBodyNm: result.aerodynamicStaticMomentBodyNm,
+      dampingMomentBodyNm: result.aerodynamicDampingMomentBodyNm,
+    };
+  }
+  const result = evaluateAttitudeDependentDrag({
+    geometry: body.attitudeDependentDrag!,
+    densityKgM3: atmosphere.densityKgM3,
+    relativeAirVelocityWorldMps,
+    bodyAxisWorldM: rotateBodyToWorld(
+      orientationBodyToWorld,
+      ATTITUDE_DEPENDENT_DRAG_BODY_AXIS,
+    ),
+  });
+  return {
+    modelVersion: result.modelVersion,
+    forceWorldN: result.dragForceWorldN,
+    relativeAirSpeedMps: result.relativeAirSpeedMps,
+    dynamicPressurePa: result.dynamicPressurePa,
+    dragN: magnitude(result.dragForceWorldN),
+    effectiveReferenceAreaM2: result.effectiveReferenceAreaM2,
+    effectiveDragCoefficient: result.effectiveDragCoefficient,
+    attitudeIncidenceRad: result.incidenceRad,
+    angleOfAttackRad: null,
+    sideslipRad: null,
+    normalForceN: null,
+    normalForceApplied: null,
+    staticMomentBodyNm: ZERO_VECTOR,
+    dampingMomentBodyNm: ZERO_VECTOR,
+  };
+}
+
 function accelerationAt(
   body: CoupledMultiBodyFlightBodyInput,
   input: CoupledMultiBodyFlightInput,
@@ -452,8 +562,14 @@ function accelerationAt(
   );
   if (
     (body.referenceAreaM2 === undefined || body.dragCoefficient === undefined) &&
-    !body.attitudeDependentDrag
+    !body.attitudeDependentDrag &&
+    !body.aerodynamicBasis
   ) {
+    return gravityAccelerationWorldMps2;
+  }
+  if (body.aerodynamicBasis) {
+    // The shared rigid-body derivative adds this basis once alongside its
+    // external moment; keeping it out here prevents a force double-count.
     return gravityAccelerationWorldMps2;
   }
   const relativeAirVelocityMps = subtractVectors(
@@ -620,14 +736,31 @@ function coupledGroupDerivativeAt(
       continue;
     }
     const body = bodies[index]!;
+    const rigidState = body.rigidBody
+      ? rigidBodyStateAt(body, state, index)
+      : null;
+    const aerodynamic = evaluateCoupledBodyAerodynamics(
+      body,
+      input,
+      state.timeS,
+      state.positionsWorldM[index]!,
+      state.velocitiesWorldMps[index]!,
+      state.orientationsBodyToWorld[index] ?? undefined,
+      state.angularVelocitiesBodyRadS[index] ?? ZERO_VECTOR,
+    );
     const baseAcceleration = addVectors(
-      accelerationAt(
-        body,
-        input,
-        state.timeS,
-        state.positionsWorldM[index]!,
-        state.velocitiesWorldMps[index]!,
-        state.orientationsBodyToWorld[index] ?? undefined,
+      addVectors(
+        accelerationAt(
+          body,
+          input,
+          state.timeS,
+          state.positionsWorldM[index]!,
+          state.velocitiesWorldMps[index]!,
+          state.orientationsBodyToWorld[index] ?? undefined,
+        ),
+        aerodynamic && body.aerodynamicBasis
+          ? scaleVector(aerodynamic.forceWorldN, 1 / body.massKg)
+          : ZERO_VECTOR,
       ),
       mutualGravity.enabled
         ? mutualGravityAccelerationAt(
@@ -643,15 +776,14 @@ function coupledGroupDerivativeAt(
     let orientationRate: Quaternion | null = null;
     let angularVelocityRate: Vector3 | null = null;
     if (body.rigidBody) {
-      const rigidState = rigidBodyStateAt(body, state, index);
       const loads = validateRigidBodyLoads(
-        body.rigidBody.loads?.(rigidState) ?? {},
+        body.rigidBody.loads?.(rigidState!) ?? {},
         body.id,
       );
       const externalForceWorldN = addVectors(
         loads.forceWorldN ?? ZERO_VECTOR,
         rotateBodyToWorld(
-          rigidState.orientationBodyToWorld,
+          rigidState!.orientationBodyToWorld,
           loads.forceBodyN ?? ZERO_VECTOR,
         ),
       );
@@ -663,10 +795,27 @@ function coupledGroupDerivativeAt(
         1 / body.massKg,
       );
       orientationRate = quaternionRate(
-        rigidState.orientationBodyToWorld,
-        rigidState.angularVelocityBodyRadS,
+        rigidState!.orientationBodyToWorld,
+        rigidState!.angularVelocityBodyRadS,
       );
-      angularVelocityRate = rigidBodyAngularAccelerationAt(body, rigidState, loads);
+      angularVelocityRate = rigidBodyAngularAccelerationAt(
+        body,
+        rigidState!,
+        {
+          ...loads,
+          ...(aerodynamic
+            ? {
+                momentBodyNm: addVectors(
+                  addVectors(
+                    loads.momentBodyNm ?? ZERO_VECTOR,
+                    aerodynamic.staticMomentBodyNm,
+                  ),
+                  aerodynamic.dampingMomentBodyNm,
+                ),
+              }
+            : {}),
+        },
+      );
     }
     positionRatesWorldMps.push(state.velocitiesWorldMps[index]);
     velocityRatesWorldMps2.push(acceleration);
@@ -1204,39 +1353,38 @@ function tracePointWithAcceleration(
   orientationBodyToWorld?: Quaternion,
   angularVelocityBodyRadS?: Vector3,
 ): CoupledMultiBodyTracePoint {
-  const attitudeDrag = body.attitudeDependentDrag && orientationBodyToWorld
-    ? (() => {
-        const environment = environmentAt(
-          input,
-          state.timeS,
-          state.positionWorldM,
-          state.velocityWorldMps,
-        );
-        const altitudeAslM =
-          environment?.altitudeAslM ?? (input.launchAltitudeM ?? 0) + state.positionWorldM.z;
-        const atmosphere = environment?.atmosphere ?? standardAtmosphere(altitudeAslM);
-        const drag = evaluateAttitudeDependentDrag({
-          geometry: body.attitudeDependentDrag,
-          densityKgM3: atmosphere.densityKgM3,
-          relativeAirVelocityWorldMps: subtractVectors(
-            state.velocityWorldMps,
-            environment?.windWorldMps ?? ZERO_VECTOR,
-          ),
-          bodyAxisWorldM: rotateBodyToWorld(
-            orientationBodyToWorld,
-            ATTITUDE_DEPENDENT_DRAG_BODY_AXIS,
-          ),
-        });
-        return {
-          relativeAirSpeedMps: drag.relativeAirSpeedMps,
-          dynamicPressurePa: drag.dynamicPressurePa,
-          attitudeIncidenceRad: drag.incidenceRad,
-          effectiveReferenceAreaM2: drag.effectiveReferenceAreaM2,
-          effectiveDragCoefficient: drag.effectiveDragCoefficient,
-          aerodynamicDragN: magnitude(drag.dragForceWorldN),
-          aerodynamicDragModelVersion: ATTITUDE_DEPENDENT_DRAG_MODEL_VERSION,
-        };
-      })()
+  const aerodynamic = evaluateCoupledBodyAerodynamics(
+    body,
+    input,
+    state.timeS,
+    state.positionWorldM,
+    state.velocityWorldMps,
+    orientationBodyToWorld,
+    angularVelocityBodyRadS ?? ZERO_VECTOR,
+  );
+  const aerodynamicTelemetry = aerodynamic
+    ? {
+        relativeAirSpeedMps: aerodynamic.relativeAirSpeedMps,
+        dynamicPressurePa: aerodynamic.dynamicPressurePa,
+        ...(aerodynamic.attitudeIncidenceRad !== null
+          ? { attitudeIncidenceRad: aerodynamic.attitudeIncidenceRad }
+          : {}),
+        effectiveReferenceAreaM2: aerodynamic.effectiveReferenceAreaM2,
+        effectiveDragCoefficient: aerodynamic.effectiveDragCoefficient,
+        aerodynamicDragN: aerodynamic.dragN,
+        aerodynamicDragModelVersion: aerodynamic.modelVersion,
+        aerodynamicModelVersion: aerodynamic.modelVersion,
+        ...(aerodynamic.angleOfAttackRad !== null
+          ? {
+              aerodynamicAngleOfAttackRad: aerodynamic.angleOfAttackRad,
+              aerodynamicSideslipRad: aerodynamic.sideslipRad!,
+              aerodynamicNormalForceN: aerodynamic.normalForceN!,
+              aerodynamicNormalForceApplied: aerodynamic.normalForceApplied!,
+              aerodynamicStaticMomentBodyNm: aerodynamic.staticMomentBodyNm,
+              aerodynamicDampingMomentBodyNm: aerodynamic.dampingMomentBodyNm,
+            }
+          : {}),
+      }
     : {};
   return {
     timeS: state.timeS,
@@ -1245,7 +1393,7 @@ function tracePointWithAcceleration(
     positionWorldM: state.positionWorldM,
     velocityWorldMps: state.velocityWorldMps,
     accelerationWorldMps2,
-    ...attitudeDrag,
+    ...aerodynamicTelemetry,
     ...(orientationBodyToWorld ? { orientationBodyToWorld } : {}),
     ...(angularVelocityBodyRadS ? { angularVelocityBodyRadS } : {}),
   };
@@ -1293,6 +1441,9 @@ function trajectoryFromTrace(
       : {}),
     ...(body.attitudeDependentDrag
       ? { attitudeDependentDrag: body.attitudeDependentDrag }
+      : {}),
+    ...(body.aerodynamicBasis
+      ? { aerodynamicBasis: body.aerodynamicBasis }
       : {}),
     ...(body.envelopeRadiusM !== undefined ? { envelopeRadiusM: body.envelopeRadiusM } : {}),
     rigidBody: body.rigidBody
@@ -1663,7 +1814,10 @@ export function simulateCoupledMultiBodyFlight(
   });
   const rigidBodyCount = input.bodies.filter((body) => body.rigidBody !== undefined).length;
   const attitudeDependentDragBodyCount = input.bodies.filter(
-    (body) => body.attitudeDependentDrag !== undefined,
+    (body) => body.attitudeDependentDrag !== undefined && body.aerodynamicBasis === undefined,
+  ).length;
+  const aerodynamicBodyCount = input.bodies.filter(
+    (body) => body.aerodynamicBasis !== undefined,
   ).length;
   const startTimeS = Math.min(...input.bodies.map((body) => body.releaseTimeS));
   const nominalStepCount = Math.ceil((input.durationS - startTimeS) / input.timeStepS);
@@ -1757,12 +1911,17 @@ export function simulateCoupledMultiBodyFlight(
     ...(attitudeDependentDragBodyCount > 0
       ? [`${attitudeDependentDragBodyCount} released bod${attitudeDependentDragBodyCount === 1 ? "y" : "ies"} used the opt-in projected-area attitude drag model; the trace retains incidence, effective area, and Cd diagnostics.`]
       : []),
+    ...(aerodynamicBodyCount > 0
+      ? [`${aerodynamicBodyCount} released bod${aerodynamicBodyCount === 1 ? "y" : "ies"} used the opt-in detached-body static aerodynamic load basis; normal-force, CP-moment, and rate-damping diagnostics remain traceable.`]
+      : []),
     "An optional earthRotationAccelerationWorldMps2 field from the environment provider is added to each body's shared acceleration; the provider remains responsible for its provenance and validation status.",
     ...(mutualGravity.enabled && mutualGravity.softeningRadiusM > 0
       ? [`Mutual gravity uses a Plummer-style softening radius of ${mutualGravity.softeningRadiusM.toFixed(6)} m for close approaches; this is a numerical approximation, not a contact model.`]
       : []),
-    attitudeDependentDragBodyCount > 0
-      ? "Bodies with an attitude-dependent drag basis use altitude-dependent gravity and a bounded projected-area CdA blend against environment-relative wind; other bodies retain the constant isotropic point-drag basis when configured."
+    aerodynamicBodyCount > 0
+      ? "Bodies with a detached-body aerodynamic basis use altitude-dependent gravity and the supplied relation/projected-area force basis against environment-relative wind; other bodies retain their configured point-drag path."
+      : attitudeDependentDragBodyCount > 0
+        ? "Bodies with an attitude-dependent drag basis use altitude-dependent gravity and a bounded projected-area CdA blend against environment-relative wind; other bodies retain the constant isotropic point-drag basis when configured."
       : "Each body uses altitude-dependent gravity and, when supplied, constant isotropic point drag against environment-relative wind.",
     ...(rigidBodyCount > 0
       ? ["Rigid-body attitude uses quaternion kinematics and Euler angular momentum with the supplied constant inertia tensor; flexible-body, contact, plume, and unprovided aerodynamic moment models remain outside the solver."]
@@ -1805,6 +1964,11 @@ export function simulateCoupledMultiBodyFlight(
           "Projected-area drag uses the supplied axial and crossflow CdA pairs blended by the squared cosine of the body-axis incidence; lift, aerodynamic moments, fins, and unsteady flow are not inferred.",
         ]
       : []),
+    ...(aerodynamicBodyCount > 0
+      ? [
+          `Detached-body aerodynamic loads use ${DETACHED_BODY_AERODYNAMICS_MODEL_VERSION}: static normal force is bounded by the supplied forward-flow/angle/compressibility envelope, the CP-to-CG lever arm supplies r x F moment, and optional rate derivatives supply damping; this remains an analytical component check.`,
+        ]
+      : []),
     ...(integrationMethod === "adaptive-rk4-step-doubling"
       ? [
           "Adaptive step-doubling compares one full RK4 step with two half RK4 steps over each shared-grid interval; refined states are accepted only when the scaled component error is at most one.",
@@ -1830,6 +1994,7 @@ export function simulateCoupledMultiBodyFlight(
       gravitationalConstantM3KgS2: STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2,
     },
     rigidBodyCount,
+    aerodynamicBodyCount,
     integration: {
       method: integrationDiagnostics.method,
       acceptedStepCount: integrationDiagnostics.acceptedStepCount,

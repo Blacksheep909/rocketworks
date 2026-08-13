@@ -923,7 +923,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Run 6DOF preview/);
   assert.match(page, /released-body-force-model/);
   assert.match(page, /released-body-drag-model/);
-  assert.match(page, /Projected-area attitude drag \(preview\)/);
+  assert.match(page, /Projected-area \+ static aero loads \(preview\)/);
   assert.match(page, /Include mutual point-mass gravity/);
   assert.match(page, /coupledGravitySofteningRadiusM/);
   assert.match(page, /Launch rail constraint/);
@@ -1144,6 +1144,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stylesheet, /\.stage-separation-contact/);
   assert.match(stylesheet, /\.stage-relative-aero-interaction/);
   assert.match(stylesheet, /\.stage-coupled-multi-body-flight-drag-summary/);
+  assert.match(stylesheet, /\.stage-coupled-multi-body-flight-aero-summary/);
   assert.match(stylesheet, /\.stage-interface-load-card/);
   assert.match(stylesheet, /\.stage-interface-load-row-unavailable/);
   assert.match(stylesheet, /\.stage-parallel-load-audit/);

@@ -162,8 +162,11 @@ research, standards, and original code.
   singular-state rejection, and explicit force-model provenance;
 - an opt-in projected-area attitude-drag mode for released rigid bodies that
   blends caller-supplied axial and broadside CdA pairs, retains incidence and
-  effective-area diagnostics on the shared trace, and keeps lift, moments,
-  interference, and calibration outside the analytical preview;
+  effective-area diagnostics on the shared trace;
+- a clean-room detached-body static-load path that can add bounded normal
+  force, induced drag, CP-to-CG moment, and supplied rate damping when stage
+  geometry and coefficient inputs support it, with traceable assumptions and
+  explicit analytical-only status;
 - a trace-backed recovery opening-load screen with coverage labels, peak
   dynamic pressure, quasi-steady `q Cd A` drag, inflation impulse, and a
   force-rate proxy; opening shock and structural response remain explicitly

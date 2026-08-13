@@ -38,6 +38,7 @@ import {
   type Vector3,
 } from "./linear-algebra.ts";
 import type { VehicleComponent } from "./vehicle-components.ts";
+import { computeStaticStability } from "./static-aerodynamics.ts";
 import type { WindLayer } from "./curves.ts";
 import {
   NORMAL_FORCE_COMPRESSIBILITY_MODEL_VERSION,
@@ -98,6 +99,7 @@ import {
   type CoupledMultiBodyFlightResult,
 } from "./coupled-multi-body-flight.ts";
 import type { AttitudeDependentDragGeometry } from "./attitude-dependent-drag.ts";
+import type { DetachedBodyAerodynamicBasis } from "./detached-body-aerodynamics.ts";
 import {
   computeMissionMassRatio,
   computeStageMassRatio,
@@ -122,7 +124,7 @@ import {
 } from "./mission-delta-v-bridge.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.32.0";
+  "kestrel-stage-flight-preview-0.33.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -444,6 +446,7 @@ type DetachedStageAerodynamicBasis = Readonly<{
   referenceAreaM2: number;
   dragCoefficient: number;
   attitudeDependentDrag?: AttitudeDependentDragGeometry;
+  aerodynamicBasis?: DetachedBodyAerodynamicBasis;
 }>;
 
 /**
@@ -458,30 +461,28 @@ function detachedStageAerodynamicBasis(
   components: readonly VehicleComponent[],
   regimes: readonly StageAerodynamicRegime[],
   stageId: string,
+  centerOfMassXM: number,
 ): DetachedStageAerodynamicBasis | null {
   const regime = regimes.find(
     (candidate) =>
       candidate.activeStageIds.length === 1 && candidate.activeStageIds[0] === stageId,
   );
-  const referenceAreaM2 = regime?.referenceDiameterM
-    ? Math.PI * (regime.referenceDiameterM / 2) ** 2
-    : (() => {
-        const maximumRadiusM = Math.max(
-          0,
-          ...components
-            .filter(
-              (component) =>
-                component.stageId === stageId &&
-                component.enabled !== false,
-            )
-            .flatMap((component) =>
-              component.kind === "axisymmetric"
-                ? component.stations.map((station) => station.outerRadiusM)
-                : [],
-            ),
-        );
-        return maximumRadiusM > 0 ? Math.PI * maximumRadiusM ** 2 : undefined;
-      })();
+  const maximumComponentRadiusM = Math.max(
+    0,
+    ...components
+      .filter((component) => component.stageId === stageId && component.enabled !== false)
+      .flatMap((component) => component.kind === "axisymmetric"
+        ? component.stations.map((station) => station.outerRadiusM)
+        : component.kind === "finSet"
+          ? [component.bodyRadiusM]
+          : []),
+  );
+  const referenceDiameterM = regime?.referenceDiameterM ?? (
+    maximumComponentRadiusM > 0 ? maximumComponentRadiusM * 2 : undefined
+  );
+  const referenceAreaM2 = referenceDiameterM !== undefined
+    ? Math.PI * (referenceDiameterM / 2) ** 2
+    : undefined;
   const dragCoefficient = regime?.dragCoefficient ?? (
     regime?.coefficientTable && regime.coefficientTableDesignPoint
       ? regime.coefficientTable.evaluate(regime.coefficientTableDesignPoint).dragCoefficient
@@ -507,11 +508,38 @@ function detachedStageAerodynamicBasis(
   const crossflowReferenceAreaM2 = profileLengthM > 0 && maximumRadiusM > 0
     ? profileLengthM * maximumRadiusM * 2
     : undefined;
-  return referenceAreaM2 !== undefined && dragCoefficient !== undefined
+  let staticStability: ReturnType<typeof computeStaticStability> | null = null;
+  if (referenceDiameterM !== undefined) {
+    try {
+      staticStability = computeStaticStability({
+        components,
+        centerOfMassXM,
+        referenceDiameterM,
+        activeStageIds: [stageId],
+      });
+    } catch {
+      staticStability = null;
+    }
+  }
+  const coefficientEvaluation = regime?.coefficientTable && regime.coefficientTableDesignPoint
+    ? regime.coefficientTable.evaluate(regime.coefficientTableDesignPoint)
+    : null;
+  const aerodynamicBasis = referenceAreaM2 !== undefined &&
+    dragCoefficient !== undefined &&
+    staticStability
     ? {
         referenceAreaM2,
         dragCoefficient,
-        ...(crossflowReferenceAreaM2 !== undefined
+        normalForceSlopePerRad: coefficientEvaluation?.normalForceSlopePerRad ?? staticStability.normalForceSlopePerRad,
+        centerOfPressureMinusCenterOfMassM:
+          (coefficientEvaluation?.centerOfPressureXM ?? staticStability.centerOfPressureXM) - centerOfMassXM,
+        maximumNormalForceMach: regime?.maximumNormalForceMach ?? regime?.coefficientTable?.machRange[1],
+        maximumNormalForceAngleRad: regime?.maximumNormalForceAngleRad,
+        minimumNormalForceAirspeedMps: regime?.minimumNormalForceAirspeedMps,
+        normalForceModel: regime?.normalForceModel,
+        inducedDragModel: regime?.inducedDragModel,
+        inducedDragFactor: regime?.inducedDragFactor,
+        ...(crossflowReferenceAreaM2 !== undefined && dragCoefficient !== undefined
           ? {
               attitudeDependentDrag: {
                 axialReferenceAreaM2: referenceAreaM2,
@@ -520,6 +548,16 @@ function detachedStageAerodynamicBasis(
                 crossflowDragCoefficient: dragCoefficient,
               },
             }
+          : {}),
+      }
+    : undefined;
+  return referenceAreaM2 !== undefined && dragCoefficient !== undefined
+    ? {
+        referenceAreaM2,
+        dragCoefficient,
+        ...(aerodynamicBasis ? { aerodynamicBasis } : {}),
+        ...(aerodynamicBasis?.attitudeDependentDrag
+          ? { attitudeDependentDrag: aerodynamicBasis.attitudeDependentDrag }
           : {}),
       }
     : null;
@@ -1260,6 +1298,7 @@ export function simulateStageFlightPreview(
         input.components,
         input.regimes,
         stageId,
+        massProperties.centerOfMassM.x,
       );
       if (
         input.releasedBodyDragModel === "attitude-projected-area" &&
@@ -1267,6 +1306,15 @@ export function simulateStageFlightPreview(
       ) {
         separatedBodyWarnings.push(
           `${stageId}/${instanceId} projected-area drag unavailable: stage geometry did not provide a positive axisymmetric profile; isotropic point drag remains the fallback.`,
+        );
+      }
+      if (
+        input.releasedBodyDragModel === "attitude-projected-area" &&
+        detachedAero?.attitudeDependentDrag &&
+        !detachedAero.aerodynamicBasis
+      ) {
+        separatedBodyWarnings.push(
+          `${stageId}/${instanceId} static aerodynamic loads unavailable: stage geometry did not produce a positive normal-force basis; projected drag remains active without lift or CP moment.`,
         );
       }
       const stageDefinition = input.stages.find((stage) => stage.id === stageId);
@@ -1289,7 +1337,15 @@ export function simulateStageFlightPreview(
             ...(envelopeRadiusM !== undefined && envelopeRadiusM !== null
               ? { envelopeRadiusM }
               : {}),
-            ...(detachedAero ?? {}),
+            ...(detachedAero
+              ? {
+                  referenceAreaM2: detachedAero.referenceAreaM2,
+                  dragCoefficient: detachedAero.dragCoefficient,
+                }
+              : {}),
+            ...(input.releasedBodyDragModel === "attitude-projected-area" && detachedAero?.aerodynamicBasis
+              ? { aerodynamicBasis: detachedAero.aerodynamicBasis }
+              : {}),
             ...(detachedRecoveryDevices && detachedRecoveryDevices.length > 0
               ? { recoveryDevices: detachedRecoveryDevices }
               : {}),
@@ -1345,6 +1401,9 @@ export function simulateStageFlightPreview(
             : {}),
           ...(input.releasedBodyDragModel === "attitude-projected-area" && detachedAero?.attitudeDependentDrag
             ? { attitudeDependentDrag: detachedAero.attitudeDependentDrag }
+            : {}),
+          ...(input.releasedBodyDragModel === "attitude-projected-area" && detachedAero?.aerodynamicBasis
+            ? { aerodynamicBasis: detachedAero.aerodynamicBasis }
             : {}),
           rigidBody: {
             orientationBodyToWorld: detachedInitialState.orientationBodyToWorld,
@@ -1603,6 +1662,7 @@ export function simulateStageFlightPreview(
       ? [
           "The shared-grid released-body track uses projected-area attitude drag when a detached stage supplies a positive axisymmetric profile; missing profiles retain the isotropic point-drag or gravity-only fallback.",
           "The stage adapter reuses the selected detached stage Cd for both axial and crossflow CdA because no independent crossflow coefficient is supplied; calibrate this preview basis before relying on it.",
+          "When the active stage geometry produces a positive static normal-force basis, the same detached track adds bounded linear normal force, an r x F CP-to-CG moment, and supplied rate damping when available; otherwise projected drag remains a drag-only fallback.",
         ]
       : []),
     "When one separation event releases multiple physical copies, the equal-and-opposite impulse uses their combined detached mass and assigns one shared detached velocity increment to each copy; individual separation-mechanism impulses are not modeled.",

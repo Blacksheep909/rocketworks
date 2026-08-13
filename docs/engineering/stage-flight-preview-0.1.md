@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.32.0`.
+`kestrel-stage-flight-preview-0.33.0`.
 
 Relation-based aerodynamics retain both the selected normal-force trend and
 the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions
@@ -279,6 +279,15 @@ declared design point for this independent branch; it is not coupled to the
 discarded body's changing Mach or Reynolds state. If either basis is missing,
 the branch stays gravity-only and labels that fallback in its telemetry.
 
+When the projected-area released-body option is selected and the active stage
+geometry also yields a positive static basis, the branch carries that basis
+through `detached-body-aerodynamics.ts`. It adds a bounded low-speed
+normal-force relation, an induced-drag term when configured, the CP-to-CG
+`r × F` static moment, and caller-supplied rate damping. The trace preserves
+angle of attack, sideslip, dynamic pressure, normal-force application, and
+static/damping moment diagnostics. A missing static basis does not disable
+projected drag; it explicitly falls back to drag-only behavior.
+
 When the event carries a retained-body delta-v, including one derived from a
 measured retained-body impulse, the adapter derives the
 detached-body delta-v from equal-and-opposite linear momentum using the
@@ -291,9 +300,11 @@ spring or joint dynamics, or angular impulse. When no event delta-v is
 supplied, the detached branch explicitly reports that the impulse is not
 modeled.
 
-This remains an intentionally bounded ballistic-capable component check. It does not
-invent lift, attitude-dependent aerodynamic torque, plume interaction,
-stage-to-stage aerodynamic interference, or contact logic for detached bodies.
+This remains an intentionally bounded ballistic-capable component check. The
+optional normal-force and CP-moment relation is not a calibrated lift or
+aerodynamic database, and the branch still does not infer direct tables,
+unsteady flow, plume interaction, stage-to-stage aerodynamic interference, or
+contact logic for detached bodies.
 When supplied component geometry is available, a separate fixed spherical
 envelope screen subtracts conservative bounds from the COM paths; that screen
 is still only a potential-overlap diagnostic. Retained-vehicle and explicitly

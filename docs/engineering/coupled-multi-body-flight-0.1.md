@@ -1,4 +1,4 @@
-# Shared-grid coupled multi-body flight 0.4
+# Shared-grid coupled multi-body flight 0.5
 
 Status: implemented analytical component check; mathematical regression tests
 only. This model is not flight-safety, range-safety, contact, or collision
@@ -52,8 +52,30 @@ F_drag = -0.5 * rho * |v - w|² * Cd * A * (v - w)/|v - w|
 a_drag = F_drag / m
 ```
 
-When `attitudeDependentDrag` is supplied with a rigid-body state, the point
-drag basis is replaced by a bounded projected-area blend. Let `c = |u . a|`
+When `aerodynamicBasis` is supplied with a rigid-body state, the body receives
+the clean-room detached-body load path in
+`lib/physics/detached-body-aerodynamics.ts`. The basis retains the supplied
+reference area and drag coefficient, and can optionally add a small-angle
+normal-force relation, a CP-to-CG moment arm, an induced-drag polar, and
+caller-supplied rate damping. Normal force is applied only for forward flow,
+positive airspeed, and the declared angle/compressibility envelope:
+
+```text
+q = 1/2 rho V^2
+C_N = C_N,alpha * f(M) * clamp(alpha, alpha_max)
+N = q A C_N
+M_static = r_CP-CG x F_normal
+M_damping = q A / (2 V) * C_mq * omega * l_ref^2
+```
+
+The normal force opposes the transverse environment-relative flow in body
+coordinates. Its trace records angle of attack, sideslip, dynamic pressure,
+normal-force magnitude/application, static moment, damping moment, and the
+versioned basis. This is a bounded relation, not a direct coefficient-table
+interpolator or a full lifting-body model.
+
+When `attitudeDependentDrag` is supplied inside that basis, the axial and
+broadside CdA pairs are additionally blended by orientation. Let `c = |u . a|`
 be the absolute alignment between the environment-relative flow unit vector
 `u` and the body +X axis `a`:
 
@@ -66,12 +88,14 @@ A_eff = w_axial A_axial + w_cross A_cross
 D = q (Cd A)_eff
 ```
 
-The resulting force is `-D u`. The trace retains incidence angle, dynamic
+The resulting drag force is `-D u`; relation normal force and its moments are
+then superposed when configured. The trace retains incidence angle, dynamic
 pressure, effective reference area, effective Cd, and drag magnitude. This is
 an explicit smooth interpolation between caller-supplied axial and broadside
-coefficient/area pairs; it is not a lift or moment model. Bodies without this
-option keep the constant isotropic point-drag path. A body cannot use this
-option without a rigid-body attitude state.
+coefficient/area pairs; it is not a calibrated lift or moment database. Bodies
+without either opt-in basis keep the constant isotropic point-drag path. A
+body cannot use an attitude-dependent basis without a rigid-body attitude
+state.
 
 The base `D = q Cd A` relationship and the dependence of drag on inclination
 and reference-area convention follow NASA Glenn's public drag-equation
@@ -118,23 +142,25 @@ minimum-step failure is reported rather than silently relaxing the tolerance.
 
 This is a simultaneous shared-environment and relative-motion track. The
 default and mutual-gravity branches remain point-mass translation; the opt-in
-rigid-body branch adds attitude and angular-rate propagation, and the
-projected-area option adds only the bounded translational drag blend described
-above. It is not a full contact or structural multi-body solver. It does not
-infer lift, aerodynamic torque, body-to-body contact forces, collision
-response, joint or spring compliance, plume interaction, wake/interference,
-structural flexibility, separation mechanism dynamics, or range-safety
-margins. Pairwise COM distance is a diagnostic, not clearance approval. Fixed
-spherical envelopes remain a separate geometry screen.
+rigid-body branch adds attitude and angular-rate propagation. Detached static
+aerodynamic loads add only the bounded relation equations above, while the
+projected-area option adds the supplied CdA blend. It is not a full contact or
+structural multi-body solver. It does not infer direct coefficient tables, fin
+interference, unsteady flow, body-to-body contact forces, collision response,
+joint or spring compliance, plume interaction, wake/interference, structural
+flexibility, separation mechanism dynamics, or range-safety margins. Pairwise
+COM distance is a diagnostic, not clearance approval. Fixed spherical
+envelopes remain a separate geometry screen.
 
 The stage-flight adapter applies a solved minimum-norm release correction only
 when the event-level separation allocator reports a balanced result. The
 existing detached 6DOF branches remain unchanged, so the shared-grid track is
 an explicit comparison/audit path rather than a silent state reset. The browser
-exposes the mutual-gravity choice as an advanced released-body force model. The
-stage-flight adapter forwards each detached stage's release attitude, angular
-rate, and center-of-mass inertia into the shared audit track; it intentionally
-does not duplicate the detached recovery/aerodynamic-moment loads there.
+exposes the mutual-gravity choice as an advanced released-body force model and
+the projected-area selection as the opt-in detached aerodynamic-load basis.
+The stage-flight adapter forwards each detached stage's release attitude,
+angular rate, center-of-mass inertia, and (when geometry supports it) static
+aerodynamic basis into the shared audit track.
 
 Adaptive step diagnostics describe numerical truncation only. They do not
 validate the environment, supplied loads, geometry, separation mechanism, or

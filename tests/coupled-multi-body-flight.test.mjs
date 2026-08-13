@@ -243,6 +243,47 @@ test("opt-in released rigid bodies propagate attitude and body-frame torque", ()
   assert.ok(result.assumptions.some((assumption) => assumption.includes("Euler angular momentum")));
 });
 
+test("detached-body aerodynamic basis adds normal force, CP moment, and trace diagnostics", () => {
+  const result = simulateCoupledMultiBodyFlight({
+    bodies: [body({
+      id: "aero-body",
+      releaseTimeS: 0,
+      releasePositionWorldM: { x: 0, y: 0, z: 120 },
+      releaseVelocityWorldMps: { x: -40, y: 4, z: 0 },
+      aerodynamicBasis: {
+        referenceAreaM2: 0.01,
+        dragCoefficient: 0.5,
+        normalForceSlopePerRad: 4,
+        centerOfPressureMinusCenterOfMassM: 0.3,
+      },
+      rigidBody: {
+        orientationBodyToWorld: { w: 1, x: 0, y: 0, z: 0 },
+        angularVelocityBodyRadS: { x: 0, y: 0, z: 0 },
+        inertiaBodyKgM2: [
+          [1, 0, 0],
+          [0, 1, 0],
+          [0, 0, 1],
+        ],
+      },
+    })],
+    durationS: 0.4,
+    timeStepS: 0.05,
+  });
+
+  assert.equal(result.aerodynamicBodyCount, 1);
+  assert.equal(result.trajectories[0].aerodynamicBasis.normalForceSlopePerRad, 4);
+  const initial = result.trajectories[0].trace[0];
+  const final = result.trajectories[0].trace.at(-1);
+  assert.equal(initial.aerodynamicModelVersion, "rocketworks-detached-body-aerodynamics-0.1.0");
+  assert.ok(initial.aerodynamicAngleOfAttackRad > 0);
+  assert.ok(initial.aerodynamicNormalForceN > 0);
+  assert.equal(initial.aerodynamicNormalForceApplied, true);
+  assert.ok(initial.aerodynamicStaticMomentBodyNm.z < 0);
+  assert.ok(final.angularVelocityBodyRadS.z < 0);
+  assert.ok(result.warnings.some((warning) => warning.includes("static aerodynamic load basis")));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("CP-to-CG lever arm")));
+});
+
 test("rigid-body released-body inputs reject invalid inertia and non-finite loads", () => {
   assert.throws(
     () => simulateCoupledMultiBodyFlight({
@@ -280,6 +321,22 @@ test("rigid-body released-body inputs reject invalid inertia and non-finite load
       timeStepS: 0.1,
     }),
     /body moment must contain finite coordinates/,
+  );
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({
+      bodies: [body({
+        releaseTimeS: 0,
+        aerodynamicBasis: {
+          referenceAreaM2: 0.01,
+          dragCoefficient: 0.5,
+          normalForceSlopePerRad: 3,
+          centerOfPressureMinusCenterOfMassM: 0.2,
+        },
+      })],
+      durationS: 1,
+      timeStepS: 0.1,
+    }),
+    /aerodynamic basis requires a rigid-body state/,
   );
 });
 

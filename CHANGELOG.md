@@ -6,6 +6,13 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extend the opt-in released-body aerodynamic basis beyond projected drag.
+  Detached rigid bodies can now carry a bounded low-speed normal-force relation,
+  induced-drag polar, CP-to-CG static moment, and optional supplied rate
+  damping through both shared-grid and independent separated-body tracks.
+  Trace/report/UI diagnostics expose the applied domain and model version; the
+  path remains an analytical component check and does not infer fin
+  interference, unsteady flow, direct coefficient tables, or flight safety.
 - Add an opt-in projected-area attitude-drag branch to the shared released-body
   track. Detached rigid bodies can now blend supplied axial and broadside CdA
   pairs from their body-axis incidence, retain effective-area/Cd/dynamic-

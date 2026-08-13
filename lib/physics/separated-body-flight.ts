@@ -34,9 +34,15 @@ import {
   analyzeSeparationClearance,
   type SeparationClearanceResult,
 } from "./separation-clearance.ts";
+import {
+  evaluateDetachedBodyAerodynamics,
+  validateDetachedBodyAerodynamicBasis,
+  type DetachedBodyAerodynamicBasis,
+  type DetachedBodyAerodynamicResult,
+} from "./detached-body-aerodynamics.ts";
 
 export const SEPARATED_BODY_FLIGHT_MODEL_VERSION =
-  "kestrel-separated-body-flight-0.6.0";
+  "kestrel-separated-body-flight-0.7.0";
 export const SEPARATED_BODY_FLIGHT_STATUS =
   "analytical-component-checks-only" as const;
 
@@ -52,6 +58,14 @@ export type SeparatedBodyTracePoint = Readonly<{
   velocityWorldMps: Vector3;
   recoveryDragN: number;
   recoveryEffectiveAreaM2: number;
+  aerodynamicDragN?: number;
+  aerodynamicNormalForceN?: number;
+  aerodynamicAngleOfAttackRad?: number;
+  aerodynamicSideslipRad?: number;
+  aerodynamicDynamicPressurePa?: number;
+  aerodynamicStaticMomentBodyNm?: Vector3;
+  aerodynamicDampingMomentBodyNm?: Vector3;
+  aerodynamicModelVersion?: string;
 }>;
 
 export type SeparatedBodyTrajectory = Readonly<{
@@ -84,6 +98,8 @@ export type SeparatedBodyTrajectory = Readonly<{
   /** Constant isotropic drag basis when a bounded detached-stage aero basis is available. */
   referenceAreaM2?: number;
   dragCoefficient?: number;
+  /** Optional static/projected aerodynamic basis for the detached rigid body. */
+  aerodynamicBasis?: DetachedBodyAerodynamicBasis;
   /** Optional fixed conservative spherical envelope radius for clearance screening. */
   envelopeRadiusM?: number;
   clearance?: SeparationClearanceResult;
@@ -111,6 +127,8 @@ export type SeparatedBodyFlightInput = Readonly<{
   referenceAreaM2?: number;
   /** Detached-stage constant drag coefficient for the bounded isotropic drag branch. */
   dragCoefficient?: number;
+  /** Optional static/projected aerodynamic basis for the detached rigid body. */
+  aerodynamicBasis?: DetachedBodyAerodynamicBasis;
   /** Optional fixed conservative spherical envelope radius for clearance screening. */
   envelopeRadiusM?: number;
   /** Optional retained-body path used for center-of-mass separation diagnostics. */
@@ -241,6 +259,7 @@ export function simulateSeparatedBodyFlight(
   ) {
     throw new Error("separated-body drag coefficient must be positive and finite");
   }
+  if (input.aerodynamicBasis) validateDetachedBodyAerodynamicBasis(input.aerodynamicBasis);
   if (
     input.envelopeRadiusM !== undefined &&
     (!Number.isFinite(input.envelopeRadiusM) || input.envelopeRadiusM < 0)
@@ -324,6 +343,27 @@ export function simulateSeparatedBodyFlight(
     massKg: input.stageMassProperties.massKg,
     inertiaBodyKgM2: input.stageMassProperties.inertiaAtCenterKgM2,
   } as const;
+  const aerodynamicAt = (
+    state: RigidBodyState,
+    environment: ReturnType<NonNullable<SeparatedBodyFlightInput["environmentAt"]>> | undefined,
+  ): DetachedBodyAerodynamicResult | null => {
+    if (!input.aerodynamicBasis) return null;
+    const altitudeAslM =
+      environment?.altitudeAslM ??
+      (input.launchAltitudeM ?? 0) + state.positionWorldM.z;
+    const atmosphere = environment?.atmosphere ?? standardAtmosphere(altitudeAslM);
+    return evaluateDetachedBodyAerodynamics({
+      basis: input.aerodynamicBasis,
+      densityKgM3: atmosphere.densityKgM3,
+      speedOfSoundMps: atmosphere.speedOfSoundMps,
+      relativeAirVelocityWorldMps: subtractVectors(
+        state.velocityWorldMps,
+        environment?.windWorldMps ?? ZERO_VECTOR,
+      ),
+      orientationBodyToWorld: state.orientationBodyToWorld,
+      angularVelocityBodyRadS: state.angularVelocityBodyRadS,
+    });
+  };
   const simulation = simulateRigidBody6D({
     body,
     initialState,
@@ -352,7 +392,13 @@ export function simulateSeparatedBodyFlight(
         input.stageMassProperties.massKg,
       );
       let dragForceWorldN = ZERO_VECTOR;
-      if (hasReferenceArea && hasDragCoefficient) {
+      let aerodynamicForceWorldN = ZERO_VECTOR;
+      let aerodynamicMomentBodyNm = ZERO_VECTOR;
+      const aerodynamic = aerodynamicAt(state, environment);
+      if (aerodynamic) {
+        aerodynamicForceWorldN = aerodynamic.aerodynamicForceWorldN;
+        aerodynamicMomentBodyNm = aerodynamic.aerodynamicMomentBodyNm;
+      } else if (hasReferenceArea && hasDragCoefficient) {
         const atmosphere = environment?.atmosphere ?? standardAtmosphere(altitudeAslM);
         const relativeAirVelocityMps = subtractVectors(
           state.velocityWorldMps,
@@ -375,10 +421,20 @@ export function simulateSeparatedBodyFlight(
       const recoveryLoads = recovery?.loads(state);
       return {
         forceWorldN: addVectors(
-          addVectors(gravityForceWorldN, dragForceWorldN),
+          addVectors(
+            addVectors(gravityForceWorldN, dragForceWorldN),
+            aerodynamicForceWorldN,
+          ),
           recoveryLoads?.forceWorldN ?? ZERO_VECTOR,
         ),
-        ...(recoveryLoads?.momentBodyNm ? { momentBodyNm: recoveryLoads.momentBodyNm } : {}),
+        ...(recoveryLoads?.momentBodyNm || aerodynamic
+          ? {
+              momentBodyNm: addVectors(
+                aerodynamicMomentBodyNm,
+                recoveryLoads?.momentBodyNm ?? ZERO_VECTOR,
+              ),
+            }
+          : {}),
       };
     },
     stateEvents: [
@@ -395,6 +451,12 @@ export function simulateSeparatedBodyFlight(
   });
   const trace = simulation.trace.map((state): SeparatedBodyTracePoint => {
     const recoveryEvaluation = recovery?.evaluate(state);
+    const environment = input.environmentAt?.({
+      timeS: state.timeS,
+      positionWorldM: state.positionWorldM,
+      velocityWorldMps: state.velocityWorldMps,
+    });
+    const aerodynamic = aerodynamicAt(state, environment);
     return {
       timeS: state.timeS,
       altitudeAglM: state.positionWorldM.z,
@@ -403,6 +465,18 @@ export function simulateSeparatedBodyFlight(
       velocityWorldMps: state.velocityWorldMps,
       recoveryDragN: recoveryEvaluation?.devices.reduce((sum, device) => sum + device.dragN, 0) ?? 0,
       recoveryEffectiveAreaM2: recoveryEvaluation?.devices.reduce((sum, device) => sum + device.effectiveAreaM2, 0) ?? 0,
+      ...(aerodynamic
+        ? {
+            aerodynamicDragN: aerodynamic.dragN,
+            aerodynamicNormalForceN: aerodynamic.normalForceN,
+            aerodynamicAngleOfAttackRad: aerodynamic.angleOfAttackRad,
+            aerodynamicSideslipRad: aerodynamic.sideslipRad,
+            aerodynamicDynamicPressurePa: aerodynamic.dynamicPressurePa,
+            aerodynamicStaticMomentBodyNm: aerodynamic.aerodynamicStaticMomentBodyNm,
+            aerodynamicDampingMomentBodyNm: aerodynamic.aerodynamicDampingMomentBodyNm,
+            aerodynamicModelVersion: aerodynamic.modelVersion,
+          }
+        : {}),
     };
   });
   const maxAltitudeAglM = Math.max(...trace.map((point) => point.altitudeAglM));
@@ -448,12 +522,19 @@ export function simulateSeparatedBodyFlight(
           dragCoefficient: input.dragCoefficient,
         }
       : {}),
+    ...(input.aerodynamicBasis
+      ? { aerodynamicBasis: input.aerodynamicBasis }
+      : {}),
     ...(input.envelopeRadiusM !== undefined
       ? { envelopeRadiusM: input.envelopeRadiusM }
       : {}),
     ...(clearance ? { clearance } : {}),
     warnings: [
-      hasReferenceArea && hasDragCoefficient
+      input.aerodynamicBasis
+        ? recovery
+          ? "This separated-body branch is a ballistic rigid-body propagation with altitude-dependent gravity, the supplied detached-body aerodynamic load basis, and the configured detached recovery devices; aerodynamic interference, plume interaction, and collision are not modeled."
+          : "This separated-body branch is a ballistic rigid-body propagation with altitude-dependent gravity and the supplied detached-body aerodynamic load basis; aerodynamic interference, plume interaction, recovery, and collision are not modeled."
+        : hasReferenceArea && hasDragCoefficient
         ? recovery
           ? "This separated-body branch is a ballistic rigid-body propagation with altitude-dependent gravity, isotropic point drag, and the configured detached recovery devices; attitude-dependent aerodynamics, plume interaction, aerodynamic interference, and collision are not modeled."
           : "This separated-body branch is a ballistic rigid-body propagation with altitude-dependent gravity and isotropic point drag from the supplied constant coefficient and reference area; attitude-dependent aerodynamics, plume interaction, aerodynamic interference, recovery, and collision are not modeled."
@@ -488,7 +569,9 @@ export function simulateSeparatedBodyFlight(
         ? "The detached-body delta-v is supplied by the stage adapter after applying equal-and-opposite linear momentum using the retained and detached mass at the event; external impulse, spring, joint, plume, and angular-momentum details remain outside the model."
         : "The retained-body separation delta-v is reported from event metadata for traceability; this detached branch starts from the pre-event release state because no detached-body impulse was supplied.",
       "Gravity uses the supplied launch-environment altitude when available, otherwise launch altitude plus local AGL position.",
-      hasReferenceArea && hasDragCoefficient
+      input.aerodynamicBasis
+        ? "When present, the supplied detached-body basis computes environment-relative projected/constant drag, bounded static normal force, CP-to-CG moment, and optional rotational damping; it remains an analytical component check."
+        : hasReferenceArea && hasDragCoefficient
         ? "When present, drag uses the supplied reference area and constant coefficient against environment-relative velocity; it is an isotropic point-drag approximation with no aerodynamic torque."
         : "A terminal ground-impact crossing is root-found only for the discarded body's ballistic path.",
       ...(recovery

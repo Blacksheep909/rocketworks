@@ -7467,9 +7467,9 @@ export default function Home() {
                       onChange={(event) => setReleasedBodyDragModel(event.target.value as ReleasedBodyDragModel)}
                     >
                       <option value="isotropic-point">Isotropic point drag (baseline)</option>
-                      <option value="attitude-projected-area">Projected-area attitude drag (preview)</option>
+                      <option value="attitude-projected-area">Projected-area + static aero loads (preview)</option>
                     </select>
-                    <small>Uses detached-stage geometry when available; lift and aerodynamic moments remain outside scope.</small>
+                    <small>Uses detached-stage geometry when available for projected drag, bounded normal force, CP moment, and supplied damping; direct aero tables remain outside scope.</small>
                   </div>
                   {coupledMutualGravityEnabled && (
                     <NumberField
@@ -7929,8 +7929,13 @@ export default function Home() {
                             </div>
                             <div className="stage-coupled-multi-body-flight-drag-summary">
                               <span>Attitude-dependent drag</span>
-                              <strong>{stageFlightResult.coupledMultiBodyFlight.trajectories.filter((trajectory) => trajectory.attitudeDependentDrag).length} bodies</strong>
-                              <small>{stageFlightResult.coupledMultiBodyFlight.trajectories.some((trajectory) => trajectory.attitudeDependentDrag) ? "Incidence-aware CdA diagnostics are retained on the shared trace." : "Isotropic point-drag baseline is active."}</small>
+                              <strong>{stageFlightResult.coupledMultiBodyFlight.trajectories.filter((trajectory) => trajectory.attitudeDependentDrag && trajectory.aerodynamicBasis === undefined).length} bodies</strong>
+                              <small>{stageFlightResult.coupledMultiBodyFlight.trajectories.some((trajectory) => trajectory.attitudeDependentDrag && trajectory.aerodynamicBasis === undefined) ? "Incidence-aware CdA diagnostics are retained on the shared trace." : "Isotropic point-drag baseline is active unless a static aero basis is supplied."}</small>
+                            </div>
+                            <div className="stage-coupled-multi-body-flight-aero-summary">
+                              <span>Static aerodynamic loads</span>
+                              <strong>{stageFlightResult.coupledMultiBodyFlight.aerodynamicBodyCount} bodies</strong>
+                              <small>{stageFlightResult.coupledMultiBodyFlight.trajectories.reduce((total, trajectory) => total + trajectory.trace.filter((point) => point.aerodynamicNormalForceN !== undefined).length, 0)} normal-force samples · bounded CP moments and supplied rate damping remain analytical checks.</small>
                             </div>
                             <div className="stage-coupled-multi-body-flight-list">
                               {stageFlightResult.coupledMultiBodyFlight.trajectories.map((trajectory) => (
@@ -8134,7 +8139,7 @@ export default function Home() {
                                 <div><span>Detached dV</span><strong>{body.detachedBodyDeltaVBodyMps.x.toFixed(2)} m/s</strong><small>{body.separationImpulseModel === "mass-ratio-linear-momentum" ? "mass-ratio impulse · body +X" : "not supplied"}</small></div>
                                 <div><span>Peak altitude</span><strong>{body.maxAltitudeAglM.toFixed(1)} m</strong></div>
                                 <div><span>Peak speed</span><strong>{body.maxSpeedMps.toFixed(1)} m/s</strong></div>
-                                <div><span>Drag basis</span><strong>{body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? `Cd ${body.dragCoefficient.toFixed(3)} · ${body.referenceAreaM2.toFixed(4)} m²` : "Gravity only"}</strong><small>{body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? "isotropic point drag" : "no detached-stage aero basis"}</small></div>
+                                <div><span>Drag basis</span><strong>{body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? `Cd ${body.dragCoefficient.toFixed(3)} · ${body.referenceAreaM2.toFixed(4)} m²${body.aerodynamicBasis ? " · static aero" : ""}` : "Gravity only"}</strong><small>{body.aerodynamicBasis ? "projected drag + static normal force / CP moment" : body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? "isotropic point drag" : "no detached-stage aero basis"}</small></div>
                                 {body.recoveryModelVersion && <div><span>Recovery command</span><strong>{body.recoveryDeploymentTrigger === "altitude" ? `Descent ${body.recoveryDeploymentAltitudeAglM ?? 150} m AGL` : body.recoveryDeploymentTrigger === "time" ? `Mission ${body.recoveryDeploymentTimeS ?? 8} s` : "Branch apogee"}</strong><small>{body.recoveryModelVersion}</small></div>}
                                 {body.clearance && (
                                   <div><span>Min COM separation</span><strong>{body.clearance.minimumDistanceM === null ? "Not assessed" : `${body.clearance.minimumDistanceM.toFixed(2)} m`}</strong><small>{body.clearance.minimumDistanceTimeS === null ? body.clearance.status : `closest at ${body.clearance.minimumDistanceTimeS.toFixed(2)} s · ${body.clearance.status}`}</small></div>
@@ -8142,7 +8147,7 @@ export default function Home() {
                                 <div><span>Spherical envelope</span><strong>{body.envelopeRadiusM === undefined ? "Not assessed" : `${body.envelopeRadiusM.toFixed(2)} m`}</strong><small>fixed conservative radius</small></div>
                                 <div><span>Model</span><strong>{body.validationStatus}</strong></div>
                               </div>
-                              <p className="stage-separated-body-note">{body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? "Isotropic point-drag path." : "Gravity-only path."} {body.separationImpulseModel === "mass-ratio-linear-momentum" ? "The detached dV uses an instantaneous equal-and-opposite linear-momentum impulse based on the event delta-v and mass ratio." : "No detached-body impulse was supplied, so the branch starts from the pre-event release velocity."} Lift, attitude-dependent aero torque, separation mechanism dynamics, plume interaction, collision, and clearance remain outside this preview. {body.recoveryModelVersion ? "The selected recovery trigger and effective-area loads are included; canopy-line and opening-shock dynamics remain outside the model." : "No detached recovery device is configured."}</p>
+                              <p className="stage-separated-body-note">{body.aerodynamicBasis ? "Projected drag plus bounded static normal-force / CP-moment path." : body.referenceAreaM2 !== undefined && body.dragCoefficient !== undefined ? "Isotropic point-drag path." : "Gravity-only path."} {body.separationImpulseModel === "mass-ratio-linear-momentum" ? "The detached dV uses an instantaneous equal-and-opposite linear-momentum impulse based on the event delta-v and mass ratio." : "No detached-body impulse was supplied, so the branch starts from the pre-event release velocity."} Direct aerodynamic tables, fin interference, unsteady flow, separation mechanism dynamics, plume interaction, collision, and clearance remain outside this preview. {body.recoveryModelVersion ? "The selected recovery trigger and effective-area loads are included; canopy-line and opening-shock dynamics remain outside the model." : "No detached recovery device is configured."}</p>
                             </article>
                           ))}
                         </div>

@@ -1559,6 +1559,16 @@ export function createEngineeringReportMarkdown(
   const stageAngularRateValues = stageStabilityTrace
     .map((point) => point.angularRateRadS === undefined ? undefined : (point.angularRateRadS * 180) / Math.PI)
     .filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value));
+  const coupledFlight = input.stageFlight?.coupledMultiBodyFlight;
+  const coupledAerodynamicBodyCount = coupledFlight
+    ? (coupledFlight.aerodynamicBodyCount ?? coupledFlight.trajectories.filter((trajectory) => trajectory.aerodynamicBasis !== undefined).length)
+    : 0;
+  const coupledNormalForceSampleCount = coupledFlight
+    ? coupledFlight.trajectories.reduce(
+        (total, trajectory) => total + trajectory.trace.filter((point) => point.aerodynamicNormalForceN !== undefined).length,
+        0,
+      )
+    : 0;
   for (const [label, value] of [
     ["selected motor source ID", input.selectedMotorId],
     ["selected aerodynamic source ID", input.selectedAerodynamicTableId],
@@ -2062,11 +2072,11 @@ export function createEngineeringReportMarkdown(
                         : body.recoveryDeploymentTrigger === "apogee"
                           ? "branch apogee"
                           : "not configured";
-                    return `| ${markdownText(body.stageName)} | ${formatNumber(body.releaseTimeS, 2)} s | ${recoveryCommand} | ${body.retainedBodyDeltaVBodyMps ? `${formatNumber(body.retainedBodyDeltaVBodyMps.x, 3)} m/s` : "not recorded"} | ${body.detachedBodyDeltaVBodyMps ? `${formatNumber(body.detachedBodyDeltaVBodyMps.x, 3)} m/s` : "not recorded"} | ${markdownText(impulseModel)} | ${dragBasis} | ${body.impactTimeS === null ? "Not reached" : `${formatNumber(body.impactTimeS, 2)} s`} | ${formatNumber(body.maxAltitudeAglM, 1)} m | ${formatNumber(body.maxSpeedMps, 2)} m/s |`;
+                    return `| ${markdownText(body.stageName)} | ${formatNumber(body.releaseTimeS, 2)} s | ${recoveryCommand} | ${body.retainedBodyDeltaVBodyMps ? `${formatNumber(body.retainedBodyDeltaVBodyMps.x, 3)} m/s` : "not recorded"} | ${body.detachedBodyDeltaVBodyMps ? `${formatNumber(body.detachedBodyDeltaVBodyMps.x, 3)} m/s` : "not recorded"} | ${markdownText(impulseModel)} | ${dragBasis}${body.aerodynamicBasis ? " · static aero" : ""} | ${body.impactTimeS === null ? "Not reached" : `${formatNumber(body.impactTimeS, 2)} s`} | ${formatNumber(body.maxAltitudeAglM, 1)} m | ${formatNumber(body.maxSpeedMps, 2)} m/s |`;
                   },
                 ),
                 "",
-                "> Separated-body paths are bounded analytical component checks. Where a stage-specific reference area and constant coefficient are available, isotropic point drag is applied; otherwise the branch remains gravity-only. When the event carries a retained-body delta-v, the detached branch uses the mass-ratio equal-and-opposite linear-momentum impulse; otherwise it starts from the pre-event release velocity. Separation mechanism, lift, attitude-dependent aerodynamics, plume interaction, aerodynamic clearance, collision, and detached-body recovery are not modeled; retained-vehicle recovery is reported in the coupled trace when configured.",
+                "> Separated-body paths are bounded analytical component checks. Where a stage-specific reference area and constant coefficient are available, isotropic point drag is applied; the projected-area selection can additionally carry a supplied static normal-force/CP-moment basis and optional damping, otherwise the branch remains gravity-only. When the event carries a retained-body delta-v, the detached branch uses the mass-ratio equal-and-opposite linear-momentum impulse; otherwise it starts from the pre-event release velocity. Separation mechanism, direct coefficient-table interpolation, fin interference, plume interaction, aerodynamic clearance, collision, and flight safety remain outside this preview.",
               ]
             : []),
           ...(input.stageFlight.multiBodySeparation
@@ -2211,8 +2221,10 @@ export function createEngineeringReportMarkdown(
                 `| Shared-grid steps | ${input.stageFlight.coupledMultiBodyFlight.stepCount} |`,
                 `| Effective time step | ${formatNumber(input.stageFlight.coupledMultiBodyFlight.timeStepS, 4)} s |`,
                 `| Released-body force model | ${input.stageFlight.coupledMultiBodyFlight.mutualGravity?.enabled ? `mutual point-mass gravity (softening ${formatNumber(input.stageFlight.coupledMultiBodyFlight.mutualGravity.softeningRadiusM, 6)} m)` : "shared environment only"} |`,
-                `| Attitude-dependent drag bodies | ${input.stageFlight.coupledMultiBodyFlight.trajectories.filter((trajectory) => trajectory.attitudeDependentDrag).length} / ${input.stageFlight.coupledMultiBodyFlight.trajectories.length} |`,
+                `| Attitude-dependent drag bodies | ${input.stageFlight.coupledMultiBodyFlight.trajectories.filter((trajectory) => trajectory.attitudeDependentDrag && trajectory.aerodynamicBasis === undefined).length} / ${input.stageFlight.coupledMultiBodyFlight.trajectories.length} |`,
+                `| Static aerodynamic-load bodies | ${coupledAerodynamicBodyCount} / ${input.stageFlight.coupledMultiBodyFlight.trajectories.length} |`,
                 `| Incidence diagnostic samples | ${input.stageFlight.coupledMultiBodyFlight.trajectories.reduce((total, trajectory) => total + trajectory.trace.filter((point) => point.attitudeIncidenceRad !== undefined).length, 0)} |`,
+                `| Normal-force diagnostic samples | ${coupledNormalForceSampleCount} |`,
                 `| Minimum COM separation | ${input.stageFlight.coupledMultiBodyFlight.minimumDistanceM === null ? "not assessed" : `${formatNumber(input.stageFlight.coupledMultiBodyFlight.minimumDistanceM, 3)} m`} |`,
                 `| Closest pair | ${input.stageFlight.coupledMultiBodyFlight.closestPair ? `${markdownText(input.stageFlight.coupledMultiBodyFlight.closestPair.firstBodyId)} / ${markdownText(input.stageFlight.coupledMultiBodyFlight.closestPair.secondBodyId)} at ${formatNumber(input.stageFlight.coupledMultiBodyFlight.closestPair.timeS, 2)} s` : "not assessed"} |`,
                 `| Model | \`${markdownText(input.stageFlight.coupledMultiBodyFlight.modelVersion)}\` |`,
@@ -2220,7 +2232,7 @@ export function createEngineeringReportMarkdown(
                 ...input.stageFlight.coupledMultiBodyFlight.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
                 ...input.stageFlight.coupledMultiBodyFlight.warnings.map((warning) => `- **Shared-grid warning:** ${markdownText(warning)}`),
                 "",
-                "> This shared-grid track propagates released bodies together against common environment queries. Rigid-body states add quaternion attitude and Euler angular momentum from supplied inertia/loads; projected-area CdA remains an uncalibrated analytical preview; mutual gravity remains a point-mass approximation, and neither path models contact forces, collision response, plume interaction, aerodynamic interference, or flight safety.",
+                "> This shared-grid track propagates released bodies together against common environment queries. Rigid-body states add quaternion attitude and Euler angular momentum from supplied inertia/loads; static normal force, induced drag, CP moments, and projected-area CdA remain bounded analytical previews; mutual gravity remains a point-mass approximation, and neither path models direct aerodynamic tables, contact forces, collision response, plume interaction, aerodynamic interference, or flight safety.",
               ]
             : []),
           ...((input.stageFlight.separationDynamics ?? []).length > 0

@@ -788,11 +788,19 @@ test("engineering report leads with status and preserves calculations and limita
         {
           stageId: "booster",
           stageName: "Booster",
-          releaseTimeS: 4.2,
-          impactTimeS: 11.8,
-          maxAltitudeAglM: 182,
-          maxSpeedMps: 41.6,
-        },
+           releaseTimeS: 4.2,
+           impactTimeS: 11.8,
+           maxAltitudeAglM: 182,
+           maxSpeedMps: 41.6,
+           referenceAreaM2: 0.01,
+           dragCoefficient: 0.5,
+           aerodynamicBasis: {
+             referenceAreaM2: 0.01,
+             dragCoefficient: 0.5,
+             normalForceSlopePerRad: 2,
+             centerOfPressureMinusCenterOfMassM: 0.1,
+           },
+         },
       ],
       separationDynamics: [
         {
@@ -947,7 +955,7 @@ test("engineering report leads with status and preserves calculations and limita
         assumptions: ["Relative-flow fixture assumption."],
       },
       coupledMultiBodyFlight: {
-        modelVersion: "rocketworks-coupled-multi-body-flight-0.4.0",
+        modelVersion: "rocketworks-coupled-multi-body-flight-0.5.0",
         validationStatus: "analytical-component-checks-only",
         startTimeS: 4.2,
         endTimeS: 8,
@@ -959,6 +967,7 @@ test("engineering report leads with status and preserves calculations and limita
           gravitationalConstantM3KgS2: 6.67430e-11,
         },
         rigidBodyCount: 1,
+        aerodynamicBodyCount: 1,
         integration: {
           method: "fixed-rk4",
           acceptedStepCount: 190,
@@ -976,7 +985,15 @@ test("engineering report leads with status and preserves calculations and limita
           releaseVelocityWorldMps: { x: 1, y: 0, z: 10 },
           baselineReleaseVelocityWorldMps: { x: 1, y: 0, z: 10 },
           velocityAdjustmentWorldMps: { x: 0, y: 0, z: 0 },
-          trace: [{ timeS: 4.2, attitudeIncidenceRad: 0.4 }],
+          trace: [{
+            timeS: 4.2,
+            attitudeIncidenceRad: 0.4,
+            aerodynamicAngleOfAttackRad: 0.1,
+            aerodynamicNormalForceN: 0.8,
+            aerodynamicNormalForceApplied: true,
+            aerodynamicStaticMomentBodyNm: { x: 0, y: 0, z: -0.02 },
+            aerodynamicModelVersion: "rocketworks-detached-body-aerodynamics-0.1.0",
+          }],
           maxAltitudeAglM: 100,
           maxSpeedMps: 20,
           impactTimeS: null,
@@ -985,6 +1002,12 @@ test("engineering report leads with status and preserves calculations and limita
             crossflowReferenceAreaM2: 0.02,
             axialDragCoefficient: 0.5,
             crossflowDragCoefficient: 1,
+          },
+          aerodynamicBasis: {
+            referenceAreaM2: 0.01,
+            dragCoefficient: 0.5,
+            normalForceSlopePerRad: 2,
+            centerOfPressureMinusCenterOfMassM: 0.1,
           },
           rigidBody: {
             enabled: true,
@@ -1051,6 +1074,9 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Relative humidity observation: 60%/);
   assert.match(report, /Relation normal-force model: `low-speed`/);
   assert.match(report, /Relation induced-drag polar: `quadratic-normal-force` \(k = 0\.750\)/);
+  assert.match(report, /Static aerodynamic-load bodies \| 1 \/ 1/);
+  assert.match(report, /Normal-force diagnostic samples \| 1/);
+  assert.match(report, /static aero/);
   assert.match(report, /Static-margin samples \| 1 \/ 1/);
   assert.match(report, /Peak attitude tilt/);
   assert.match(report, /Peak angular rate/);
@@ -1078,8 +1104,10 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Booster pair/);
   assert.match(report, /Fixture geometry omitted/);
   assert.match(report, /### Shared-grid coupled detached-body flight/);
-  assert.match(report, /Attitude-dependent drag bodies \| 1 \/ 1/);
+  assert.match(report, /Attitude-dependent drag bodies \| 0 \/ 1/);
+  assert.match(report, /Static aerodynamic-load bodies \| 1 \/ 1/);
   assert.match(report, /Incidence diagnostic samples \| 1/);
+  assert.match(report, /Normal-force diagnostic samples \| 1/);
   assert.match(report, /Coupled fixture warning/);
   assert.match(report, /Euler column buckling/);
   assert.match(report, /Fin flutter margin/);
@@ -1109,7 +1137,7 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /### Motor-state diagnostics/);
   assert.match(report, /\| Booster \| 1 \/ 2 \| 1 \| 0\.200 kg \| watch \|/);
   assert.match(report, /### Separated-body trajectories/);
-  assert.match(report, /\| Booster \| 4\.20 s \| not configured \| not recorded \| not recorded \| not-modeled \| gravity only \| 11\.80 s \| 182\.0 m \| 41\.60 m\/s \|/);
+  assert.match(report, /\| Booster \| 4\.20 s \| not configured \| not recorded \| not recorded \| not-modeled \| Cd 0\.500 .* static aero \| 11\.80 s \| 182\.0 m \| 41\.60 m\/s \|/);
   assert.match(report, /### Multi-body center-of-mass separation/);
   assert.match(report, /\| Minimum COM separation \| 0\.400 m \|/);
   assert.match(report, /Closest pair \| retained-vehicle \/ booster\/logical-1 at 4\.20 s/);

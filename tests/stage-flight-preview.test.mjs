@@ -247,7 +247,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.32.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.33.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);
@@ -375,8 +375,11 @@ test("stage-flight adapter forwards projected-area drag to the detached shared t
   const detached = coupled.trajectories.find((trajectory) => trajectory.attitudeDependentDrag);
   assert.ok(detached);
   assert.ok(detached.attitudeDependentDrag);
+  assert.ok(detached.aerodynamicBasis);
   assert.ok(detached.trace.some((point) => point.attitudeIncidenceRad !== undefined));
+  assert.ok(detached.trace.some((point) => point.aerodynamicNormalForceN !== undefined));
   assert.ok(detached.trace.every((point) => Number.isFinite(point.effectiveReferenceAreaM2 ?? 0)));
+  assert.ok(result.separatedBodies[0].aerodynamicBasis);
   assert.ok(result.assumptions.some((assumption) => assumption.includes("reuses the selected detached stage Cd")));
 });
 
