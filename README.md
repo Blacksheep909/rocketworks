@@ -194,8 +194,9 @@ research, standards, and original code.
 - a bounded stage-interface axial load-path review that transfers downstream
   mass across serial topology edges, compares supplied parent/child section
   proxies, uses a current staged trace peak when available while retaining the
-  peak-thrust baseline, and keeps parallel/radial interfaces visibly
-  unavailable;
+  peak-thrust baseline, and adds an equal-share parallel/radial force-scale
+  audit for per-instance axial demand, canted-thrust radial force, eccentric
+  moment, and symmetric resultant without claiming joint capacity;
 - a trace-level force impulse budget that integrates recorded thrust,
   aerodynamic drag, recovery drag, and force/mass velocity-equivalent signals
   by stage without mislabeling scalar accounting as vector delta-v;

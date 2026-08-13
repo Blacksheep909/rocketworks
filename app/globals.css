@@ -2045,6 +2045,8 @@ kbd {
   .stage-interface-load-heading small { text-align: left; }
   .stage-interface-load-row { grid-template-columns: 17px minmax(0, 1fr); }
   .stage-interface-load-row em { grid-column: 2; justify-self: start; }
+  .stage-parallel-load-heading { flex-direction: column; }
+  .stage-parallel-load-heading small { text-align: left; }
   .stage-flight-rail { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .stage-flight-events > div, .stage-flight-events > button { grid-template-columns: 48px minmax(0,1fr); }
   .stage-flight-events small { grid-column: 2; text-align: left; }
@@ -2634,6 +2636,16 @@ body {
 .stage-interface-load-row-unavailable > span { background: rgba(198, 212, 221, .12); color: #a5b5bd; }
 .stage-interface-load-row-unavailable em { color: #a5b5bd; }
 .stage-interface-load-note { margin: 9px 1px 0; color: #8498a4; font: 7px/1.5 var(--font-geist-mono), monospace; }
+.stage-parallel-load-audit { margin-top: 13px; padding-top: 11px; border-top: 1px solid rgba(198, 212, 221, .13); }
+.stage-parallel-load-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.stage-parallel-load-heading span { display: block; color: #d1a6ff; font: 700 7px var(--font-geist-mono), monospace; letter-spacing: .1em; }
+.stage-parallel-load-heading strong { display: block; margin-top: 5px; color: #eadbff; font-size: 9px; }
+.stage-parallel-load-heading small { color: #9a86b5; font: 8px var(--font-geist-mono), monospace; text-align: right; }
+.stage-parallel-load-row-screened { border-left-color: rgba(209, 166, 255, .7); background: rgba(141, 76, 206, .08); }
+.stage-parallel-load-row-screened > span { background: rgba(141, 76, 206, .22); color: #e0c6ff; }
+.stage-parallel-load-row-screened em { color: #d9b8ff; }
+.stage-parallel-load-row-unavailable { border-left-color: rgba(198, 212, 221, .26); background: rgba(198, 212, 221, .04); }
+.stage-parallel-load-note { margin: 8px 1px 0; color: #9b8eaa; font: 7px/1.5 var(--font-geist-mono), monospace; }
 
 .engineering-review-card {
   margin-top: 17px;

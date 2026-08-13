@@ -4480,6 +4480,10 @@ export default function Home() {
           label: stage.name,
           parentStageId: stage.parentStageId ?? null,
           attachment: stage.attachment,
+          repeatCount: stage.repeatCount,
+          repeatRadiusM: stage.repeatRadiusM,
+          thrustCantAngleDeg: stage.thrustCantAngleDeg,
+          thrustCantAzimuthDeg: stage.thrustCantAzimuthDeg,
           stageMassKg,
           peakThrustN: stage.role === "payload"
             ? 0
@@ -8660,6 +8664,32 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
+                {stageInterfaceLoadReview.parallelAudits.length > 0 && (
+                  <div className="stage-parallel-load-audit">
+                    <div className="stage-parallel-load-heading">
+                      <div>
+                        <span>PARALLEL / RADIAL FORCE-SCALE AUDIT</span>
+                        <strong>{stageInterfaceLoadReview.parallelAudits.filter((audit) => audit.status === "screened").length}/{stageInterfaceLoadReview.parallelAudits.length} EQUAL-SHARE SCREENED</strong>
+                      </div>
+                      <small>Per-instance load scales</small>
+                    </div>
+                    <div className="stage-interface-load-list">
+                      {stageInterfaceLoadReview.parallelAudits.map((audit) => (
+                        <div className={`stage-interface-load-row stage-parallel-load-row-${audit.status}`} key={`parallel-${audit.id}`}>
+                          <span>{audit.status === "screened" ? "~" : "—"}</span>
+                          <div>
+                            <strong>{audit.parentLabel ?? "Missing parent"} → {audit.childLabel}</strong>
+                            <small>
+                              {audit.instanceCount} instance{audit.instanceCount === 1 ? "" : "s"} · share {audit.loadShareFraction === null ? "—" : `${(audit.loadShareFraction * 100).toFixed(1)}%`} · axial {audit.perInstanceAxialDemandN === null ? "—" : `${audit.perInstanceAxialDemandN.toFixed(1)} N / instance`} · radial thrust {audit.perInstanceRadialThrustN === null ? "—" : `${audit.perInstanceRadialThrustN.toFixed(1)} N`} · eccentric moment {audit.perInstanceEccentricMomentNm === null ? "—" : `${audit.perInstanceEccentricMomentNm.toFixed(2)} N·m`}
+                            </small>
+                          </div>
+                          <em>{audit.status === "screened" ? `Resultant ${audit.symmetricResultantRadialThrustN?.toFixed(2) ?? "—"} N` : "Unavailable"}</em>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="stage-parallel-load-note">Equal-share radial placement is a force-scale audit only. Symmetric resultant cancellation does not remove per-instance joint loads; radial capacity, bending, fasteners, local eccentricity, and transient response remain unmodeled.</p>
+                  </div>
+                )}
                 <p className="stage-interface-load-note">{stageInterfaceLoadReview.accelerationBasis === "trace-peak-with-baseline" ? "Current staged trace informs the axial acceleration envelope; the peak-thrust baseline is retained when larger. " : "Bounded common-acceleration screen only. "}Connector geometry, fasteners, bending, transient loads, radial joints, staging impulse, and local failure modes are not modeled.</p>
               </div>
             )}

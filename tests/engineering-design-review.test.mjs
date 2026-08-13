@@ -292,7 +292,7 @@ test("stage interface load review computes serial downstream demand and reserve"
     ],
   });
 
-  assert.equal(result.modelVersion, "rocketworks-stage-interface-loads-0.2.0");
+  assert.equal(result.modelVersion, "rocketworks-stage-interface-loads-0.3.0");
   assert.equal(result.validationStatus, "analytical-axial-load-path-proxy");
   assert.equal(result.overallStatus, "assessed");
   assert.deepEqual(result.counts, { pass: 1, review: 0, unavailable: 0 });
@@ -347,16 +347,36 @@ test("stage interface load review uses attached trace acceleration without under
   assert.ok(result.assumptions.some((assumption) => assumption.includes("filters the current stage-flight trace")));
 });
 
-test("stage interface load review keeps parallel and missing capacity evidence unavailable", () => {
+test("stage interface load review keeps serial capacity unavailable while auditing parallel force scales", () => {
   const parallel = createStageInterfaceLoadReview({
     stages: [
       { id: "core", label: "Core", attachment: "serial", stageMassKg: 1, peakThrustN: 20 },
-      { id: "booster", label: "Booster", parentStageId: "core", attachment: "parallel", stageMassKg: 0.5, peakThrustN: 10 },
+      {
+        id: "booster",
+        label: "Booster",
+        parentStageId: "core",
+        attachment: "parallel",
+        stageMassKg: 1,
+        peakThrustN: 20,
+        repeatCount: 2,
+        repeatRadiusM: 0.2,
+        thrustCantAngleDeg: 5,
+        thrustCantAzimuthDeg: 15,
+      },
     ],
   });
   assert.equal(parallel.overallStatus, "review");
   assert.equal(parallel.interfaces[0].status, "unavailable");
   assert.match(parallel.interfaces[0].reason ?? "", /radial/);
+  assert.equal(parallel.parallelAudits.length, 1);
+  assert.equal(parallel.parallelAudits[0].status, "screened");
+  assert.equal(parallel.parallelAudits[0].instanceCount, 2);
+  assert.equal(parallel.parallelAudits[0].loadShareFraction, 0.5);
+  assert.ok((parallel.parallelAudits[0].perInstanceAxialDemandN ?? 0) > 0);
+  assert.ok((parallel.parallelAudits[0].perInstanceRadialThrustN ?? 0) > 0);
+  assert.ok((parallel.parallelAudits[0].perInstanceEccentricMomentNm ?? 0) > 0);
+  assert.ok((parallel.parallelAudits[0].symmetricResultantRadialThrustN ?? 0) < 1e-10);
+  assert.match(parallel.warnings.join(" "), /equal-share force-scale audit/);
 
   const missingCapacity = createStageInterfaceLoadReview({
     stages: [
@@ -369,6 +389,15 @@ test("stage interface load review keeps parallel and missing capacity evidence u
 });
 
 test("stage interface load review rejects malformed topology and surfaces a review finding", () => {
+  assert.throws(
+    () => createStageInterfaceLoadReview({
+      stages: [
+        { id: "core", label: "Core", attachment: "serial", stageMassKg: 1, peakThrustN: 0 },
+        { id: "booster", label: "Booster", parentStageId: "core", attachment: "parallel", stageMassKg: 0.5, peakThrustN: 10, repeatCount: 2, repeatRadiusM: 0 },
+      ],
+    }),
+    /repeat radius/,
+  );
   assert.throws(
     () => createStageInterfaceLoadReview({
       stages: [

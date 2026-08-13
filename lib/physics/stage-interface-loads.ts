@@ -6,12 +6,13 @@
  * to estimate the axial force carried across each serial topology edge. A
  * current staged-flight trace may add a peak body-axis acceleration envelope,
  * while the peak-thrust baseline remains as a conservative lower bound. A
- * parallel edge is reported as unavailable because its radial attachment and
- * local joint load path are outside this model.
+ * parallel edge keeps its serial-capacity row unavailable, but also receives a
+ * separate equal-share force-scale audit so radial and eccentric effects stay
+ * visible without pretending to solve the local joint.
  */
 
 export const STAGE_INTERFACE_LOADS_MODEL_VERSION =
-  "rocketworks-stage-interface-loads-0.2.0";
+  "rocketworks-stage-interface-loads-0.3.0";
 export const STAGE_INTERFACE_LOADS_VALIDATION_STATUS =
   "analytical-axial-load-path-proxy" as const;
 
@@ -29,6 +30,39 @@ export type StageInterfaceLoadTracePoint = Readonly<{
   attachedStageIds?: readonly string[];
 }>;
 
+export type StageParallelLoadAuditStatus = "screened" | "unavailable";
+
+/**
+ * A bounded equal-share load audit for a repeated radial stage. The values
+ * are force and moment scales, not a connector or finite-element solution.
+ */
+export type StageParallelLoadAudit = Readonly<{
+  id: string;
+  parentStageId: string;
+  childStageId: string;
+  parentLabel: string | null;
+  childLabel: string;
+  status: StageParallelLoadAuditStatus;
+  reason: string | null;
+  instanceCount: number;
+  repeatRadiusM: number;
+  thrustCantAngleDeg: number;
+  thrustCantAzimuthDeg: number;
+  loadShareFraction: number | null;
+  downstreamMassKg: number | null;
+  totalDownstreamAxialDemandN: number | null;
+  perInstanceAxialDemandN: number | null;
+  perInstancePeakThrustN: number | null;
+  perInstanceRadialThrustN: number | null;
+  perInstanceEccentricMomentNm: number | null;
+  symmetricResultantRadialThrustN: number | null;
+  effectiveAxialAccelerationMps2: number | null;
+  tracePeakAxialAccelerationMps2: number | null;
+  tracePeakTimeS: number | null;
+  loadFactor: number;
+  detail: string;
+}>;
+
 export type StageInterfaceLoadStageInput = Readonly<{
   id: string;
   label: string;
@@ -39,6 +73,14 @@ export type StageInterfaceLoadStageInput = Readonly<{
   stageMassKg: number;
   /** Sum of configured motor peak thrust for this logical stage row. */
   peakThrustN: number;
+  /** Number of repeated physical instances for a parallel stage. */
+  repeatCount?: number;
+  /** Radial placement radius for repeated parallel instances, in metres. */
+  repeatRadiusM?: number;
+  /** Authored nominal thrust cant angle for this stage, in degrees. */
+  thrustCantAngleDeg?: number;
+  /** Authored nominal thrust cant azimuth, in degrees. */
+  thrustCantAzimuthDeg?: number;
   /** Minimum shell-section area used as a connector-section proxy. */
   sectionAreaM2?: number | null;
   /** Compression allowable used as a connector-section proxy. */
@@ -91,6 +133,7 @@ export type StageInterfaceLoadResult = Readonly<{
   gravityMps2: number;
   loadFactor: number;
   interfaces: readonly StageInterfaceLoadInterface[];
+  parallelAudits: readonly StageParallelLoadAudit[];
   weakestInterface: StageInterfaceLoadInterface | null;
   assumptions: readonly string[];
   warnings: readonly string[];
@@ -125,6 +168,29 @@ function normalizeOptionalPositive(value: number | null | undefined, label: stri
   assertFinite(value, label);
   if (!(value > 0)) throw new Error(`${label} must be positive when supplied`);
   return value;
+}
+
+function normalizeOptionalNonNegative(value: number | null | undefined, label: string): number | null {
+  if (value === null || value === undefined) return null;
+  assertNonNegative(value, label);
+  return value;
+}
+
+function normalizeRepeatCount(value: number | undefined, label: string): number {
+  const normalized = value ?? 1;
+  if (!Number.isInteger(normalized) || normalized < 1 || normalized > 8) {
+    throw new Error(`${label} must be an integer from 1 through 8`);
+  }
+  return normalized;
+}
+
+function normalizeBounded(value: number | undefined, fallback: number, minimum: number, maximum: number, label: string): number {
+  const normalized = value ?? fallback;
+  assertFinite(normalized, label);
+  if (normalized < minimum || normalized > maximum) {
+    throw new Error(`${label} must be from ${minimum} through ${maximum}`);
+  }
+  return normalized;
 }
 
 function normalizeTrace(
@@ -235,6 +301,26 @@ export function createStageInterfaceLoadReview(
       DEFAULT_REQUIRED_FACTOR_OF_SAFETY,
       `stage ${stage.id} required factor of safety`,
     );
+    const repeatCount = normalizeRepeatCount(stage.repeatCount, `stage ${stage.id} repeat count`);
+    const repeatRadiusM = normalizeOptionalNonNegative(stage.repeatRadiusM, `stage ${stage.id} repeat radius`)
+      ?? 0;
+    const thrustCantAngleDeg = normalizeBounded(
+      stage.thrustCantAngleDeg,
+      0,
+      0,
+      15,
+      `stage ${stage.id} thrust cant angle`,
+    );
+    const thrustCantAzimuthDeg = normalizeBounded(
+      stage.thrustCantAzimuthDeg,
+      0,
+      -180,
+      180,
+      `stage ${stage.id} thrust cant azimuth`,
+    );
+    if (stage.attachment === "parallel" && repeatCount > 1 && !(repeatRadiusM > 0)) {
+      throw new Error(`stage ${stage.id} repeat radius must be positive for repeated parallel instances`);
+    }
     return {
       id: stage.id,
       label: stage.label,
@@ -246,6 +332,10 @@ export function createStageInterfaceLoadReview(
       sectionAreaM2,
       allowableCompressionPa,
       requiredFactorOfSafety,
+      repeatCount,
+      repeatRadiusM,
+      thrustCantAngleDeg,
+      thrustCantAzimuthDeg,
     } as const;
   });
 
@@ -438,6 +528,82 @@ export function createStageInterfaceLoadReview(
       };
     });
 
+  const parallelAudits: StageParallelLoadAudit[] = activeStages
+    .filter((stage) => stage.parentStageId !== null && stage.attachment === "parallel")
+    .map((child) => {
+      const parentId = child.parentStageId!;
+      const parent = allStagesById.get(parentId);
+      const activeParent = activeStagesById.get(parentId);
+      const id = `${parentId}--${child.id}`;
+      const interfaceTracePeak = tracePeakForInterface(trace, parentId, child.id);
+      const effectiveAcceleration = effectiveAxialAccelerationMps2 === null
+        ? null
+        : Math.max(
+            baselineAxialAccelerationMps2 ?? 0,
+            interfaceTracePeak?.accelerationMps2 ?? 0,
+          );
+      const instanceCount = child.repeatCount;
+      const angleRad = (child.thrustCantAngleDeg * Math.PI) / 180;
+      const azimuthRad = (child.thrustCantAzimuthDeg * Math.PI) / 180;
+      const downstreamMassKg = subtreeMass(child.id, new Set());
+      const perInstanceMassKg = downstreamMassKg / instanceCount;
+      const perInstancePeakThrustN = child.peakThrustN / instanceCount;
+      const perInstanceRadialThrustN = perInstancePeakThrustN * Math.sin(angleRad);
+      let resultantY = 0;
+      let resultantZ = 0;
+      for (let index = 0; index < instanceCount; index += 1) {
+        const instanceAzimuthRad = azimuthRad + (2 * Math.PI * index) / instanceCount;
+        resultantY += perInstanceRadialThrustN * Math.cos(instanceAzimuthRad);
+        resultantZ += perInstanceRadialThrustN * Math.sin(instanceAzimuthRad);
+      }
+      const symmetricResultantRadialThrustN = Math.hypot(resultantY, resultantZ);
+      const missingReason = effectiveAcceleration === null
+        ? "Axial demand is not available because the active stack has no positive mass."
+        : !parent
+          ? `Parent stage ${parentId} is missing from the supplied topology.`
+          : !activeParent
+            ? `Parent stage ${parent.label} is disabled or inactive.`
+            : null;
+      const perInstanceAxialDemandN = effectiveAcceleration === null || missingReason !== null
+        ? null
+        : perInstanceMassKg * effectiveAcceleration * loadFactor;
+      const totalDownstreamAxialDemandN = perInstanceAxialDemandN === null
+        ? null
+        : perInstanceAxialDemandN * instanceCount;
+      return {
+        id,
+        parentStageId: parentId,
+        childStageId: child.id,
+        parentLabel: parent?.label ?? null,
+        childLabel: child.label,
+        status: missingReason === null ? "screened" as const : "unavailable" as const,
+        reason: missingReason,
+        instanceCount,
+        repeatRadiusM: child.repeatRadiusM,
+        thrustCantAngleDeg: child.thrustCantAngleDeg,
+        thrustCantAzimuthDeg: child.thrustCantAzimuthDeg,
+        loadShareFraction: missingReason === null ? 1 / instanceCount : null,
+        downstreamMassKg: missingReason === null ? downstreamMassKg : null,
+        totalDownstreamAxialDemandN,
+        perInstanceAxialDemandN,
+        perInstancePeakThrustN: missingReason === null ? perInstancePeakThrustN : null,
+        perInstanceRadialThrustN: missingReason === null ? perInstanceRadialThrustN : null,
+        perInstanceEccentricMomentNm: missingReason === null
+          ? perInstanceRadialThrustN * child.repeatRadiusM
+          : null,
+        symmetricResultantRadialThrustN: missingReason === null
+          ? symmetricResultantRadialThrustN
+          : null,
+        effectiveAxialAccelerationMps2: effectiveAcceleration,
+        tracePeakAxialAccelerationMps2: interfaceTracePeak?.accelerationMps2 ?? null,
+        tracePeakTimeS: interfaceTracePeak?.timeS ?? null,
+        loadFactor,
+        detail: missingReason === null
+          ? "Equal-share parallel load scale computed; radial joint transfer and moment capacity remain outside this review."
+          : missingReason,
+      };
+    });
+
   const counts = {
     pass: interfaces.filter((item) => item.status === "pass").length,
     review: interfaces.filter((item) => item.status === "review").length,
@@ -470,7 +636,12 @@ export function createStageInterfaceLoadReview(
         ]
       : []),
     ...(interfaces.some((item) => item.attachment === "parallel")
-      ? ["One or more parallel interfaces are visible but remain unavailable because radial load transfer is outside this serial axial proxy."]
+      ? [
+          "Parallel interfaces receive an equal-share force-scale audit, but radial joint transfer, bending capacity, fasteners, and local failure modes remain outside this review.",
+          ...parallelAudits
+            .filter((audit) => audit.status === "screened")
+            .map((audit) => `${audit.childLabel}: ${audit.instanceCount} equal-share instance load scale(s) retained; canted thrust is shown as per-instance radial force and eccentric moment only.`),
+        ]
       : []),
     ...(interfaces.length === 0
       ? ["No enabled child stage with a parent relationship was supplied, so stage-interface load review is not assessed."]
@@ -492,6 +663,7 @@ export function createStageInterfaceLoadReview(
     gravityMps2,
     loadFactor,
     interfaces,
+    parallelAudits,
     weakestInterface,
     assumptions: [
       "A serial interface carries the downstream child subtree plus retained payload/recovery mass under a common axial acceleration proxy.",
@@ -502,6 +674,12 @@ export function createStageInterfaceLoadReview(
           ]
         : []),
       "Interface capacity uses the minimum supplied parent/child shell-section area multiplied by the minimum supplied compression allowable.",
+      ...(parallelAudits.length > 0
+        ? [
+            "Parallel repeated stages are split by equal instance count for a force-scale audit; canted thrust uses the authored angle and radial placement radius to report per-instance radial force and eccentric moment.",
+            "Symmetric radial resultant is a vector-sum diagnostic only. It does not remove local per-instance joint demand or establish radial capacity.",
+          ]
+        : []),
       "The load factor defaults to 1.0 and is an explicit screening multiplier, not a measured transient or certification factor.",
       "A pass means only that this analytical proxy exceeds the declared factor-of-safety threshold; it is not connector qualification or flight-safety evidence.",
     ],

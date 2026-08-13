@@ -2357,10 +2357,27 @@ export function createEngineeringReportMarkdown(
               `| ${markdownText(`${interfaceLoad.parentLabel ?? "Missing parent"} → ${interfaceLoad.childLabel}`)} | ${markdownText(interfaceLoad.attachment)} | ${interfaceLoad.downstreamMassKg === null ? "not assessed" : `${formatNumber(interfaceLoad.downstreamMassKg, 3)} kg`} | ${interfaceLoad.axialDemandN === null ? "not assessed" : `${formatNumber(interfaceLoad.axialDemandN, 2)} N`} | ${interfaceLoad.capacityN === null ? "not assessed" : `${formatNumber(interfaceLoad.capacityN, 2)} N`} | ${interfaceLoad.factorOfSafety === null ? "not assessed" : `${formatNumber(interfaceLoad.factorOfSafety, 2)}×`} | ${markdownText(interfaceLoad.status)} |`,
           ),
           "",
+          ...(input.stageInterfaceLoads.parallelAudits.length > 0
+            ? [
+                "### Parallel / radial equal-share audit",
+                "",
+                `- Audits screened: ${input.stageInterfaceLoads.parallelAudits.filter((audit) => audit.status === "screened").length} / ${input.stageInterfaceLoads.parallelAudits.length}.`,
+                "",
+                "| Parallel path | Instances | Share | Per-instance axial | Per-instance radial thrust | Eccentric moment | Symmetric resultant | Status |",
+                "|---|---:|---:|---:|---:|---:|---:|---|",
+                ...input.stageInterfaceLoads.parallelAudits.map(
+                  (audit) =>
+                    `| ${markdownText(`${audit.parentLabel ?? "Missing parent"} -> ${audit.childLabel}`)} | ${audit.instanceCount} | ${audit.loadShareFraction === null ? "not assessed" : `${formatNumber(audit.loadShareFraction * 100, 1)}%`} | ${audit.perInstanceAxialDemandN === null ? "not assessed" : `${formatNumber(audit.perInstanceAxialDemandN, 2)} N`} | ${audit.perInstanceRadialThrustN === null ? "not assessed" : `${formatNumber(audit.perInstanceRadialThrustN, 2)} N`} | ${audit.perInstanceEccentricMomentNm === null ? "not assessed" : `${formatNumber(audit.perInstanceEccentricMomentNm, 3)} N-m`} | ${audit.symmetricResultantRadialThrustN === null ? "not assessed" : `${formatNumber(audit.symmetricResultantRadialThrustN, 3)} N`} | ${markdownText(audit.status)} |`,
+                ),
+                "",
+                "> Equal-share radial placement is a force-scale audit only. Symmetric cancellation does not certify the per-instance joint; radial capacity, bending, fasteners, eccentricity, and transient response remain unmodeled.",
+                "",
+              ]
+            : []),
           ...input.stageInterfaceLoads.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
           ...input.stageInterfaceLoads.warnings.map((warning) => `- **Interface load warning:** ${markdownText(warning)}`),
           "",
-          "> This is a first-order axial serial load-path proxy. It does not model connector geometry, fasteners, joints, bending, transient loads, radial interfaces, separation impulse, or flight safety.",
+          "> This is a first-order axial serial load-path proxy plus a bounded equal-share parallel force-scale audit. It does not model connector geometry, fasteners, joint capacity, bending, transient loads, separation impulse, or flight safety.",
           "",
         ]
       : []),

@@ -556,6 +556,7 @@ test("engineering report leads with status and preserves calculations and limita
     stages: [
       { id: "core", label: "Core", attachment: "serial", stageMassKg: 0.5, peakThrustN: 22, sectionAreaM2: 0.0005, allowableCompressionPa: 20e6 },
       { id: "booster", label: "Booster pair", parentStageId: "core", attachment: "serial", stageMassKg: 0.2, peakThrustN: 10, sectionAreaM2: 0.0005, allowableCompressionPa: 20e6 },
+      { id: "radial", label: "Radial pair", parentStageId: "core", attachment: "parallel", stageMassKg: 0.2, peakThrustN: 10, repeatCount: 2, repeatRadiusM: 0.18, thrustCantAngleDeg: 4, sectionAreaM2: 0.0005, allowableCompressionPa: 20e6 },
     ],
   });
   const forceBudget = computeStageFlightForceBudget([
@@ -966,7 +967,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /## Preliminary structural screen/);
   assert.match(report, /## Stage-aware structural review/);
   assert.match(report, /## Stage-interface axial load path/);
-  assert.match(report, /rocketworks-stage-interface-loads-0.2.0/);
+  assert.match(report, /rocketworks-stage-interface-loads-0.3.0/);
+  assert.match(report, /Parallel \/ radial equal-share audit/);
   assert.match(report, /Acceleration basis: peak-thrust-common-acceleration/);
   assert.match(report, /Parallel\/radial interface solver|Interface rows/);
   assert.match(report, /Booster pair/);

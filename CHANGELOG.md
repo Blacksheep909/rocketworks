@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extend the stage-interface review with an independent equal-share parallel
+  load audit. Repeated radial stages now expose per-instance axial demand,
+  canted-thrust radial force, eccentric moment, and symmetric resultant in the
+  Flight workspace and engineering report, while radial joint capacity,
+  fasteners, bending, and transient response remain explicitly unmodeled.
 - Add a post-trace separation contact compliance scenario with stopping-distance
   and restitution controls. The Flight workspace and engineering report now
   expose normal impulse, absorbed/rebound energy, tangential-energy separation,

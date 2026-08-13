@@ -950,6 +950,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /createStageInterfaceLoadReview/);
   assert.match(page, /STAGE-INTERFACE AXIAL LOAD PATH/);
   assert.match(page, /stageInterfaceLoadReview/);
+  assert.match(page, /PARALLEL \/ RADIAL FORCE-SCALE AUDIT/);
   assert.match(page, /Trace peak/);
   assert.match(page, /trace-peak-with-baseline/);
   assert.match(page, /Force impulse budget/);
@@ -1091,6 +1092,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stageInterfaceLoads, /downstream mass/);
   assert.match(stageInterfaceLoads, /StageInterfaceLoadTracePoint/);
   assert.match(stageInterfaceLoads, /tracePeakForInterface/);
+  assert.match(stageInterfaceLoads, /StageParallelLoadAudit/);
+  assert.match(stageInterfaceLoads, /per-instance radial force/);
   assert.match(stageForceBudget, /analytical-trace-integral-only/);
   assert.match(stageForceBudget, /velocity-equivalent accounting/);
   assert.match(stylesheet, /\.stage-flight-model-options/);
@@ -1127,6 +1130,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stylesheet, /\.stage-separation-contact/);
   assert.match(stylesheet, /\.stage-interface-load-card/);
   assert.match(stylesheet, /\.stage-interface-load-row-unavailable/);
+  assert.match(stylesheet, /\.stage-parallel-load-audit/);
   assert.match(stylesheet, /\.stage-force-budget-card/);
   assert.match(stylesheet, /\.stage-force-budget-row/);
 });
