@@ -912,6 +912,40 @@ test("engineering report leads with status and preserves calculations and limita
         warnings: ["Contact-load fixture warning."],
         assumptions: ["Contact-load fixture assumption."],
       },
+      relativeAeroInteraction: {
+        modelVersion: "rocketworks-relative-aero-interaction-0.1.0",
+        validationStatus: "analytical-component-checks-only",
+        bodies: [
+          { id: "retained-vehicle", label: "Retained vehicle", releaseTimeS: 0, sampleCount: 8, equivalentDiameterM: 0.08, envelopeRadiusM: 0.05 },
+          { id: "booster/logical-1", label: "Booster", releaseTimeS: 4.2, sampleCount: 5, equivalentDiameterM: 0.06, envelopeRadiusM: 0.03 },
+        ],
+        pairs: [{
+          sourceBodyId: "retained-vehicle",
+          sourceBodyLabel: "Retained vehicle",
+          targetBodyId: "booster/logical-1",
+          targetBodyLabel: "Booster",
+          status: "assessed",
+          sampleCount: 4,
+          flowSampleCount: 4,
+          exposedSampleCount: 2,
+          exposureCoverageFraction: 0.5,
+          sourceEquivalentDiameterM: 0.08,
+          targetEquivalentDiameterM: 0.06,
+          wakeLengthM: 2.4,
+          minimumWakeClearanceM: -0.02,
+          peakVelocityDeficitFraction: 0.18,
+          peakVelocityDeficitTimeS: 4.5,
+          maximumEstimatedDynamicPressureDeltaPa: 120,
+          maximumEstimatedDynamicPressureDeltaTimeS: 4.5,
+        }],
+        assessedPairCount: 1,
+        exposedPairCount: 1,
+        maximumVelocityDeficitFraction: 0.18,
+        maximumEstimatedDynamicPressureDeltaPa: 120,
+        status: "assessed",
+        warnings: ["Relative-flow fixture warning."],
+        assumptions: ["Relative-flow fixture assumption."],
+      },
     },
     stageUncertainty: {
       ...uncertainty,
@@ -1031,6 +1065,13 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /### Contact impulse and force-scale scenario/);
   assert.match(report, /rocketworks-separation-contact-load-0.1.0/);
   assert.match(report, /Contact-load fixture warning/);
+  assert.match(report, /### Released-body relative-flow\/wake review/);
+  assert.match(report, /Directed pairs assessed \| 1 \/ 1/);
+  assert.match(report, /Pairs with wake overlap \| 1/);
+  assert.match(report, /Peak proxy velocity deficit \| 18\.00%/);
+  assert.match(report, /Maximum estimated dynamic-pressure reduction \| 120\.00 Pa/);
+  assert.match(report, /Retained vehicle \| Booster \| 50\.0% \| 18\.00%/);
+  assert.match(report, /Relative-flow fixture warning/);
   assert.match(report, /### Coupled separation impulse allocation/);
   assert.match(report, /Impulse allocator fixture warning/);
   assert.match(report, /Convergence status: converged/);

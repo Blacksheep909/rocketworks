@@ -9,9 +9,11 @@ flight-readiness claims.
 - Add a directed released-body relative-flow/wake review to staged flight
   results. The clean-room post-processing screen checks finite expanding-cone
   overlap and reports bounded velocity-deficit and dynamic-pressure proxies
-  when an environment provider is available. It never feeds forces back into
-  a trace and remains an analytical interaction diagnostic, not a calibrated
-  stage-separation database, validation result, or flight-safety determination.
+  when an environment provider is available. Engineering reports now retain
+  the review status, peak metrics, exposed directed pairs, assumptions, and
+  warnings. It never feeds forces back into a trace and remains an analytical
+  interaction diagnostic, not a calibrated stage-separation database,
+  validation result, or flight-safety determination.
 - Extend measured-flight comparison to accept optional positive one-sigma
   altitude, velocity, and acceleration uncertainty columns. The browser now
   reports normalized residual RMSE and coverage, matched rows retain sigma and

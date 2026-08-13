@@ -91,6 +91,12 @@ option bounds, and the no-provider boundary. Staged preview tests retain the
 result and model provenance alongside existing kinematic envelope/contact
 screens.
 
+The engineering-report export mirrors the screen status, assessed and exposed
+pair counts, peak proxy metrics, the highest-exposure directed pairs, model
+identity, assumptions, and warnings. The report repeats the no-force-feedback
+boundary so a portable artifact cannot make this analytical proxy look like a
+flight-load or certification result.
+
 This module does not model plume interaction, shock-shock interaction, viscous
 wake roll-up, vortex persistence, body attitude, fin interference, unsteady
 moments, structural response, contact, or range safety. CFD, wind-tunnel data,

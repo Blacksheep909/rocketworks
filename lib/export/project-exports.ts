@@ -2161,6 +2161,40 @@ export function createEngineeringReportMarkdown(
                 "> This compliance scenario uses prescribed stopping distance and restitution to estimate normal force scales. It does not resolve contact mechanics, structural loads, rebound direction, damage, certification, range safety, or flight safety.",
               ]
             : []),
+          ...(input.stageFlight.relativeAeroInteraction
+            ? [
+                "",
+                "### Released-body relative-flow/wake review",
+                "",
+                "| Diagnostic | Value |",
+                "|---|---:|",
+                `| Status | ${markdownText(input.stageFlight.relativeAeroInteraction.status)} |`,
+                `| Directed pairs assessed | ${input.stageFlight.relativeAeroInteraction.assessedPairCount} / ${input.stageFlight.relativeAeroInteraction.pairs.length} |`,
+                `| Pairs with wake overlap | ${input.stageFlight.relativeAeroInteraction.exposedPairCount} |`,
+                `| Peak proxy velocity deficit | ${input.stageFlight.relativeAeroInteraction.maximumVelocityDeficitFraction === null ? "not assessed" : `${formatNumber(input.stageFlight.relativeAeroInteraction.maximumVelocityDeficitFraction * 100, 2)}%`} |`,
+                `| Maximum estimated dynamic-pressure reduction | ${input.stageFlight.relativeAeroInteraction.maximumEstimatedDynamicPressureDeltaPa === null ? "not available" : `${formatNumber(input.stageFlight.relativeAeroInteraction.maximumEstimatedDynamicPressureDeltaPa, 2)} Pa`} |`,
+                `| Model | \`${markdownText(input.stageFlight.relativeAeroInteraction.modelVersion)}\` |`,
+                "",
+                "| Source | Target | Exposure coverage | Peak deficit | Minimum wake clearance | Max q reduction | Status |",
+                "|---|---|---:|---:|---:|---:|---|",
+                ...(input.stageFlight.relativeAeroInteraction.pairs
+                  .filter((pair) => pair.exposedSampleCount > 0)
+                  .sort((left, right) => (right.peakVelocityDeficitFraction ?? 0) - (left.peakVelocityDeficitFraction ?? 0))
+                  .slice(0, 12)
+                  .map(
+                    (pair) =>
+                      `| ${markdownText(pair.sourceBodyLabel)} | ${markdownText(pair.targetBodyLabel)} | ${formatNumber(pair.exposureCoverageFraction * 100, 1)}% | ${pair.peakVelocityDeficitFraction === null ? "not assessed" : `${formatNumber(pair.peakVelocityDeficitFraction * 100, 2)}%`} | ${pair.minimumWakeClearanceM === null ? "not assessed" : `${formatNumber(pair.minimumWakeClearanceM, 3)} m`} | ${pair.maximumEstimatedDynamicPressureDeltaPa === null ? "not available" : `${formatNumber(pair.maximumEstimatedDynamicPressureDeltaPa, 2)} Pa`} | ${markdownText(pair.status)} |`,
+                  )),
+                ...(input.stageFlight.relativeAeroInteraction.pairs.some((pair) => pair.exposedSampleCount > 0)
+                  ? []
+                  : ["| No exposed directed pairs | - | - | - | - | - | - |"]),
+                "",
+                ...input.stageFlight.relativeAeroInteraction.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+                ...input.stageFlight.relativeAeroInteraction.warnings.map((warning) => `- **Relative-flow warning:** ${markdownText(warning)}`),
+                "",
+                "> This post-trace finite wake-cone screen is a bounded relative-flow review only. It never feeds forces, moments, contact response, or state corrections back into the flight trace, and it is not wind-tunnel, CFD, measured-flight, certification, or flight-safety evidence.",
+              ]
+            : []),
           ...(input.stageFlight.coupledMultiBodyFlight
             ? [
                 "",

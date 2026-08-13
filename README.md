@@ -144,8 +144,9 @@ research, standards, and original code.
   it remains outside contact and range-safety analysis;
 - a directed released-body relative-flow/wake review that checks finite
   expanding-cone overlap, reports bounded velocity-deficit and dynamic-pressure
-  proxies when an environment provider is available, and keeps the explicit
-  no-force-feedback / no-validation boundary;
+  proxies when an environment provider is available, mirrors the result into
+  engineering reports, and keeps the explicit no-force-feedback /
+  no-validation boundary;
 - an instantaneous separation impulse audit that checks mass-ratio linear
   momentum balance and exposes unmodeled first-order angular impulse before
   detached-body propagation;
