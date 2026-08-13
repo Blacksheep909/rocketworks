@@ -1045,6 +1045,10 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /First-order actuator response/);
   assert.match(page, /Response time \(s\)/);
   assert.match(page, /Add gimbal point/);
+  assert.match(page, /Throttle schedule/);
+  assert.match(page, /throttleSchedule/);
+  assert.match(page, /Throttle \(%\)/);
+  assert.match(page, /Add throttle point/);
   assert.match(page, /Measured separation impulse/);
   assert.match(page, /Clear measured impulse/);
   assert.match(page, /Motor cant \(deg\)/);

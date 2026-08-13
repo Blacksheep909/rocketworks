@@ -1,5 +1,4 @@
 import {
-  impulseThrough,
   massFlowAt,
   massFlowThrough,
   thrustAt,
@@ -38,7 +37,7 @@ import {
 } from "./six-dof.ts";
 import type { RecoveryCommandTrigger, RecoveryDevice } from "./recovery-system.ts";
 
-export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.7.0";
+export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.8.0";
 
 /** A motor-local body-frame thrust direction sample for deterministic gimbal interpolation. */
 export type MotorGimbalPoint = Readonly<{
@@ -46,6 +45,14 @@ export type MotorGimbalPoint = Readonly<{
   timeS: number;
   /** Body-frame thrust direction at the sample; it is normalized by the model. */
   axisBody: Vector3;
+}>;
+
+/** A motor-local commanded throttle sample, expressed as a 0–1 fraction. */
+export type MotorThrottlePoint = Readonly<{
+  /** Seconds after this motor's local ignition. */
+  timeS: number;
+  /** Commanded thrust fraction, where 1 is the supplied curve and 0 is cutoff. */
+  throttleFraction: number;
 }>;
 
 export type MultiStageMotor = Readonly<{
@@ -63,6 +70,8 @@ export type MultiStageMotor = Readonly<{
   thrustAxisSchedule?: readonly MotorGimbalPoint[];
   /** Optional first-order gimbal response time for the commanded schedule. */
   gimbalResponseTimeS?: number;
+  /** Optional strictly time-ordered motor-local throttle schedule. */
+  throttleSchedule?: readonly MotorThrottlePoint[];
   /** A configured ignition failure leaves this motor attached with its propellant intact. */
   ignitionFailure?: boolean;
 }>;
@@ -122,6 +131,7 @@ export type MultiStageMotorEvaluation = Readonly<{
   propellantMassKg: number;
   propellantMassRateKgS: number;
   depletionSource: "impulse-proportional" | "measured-mass-flow";
+  throttleFraction: number;
   thrustAxisBody: Vector3;
   forceBodyN: Vector3;
   momentBodyNm: Vector3;
@@ -218,6 +228,7 @@ type PreparedMotor = MultiStageMotor & Readonly<{
   normalizedThrustAxisBody: Vector3;
   normalizedThrustAxisSchedule?: readonly MotorGimbalPoint[];
   normalizedGimbalResponseTimeS?: number;
+  normalizedThrottleSchedule?: readonly MotorThrottlePoint[];
   totalImpulseNs: number;
 }>;
 
@@ -320,6 +331,96 @@ function prepareGimbalResponseTime(
     throw new Error(`${label} must be positive, finite, and at most 10 seconds`);
   }
   return value;
+}
+
+const MAX_MOTOR_THROTTLE_POINTS = 64;
+
+function prepareThrottleSchedule(
+  schedule: readonly MotorThrottlePoint[] | undefined,
+  label: string,
+): readonly MotorThrottlePoint[] | undefined {
+  if (schedule === undefined) return undefined;
+  if (schedule.length === 0) {
+    throw new Error(`${label} cannot be empty`);
+  }
+  if (schedule.length > MAX_MOTOR_THROTTLE_POINTS) {
+    throw new Error(`${label} cannot contain more than ${MAX_MOTOR_THROTTLE_POINTS} points`);
+  }
+  let previousTimeS = -1;
+  return schedule.map((point, index) => {
+    if (!Number.isFinite(point.timeS) || point.timeS < 0 || point.timeS <= previousTimeS) {
+      throw new Error(`${label}[${index}] time must be finite, non-negative, and strictly increasing`);
+    }
+    if (!Number.isFinite(point.throttleFraction) || point.throttleFraction < 0 || point.throttleFraction > 1) {
+      throw new Error(`${label}[${index}] throttle fraction must be finite and between 0 and 1`);
+    }
+    previousTimeS = point.timeS;
+    return {
+      timeS: point.timeS,
+      throttleFraction: point.throttleFraction,
+    };
+  });
+}
+
+function throttleFractionAtLocalTime(
+  schedule: readonly MotorThrottlePoint[] | undefined,
+  localTimeS: number,
+): number {
+  if (!schedule || schedule.length === 0) return 1;
+  const timeS = Math.max(0, localTimeS);
+  if (timeS < schedule[0]!.timeS) return 1;
+  const last = schedule.at(-1)!;
+  if (timeS >= last.timeS) return last.throttleFraction;
+  for (let index = 1; index < schedule.length; index += 1) {
+    const right = schedule[index]!;
+    const left = schedule[index - 1]!;
+    if (timeS <= right.timeS) {
+      const fraction = (timeS - left.timeS) / (right.timeS - left.timeS);
+      return left.throttleFraction + (right.throttleFraction - left.throttleFraction) * fraction;
+    }
+  }
+  return last.throttleFraction;
+}
+
+function throttledImpulseThrough(
+  points: readonly ThrustPoint[],
+  schedule: readonly MotorThrottlePoint[] | undefined,
+  requestedTimeS: number,
+): number {
+  const timeS = Math.min(Math.max(0, requestedTimeS), points.at(-1)!.timeS);
+  if (timeS <= 0) return 0;
+  const knots = [
+    0,
+    ...points.map((point) => point.timeS),
+    ...(schedule ?? []).map((point) => point.timeS),
+    timeS,
+  ]
+    .filter((knot) => knot >= 0 && knot <= timeS)
+    .sort((left, right) => left - right)
+    .reduce<number[]>((values, knot) => {
+      const previous = values.at(-1);
+      if (previous === undefined || knot - previous > 1e-12) values.push(knot);
+      return values;
+    }, []);
+  let impulseNs = 0;
+  for (let index = 1; index < knots.length; index += 1) {
+    const leftTimeS = knots[index - 1]!;
+    const rightTimeS = knots[index]!;
+    const durationS = rightTimeS - leftTimeS;
+    if (durationS <= 0) continue;
+    const leftThrustN = thrustAt(points as ThrustPoint[], leftTimeS);
+    const rightThrustN = thrustAt(points as ThrustPoint[], rightTimeS);
+    const leftThrottle = throttleFractionAtLocalTime(schedule, leftTimeS);
+    const rightThrottle = throttleFractionAtLocalTime(schedule, rightTimeS);
+    const thrustSlopeNPerS = (rightThrustN - leftThrustN) / durationS;
+    const throttleSlopePerS = (rightThrottle - leftThrottle) / durationS;
+    impulseNs += durationS * (
+      leftThrustN * leftThrottle +
+      0.5 * (leftThrustN * throttleSlopePerS + leftThrottle * thrustSlopeNPerS) * durationS +
+      (thrustSlopeNPerS * throttleSlopePerS * durationS ** 2) / 3
+    );
+  }
+  return impulseNs;
 }
 
 /**
@@ -833,6 +934,10 @@ export function createMultiStageVehicleModel(input: Readonly<{
       if (normalizedGimbalResponseTimeS !== undefined && normalizedThrustAxisSchedule === undefined) {
         throw new Error(`motor ${motor.id} gimbal response time requires a thrust-axis schedule`);
       }
+      const normalizedThrottleSchedule = prepareThrottleSchedule(
+        motor.throttleSchedule,
+        `motor ${motor.id} throttle schedule`,
+      );
       const ignitionFailure = motor.ignitionFailure ?? false;
       if (typeof ignitionFailure !== "boolean") {
         throw new Error(`motor ${motor.id} ignition failure must be boolean`);
@@ -848,6 +953,9 @@ export function createMultiStageVehicleModel(input: Readonly<{
           : {}),
         ...(normalizedGimbalResponseTimeS !== undefined
           ? { normalizedGimbalResponseTimeS }
+          : {}),
+        ...(normalizedThrottleSchedule
+          ? { normalizedThrottleSchedule }
           : {}),
         totalImpulseNs,
       };
@@ -956,6 +1064,11 @@ export function createMultiStageVehicleModel(input: Readonly<{
   const hasGimbalResponse = gimbalMotors.some(
     (motor) => motor.normalizedGimbalResponseTimeS !== undefined,
   );
+  const throttleMotors = stages.flatMap((stage) => [
+    ...stage.motors,
+    ...stage.instances.flatMap((instance) => instance.motors),
+  ]).filter((motor) => motor.normalizedThrottleSchedule);
+  const hasThrottleSchedule = throttleMotors.length > 0;
   const measuredSeparationStages = stages.filter((stage) =>
     stage.separationImpulseBodyNs !== undefined ||
     stage.instances.some((instance) => instance.separationImpulseBodyNs !== undefined),
@@ -1004,7 +1117,14 @@ export function createMultiStageVehicleModel(input: Readonly<{
         ? 0
         : Math.min(
             motor.totalImpulseNs,
-            Math.max(0, impulseThrough(motor.thrustCurve as ThrustPoint[], localTimeS)),
+            Math.max(
+              0,
+              throttledImpulseThrough(
+                motor.thrustCurve,
+                motor.normalizedThrottleSchedule,
+                localTimeS,
+              ),
+            ),
           );
     const consumedFraction = (motor: PreparedMotor, localTimeS: number | null): number => {
       if (localTimeS === null) return 0;
@@ -1061,7 +1181,8 @@ export function createMultiStageVehicleModel(input: Readonly<{
             localTimeS === null ||
             remainingPropellantFraction <= 1e-14
               ? 0
-              : thrustAt(motor.thrustCurve as ThrustPoint[], localTimeS);
+              : thrustAt(motor.thrustCurve as ThrustPoint[], localTimeS) *
+                throttleFractionAtLocalTime(motor.normalizedThrottleSchedule, localTimeS);
           const propellantMassRateKgS = motor.massFlowHistoryKgS
             ? !item.separated &&
               !item.ignitionFailed &&
@@ -1131,6 +1252,9 @@ export function createMultiStageVehicleModel(input: Readonly<{
             depletionSource: motor.massFlowHistoryKgS
               ? "measured-mass-flow"
               : "impulse-proportional",
+            throttleFraction: localTimeS === null
+              ? 0
+              : throttleFractionAtLocalTime(motor.normalizedThrottleSchedule, localTimeS),
             thrustAxisBody,
             forceBodyN,
             momentBodyNm,
@@ -1463,6 +1587,11 @@ export function createMultiStageVehicleModel(input: Readonly<{
                 ]),
           ]
         : []),
+      ...(hasThrottleSchedule
+        ? [
+            "Motor throttle schedules linearly interpolate bounded 0–1 commands in motor-local time; delivered impulse and impulse-proportional propellant depletion include the commanded fraction",
+          ]
+        : []),
       ...(hasMeasuredSeparationImpulse
         ? [
             "Measured separation impulses are converted to retained-body delta-v using the live post-separation mass at the event boundary",
@@ -1490,6 +1619,11 @@ export function createMultiStageVehicleModel(input: Readonly<{
               : [
                   "Gimbal schedules are deterministic commanded-axis previews; actuator dynamics, rate limits, flexure, plume effects, and control-loop coupling are not modeled.",
                 ]),
+          ]
+        : []),
+      ...(hasThrottleSchedule
+        ? [
+            "Throttle schedules scale the supplied thrust curve only; burn timing, measured mass-flow histories, chamber pressure, mixture ratio, ignition transients, and engine thermal limits are not modeled, so reduced thrust can leave residual propellant at the scheduled burnout boundary.",
           ]
         : []),
       ...(hasMeasuredSeparationImpulse

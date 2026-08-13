@@ -29,7 +29,7 @@ This makes staging a topology change rather than a cosmetic event: a separated
 stage immediately stops contributing mass, inertia, propellant, or thrust to
 the retained vehicle.
 
-The current implementation is model version `kestrel-multi-stage-0.7.0`.
+The current implementation is model version `kestrel-multi-stage-0.8.0`.
 `RocketStage.instances` can describe physical copies of one logical stage.
 When present, each copy has its own structure, motors, burnout offset, and
 event state while `attachedStageIds` continues to expose the logical topology
@@ -41,6 +41,23 @@ schedule. The staged evaluator linearly interpolates the authored body-frame
 directions and normalizes each result before computing force and moment. The
 browser topology editor authors these schedules as bounded pitch/yaw offsets
 relative to each stage instance's nominal canted axis.
+
+Each motor may also carry an optional strictly time-ordered throttle schedule
+in motor-local time. A schedule point contains a bounded `throttleFraction`
+from 0 through 1; values are linearly interpolated between points, with full
+thrust before the first point and the final command held after the last point.
+The evaluator integrates the product of the supplied piecewise-linear thrust
+curve and throttle command exactly over the combined knot grid. That delivered
+impulse drives impulse-proportional propellant depletion, so a reduced command
+can leave residual propellant when the supplied curve reaches its burnout
+boundary. The nominal `totalImpulseNs` remains the integral of the authored
+curve for reporting and comparison.
+
+Throttle schedules do not rewrite the thrust-curve timing or measured
+mass-flow histories. A motor with measured mass flow continues to use that
+history as the authoritative propellant accounting source. Chamber pressure,
+mixture ratio, ignition/cutoff transients, thermal limits, and closed-loop
+throttle response are outside this analytical preview.
 
 An optional `gimbalResponseTimeS` applies a bounded first-order response to the
 schedule. The response starts from the nominal axis, treats each authored knot

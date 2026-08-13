@@ -326,6 +326,37 @@ test("gimbal response time applies a deterministic first-order vector lag", () =
   );
 });
 
+test("throttle schedules scale thrust and impulse-proportional propellant depletion", () => {
+  const throttledStage = stage("throttle", 1, 1, {
+    throttleSchedule: [
+      { timeS: 0, throttleFraction: 0.5 },
+      { timeS: 2, throttleFraction: 0.5 },
+    ],
+  });
+  const staging = createMultiStageVehicleModel({
+    retainedMassProperties: properties(1, 0),
+    stages: [throttledStage],
+  });
+  const midpoint = staging.evaluate(ignitedAtZero(1, "throttle"));
+  const motorState = midpoint.stages[0].motors[0];
+
+  close(motorState.thrustN, 5, 1e-15, "throttled thrust");
+  close(motorState.deliveredImpulseNs, 2.5, 1e-12, "throttled impulse");
+  close(motorState.remainingPropellantFraction, 0.75, 1e-12, "throttled remaining fraction");
+  close(motorState.throttleFraction, 0.5, 1e-15, "throttle fraction");
+  assert.ok(staging.assumptions.some((assumption) => assumption.includes("throttle schedules")));
+  assert.ok(staging.warnings.some((warning) => warning.includes("residual propellant")));
+  assert.throws(
+    () => createMultiStageVehicleModel({
+      retainedMassProperties: properties(1, 0),
+      stages: [stage("invalid-throttle", 1, 1, {
+        throttleSchedule: [{ timeS: 1, throttleFraction: 1.1 }],
+      })],
+    }),
+    /between 0 and 1/,
+  );
+});
+
 test("ignition failure leaves propellant intact and suppresses thrust", () => {
   const staging = model();
   const failed = failStageIgnition(

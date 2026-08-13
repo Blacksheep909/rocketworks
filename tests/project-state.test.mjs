@@ -112,6 +112,10 @@ test("project checkpoints can carry validated vehicle topology and fingerprint i
         noseLengthM: 0.12,
         gimbalSchedule: [{ timeS: 0, pitchDeg: 0, yawDeg: 0 }],
         gimbalResponseTimeS: 0.25,
+        throttleSchedule: [
+          { timeS: 0, throttleFraction: 0.7 },
+          { timeS: 1.2, throttleFraction: 1 },
+        ],
       }),
     ],
   };
@@ -124,6 +128,10 @@ test("project checkpoints can carry validated vehicle topology and fingerprint i
   assert.equal(source.topology?.stages.length, 2);
   assert.equal(source.topology?.stages[1].bodyLengthM, 0.42);
   assert.equal(source.topology?.stages[1].gimbalResponseTimeS, 0.25);
+  assert.deepEqual(source.topology?.stages[1].throttleSchedule, [
+    { timeS: 0, throttleFraction: 0.7 },
+    { timeS: 1.2, throttleFraction: 1 },
+  ]);
   assert.equal(source.selectedMotorId, "user.motor-01");
   assert.equal(source.selectedAerodynamicTableId, "wind-tunnel-01");
   assert.equal(

@@ -125,7 +125,7 @@ import {
 } from "./mission-delta-v-bridge.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.36.0";
+  "kestrel-stage-flight-preview-0.37.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 

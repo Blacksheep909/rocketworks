@@ -51,7 +51,8 @@ research, standards, and original code.
 - bounded canted-motor configuration with radial instance alignment;
 - bounded motor-local gimbal schedules with piecewise-linear thrust-axis
   interpolation, per-instance radial basis mapping, optional first-order vector
-  response, and explicit actuator-model limitations;
+  response, plus bounded throttle schedules with impulse-consistent depletion
+  and explicit actuator-model limitations;
 - deterministic per-motor cluster-failure preview with retained failed-motor
   propellant and explicit imbalance warnings;
 - bounded retained-body separation delta-v controls with body/world-frame event

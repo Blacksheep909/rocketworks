@@ -267,6 +267,33 @@ test("measured separation impulse variants recompute dV from variant retained ma
   assert.deepEqual(baseInput.stages[0].separationImpulseBodyNs, { x: 1.4, y: 0, z: 0 });
 });
 
+test("stage-flight adapter forwards motor-local throttle schedules", () => {
+  const throttledStages = stages.map((stage, stageIndex) => stageIndex === 0
+    ? {
+      ...stage,
+      motors: stage.motors.map((motor) => ({
+        ...motor,
+        throttleSchedule: [
+          { timeS: 0, throttleFraction: 0.6 },
+          { timeS: 1.5, throttleFraction: 0.6 },
+        ],
+      })),
+    }
+    : stage);
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages: throttledStages,
+    regimes,
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 1.5,
+    timeStepS: 0.05,
+  });
+
+  assert.equal(result.stagingModelVersion, "kestrel-multi-stage-0.8.0");
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("throttle schedules")));
+});
+
 test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF events", () => {
   const result = simulateStageFlightPreview({
     retainedMassProperties: properties(0.4, 0.2),
@@ -294,7 +321,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.36.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.37.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);

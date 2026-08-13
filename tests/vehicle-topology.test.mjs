@@ -194,12 +194,17 @@ test("gimbal schedules validate, round-trip, and follow radial thrust bases", ()
           { timeS: 1.5, pitchDeg: 4, yawDeg: -2 },
         ],
         gimbalResponseTimeS: 0.35,
+        throttleSchedule: [
+          { timeS: 0, throttleFraction: 0.65 },
+          { timeS: 1.5, throttleFraction: 1 },
+        ],
       }),
     ],
   };
   const validated = validateVehicleTopology(topology);
   assert.deepEqual(validated.stages[1].gimbalSchedule, topology.stages[1].gimbalSchedule);
   assert.equal(validated.stages[1].gimbalResponseTimeS, 0.35);
+  assert.deepEqual(validated.stages[1].throttleSchedule, topology.stages[1].throttleSchedule);
   assert.deepEqual(validated.stages[1].separationImpulseBodyNs, topology.stages[1].separationImpulseBodyNs);
   assert.deepEqual(parseVehicleTopology(serializeVehicleTopology(validated)), validated);
   const nominal = stageThrustAxisBody(validated.stages[1], 0);
@@ -241,6 +246,24 @@ test("gimbal schedules validate, round-trip, and follow radial thrust bases", ()
         : stage),
     }),
     /gimbalResponseTimeS/,
+  );
+  assert.throws(
+    () => validateVehicleTopology({
+      ...topology,
+      stages: topology.stages.map((stage) => stage.id === "booster-01"
+        ? { ...stage, throttleSchedule: [{ timeS: 1, throttleFraction: 0.5 }, { timeS: 1, throttleFraction: 1 }] }
+        : stage),
+    }),
+    /strictly increasing/,
+  );
+  assert.throws(
+    () => validateVehicleTopology({
+      ...topology,
+      stages: topology.stages.map((stage) => stage.id === "booster-01"
+        ? { ...stage, throttleSchedule: [{ timeS: 0, throttleFraction: 1.01 }] }
+        : stage),
+    }),
+    /throttleFraction/,
   );
   assert.throws(
     () => validateVehicleTopology({

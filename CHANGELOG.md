@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add bounded motor-local throttle schedules. The topology editor now exposes
+  linearly interpolated 0–100% commands, while the independent multi-stage
+  evaluator integrates delivered thrust impulse across thrust and throttle
+  knots and uses that delivered impulse for propellant depletion.
+
 - Add an optional first-order motor-gimbal response time to staged previews.
   The topology editor now exposes a bounded response control, the independent
   multi-stage evaluator carries the setting through each physical motor

@@ -18,6 +18,14 @@ export type VehicleStageGimbalPoint = Readonly<{
   yawDeg: number;
 }>;
 
+/** A stage-local commanded throttle sample, stored as a 0–1 fraction. */
+export type VehicleStageThrottlePoint = Readonly<{
+  /** Seconds after the stage's motor-local ignition. */
+  timeS: number;
+  /** Commanded thrust fraction, where 1 is the supplied motor curve. */
+  throttleFraction: number;
+}>;
+
 /** A user-supplied measured impulse imparted to the retained body at separation. */
 export type VehicleStageSeparationImpulseBodyNs = Readonly<{
   x: number;
@@ -98,6 +106,8 @@ export type VehicleStagePlan = Readonly<{
   gimbalSchedule?: readonly VehicleStageGimbalPoint[];
   /** Optional first-order motor gimbal response time, in seconds. */
   gimbalResponseTimeS?: number;
+  /** Optional strictly time-ordered commanded throttle fractions. */
+  throttleSchedule?: readonly VehicleStageThrottlePoint[];
   ignitionDelayS: number;
   separationDelayS: number;
   /** Retained-body axial separation delta-v in m/s (+X nose direction). */
@@ -257,6 +267,30 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     if (stage.role === "payload") {
       throw new Error(`Payload stage ${id} cannot configure a gimbal response time.`);
     }
+  }
+  const rawThrottleSchedule = stage.throttleSchedule;
+  if (rawThrottleSchedule !== undefined && !Array.isArray(rawThrottleSchedule)) {
+    throw new Error(`Stage ${id} throttleSchedule must be an array.`);
+  }
+  if (rawThrottleSchedule && rawThrottleSchedule.length > 32) {
+    throw new Error(`Stage ${id} throttleSchedule cannot contain more than 32 points.`);
+  }
+  let previousThrottleTimeS = -1;
+  const throttleSchedule = rawThrottleSchedule?.map((point, pointIndex) => {
+    const pointObject = objectValue(point, `Stage ${id} throttle point ${pointIndex + 1}`);
+    const timeS = pointObject.timeS;
+    const throttleFraction = pointObject.throttleFraction;
+    if (typeof timeS !== "number" || !Number.isFinite(timeS) || timeS < 0 || timeS <= previousThrottleTimeS) {
+      throw new Error(`Stage ${id} throttle point ${pointIndex + 1} timeS must be finite, non-negative, and strictly increasing.`);
+    }
+    if (typeof throttleFraction !== "number" || !Number.isFinite(throttleFraction) || throttleFraction < 0 || throttleFraction > 1) {
+      throw new Error(`Stage ${id} throttle point ${pointIndex + 1} throttleFraction must be a finite value from 0 through 1.`);
+    }
+    previousThrottleTimeS = timeS;
+    return { timeS, throttleFraction };
+  });
+  if (stage.role === "payload" && throttleSchedule && throttleSchedule.length > 0) {
+    throw new Error(`Payload stage ${id} cannot configure a motor throttle schedule.`);
   }
   if (stage.parentStageId !== undefined && (typeof stage.parentStageId !== "string" || !ID_PATTERN.test(stage.parentStageId))) {
     throw new Error(`Stage ${id} parentStageId is invalid.`);
@@ -419,6 +453,7 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     thrustCantAzimuthDeg,
     ...(gimbalSchedule && gimbalSchedule.length > 0 ? { gimbalSchedule } : {}),
     ...(gimbalResponseTimeS === undefined ? {} : { gimbalResponseTimeS }),
+    ...(throttleSchedule && throttleSchedule.length > 0 ? { throttleSchedule } : {}),
     ignitionDelayS,
     separationDelayS,
     separationDeltaVBodyMps,
@@ -594,6 +629,7 @@ export function createStagePlan(input: Readonly<{
   thrustCantAzimuthDeg?: number;
   gimbalSchedule?: readonly VehicleStageGimbalPoint[];
   gimbalResponseTimeS?: number;
+  throttleSchedule?: readonly VehicleStageThrottlePoint[];
   ignitionDelayS?: number;
   separationDelayS?: number;
   separationDeltaVBodyMps?: number;
