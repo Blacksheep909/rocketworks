@@ -44,7 +44,7 @@ import {
 
 export const KESTREL_PROJECT_SCHEMA_ID = "org.kestrel-lab.project";
 export const KESTREL_PROJECT_SCHEMA_VERSION = 1;
-export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.10.0";
+export const KESTREL_EXPORT_MODEL_VERSION = "kestrel-export-0.11.0";
 export const KESTREL_EXPORT_VALIDATION_STATUS =
   "engineering-preview-unvalidated";
 
@@ -559,6 +559,7 @@ export function createSeparatedBodyTraceCsv(
     ["# trace_model_versions", [...new Set(trajectories.map((trajectory) => trajectory.modelVersion))].join("|")],
     ["# validation_status", [...new Set(trajectories.map((trajectory) => trajectory.validationStatus))].join("|")],
     ["# aerodynamic_basis_count", trajectories.filter((trajectory) => trajectory.aerodynamicBasis !== undefined).length],
+    ["# coefficient_table_sample_count", trajectories.reduce((total, trajectory) => total + trajectory.trace.filter((point) => point.aerodynamicCoefficientBasis?.includes("table") ?? false).length, 0)],
   ].map(([key, value]) => `${key},${csvCell(value)}`);
   const headers = [
     "body_id",
@@ -588,9 +589,15 @@ export function createSeparatedBodyTraceCsv(
     "aerodynamic_damping_moment_y_nm",
     "aerodynamic_damping_moment_z_nm",
     "aerodynamic_model_version",
+    "aerodynamic_reynolds_number",
+    "aerodynamic_coefficient_basis",
+    "aerodynamic_direct_force_applied",
+    "aerodynamic_direct_moment_applied",
+    "aerodynamic_coefficient_table_model_version",
+    "aerodynamic_coefficient_applicability_count",
   ];
   const rows = trajectories.flatMap((trajectory) => trajectory.trace.map((point, index) => {
-    const values: readonly (number | string | null | undefined)[] = [
+    const values: readonly (number | string | boolean | null | undefined)[] = [
       `${trajectory.stageId}/${trajectory.instanceId ?? "logical"}`,
       trajectory.stageId,
       trajectory.stageName,
@@ -618,6 +625,12 @@ export function createSeparatedBodyTraceCsv(
       point.aerodynamicDampingMomentBodyNm?.y,
       point.aerodynamicDampingMomentBodyNm?.z,
       point.aerodynamicModelVersion,
+      point.aerodynamicReynoldsNumber,
+      point.aerodynamicCoefficientBasis,
+      point.aerodynamicDirectForceApplied,
+      point.aerodynamicDirectMomentApplied,
+      point.aerodynamicCoefficientTableModelVersion,
+      point.aerodynamicCoefficientApplicabilityCount,
     ];
     values.forEach((value, valueIndex) => {
       if (typeof value === "number") assertFinite(value, `separated-body trace row ${index + 1} column ${headers[valueIndex]}`);
@@ -1655,6 +1668,16 @@ export function createEngineeringReportMarkdown(
         0,
       )
     : 0;
+  const separatedCoefficientTableSampleCount = (input.stageFlight?.separatedBodies ?? []).reduce(
+    (total, trajectory) => total + (trajectory.trace ?? []).filter((point) => point.aerodynamicCoefficientBasis?.includes("table") ?? false).length,
+    0,
+  );
+  const coupledCoefficientTableSampleCount = coupledFlight
+    ? coupledFlight.trajectories.reduce(
+        (total, trajectory) => total + trajectory.trace.filter((point) => point.aerodynamicCoefficientBasis?.includes("table") ?? false).length,
+        0,
+      )
+    : 0;
   for (const [label, value] of [
     ["selected motor source ID", input.selectedMotorId],
     ["selected aerodynamic source ID", input.selectedAerodynamicTableId],
@@ -2162,7 +2185,7 @@ export function createEngineeringReportMarkdown(
                   },
                 ),
                 "",
-                "> Separated-body paths are bounded analytical component checks. Where a stage-specific reference area and constant coefficient are available, isotropic point drag is applied; the projected-area selection can additionally carry a supplied static normal-force/CP-moment basis and optional damping, otherwise the branch remains gravity-only. When the event carries a retained-body delta-v, the detached branch uses the mass-ratio equal-and-opposite linear-momentum impulse; otherwise it starts from the pre-event release velocity. Separation mechanism, direct coefficient-table interpolation, fin interference, plume interaction, aerodynamic clearance, collision, and flight safety remain outside this preview.",
+                "> Separated-body paths are bounded analytical component checks. Where a stage-specific reference area and constant coefficient are available, isotropic point drag is applied; the projected-area selection can additionally carry a supplied static normal-force/CP-moment basis, live coefficient-table interpolation, and optional damping, otherwise the branch remains gravity-only. When the event carries a retained-body delta-v, the detached branch uses the mass-ratio equal-and-opposite linear-momentum impulse; otherwise it starts from the pre-event release velocity. Separation mechanism, fin interference, plume interaction, aerodynamic clearance, collision, and flight safety remain outside this preview.",
               ]
             : []),
           ...(input.stageFlight.multiBodySeparation
@@ -2311,6 +2334,7 @@ export function createEngineeringReportMarkdown(
                 `| Static aerodynamic-load bodies | ${coupledAerodynamicBodyCount} / ${input.stageFlight.coupledMultiBodyFlight.trajectories.length} |`,
                 `| Incidence diagnostic samples | ${input.stageFlight.coupledMultiBodyFlight.trajectories.reduce((total, trajectory) => total + trajectory.trace.filter((point) => point.attitudeIncidenceRad !== undefined).length, 0)} |`,
                 `| Normal-force diagnostic samples | ${coupledNormalForceSampleCount} |`,
+                `| Detached coefficient-table samples | ${separatedCoefficientTableSampleCount} |`,
                 `| Minimum COM separation | ${input.stageFlight.coupledMultiBodyFlight.minimumDistanceM === null ? "not assessed" : `${formatNumber(input.stageFlight.coupledMultiBodyFlight.minimumDistanceM, 3)} m`} |`,
                 `| Closest pair | ${input.stageFlight.coupledMultiBodyFlight.closestPair ? `${markdownText(input.stageFlight.coupledMultiBodyFlight.closestPair.firstBodyId)} / ${markdownText(input.stageFlight.coupledMultiBodyFlight.closestPair.secondBodyId)} at ${formatNumber(input.stageFlight.coupledMultiBodyFlight.closestPair.timeS, 2)} s` : "not assessed"} |`,
                 `| Model | \`${markdownText(input.stageFlight.coupledMultiBodyFlight.modelVersion)}\` |`,
@@ -2318,7 +2342,8 @@ export function createEngineeringReportMarkdown(
                 ...input.stageFlight.coupledMultiBodyFlight.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
                 ...input.stageFlight.coupledMultiBodyFlight.warnings.map((warning) => `- **Shared-grid warning:** ${markdownText(warning)}`),
                 "",
-                "> This shared-grid track propagates released bodies together against common environment queries. Rigid-body states add quaternion attitude and Euler angular momentum from supplied inertia/loads; static normal force, induced drag, CP moments, and projected-area CdA remain bounded analytical previews; mutual gravity remains a point-mass approximation, and neither path models direct aerodynamic tables, contact forces, collision response, plume interaction, aerodynamic interference, or flight safety.",
+                `| Shared coefficient-table samples | ${coupledCoefficientTableSampleCount} |`,
+                "> This shared-grid track propagates released bodies together against common environment queries. Rigid-body states add quaternion attitude and Euler angular momentum from supplied inertia/loads; static normal force, induced drag, CP moments, projected-area CdA, and supplied coefficient-table resultants remain bounded analytical previews; mutual gravity remains a point-mass approximation, and neither path models contact forces, collision response, plume interaction, aerodynamic interference, or flight safety.",
               ]
             : []),
           ...((input.stageFlight.separationDynamics ?? []).length > 0

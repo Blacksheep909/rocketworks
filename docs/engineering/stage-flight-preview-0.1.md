@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.33.0`.
+`kestrel-stage-flight-preview-0.34.0`.
 
 Relation-based aerodynamics retain both the selected normal-force trend and
 the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions
@@ -274,10 +274,13 @@ configured delay and inflation approximation.
 
 When the detached stage has an explicit topology-specific drag coefficient and
 a bounded reference area, the branch also applies isotropic point drag against
-the environment-relative velocity. A coefficient table is sampled only at its
-declared design point for this independent branch; it is not coupled to the
-discarded body's changing Mach or Reynolds state. If either basis is missing,
-the branch stays gravity-only and labels that fallback in its telemetry.
+the environment-relative velocity. A coefficient table is queried at each
+detached-body sample using the branch's current Mach, Reynolds number (from
+atmospheric dynamic viscosity and the supplied reference length), angle of
+attack, and sideslip. Angular direct force/moment volumes take precedence over
+the relation path when present; table provenance, uncertainty perturbations,
+and applicability issues remain traceable. If either basis is missing, the
+branch stays gravity-only and labels that fallback in its telemetry.
 
 When the projected-area released-body option is selected and the active stage
 geometry also yields a positive static basis, the branch carries that basis
@@ -301,8 +304,8 @@ supplied, the detached branch explicitly reports that the impulse is not
 modeled.
 
 This remains an intentionally bounded ballistic-capable component check. The
-optional normal-force and CP-moment relation is not a calibrated lift or
-aerodynamic database, and the branch still does not infer direct tables,
+relation path is not a calibrated lift model, and a supplied direct table is
+only interpolated data—it does not certify aerodynamic accuracy or infer
 unsteady flow, plume interaction, stage-to-stage aerodynamic interference, or
 contact logic for detached bodies.
 When supplied component geometry is available, a separate fixed spherical

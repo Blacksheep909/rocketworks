@@ -41,6 +41,7 @@ import {
   evaluateDetachedBodyAerodynamics,
   validateDetachedBodyAerodynamicBasis,
   type DetachedBodyAerodynamicBasis,
+  type DetachedBodyAerodynamicResult,
 } from "./detached-body-aerodynamics.ts";
 
 /**
@@ -54,7 +55,7 @@ import {
  * supplied inputs cannot support.
  */
 export const COUPLED_MULTI_BODY_FLIGHT_MODEL_VERSION =
-  "rocketworks-coupled-multi-body-flight-0.5.0";
+  "rocketworks-coupled-multi-body-flight-0.6.0";
 export const COUPLED_MULTI_BODY_FLIGHT_STATUS =
   "analytical-component-checks-only" as const;
 export const STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2 = 6.67430e-11;
@@ -135,6 +136,12 @@ export type CoupledMultiBodyTracePoint = Readonly<{
   aerodynamicNormalForceApplied?: boolean;
   aerodynamicStaticMomentBodyNm?: Vector3;
   aerodynamicDampingMomentBodyNm?: Vector3;
+  aerodynamicReynoldsNumber?: number;
+  aerodynamicCoefficientBasis?: DetachedBodyAerodynamicResult["coefficientBasis"];
+  aerodynamicDirectForceApplied?: boolean;
+  aerodynamicDirectMomentApplied?: boolean;
+  aerodynamicCoefficientTableModelVersion?: string;
+  aerodynamicCoefficientApplicabilityCount?: number;
   aerodynamicModelVersion?: string;
   orientationBodyToWorld?: Quaternion;
   angularVelocityBodyRadS?: Vector3;
@@ -468,6 +475,12 @@ type CoupledBodyAerodynamicEvaluation = Readonly<{
   normalForceApplied: boolean | null;
   staticMomentBodyNm: Vector3;
   dampingMomentBodyNm: Vector3;
+  reynoldsNumber: number | null;
+  coefficientBasis: DetachedBodyAerodynamicResult["coefficientBasis"];
+  directForceApplied: boolean;
+  directMomentApplied: boolean;
+  coefficientTableModelVersion: string | null;
+  coefficientApplicabilityCount: number;
 }>;
 
 function evaluateCoupledBodyAerodynamics(
@@ -493,6 +506,7 @@ function evaluateCoupledBodyAerodynamics(
       basis: body.aerodynamicBasis,
       densityKgM3: atmosphere.densityKgM3,
       speedOfSoundMps: atmosphere.speedOfSoundMps,
+      dynamicViscosityPaS: atmosphere.dynamicViscosityPaS,
       relativeAirVelocityWorldMps,
       orientationBodyToWorld,
       angularVelocityBodyRadS,
@@ -512,6 +526,12 @@ function evaluateCoupledBodyAerodynamics(
       normalForceApplied: result.normalForceApplied,
       staticMomentBodyNm: result.aerodynamicStaticMomentBodyNm,
       dampingMomentBodyNm: result.aerodynamicDampingMomentBodyNm,
+      reynoldsNumber: result.reynoldsNumber,
+      coefficientBasis: result.coefficientBasis,
+      directForceApplied: result.directForceApplied,
+      directMomentApplied: result.directMomentApplied,
+      coefficientTableModelVersion: body.aerodynamicBasis.coefficientTable?.modelVersion ?? null,
+      coefficientApplicabilityCount: result.coefficientApplicability.length,
     };
   }
   const result = evaluateAttitudeDependentDrag({
@@ -538,6 +558,12 @@ function evaluateCoupledBodyAerodynamics(
     normalForceApplied: null,
     staticMomentBodyNm: ZERO_VECTOR,
     dampingMomentBodyNm: ZERO_VECTOR,
+    reynoldsNumber: null,
+    coefficientBasis: null,
+    directForceApplied: false,
+    directMomentApplied: false,
+    coefficientTableModelVersion: null,
+    coefficientApplicabilityCount: 0,
   };
 }
 
@@ -1382,6 +1408,16 @@ function tracePointWithAcceleration(
               aerodynamicNormalForceApplied: aerodynamic.normalForceApplied!,
               aerodynamicStaticMomentBodyNm: aerodynamic.staticMomentBodyNm,
               aerodynamicDampingMomentBodyNm: aerodynamic.dampingMomentBodyNm,
+              ...(aerodynamic.reynoldsNumber !== null
+                ? { aerodynamicReynoldsNumber: aerodynamic.reynoldsNumber }
+                : {}),
+              aerodynamicCoefficientBasis: aerodynamic.coefficientBasis,
+              aerodynamicDirectForceApplied: aerodynamic.directForceApplied,
+              aerodynamicDirectMomentApplied: aerodynamic.directMomentApplied,
+              ...(aerodynamic.coefficientTableModelVersion
+                ? { aerodynamicCoefficientTableModelVersion: aerodynamic.coefficientTableModelVersion }
+                : {}),
+              aerodynamicCoefficientApplicabilityCount: aerodynamic.coefficientApplicabilityCount,
             }
           : {}),
       }

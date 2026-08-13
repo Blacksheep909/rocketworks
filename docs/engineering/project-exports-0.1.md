@@ -55,7 +55,7 @@ The root document declares:
 ```text
 schema: org.kestrel-lab.project
 schemaVersion: 1
-exportModelVersion: kestrel-export-0.10.0
+exportModelVersion: kestrel-export-0.11.0
 validationStatus: engineering-preview-unvalidated
 ```
 
@@ -88,10 +88,13 @@ detached branch is present. It flattens all detached branches into one table,
 with `body_id`, stage identity, release time, position and velocity in SI units,
 recovery drag/area, static aerodynamic normal force, angle of attack, sideslip,
 dynamic pressure, CP-to-CG static moment, damping moment, and the aerodynamic
-model version. Deterministic `# key,value` metadata rows preserve the export
-version, trace model versions, validation status, and count of branches with a
-static aerodynamic basis. Blank aerodynamic cells mean the branch did not have
-that optional basis; they are not zeros inferred by the exporter.
+model version. When a detached coefficient table is active, rows also retain
+the Reynolds number, coefficient-basis label, direct force/moment application
+flags, table model version, and applicability count. Deterministic `#
+key,value` metadata rows preserve the export version, trace model versions,
+validation status, and count of branches with a static aerodynamic basis. Blank
+aerodynamic cells mean the branch did not have that optional basis; they are not
+zeros inferred by the exporter.
 
 ## Portable project import
 

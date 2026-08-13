@@ -7477,7 +7477,7 @@ export default function Home() {
                       <option value="isotropic-point">Isotropic point drag (baseline)</option>
                       <option value="attitude-projected-area">Projected-area + static aero loads (preview)</option>
                     </select>
-                    <small>Uses detached-stage geometry when available for projected drag, bounded normal force, CP moment, and supplied damping; direct aero tables remain outside scope.</small>
+                    <small>Uses detached-stage geometry when available for projected drag, bounded normal force, CP moment, supplied damping, and live Mach/Reynolds table loads; direct body-axis force/moment volumes take precedence when supplied.</small>
                   </div>
                   {coupledMutualGravityEnabled && (
                     <NumberField

@@ -274,7 +274,7 @@ test("detached-body aerodynamic basis adds normal force, CP moment, and trace di
   assert.equal(result.trajectories[0].aerodynamicBasis.normalForceSlopePerRad, 4);
   const initial = result.trajectories[0].trace[0];
   const final = result.trajectories[0].trace.at(-1);
-  assert.equal(initial.aerodynamicModelVersion, "rocketworks-detached-body-aerodynamics-0.1.0");
+  assert.equal(initial.aerodynamicModelVersion, "rocketworks-detached-body-aerodynamics-0.2.0");
   assert.ok(initial.aerodynamicAngleOfAttackRad > 0);
   assert.ok(initial.aerodynamicNormalForceN > 0);
   assert.equal(initial.aerodynamicNormalForceApplied, true);

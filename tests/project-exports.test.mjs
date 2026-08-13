@@ -272,7 +272,7 @@ test("released-body CSV preserves release provenance and aerodynamic diagnostics
     instanceId: "booster-1",
     stageName: "Booster",
     massKg: 0.2,
-    modelVersion: "kestrel-separated-body-flight-0.7.0",
+    modelVersion: "kestrel-separated-body-flight-0.8.0",
     validationStatus: "analytical-component-checks-only",
     releaseTimeS: 4.2,
     releasePositionWorldM: { x: 0, y: 0, z: 30 },
@@ -305,7 +305,13 @@ test("released-body CSV preserves release provenance and aerodynamic diagnostics
       aerodynamicDynamicPressurePa: 75,
       aerodynamicStaticMomentBodyNm: { x: 0, y: 0.02, z: 0 },
       aerodynamicDampingMomentBodyNm: { x: 0, y: -0.01, z: 0 },
-      aerodynamicModelVersion: "rocketworks-detached-body-aerodynamics-0.1.0",
+      aerodynamicReynoldsNumber: 1000000,
+      aerodynamicCoefficientBasis: "mach-reynolds-force-moment-table",
+      aerodynamicDirectForceApplied: true,
+      aerodynamicDirectMomentApplied: true,
+      aerodynamicCoefficientTableModelVersion: "rocketworks-aero-force-moment-table-0.1.0",
+      aerodynamicCoefficientApplicabilityCount: 2,
+      aerodynamicModelVersion: "rocketworks-detached-body-aerodynamics-0.2.0",
     }],
     simulation: {},
     maxAltitudeAglM: 30,
@@ -315,13 +321,13 @@ test("released-body CSV preserves release provenance and aerodynamic diagnostics
     assumptions: [],
   }]);
   const rows = csv.trim().split("\r\n");
-  assert.match(rows[0], /^# rocketworks_export,kestrel-export-0\.10\.0$/);
-  assert.match(rows[0], /kestrel-export-0\.10\.0/);
+  assert.match(rows[0], /^# rocketworks_export,kestrel-export-0\.11\.0$/);
+  assert.match(rows[0], /kestrel-export-0\.11\.0/);
   const headerIndex = rows.findIndex((row) => row.startsWith("body_id,"));
   assert.ok(headerIndex > 0);
-  assert.equal(rows[headerIndex + 1].split(",").length, 27);
+  assert.equal(rows[headerIndex + 1].split(",").length, 33);
   assert.match(rows[headerIndex + 1], /^booster\/booster-1,booster,Booster,4\.2,4\.2,30,12\.1655/);
-  assert.match(rows[headerIndex + 1], /,2\.864788975654116,0\.5729577951308232,75,0,0\.02,0,0,-0\.01,0,rocketworks-detached-body-aerodynamics-0\.1\.0$/);
+  assert.match(rows[headerIndex + 1], /,2\.864788975654116,0\.5729577951308232,75,0,0\.02,0,0,-0\.01,0,rocketworks-detached-body-aerodynamics-0\.2\.0,1000000,mach-reynolds-force-moment-table,true,true,rocketworks-aero-force-moment-table-0\.1\.0,2$/);
 });
 
 test("parameter sweep CSV preserves rows, null outputs, and evaluator errors", () => {
@@ -1014,7 +1020,7 @@ test("engineering report leads with status and preserves calculations and limita
         assumptions: ["Relative-flow fixture assumption."],
       },
       coupledMultiBodyFlight: {
-        modelVersion: "rocketworks-coupled-multi-body-flight-0.5.0",
+        modelVersion: "rocketworks-coupled-multi-body-flight-0.6.0",
         validationStatus: "analytical-component-checks-only",
         startTimeS: 4.2,
         endTimeS: 8,
@@ -1051,7 +1057,7 @@ test("engineering report leads with status and preserves calculations and limita
             aerodynamicNormalForceN: 0.8,
             aerodynamicNormalForceApplied: true,
             aerodynamicStaticMomentBodyNm: { x: 0, y: 0, z: -0.02 },
-            aerodynamicModelVersion: "rocketworks-detached-body-aerodynamics-0.1.0",
+            aerodynamicModelVersion: "rocketworks-detached-body-aerodynamics-0.2.0",
           }],
           maxAltitudeAglM: 100,
           maxSpeedMps: 20,

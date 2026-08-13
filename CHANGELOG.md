@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add clean-room detached-body coefficient-table coupling. Released rigid
+  bodies can now query validated Mach/Reynolds/angular surfaces at each sample,
+  apply declared direct body-axis force and moment volumes when available, and
+  retain provenance, uncertainty, applicability, Reynolds, and precedence
+  diagnostics through independent and shared-grid traces plus CSV export.
 - Add a released-body trajectory CSV export. The artifact center now flattens
   every detached branch into an SI-unit replay table with release identity,
   position/velocity, recovery loads, optional static aerodynamic diagnostics,
@@ -17,7 +22,7 @@ flight-readiness claims.
   damping through both shared-grid and independent separated-body tracks.
   Trace/report/UI diagnostics expose the applied domain and model version; the
   path remains an analytical component check and does not infer fin
-  interference, unsteady flow, direct coefficient tables, or flight safety.
+  interference, unsteady flow, missing data, or flight safety.
 - Add an opt-in projected-area attitude-drag branch to the shared released-body
   track. Detached rigid bodies can now blend supplied axial and broadside CdA
   pairs from their body-axis incidence, retain effective-area/Cd/dynamic-

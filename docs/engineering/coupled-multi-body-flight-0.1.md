@@ -71,8 +71,11 @@ M_damping = q A / (2 V) * C_mq * omega * l_ref^2
 The normal force opposes the transverse environment-relative flow in body
 coordinates. Its trace records angle of attack, sideslip, dynamic pressure,
 normal-force magnitude/application, static moment, damping moment, and the
-versioned basis. This is a bounded relation, not a direct coefficient-table
-interpolator or a full lifting-body model.
+versioned basis. This is a bounded relation. When the basis includes a
+validated coefficient table, the shared-grid path queries its
+Mach/Reynolds/angular surfaces at each sample and lets declared direct
+force/moment volumes take precedence. It is still not a full lifting-body
+model or an accuracy certification.
 
 When `attitudeDependentDrag` is supplied inside that basis, the axial and
 broadside CdA pairs are additionally blended by orientation. Let `c = |u . a|`
@@ -143,9 +146,9 @@ minimum-step failure is reported rather than silently relaxing the tolerance.
 This is a simultaneous shared-environment and relative-motion track. The
 default and mutual-gravity branches remain point-mass translation; the opt-in
 rigid-body branch adds attitude and angular-rate propagation. Detached static
-aerodynamic loads add only the bounded relation equations above, while the
-projected-area option adds the supplied CdA blend. It is not a full contact or
-structural multi-body solver. It does not infer direct coefficient tables, fin
+aerodynamic loads add the bounded relation or supplied coefficient-table
+equations above, while the projected-area option adds the supplied CdA blend.
+It is not a full contact or structural multi-body solver. It does not infer fin
 interference, unsteady flow, body-to-body contact forces, collision response,
 joint or spring compliance, plume interaction, wake/interference, structural
 flexibility, separation mechanism dynamics, or range-safety margins. Pairwise
@@ -159,8 +162,9 @@ an explicit comparison/audit path rather than a silent state reset. The browser
 exposes the mutual-gravity choice as an advanced released-body force model and
 the projected-area selection as the opt-in detached aerodynamic-load basis.
 The stage-flight adapter forwards each detached stage's release attitude,
-angular rate, center-of-mass inertia, and (when geometry supports it) static
-aerodynamic basis into the shared audit track.
+angular rate, center-of-mass inertia, static aerodynamic basis, and (when
+configured) coefficient-table reference length and provenance into the shared
+audit track.
 
 Adaptive step diagnostics describe numerical truncation only. They do not
 validate the environment, supplied loads, geometry, separation mechanism, or

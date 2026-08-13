@@ -42,7 +42,7 @@ import {
 } from "./detached-body-aerodynamics.ts";
 
 export const SEPARATED_BODY_FLIGHT_MODEL_VERSION =
-  "kestrel-separated-body-flight-0.7.0";
+  "kestrel-separated-body-flight-0.8.0";
 export const SEPARATED_BODY_FLIGHT_STATUS =
   "analytical-component-checks-only" as const;
 
@@ -65,6 +65,12 @@ export type SeparatedBodyTracePoint = Readonly<{
   aerodynamicDynamicPressurePa?: number;
   aerodynamicStaticMomentBodyNm?: Vector3;
   aerodynamicDampingMomentBodyNm?: Vector3;
+  aerodynamicReynoldsNumber?: number;
+  aerodynamicCoefficientBasis?: DetachedBodyAerodynamicResult["coefficientBasis"];
+  aerodynamicDirectForceApplied?: boolean;
+  aerodynamicDirectMomentApplied?: boolean;
+  aerodynamicCoefficientTableModelVersion?: string;
+  aerodynamicCoefficientApplicabilityCount?: number;
   aerodynamicModelVersion?: string;
 }>;
 
@@ -356,6 +362,7 @@ export function simulateSeparatedBodyFlight(
       basis: input.aerodynamicBasis,
       densityKgM3: atmosphere.densityKgM3,
       speedOfSoundMps: atmosphere.speedOfSoundMps,
+      dynamicViscosityPaS: atmosphere.dynamicViscosityPaS,
       relativeAirVelocityWorldMps: subtractVectors(
         state.velocityWorldMps,
         environment?.windWorldMps ?? ZERO_VECTOR,
@@ -474,6 +481,16 @@ export function simulateSeparatedBodyFlight(
             aerodynamicDynamicPressurePa: aerodynamic.dynamicPressurePa,
             aerodynamicStaticMomentBodyNm: aerodynamic.aerodynamicStaticMomentBodyNm,
             aerodynamicDampingMomentBodyNm: aerodynamic.aerodynamicDampingMomentBodyNm,
+            ...(aerodynamic.reynoldsNumber !== null
+              ? { aerodynamicReynoldsNumber: aerodynamic.reynoldsNumber }
+              : {}),
+            aerodynamicCoefficientBasis: aerodynamic.coefficientBasis,
+            aerodynamicDirectForceApplied: aerodynamic.directForceApplied,
+            aerodynamicDirectMomentApplied: aerodynamic.directMomentApplied,
+            ...(input.aerodynamicBasis?.coefficientTable
+              ? { aerodynamicCoefficientTableModelVersion: input.aerodynamicBasis.coefficientTable.modelVersion }
+              : {}),
+            aerodynamicCoefficientApplicabilityCount: aerodynamic.coefficientApplicability.length,
             aerodynamicModelVersion: aerodynamic.modelVersion,
           }
         : {}),

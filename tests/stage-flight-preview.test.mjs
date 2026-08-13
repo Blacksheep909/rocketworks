@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   analyzeStageFlightUncertainty,
+  createAerodynamicCoefficientTable,
   createApogeeRecoveryDeploymentEvent,
   createScheduledRecoveryDeploymentEvent,
   createScheduledStageIgnitionEvent,
@@ -14,6 +15,46 @@ import {
   motorThrustScaleFactorKey,
   simulateStageFlightPreview,
 } from "../lib/physics/index.ts";
+
+function constantCoefficientVolume(value) {
+  return {
+    values: [0, 1].map(() =>
+      [0, 1].map(() =>
+        [0, 1].map(() => [value, value]),
+      ),
+    ),
+  };
+}
+
+const detachedForceMomentTable = createAerodynamicCoefficientTable({
+  id: "detached-stage-force-moment",
+  name: "Detached-stage direct force/moment fixture",
+  machPoints: [0, 1],
+  reynoldsPoints: [1e3, 1e8],
+  angleOfAttackPointsRad: [-0.5, 0.5],
+  sideslipPointsRad: [-0.5, 0.5],
+  dragCoefficient: { values: [[0.72, 0.72], [0.72, 0.72]] },
+  normalForceSlopePerRad: { values: [[3, 3], [3, 3]] },
+  centerOfPressureXM: { values: [[0.5, 0.5], [0.5, 0.5]] },
+  forceCoefficientBodyByAngle: {
+    axial: constantCoefficientVolume(0.8),
+    normal: constantCoefficientVolume(0.1),
+    side: constantCoefficientVolume(0.05),
+  },
+  momentCoefficientBodyByAngle: {
+    roll: constantCoefficientVolume(0.01),
+    pitch: constantCoefficientVolume(-0.02),
+    yaw: constantCoefficientVolume(0.03),
+  },
+  outOfRangePolicy: "clamp-with-warning",
+  provenance: {
+    sourceName: "Detached-stage direct fixture",
+    sourceKind: "user-supplied",
+    dataVersion: "stage-direct-1",
+    licenseIdentifier: "CC0-1.0",
+    validationStatus: "user-supplied-unvalidated",
+  },
+});
 
 function properties(massKg, x, inertia = 0.02) {
   return {
@@ -247,7 +288,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.33.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.34.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);
@@ -381,6 +422,45 @@ test("stage-flight adapter forwards projected-area drag to the detached shared t
   assert.ok(detached.trace.every((point) => Number.isFinite(point.effectiveReferenceAreaM2 ?? 0)));
   assert.ok(result.separatedBodies[0].aerodynamicBasis);
   assert.ok(result.assumptions.some((assumption) => assumption.includes("reuses the selected detached stage Cd")));
+});
+
+test("stage-flight adapter forwards live detached coefficient-table loads", () => {
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages,
+    regimes: [
+      ...regimes,
+      {
+        id: "booster-direct-table",
+        label: "Booster direct table",
+        activeStageIds: ["booster"],
+        coefficientTable: detachedForceMomentTable,
+        coefficientTableDesignPoint: { mach: 0.05, reynoldsNumber: 1e6 },
+        referenceLengthM: 0.6,
+        momentReferenceLengthBodyM: { x: 0.08, y: 0.6, z: 0.6 },
+      },
+    ],
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 2.5,
+    timeStepS: 0.05,
+    releasedBodyDragModel: "attitude-projected-area",
+    coefficientUncertaintyScale: 1,
+    initialState: {
+      velocityWorldMps: { x: -20, y: 0, z: 0 },
+      orientationBodyToWorld: { w: 1, x: 0, y: 0, z: 0 },
+    },
+    events: [createScheduledStageSeparationEvent({ stageId: "booster", timeS: 1 })],
+  });
+
+  const detached = result.coupledMultiBodyFlight?.trajectories.find((trajectory) => trajectory.id.startsWith("booster/"));
+  assert.ok(detached?.aerodynamicBasis?.coefficientTable);
+  assert.equal(detached.aerodynamicBasis.coefficientTable.id, detachedForceMomentTable.id);
+  assert.ok(detached.trace.some((point) => point.aerodynamicDirectForceApplied === true));
+  assert.ok(detached.trace.some((point) => point.aerodynamicDirectMomentApplied === true));
+  assert.ok(detached.trace.some((point) => point.aerodynamicCoefficientBasis === "mach-reynolds-force-moment-table"));
+  assert.ok(detached.trace.some((point) => (point.aerodynamicReynoldsNumber ?? 0) > 0));
+  assert.ok(result.separatedBodies[0].trace.some((point) => point.aerodynamicDirectForceApplied === true));
 });
 
 test("stage mass-ratio branch exposes ideal rocket-equation diagnostics", () => {

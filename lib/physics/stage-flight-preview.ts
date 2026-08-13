@@ -124,7 +124,7 @@ import {
 } from "./mission-delta-v-bridge.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.33.0";
+  "kestrel-stage-flight-preview-0.34.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -462,6 +462,7 @@ function detachedStageAerodynamicBasis(
   regimes: readonly StageAerodynamicRegime[],
   stageId: string,
   centerOfMassXM: number,
+  coefficientUncertaintyScale?: number,
 ): DetachedStageAerodynamicBasis | null {
   const regime = regimes.find(
     (candidate) =>
@@ -524,21 +525,64 @@ function detachedStageAerodynamicBasis(
   const coefficientEvaluation = regime?.coefficientTable && regime.coefficientTableDesignPoint
     ? regime.coefficientTable.evaluate(regime.coefficientTableDesignPoint)
     : null;
+  const tableReferenceLengthM = regime?.referenceLengthM ?? (
+    profileLengthM > 0 ? profileLengthM : referenceDiameterM
+  );
   const aerodynamicBasis = referenceAreaM2 !== undefined &&
     dragCoefficient !== undefined &&
-    staticStability
+    (staticStability !== null || regime?.coefficientTable)
     ? {
         referenceAreaM2,
         dragCoefficient,
-        normalForceSlopePerRad: coefficientEvaluation?.normalForceSlopePerRad ?? staticStability.normalForceSlopePerRad,
-        centerOfPressureMinusCenterOfMassM:
-          (coefficientEvaluation?.centerOfPressureXM ?? staticStability.centerOfPressureXM) - centerOfMassXM,
+        ...(coefficientEvaluation?.normalForceSlopePerRad !== undefined || staticStability
+          ? {
+              normalForceSlopePerRad: coefficientEvaluation?.normalForceSlopePerRad ?? staticStability!.normalForceSlopePerRad,
+            }
+          : {}),
+        ...(coefficientEvaluation?.centerOfPressureXM !== undefined || staticStability
+          ? {
+              centerOfPressureMinusCenterOfMassM:
+                (coefficientEvaluation?.centerOfPressureXM ?? staticStability!.centerOfPressureXM) - centerOfMassXM,
+            }
+          : {}),
         maximumNormalForceMach: regime?.maximumNormalForceMach ?? regime?.coefficientTable?.machRange[1],
         maximumNormalForceAngleRad: regime?.maximumNormalForceAngleRad,
         minimumNormalForceAirspeedMps: regime?.minimumNormalForceAirspeedMps,
         normalForceModel: regime?.normalForceModel,
         inducedDragModel: regime?.inducedDragModel,
         inducedDragFactor: regime?.inducedDragFactor,
+        ...(regime?.coefficientTable && tableReferenceLengthM !== undefined
+          ? {
+              coefficientTable: regime.coefficientTable,
+              referenceLengthM: tableReferenceLengthM,
+              centerOfMassXM,
+              ...(regime.momentReferenceLengthBodyM || regime.coefficientTable.forceMomentDatabaseAvailable
+                ? {
+                    momentReferenceLengthBodyM: regime.momentReferenceLengthBodyM ?? {
+                      x: referenceDiameterM ?? tableReferenceLengthM,
+                      y: tableReferenceLengthM,
+                      z: tableReferenceLengthM,
+                    },
+                  }
+                : {}),
+              ...(coefficientUncertaintyScale !== undefined
+                ? { coefficientUncertaintyScale }
+                : {}),
+            }
+          : {}),
+        ...(regime?.dampingReferenceLengthBodyM
+          ? { dampingReferenceLengthBodyM: regime.dampingReferenceLengthBodyM }
+          : {}),
+        ...(coefficientEvaluation?.dampingDerivativeBody
+          ? {
+              dampingDerivativeBody: coefficientEvaluation.dampingDerivativeBody,
+              dampingReferenceLengthBodyM: regime?.dampingReferenceLengthBodyM ?? {
+                x: referenceDiameterM ?? tableReferenceLengthM ?? 1,
+                y: tableReferenceLengthM ?? referenceDiameterM ?? 1,
+                z: tableReferenceLengthM ?? referenceDiameterM ?? 1,
+              },
+            }
+          : {}),
         ...(crossflowReferenceAreaM2 !== undefined && dragCoefficient !== undefined
           ? {
               attitudeDependentDrag: {
@@ -1299,6 +1343,7 @@ export function simulateStageFlightPreview(
         input.regimes,
         stageId,
         massProperties.centerOfMassM.x,
+        input.coefficientUncertaintyScale,
       );
       if (
         input.releasedBodyDragModel === "attitude-projected-area" &&
