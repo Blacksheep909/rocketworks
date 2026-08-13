@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a geometry-only attached-flow interference screen for the assembly and
+  engineering report. Current axisymmetric and fin envelopes now expose clear,
+  near-clearance, overlap, and missing-geometry pair diagnostics for attached
+  stage instances. The result is explicitly post-processing only: it does not
+  alter aerodynamic loads, trajectory propagation, or flight-safety status.
 - Persist the coupled-flight contract in validated project inputs. Autosave,
   project JSON, and share links now retain released-body aerodynamic mode,
   mutual-gravity settings, contact-screen assumptions, and 6DOF integration

@@ -36,8 +36,8 @@ research, standards, and original code.
 - serial, parallel, radial, clustered, and multi-stage vehicle topology;
 - editable topology point-mass equipment and cylindrical pod primitives with
   slider/exact-number placement controls and optional principal local inertia
-  for equipment; off-axis aerodynamic interference is explicitly outside this
-  analytical preview;
+  for equipment; a geometry-only attached-flow clearance screen makes
+  off-axis and parallel-stage envelope overlap visible without changing loads;
 - a device-local, provenance-aware component library for reusable core,
   recovery, equipment-mass, and cylindrical-pod presets, with strict bounds and
   portable-project import/export;
@@ -354,7 +354,10 @@ preliminary fin flutter screen. Angular and direct force/moment coefficient
 volumes are now supported as explicit
 interpolation sources, and seeded event-factor dispersion now covers timing,
 separation impulse, and launch alignment; benchmarked data packages,
-relative-body separation databases, and unsteady models remain future work.
+relative-body separation databases, unsteady models, and validated
+stage-to-stage interference data remain future work. The new attached-flow
+screen is intentionally a conservative, non-propagating geometry diagnostic,
+not an aerodynamic correction.
 Longer-term work includes collaboration and cloud project storage plus native
 desktop/tablet packaging. Those additions
 will preserve the same provenance boundary and will never upgrade an

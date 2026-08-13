@@ -16,7 +16,7 @@ import {
   createRocketProfileDxf,
   createRocketStl,
 } from "../lib/export/project-exports.ts";
-import { analyzeLandingFootprint, computeStageFlightForceBudget, computeStructuralScreen, createEngineeringDesignReview, createStageInterfaceLoadReview, createStageStructuralReview, runUncertaintyAnalysis } from "../lib/physics/index.ts";
+import { analyzeAttachedAeroInterference, analyzeLandingFootprint, computeStageFlightForceBudget, computeStructuralScreen, createAttachedAeroInterferenceBody, createEngineeringDesignReview, createStageInterfaceLoadReview, createStageStructuralReview, runUncertaintyAnalysis } from "../lib/physics/index.ts";
 
 const trace = [
   {
@@ -598,10 +598,35 @@ test("engineering report leads with status and preserves calculations and limita
       allowableShearPa: 8e6,
     },
   });
+  const attachedAeroInterference = analyzeAttachedAeroInterference({
+    bodies: [
+      createAttachedAeroInterferenceBody({
+        id: "core",
+        label: "Core",
+        stageId: "core",
+        stageAttachment: "serial",
+        stageInstanceIndex: 0,
+        centerYM: 0,
+        centerZM: 0,
+        components: [{ id: "core-body", label: "Core body", sourceKind: "axisymmetric", axialStartM: 0, axialEndM: 1, centerYM: 0, centerZM: 0, outerRadiusM: 0.027 }],
+      }),
+      createAttachedAeroInterferenceBody({
+        id: "booster",
+        label: "Booster",
+        stageId: "booster",
+        stageAttachment: "parallel",
+        stageInstanceIndex: 0,
+        centerYM: 0.055,
+        centerZM: 0,
+        components: [{ id: "booster-body", label: "Booster body", sourceKind: "axisymmetric", axialStartM: 0.1, axialEndM: 0.9, centerYM: 0.055, centerZM: 0, outerRadiusM: 0.02 }],
+      }),
+    ],
+  });
   const designReview = createEngineeringDesignReview({
     thrustToWeight: 22 / (0.58 * 9.80665),
     staticMarginCalibers: 2.93,
     staticAerodynamicsModelVersion: "aero-fixture",
+    attachedAeroInterference,
     structural,
     verticalFlightCurrent: true,
     verticalFlightModelVersion: "flight-fixture",
@@ -1103,6 +1128,7 @@ test("engineering report leads with status and preserves calculations and limita
     structural,
     stageStructural,
     stageInterfaceLoads,
+    attachedAeroInterference,
     designReview,
     landing: {
       modelVersion: "landing-fixture",
@@ -1162,6 +1188,9 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /## Preliminary structural screen/);
   assert.match(report, /## Stage-aware structural review/);
   assert.match(report, /## Stage-interface axial load path/);
+  assert.match(report, /## Attached-body aerodynamic interference review/);
+  assert.match(report, /rocketworks-attached-aero-interference-0.1.0/);
+  assert.match(report, /Minimum radial clearance/);
   assert.match(report, /rocketworks-stage-interface-loads-0.3.0/);
   assert.match(report, /Parallel \/ radial equal-share audit/);
   assert.match(report, /Acceleration basis: peak-thrust-common-acceleration/);

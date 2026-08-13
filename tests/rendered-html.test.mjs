@@ -704,6 +704,8 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(page, /flutterFlightCondition/);
   assert.match(page, /Separation impulse audit/);
   assert.match(page, /STRUCTURAL SCREEN/);
+  assert.match(page, /ATTACHED-FLOW GEOMETRY SCREEN/);
+  assert.match(page, /analyzeAttachedAeroInterference/);
   assert.match(page, /ENGINEERING DESIGN REVIEW/);
   assert.match(page, /Flutter-safe speed/);
   assert.match(page, /Analytical component checks only/);
@@ -713,6 +715,7 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(page, /reference geometry—not drawings, toleranced solids/);
   assert.match(stylesheet, /\.export-backdrop/);
   assert.match(stylesheet, /\.structural-screen-card/);
+  assert.match(stylesheet, /\.attached-aero-card/);
   assert.match(stylesheet, /\.stage-structural-review-card/);
   assert.match(stylesheet, /\.stage-structural-review-row-review/);
   assert.match(stylesheet, /\.stage-mass-ratio-card/);

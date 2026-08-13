@@ -6,6 +6,7 @@ import type { StageStructuralReviewResult } from "./stage-structural-review.ts";
 import type { StageMassRatioResult } from "./stage-mass-ratio.ts";
 import type { StageInterfaceLoadResult } from "./stage-interface-loads.ts";
 import type { StageFlightVectorBudgetResult } from "./stage-flight-vector-budget.ts";
+import type { AttachedAeroInterferenceResult } from "./attached-aero-interference.ts";
 
 export const ENGINEERING_DESIGN_REVIEW_MODEL_VERSION =
   "rocketworks-engineering-design-review-0.1.0";
@@ -33,6 +34,7 @@ export type EngineeringDesignReviewInput = Readonly<{
   thrustToWeight?: number | null;
   staticMarginCalibers?: number | null;
   staticAerodynamicsModelVersion?: string | null;
+  attachedAeroInterference?: AttachedAeroInterferenceResult | null;
   structural?: StructuralScreenResult | null;
   stageStructural?: StageStructuralReviewResult | null;
   stageInterfaceLoads?: StageInterfaceLoadResult | null;
@@ -242,6 +244,55 @@ export function createEngineeringDesignReview(
         threshold: 1,
         unit: "cal",
         modelVersion: input.staticAerodynamicsModelVersion ?? null,
+      }),
+    );
+  }
+
+  if (input.attachedAeroInterference !== undefined) {
+    const attachedAero = input.attachedAeroInterference;
+    const status: EngineeringReviewFindingStatus = attachedAero === null
+      ? "unavailable"
+      : attachedAero.overallStatus === "screened"
+        ? "pass"
+        : attachedAero.overallStatus === "not-assessed"
+          ? "unavailable"
+          : "review";
+    const overlapCount = attachedAero?.overlapPairCount ?? null;
+    const nearCount = attachedAero?.nearPairCount ?? null;
+    findings.push(
+      makeFinding({
+        id: "aerodynamics-attached-interference",
+        category: "aerodynamics",
+        label: "Attached-flow interference screen",
+        status,
+        severity:
+          status === "pass"
+            ? "info"
+            : status === "unavailable"
+              ? "warning"
+              : overlapCount !== null && overlapCount > 0
+                ? "critical"
+                : "warning",
+        summary:
+          attachedAero === null
+            ? "Attached-flow interference screen is unavailable."
+            : attachedAero.overallStatus === "not-assessed"
+              ? "Attached-flow interference screen is not assessed."
+              : `${attachedAero.pairCount} attached-body pair${attachedAero.pairCount === 1 ? "" : "s"}: ${attachedAero.clearPairCount} clear, ${nearCount} watch, ${overlapCount} overlap.`,
+        detail:
+          "The geometry-only screen compares conservative axial and radial envelopes for currently attached bodies; it does not apply an aerodynamic interference correction to the flight model.",
+        action:
+          status === "pass"
+            ? "No geometry-interference action from this bounded screen."
+            : status === "unavailable"
+              ? "Supply enabled stage surface geometry, then rerun the attached-flow review."
+              : overlapCount !== null && overlapCount > 0
+                ? "Review stage spacing, repeat radius, and physical clearances before interpreting aerodynamic loads."
+                : "Review near-clearance pairs and obtain validated interference data before relying on aerodynamic predictions.",
+        value: attachedAero === null ? null : (overlapCount ?? 0) + (nearCount ?? 0),
+        threshold: 0,
+        unit: "attached pairs needing review",
+        modelVersion: attachedAero?.modelVersion ?? null,
       }),
     );
   }

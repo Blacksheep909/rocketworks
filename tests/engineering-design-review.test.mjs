@@ -159,6 +159,33 @@ test("engineering design review keeps missing evidence visible", () => {
   assert.ok(result.findings.every((finding) => finding.status === "unavailable"));
 });
 
+test("engineering design review surfaces attached-flow interference findings", () => {
+  const result = createEngineeringDesignReview({
+    attachedAeroInterference: {
+      modelVersion: "rocketworks-attached-aero-interference-0.1.0",
+      validationStatus: "analytical-component-checks-only",
+      overallStatus: "review",
+      bodyCount: 3,
+      assessedBodyCount: 3,
+      unavailableBodyCount: 0,
+      pairCount: 2,
+      clearPairCount: 0,
+      nearPairCount: 1,
+      overlapPairCount: 1,
+      minimumClearanceM: -0.01,
+      maximumPenetrationM: 0.01,
+      pairs: [],
+      assumptions: [],
+      warnings: [],
+    },
+  });
+  const finding = result.findings.find((candidate) => candidate.id === "aerodynamics-attached-interference");
+  assert.ok(finding);
+  assert.equal(finding.status, "review");
+  assert.equal(finding.severity, "critical");
+  assert.match(finding.summary, /0 clear, 1 watch, 1 overlap/);
+});
+
 test("engineering design review rejects invalid numeric inputs", () => {
   assert.throws(
     () => createEngineeringDesignReview({ thrustToWeight: Number.NaN }),

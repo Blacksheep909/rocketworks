@@ -63,6 +63,9 @@ import {
   transpose,
   transformMassProperties,
   createVehicleAssemblyModel,
+  analyzeAttachedAeroInterference,
+  createAttachedAeroComponentEnvelope,
+  createAttachedAeroInterferenceBody,
   simulateStageFlightPreview,
   makeConstantThrustCurve,
   optimizeVerticalFlightDesign,
@@ -115,6 +118,8 @@ import {
   type StageAerodynamicRegime,
   type LaunchEnvironmentProvider,
   type VehicleAssemblyEvaluation,
+  type AttachedAeroInterferenceBody,
+  type AttachedAeroInterferenceResult,
   type StateTriggeredRigidBodyEvent,
   type ScheduledRigidBodyEvent,
   type RocketStageInstance,
@@ -1136,6 +1141,73 @@ function makePlacedStageComponents(
       stageComponents.map((component) => placeStageComponent(component, placement, instanceIndex)),
     ).flat();
   });
+}
+
+function createAttachedAeroReviewBodies({
+  topology,
+  assembly,
+  componentCatalog,
+  lengthM,
+  diameterM,
+  noseLengthM,
+}: Readonly<{
+  topology: LocalVehicleTopology;
+  assembly: VehicleAssemblyEvaluation;
+  componentCatalog: ReadonlyMap<string, VehicleComponent>;
+  lengthM: number;
+  diameterM: number;
+  noseLengthM: number;
+}>): readonly AttachedAeroInterferenceBody[] {
+  const placements = createStagePlacements(topology.stages, { lengthM, diameterM, noseLengthM });
+  const groups = new Map<string, {
+    stage: VehicleStagePlan;
+    stageInstanceIndex: number;
+    centerYM: number;
+    centerZM: number;
+    components: NonNullable<ReturnType<typeof createAttachedAeroComponentEnvelope>>[];
+  }>();
+  for (const placement of placements) {
+    if (!placement.stage.enabled) continue;
+    for (let stageInstanceIndex = 0; stageInstanceIndex < placement.instanceCount; stageInstanceIndex += 1) {
+      const angle = placement.stage.attachment === "parallel"
+        ? (stageInstanceIndex * 2 * Math.PI) / Math.max(placement.instanceCount, 1)
+        : 0;
+      const key = `${placement.stage.id}:${stageInstanceIndex}`;
+      groups.set(key, {
+        stage: placement.stage,
+        stageInstanceIndex,
+        centerYM: placement.stage.attachment === "parallel"
+          ? placement.stage.repeatRadiusM * Math.cos(angle)
+          : 0,
+        centerZM: placement.stage.attachment === "parallel"
+          ? placement.stage.repeatRadiusM * Math.sin(angle)
+          : 0,
+        components: [],
+      });
+    }
+  }
+  for (const instance of assembly.componentInstances) {
+    const group = groups.get(`${instance.stageId}:${instance.stageInstanceIndex}`);
+    const component = componentCatalog.get(instance.sourceComponentId);
+    if (!group || !component) continue;
+    const envelope = createAttachedAeroComponentEnvelope(component, instance.transform);
+    if (envelope) group.components.push(envelope);
+  }
+  return [...groups.values()].map((group) => createAttachedAeroInterferenceBody({
+    id: group.stageInstanceIndex > 0 || group.stage.repeatCount > 1
+      ? `${group.stage.id}-instance-${group.stageInstanceIndex + 1}`
+      : group.stage.id,
+    label: group.stageInstanceIndex > 0 || group.stage.repeatCount > 1
+      ? `${group.stage.name} ${group.stageInstanceIndex + 1}`
+      : group.stage.name,
+    stageId: group.stage.id,
+    stageRole: group.stage.role,
+    stageAttachment: group.stage.attachment,
+    stageInstanceIndex: group.stageInstanceIndex,
+    centerYM: group.centerYM,
+    centerZM: group.centerZM,
+    components: group.components,
+  }));
 }
 
 function unplaceComponentForEnvelope(
@@ -4065,6 +4137,17 @@ export default function Home() {
       }];
     });
   }, [assembly.componentInstances, assemblyComponentCatalog, vehicleTopology.stages]);
+  const attachedAeroInterference = useMemo<AttachedAeroInterferenceResult>(() => {
+    const bodies = createAttachedAeroReviewBodies({
+      topology: vehicleTopology,
+      assembly,
+      componentCatalog: assemblyComponentCatalog,
+      lengthM: length / 1000,
+      diameterM: diameter / 1000,
+      noseLengthM: noseLength / 1000,
+    });
+    return analyzeAttachedAeroInterference({ bodies });
+  }, [assembly, assemblyComponentCatalog, diameter, length, noseLength, vehicleTopology]);
   const massProperties = assembly.massProperties;
   const mass = massProperties.massKg;
   const syntheticMotor = useMemo(
@@ -4533,6 +4616,7 @@ export default function Home() {
           : null,
       staticMarginCalibers: staticStability.staticMarginCalibers,
       staticAerodynamicsModelVersion: staticStability.modelVersion,
+      attachedAeroInterference,
       structural: structuralScreen,
       stageStructural: stageFlightConfigured ? stageStructuralReview : null,
       stageInterfaceLoads: stageFlightConfigured ? stageInterfaceLoadReview : null,
@@ -4563,6 +4647,7 @@ export default function Home() {
     resultIsCurrent,
     stageFlightIsCurrent,
     stageFlightResult,
+    attachedAeroInterference,
     stageInterfaceLoadReview,
     staticStability.modelVersion,
     staticStability.staticMarginCalibers,
@@ -6313,6 +6398,7 @@ export default function Home() {
             structural: structuralScreen,
             stageStructural: stageStructuralReview,
             stageInterfaceLoads: stageInterfaceLoadReview,
+            attachedAeroInterference,
             optimization: optimization
               ? {
                   modelVersion: optimization.result.modelVersion,
@@ -6516,6 +6602,7 @@ export default function Home() {
           structural: structuralScreen,
           stageStructural: stageStructuralReview,
           stageInterfaceLoads: stageInterfaceLoadReview,
+          attachedAeroInterference,
           designReview: engineeringReview,
         });
       } else if (format === "aero-polar-csv") {
@@ -8859,6 +8946,43 @@ export default function Home() {
                 <p className="stage-interface-load-note">{stageInterfaceLoadReview.accelerationBasis === "trace-peak-with-baseline" ? "Current staged trace informs the axial acceleration envelope; the peak-thrust baseline is retained when larger. " : "Bounded common-acceleration screen only. "}Connector geometry, fasteners, bending, transient loads, radial joints, staging impulse, and local failure modes are not modeled.</p>
               </div>
             )}
+            <div className={`attached-aero-card attached-aero-${attachedAeroInterference.overallStatus}`}>
+              <div className="attached-aero-heading">
+                <div>
+                  <span>ATTACHED-FLOW GEOMETRY SCREEN</span>
+                  <strong>
+                    {attachedAeroInterference.overallStatus === "screened"
+                      ? "CLEARANCE SCREENED"
+                      : attachedAeroInterference.overallStatus === "watch"
+                        ? "WATCH ITEMS PRESENT"
+                        : attachedAeroInterference.overallStatus === "review"
+                          ? "INTERFERENCE REVIEW REQUIRED"
+                          : "NOT ASSESSED"}
+                  </strong>
+                </div>
+                <small>{publicModelVersion(attachedAeroInterference.modelVersion)}</small>
+              </div>
+              <div className="attached-aero-counts">
+                <div><span>Bodies assessed</span><strong>{attachedAeroInterference.assessedBodyCount}/{attachedAeroInterference.bodyCount}</strong></div>
+                <div><span>Pairs screened</span><strong>{attachedAeroInterference.pairCount}</strong></div>
+                <div><span>Watch / overlap</span><strong>{attachedAeroInterference.nearPairCount} / {attachedAeroInterference.overlapPairCount}</strong></div>
+              </div>
+              {attachedAeroInterference.pairs.length > 0 && (
+                <div className="attached-aero-list">
+                  {attachedAeroInterference.pairs.slice(0, 4).map((pair) => (
+                    <div className={`attached-aero-row attached-aero-row-${pair.status}`} key={pair.id}>
+                      <span>{pair.status === "clear" ? "✓" : pair.status === "near" ? "!" : "×"}</span>
+                      <div>
+                        <strong>{pair.upstreamLabel} ↔ {pair.downstreamLabel}</strong>
+                        <small>{pair.detail} · axial overlap {(pair.axialOverlapM * 1000).toFixed(0)} mm</small>
+                      </div>
+                      <em>{pair.status.toUpperCase()}</em>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="attached-aero-note">{attachedAeroInterference.warnings[0]} No drag, lift, moment, or trajectory correction is applied by this screen.</p>
+            </div>
             <div className={`engineering-review-card engineering-review-${engineeringReview.overallStatus}`}>
               <div className="engineering-review-heading">
                 <div>

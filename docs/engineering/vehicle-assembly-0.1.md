@@ -69,7 +69,15 @@ Disabled nodes and inactive stages contribute neither mass nor motor mounts.
 
 ## Aerodynamic scope
 
-Off-axis components currently affect mass, CG, inertia, and thrust placement only. Version 0.1 does not calculate pod/booster aerodynamic interference, crossflow shielding, base-drag interaction, asymmetric separation aerodynamics, or multi-body wake effects. Every off-axis structural evaluation emits an explicit warning. Existing axial static and stage-aware aerodynamics remain separate and must not be presented as a complete booster/pod aerodynamic solution.
+Off-axis components affect mass, CG, inertia, and thrust placement. The
+separate `rocketworks-attached-aero-interference-0.1.0` screen now compares
+conservative attached-body envelopes for axial overlap and radial clearance,
+but it does not calculate pod/booster interference loads, crossflow shielding,
+base-drag interaction, asymmetric separation aerodynamics, or multi-body wake
+effects. Every result remains an explicit post-processing warning/review; the
+screen never changes a force, moment, or trajectory. Existing axial static and
+stage-aware aerodynamics remain separate and must not be presented as a
+complete booster/pod aerodynamic solution.
 
 ## Verification
 
@@ -84,7 +92,8 @@ Regression tests cover serial-stage CG, active-stage filtering, four-way booster
 
 ## Known limitations
 
-- Aerodynamic interference and separation flow fields are absent.
+- Validated aerodynamic interference and separation flow fields are absent;
+  only the non-propagating envelope review is available.
 - The assembly layer itself remains a geometry/mass expansion and does not
   own event state; callers must map its stage-instance indices into the
   multi-stage event model when independent separation is required.

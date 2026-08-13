@@ -17,6 +17,7 @@ import type { StructuralScreenResult } from "../physics/structural-screen.ts";
 import type { EngineeringDesignReviewResult } from "../physics/engineering-design-review.ts";
 import type { StageStructuralReviewResult } from "../physics/stage-structural-review.ts";
 import type { StageInterfaceLoadResult } from "../physics/stage-interface-loads.ts";
+import type { AttachedAeroInterferenceResult } from "../physics/attached-aero-interference.ts";
 import type { NormalForceModelKind } from "../physics/normal-force-compressibility.ts";
 import type { InducedDragModelKind } from "../physics/induced-drag.ts";
 import {
@@ -184,6 +185,7 @@ export type EngineeringReportInput = Readonly<{
   structural?: StructuralScreenResult | null;
   stageStructural?: StageStructuralReviewResult | null;
   stageInterfaceLoads?: StageInterfaceLoadResult | null;
+  attachedAeroInterference?: AttachedAeroInterferenceResult | null;
   designReview?: EngineeringDesignReviewResult | null;
 }>;
 
@@ -2567,6 +2569,37 @@ export function createEngineeringReportMarkdown(
           ...input.stageInterfaceLoads.warnings.map((warning) => `- **Interface load warning:** ${markdownText(warning)}`),
           "",
           "> This is a first-order axial serial load-path proxy plus a bounded equal-share parallel force-scale audit. It does not model connector geometry, fasteners, joint capacity, bending, transient loads, separation impulse, or flight safety.",
+          "",
+        ]
+      : []),
+    ...(input.attachedAeroInterference
+      ? [
+          "## Attached-body aerodynamic interference review",
+          "",
+          `Model: \`${markdownText(input.attachedAeroInterference.modelVersion)}\`  `,
+          `Status: \`${markdownText(input.attachedAeroInterference.validationStatus)}\`  `,
+          `Overall review: **${markdownText(input.attachedAeroInterference.overallStatus).toUpperCase()}**`,
+          "",
+          `- Bodies assessed: ${input.attachedAeroInterference.assessedBodyCount} / ${input.attachedAeroInterference.bodyCount}.`,
+          `- Pair screens: ${input.attachedAeroInterference.pairCount}; clear ${input.attachedAeroInterference.clearPairCount}, near ${input.attachedAeroInterference.nearPairCount}, overlap ${input.attachedAeroInterference.overlapPairCount}.`,
+          `- Minimum radial clearance: ${input.attachedAeroInterference.minimumClearanceM === null ? "not assessed" : `${formatNumber(input.attachedAeroInterference.minimumClearanceM * 1000, 1)} mm`}.`,
+          `- Maximum envelope penetration: ${input.attachedAeroInterference.maximumPenetrationM === null ? "not assessed" : `${formatNumber(input.attachedAeroInterference.maximumPenetrationM * 1000, 1)} mm`}.`,
+          "",
+          ...(input.attachedAeroInterference.pairs.length > 0
+            ? [
+                "| Body pair | Axial overlap | Radial clearance | Status | Detail |",
+                "|---|---:|---:|---|---|",
+                ...input.attachedAeroInterference.pairs.map(
+                  (pair) =>
+                    `| ${markdownText(`${pair.upstreamLabel} <-> ${pair.downstreamLabel}`)} | ${formatNumber(pair.axialOverlapM * 1000, 1)} mm | ${formatNumber(pair.radialClearanceM * 1000, 1)} mm | ${markdownText(pair.status)} | ${markdownText(pair.detail)} |`,
+                ),
+                "",
+              ]
+            : []),
+          ...input.attachedAeroInterference.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+          ...input.attachedAeroInterference.warnings.map((warning) => `- **Attached-flow warning:** ${markdownText(warning)}`),
+          "",
+          "> This screen compares conservative attached-body geometry envelopes only. It does not apply an interference correction, unsteady model, plume interaction, or trajectory change.",
           "",
         ]
       : []),
