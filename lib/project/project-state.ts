@@ -4,6 +4,8 @@ import {
 } from "./vehicle-topology.ts";
 import type { NormalForceModelKind } from "../physics/normal-force-compressibility.ts";
 import type { InducedDragModelKind } from "../physics/induced-drag.ts";
+import type { RigidBodyIntegrationMethod } from "../physics/six-dof.ts";
+import type { ReleasedBodyDragModel } from "../physics/stage-flight-preview.ts";
 
 export const LOCAL_PROJECT_SCHEMA_ID = "dev.kestrel-lab.local-project";
 export const LOCAL_PROJECT_SCHEMA_VERSION = 1;
@@ -125,6 +127,18 @@ export type EditableProjectInputs = Readonly<{
   uncertaintySeed: string;
   /** Optional pairwise dependence assumptions shared by preview analyses. */
   uncertaintyCorrelations?: ReadonlyArray<ProjectUncertaintyCorrelation>;
+  /** Enables pairwise point-mass gravity in the shared released-body preview. */
+  coupledMutualGravityEnabled?: boolean;
+  /** Plummer-style close-approach softening radius for pairwise gravity, in metres. */
+  coupledGravitySofteningRadiusM?: number;
+  /** Aerodynamic contract used for released-body tracks in the coupled preview. */
+  releasedBodyDragModel?: ReleasedBodyDragModel;
+  /** Positive distance used by the non-trajectory contact-load screen, in metres. */
+  separationContactStoppingDistanceM?: number;
+  /** Normal restitution used by the non-trajectory contact-load screen. */
+  separationContactCoefficientOfRestitution?: number;
+  /** Numerical integration contract for coupled rigid-body propagation. */
+  sixDofIntegrationMethod?: RigidBodyIntegrationMethod;
 }>;
 
 export type ProjectSourceSelections = Readonly<{
@@ -161,7 +175,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "releasedBodyDragModel" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -431,6 +445,57 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   if (typeof inducedDragFactor !== "number" || !Number.isFinite(inducedDragFactor) || inducedDragFactor < 0 || inducedDragFactor > 10) {
     throw new Error("inducedDragFactor must be a finite number from 0 through 10.");
   }
+  const coupledMutualGravityEnabled = input.coupledMutualGravityEnabled;
+  if (coupledMutualGravityEnabled !== undefined && typeof coupledMutualGravityEnabled !== "boolean") {
+    throw new Error("coupledMutualGravityEnabled must be boolean.");
+  }
+  const coupledGravitySofteningRadiusM = input.coupledGravitySofteningRadiusM;
+  if (
+    coupledGravitySofteningRadiusM !== undefined &&
+    (typeof coupledGravitySofteningRadiusM !== "number" ||
+      !Number.isFinite(coupledGravitySofteningRadiusM) ||
+      coupledGravitySofteningRadiusM < 0 ||
+      coupledGravitySofteningRadiusM > 1)
+  ) {
+    throw new Error("coupledGravitySofteningRadiusM must be a finite number from 0 through 1.");
+  }
+  const releasedBodyDragModel = input.releasedBodyDragModel;
+  if (
+    releasedBodyDragModel !== undefined &&
+    releasedBodyDragModel !== "isotropic-point" &&
+    releasedBodyDragModel !== "attitude-projected-area" &&
+    releasedBodyDragModel !== "coefficient-table"
+  ) {
+    throw new Error("releasedBodyDragModel must be isotropic-point, attitude-projected-area, or coefficient-table.");
+  }
+  const separationContactStoppingDistanceM = input.separationContactStoppingDistanceM;
+  if (
+    separationContactStoppingDistanceM !== undefined &&
+    (typeof separationContactStoppingDistanceM !== "number" ||
+      !Number.isFinite(separationContactStoppingDistanceM) ||
+      separationContactStoppingDistanceM <= 0 ||
+      separationContactStoppingDistanceM > 0.25)
+  ) {
+    throw new Error("separationContactStoppingDistanceM must be a positive finite number no greater than 0.25.");
+  }
+  const separationContactCoefficientOfRestitution = input.separationContactCoefficientOfRestitution;
+  if (
+    separationContactCoefficientOfRestitution !== undefined &&
+    (typeof separationContactCoefficientOfRestitution !== "number" ||
+      !Number.isFinite(separationContactCoefficientOfRestitution) ||
+      separationContactCoefficientOfRestitution < 0 ||
+      separationContactCoefficientOfRestitution > 1)
+  ) {
+    throw new Error("separationContactCoefficientOfRestitution must be a finite number from 0 through 1.");
+  }
+  const sixDofIntegrationMethod = input.sixDofIntegrationMethod;
+  if (
+    sixDofIntegrationMethod !== undefined &&
+    sixDofIntegrationMethod !== "fixed-rk4" &&
+    sixDofIntegrationMethod !== "adaptive-rk4-step-doubling"
+  ) {
+    throw new Error("sixDofIntegrationMethod must be fixed-rk4 or adaptive-rk4-step-doubling.");
+  }
   const uncertaintySeed = input.uncertaintySeed === undefined
     ? DEFAULT_UNCERTAINTY_SEED
     : nonEmptyString(input.uncertaintySeed, "uncertaintySeed", 80);
@@ -462,6 +527,12 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     ...(input.normalForceModel === undefined ? {} : { normalForceModel }),
     ...(input.inducedDragModel === undefined ? {} : { inducedDragModel }),
     ...(input.inducedDragFactor === undefined ? {} : { inducedDragFactor }),
+    ...(coupledMutualGravityEnabled === undefined ? {} : { coupledMutualGravityEnabled }),
+    ...(coupledGravitySofteningRadiusM === undefined ? {} : { coupledGravitySofteningRadiusM }),
+    ...(releasedBodyDragModel === undefined ? {} : { releasedBodyDragModel }),
+    ...(separationContactStoppingDistanceM === undefined ? {} : { separationContactStoppingDistanceM }),
+    ...(separationContactCoefficientOfRestitution === undefined ? {} : { separationContactCoefficientOfRestitution }),
+    ...(sixDofIntegrationMethod === undefined ? {} : { sixDofIntegrationMethod }),
     terrainModel,
     terrainEastSlopePercent: validated.terrainEastSlopePercent,
     terrainNorthSlopePercent: validated.terrainNorthSlopePercent,
@@ -629,6 +700,12 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   uncertaintySampleCount: "uncertainty scenario count",
   uncertaintySeed: "uncertainty replay seed",
   uncertaintyCorrelations: "uncertainty correlation model",
+  coupledMutualGravityEnabled: "mutual point-mass gravity",
+  coupledGravitySofteningRadiusM: "mutual-gravity softening radius",
+  releasedBodyDragModel: "released-body aerodynamic mode",
+  separationContactStoppingDistanceM: "contact stopping distance",
+  separationContactCoefficientOfRestitution: "contact restitution",
+  sixDofIntegrationMethod: "6DOF integration method",
 };
 
 export function describeProjectInputChanges(previous: EditableProjectInputs, current: EditableProjectInputs): string {

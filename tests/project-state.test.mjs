@@ -246,6 +246,49 @@ test("project snapshots preserve the opt-in induced-drag polar", () => {
   );
 });
 
+test("project snapshots preserve coupled-flight contract settings and legacy defaults remain absent", () => {
+  const source = snapshot(1, {
+    coupledMutualGravityEnabled: true,
+    coupledGravitySofteningRadiusM: 0.08,
+    releasedBodyDragModel: "coefficient-table",
+    separationContactStoppingDistanceM: 0.025,
+    separationContactCoefficientOfRestitution: 0.35,
+    sixDofIntegrationMethod: "adaptive-rk4-step-doubling",
+  });
+  const parsed = parseLocalProjectSnapshot(serializeLocalProjectSnapshot(source));
+  assert.equal(parsed.inputs.coupledMutualGravityEnabled, true);
+  assert.equal(parsed.inputs.coupledGravitySofteningRadiusM, 0.08);
+  assert.equal(parsed.inputs.releasedBodyDragModel, "coefficient-table");
+  assert.equal(parsed.inputs.separationContactStoppingDistanceM, 0.025);
+  assert.equal(parsed.inputs.separationContactCoefficientOfRestitution, 0.35);
+  assert.equal(parsed.inputs.sixDofIntegrationMethod, "adaptive-rk4-step-doubling");
+  assert.equal(snapshot(2).inputs.coupledMutualGravityEnabled, undefined);
+  assert.equal(snapshot(2).inputs.releasedBodyDragModel, undefined);
+});
+
+test("project snapshots reject invalid coupled-flight contract settings", () => {
+  assert.throws(
+    () => snapshot(1, { coupledGravitySofteningRadiusM: 1.01 }),
+    /coupledGravitySofteningRadiusM must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { releasedBodyDragModel: "unsupported" }),
+    /releasedBodyDragModel must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { separationContactStoppingDistanceM: 0 }),
+    /separationContactStoppingDistanceM must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { separationContactCoefficientOfRestitution: 1.01 }),
+    /separationContactCoefficientOfRestitution must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { sixDofIntegrationMethod: "euler" }),
+    /sixDofIntegrationMethod must be/,
+  );
+});
+
 test("project snapshots persist bounded uncertainty dependence assumptions", () => {
   const source = snapshot(1, {
     uncertaintyCorrelations: [

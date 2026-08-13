@@ -6,6 +6,10 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Persist the coupled-flight contract in validated project inputs. Autosave,
+  project JSON, and share links now retain released-body aerodynamic mode,
+  mutual-gravity settings, contact-screen assumptions, and 6DOF integration
+  method, while legacy documents restore explicit compatibility defaults.
 - Add an explicit released-body coefficient-table force model. The browser can
   now select live Mach/Reynolds/angular table loads independently of projected
   area, with direct body-axis force/moment volumes taking precedence and clear

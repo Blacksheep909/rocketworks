@@ -105,6 +105,33 @@ test("project share decoder accepts a full URL and rejects tampered payloads", (
   assert.throws(() => decodeProjectShare("#kestrel-share=not-base64!"), /payload/);
 });
 
+test("project share links carry the coupled-flight contract without embedding local sources", () => {
+  const hash = encodeProjectShare({
+    projectName: "Coupled review",
+    editableInputs: {
+      ...inputs,
+      coupledMutualGravityEnabled: true,
+      coupledGravitySofteningRadiusM: 0.04,
+      releasedBodyDragModel: "coefficient-table",
+      separationContactStoppingDistanceM: 0.02,
+      separationContactCoefficientOfRestitution: 0.2,
+      sixDofIntegrationMethod: "adaptive-rk4-step-doubling",
+    },
+    topology: createDefaultVehicleTopology(),
+    selectedMotorId: "user-motor-01",
+    selectedAerodynamicTableId: "wind-tunnel-01",
+  });
+  const restored = decodeProjectShare(hash);
+  assert.equal(restored.editableInputs.coupledMutualGravityEnabled, true);
+  assert.equal(restored.editableInputs.coupledGravitySofteningRadiusM, 0.04);
+  assert.equal(restored.editableInputs.releasedBodyDragModel, "coefficient-table");
+  assert.equal(restored.editableInputs.separationContactStoppingDistanceM, 0.02);
+  assert.equal(restored.editableInputs.separationContactCoefficientOfRestitution, 0.2);
+  assert.equal(restored.editableInputs.sixDofIntegrationMethod, "adaptive-rk4-step-doubling");
+  assert.equal(JSON.stringify(restored).includes("thrustCurve"), false);
+  assert.equal(JSON.stringify(restored).includes("coefficientTable"), false);
+});
+
 test("project share encoder keeps external library data out of the payload", () => {
   const hash = encodeProjectShare({
     projectName: "ARC 54",

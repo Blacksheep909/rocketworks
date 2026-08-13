@@ -256,6 +256,10 @@ research, standards, and original code.
   autosave/history, templates,
   beginner/expert modes, keyboard command search, and compact browser design
   share links;
+- coupled-flight contract settings are carried through validated autosave,
+  project JSON, and share links, including released-body aerodynamic mode,
+  mutual-gravity softening, contact-screen assumptions, and 6DOF integration
+  method; legacy documents receive explicit compatibility defaults;
 - editable project identity carried through local history, share links, imported
   documents, accessible labels, and sanitized artifact filenames while the
   compatibility project ID remains stable;

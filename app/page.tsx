@@ -3922,8 +3922,14 @@ export default function Home() {
       uncertaintySampleCount,
       uncertaintySeed,
       uncertaintyCorrelations,
+      coupledMutualGravityEnabled,
+      coupledGravitySofteningRadiusM,
+      releasedBodyDragModel,
+      separationContactStoppingDistanceM,
+      separationContactCoefficientOfRestitution,
+      sixDofIntegrationMethod,
     }),
-    [burnTime, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, inducedDragFactor, inducedDragModel, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalForceModel, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
+    [burnTime, coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, inducedDragFactor, inducedDragModel, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalForceModel, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, releasedBodyDragModel, relativeHumidityPercent, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -4831,6 +4837,12 @@ export default function Home() {
         setUncertaintySampleCount(inputs.uncertaintySampleCount);
         setUncertaintySeed(inputs.uncertaintySeed);
         setUncertaintyCorrelations([...(inputs.uncertaintyCorrelations ?? [])]);
+        setCoupledMutualGravityEnabled(inputs.coupledMutualGravityEnabled ?? false);
+        setCoupledGravitySofteningRadiusM(inputs.coupledGravitySofteningRadiusM ?? 0.02);
+        setReleasedBodyDragModel(inputs.releasedBodyDragModel ?? "isotropic-point");
+        setSeparationContactStoppingDistanceM(inputs.separationContactStoppingDistanceM ?? 0.01);
+        setSeparationContactCoefficientOfRestitution(inputs.separationContactCoefficientOfRestitution ?? 0);
+        setSixDofIntegrationMethod(inputs.sixDofIntegrationMethod ?? "fixed-rk4");
         if (restoredSnapshot.topology) {
           restoredTopology = restoredSnapshot.topology;
           topologyRef.current = restoredSnapshot.topology;
@@ -4965,6 +4977,12 @@ export default function Home() {
         setUncertaintySampleCount(inputs.uncertaintySampleCount);
         setUncertaintySeed(inputs.uncertaintySeed);
         setUncertaintyCorrelations([...(inputs.uncertaintyCorrelations ?? [])]);
+        setCoupledMutualGravityEnabled(inputs.coupledMutualGravityEnabled ?? false);
+        setCoupledGravitySofteningRadiusM(inputs.coupledGravitySofteningRadiusM ?? 0.02);
+        setReleasedBodyDragModel(inputs.releasedBodyDragModel ?? "isotropic-point");
+        setSeparationContactStoppingDistanceM(inputs.separationContactStoppingDistanceM ?? 0.01);
+        setSeparationContactCoefficientOfRestitution(inputs.separationContactCoefficientOfRestitution ?? 0);
+        setSixDofIntegrationMethod(inputs.sixDofIntegrationMethod ?? "fixed-rk4");
         topologyRef.current = shared.topology;
         setVehicleTopology(shared.topology);
         window.localStorage.setItem(
@@ -5441,6 +5459,12 @@ export default function Home() {
     setUncertaintySampleCount(inputs.uncertaintySampleCount);
     setUncertaintySeed(inputs.uncertaintySeed);
     setUncertaintyCorrelations([...(inputs.uncertaintyCorrelations ?? [])]);
+    setCoupledMutualGravityEnabled(inputs.coupledMutualGravityEnabled ?? false);
+    setCoupledGravitySofteningRadiusM(inputs.coupledGravitySofteningRadiusM ?? 0.02);
+    setReleasedBodyDragModel(inputs.releasedBodyDragModel ?? "isotropic-point");
+    setSeparationContactStoppingDistanceM(inputs.separationContactStoppingDistanceM ?? 0.01);
+    setSeparationContactCoefficientOfRestitution(inputs.separationContactCoefficientOfRestitution ?? 0);
+    setSixDofIntegrationMethod(inputs.sixDofIntegrationMethod ?? "fixed-rk4");
   };
   const persistCheckpoint = (
     inputs: EditableProjectInputs,
@@ -7461,7 +7485,10 @@ export default function Home() {
                     <select
                       id="released-body-force-model"
                       value={coupledMutualGravityEnabled ? "mutual-gravity" : "shared-environment"}
-                      onChange={(event) => setCoupledMutualGravityEnabled(event.target.value === "mutual-gravity")}
+                      onChange={(event) => {
+                        setCoupledMutualGravityEnabled(event.target.value === "mutual-gravity");
+                        markChanged();
+                      }}
                     >
                       <option value="shared-environment">Shared environment only</option>
                       <option value="mutual-gravity">Include mutual point-mass gravity</option>
@@ -7472,7 +7499,10 @@ export default function Home() {
                     <select
                       id="released-body-drag-model"
                       value={releasedBodyDragModel}
-                      onChange={(event) => setReleasedBodyDragModel(event.target.value as ReleasedBodyDragModel)}
+                      onChange={(event) => {
+                        setReleasedBodyDragModel(event.target.value as ReleasedBodyDragModel);
+                        markChanged();
+                      }}
                     >
                       <option value="isotropic-point">Isotropic point drag (baseline)</option>
                       <option value="attitude-projected-area">Projected-area + static aero loads (preview)</option>
@@ -7489,7 +7519,10 @@ export default function Home() {
                       min={0}
                       max={1}
                       step={0.001}
-                      onChange={setCoupledGravitySofteningRadiusM}
+                      onChange={(value) => {
+                        setCoupledGravitySofteningRadiusM(value);
+                        markChanged();
+                      }}
                     />
                   )}
                   <NumberField
@@ -7501,7 +7534,10 @@ export default function Home() {
                     max={0.25}
                     step={0.0001}
                     slider
-                    onChange={setSeparationContactStoppingDistanceM}
+                    onChange={(value) => {
+                      setSeparationContactStoppingDistanceM(value);
+                      markChanged();
+                    }}
                   />
                   <NumberField
                     id="separation-contact-restitution"
@@ -7512,7 +7548,10 @@ export default function Home() {
                     max={1}
                     step={0.01}
                     slider
-                    onChange={setSeparationContactCoefficientOfRestitution}
+                    onChange={(value) => {
+                      setSeparationContactCoefficientOfRestitution(value);
+                      markChanged();
+                    }}
                   />
                   <p className="field-help">The default track propagates released bodies in a common atmosphere and wind without inventing body-to-body forces. Mutual gravity is an opt-in point-mass extension; a non-zero softening radius regularizes close approaches and is not a contact or collision model.</p>
                   <p className="field-help">Contact stopping distance and restitution feed only the post-trace compliance scenario. They estimate normal impulse and force scales after a potential envelope crossing; they never apply contact forces to the flight trajectory.</p>
@@ -9077,7 +9116,7 @@ export default function Home() {
                 <p className="motor-provenance">Coefficient tables now drive both the fast vertical estimate and topology-aware 6DOF preview when selected. Out-of-range queries remain visible as warnings, and table data are never promoted to flight certification.</p>
                 <div className="field-group">
                   <label htmlFor="six-dof-integration-method">6DOF integration method</label>
-                  <select id="six-dof-integration-method" value={sixDofIntegrationMethod} onChange={(event) => setSixDofIntegrationMethod(event.target.value as RigidBodyIntegrationMethod)}>
+                  <select id="six-dof-integration-method" value={sixDofIntegrationMethod} onChange={(event) => { setSixDofIntegrationMethod(event.target.value as RigidBodyIntegrationMethod); markChanged(); }}>
                     <option value="fixed-rk4">Fixed RK4 · compatibility default</option>
                     <option value="adaptive-rk4-step-doubling">Adaptive RK4 · step-doubling error estimate</option>
                   </select>

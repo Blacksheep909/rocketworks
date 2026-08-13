@@ -791,6 +791,8 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(projectState, /validateVehicleTopology/);
   assert.match(projectState, /topology?: LocalVehicleTopology/);
   assert.match(projectState, /projectConfigurationFingerprint/);
+  assert.match(projectState, /releasedBodyDragModel/);
+  assert.match(projectState, /sixDofIntegrationMethod/);
   assert.match(projectState, /vehicle topology/);
   assert.match(projectState, /ProjectSourceSelections/);
   assert.match(projectState, /Unsupported local project schema version/);
@@ -994,6 +996,11 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /adaptive-rk4-step-doubling/);
   assert.match(page, /6DOF integrator diagnostics/);
   assert.match(page, /sixDofIntegrationMethod/);
+  assert.match(page, /coupledMutualGravityEnabled/);
+  assert.match(page, /coupledGravitySofteningRadiusM/);
+  assert.match(page, /separationContactStoppingDistanceM/);
+  assert.match(page, /separationContactCoefficientOfRestitution/);
+  assert.match(page, /inputs\.releasedBodyDragModel \?\? "isotropic-point"/);
   assert.match(page, /Event allocator/);
   assert.match(page, /Simultaneous groups/);
   assert.match(page, /eventAllocation/);
