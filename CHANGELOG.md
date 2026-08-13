@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add deterministic physics benchmark evidence export. The Artifact center
+  now offers a provenance-first CSV after an on-demand suite run, and the
+  engineering report records the same fixture values, tolerances, assumptions,
+  and regression-only interpretation.
+
 - Add an in-memory **Staged run comparison** workflow with pin/replace/clear
   controls, explicit stale-result guardrails, signed deltas for coupled flight
   metrics, and sampled topology counts (trace samples, events, released bodies).

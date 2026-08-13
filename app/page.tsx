@@ -14,6 +14,7 @@ import {
   createParameterSweepCsv,
   createStageFlightTraceCsv,
   createStageFlightComparisonCsv,
+  createPhysicsBenchmarkCsv,
   createSeparatedBodyTraceCsv,
   createUncertaintyCsv,
   createKestrelProjectJson,
@@ -244,7 +245,7 @@ type ViewKey = "design" | "flight";
 type DesignViewKey = UiDesignView;
 type MaterialKey = "kraft" | "fiberglass" | "carbon";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
-type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "stage-flight-comparison-csv" | "separated-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad";
+type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "stage-flight-comparison-csv" | "separated-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "benchmark-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad";
 type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
@@ -6432,6 +6433,9 @@ export default function Home() {
       if (format === "stage-flight-comparison-csv" && !stageComparisonReference) {
         throw new Error("Pin a staged comparison reference before exporting its delta.");
       }
+      if (format === "benchmark-csv" && !benchmarkResult) {
+        throw new Error("Run the deterministic physics benchmarks before exporting their evidence.");
+      }
       const generatedAtIso = new Date().toISOString();
       const fileStem = projectFileStem(projectName);
       const cadGeometry: RocketCadGeometry = {
@@ -6508,6 +6512,7 @@ export default function Home() {
             },
           } as unknown as JsonValue,
           analyses: {
+            benchmarkSuite: benchmarkResult,
             uncertainty,
             structural: structuralScreen,
             stageStructural: stageStructuralReview,
@@ -6645,6 +6650,11 @@ export default function Home() {
         filename = `${fileStem}-uncertainty-samples.csv`;
         mediaType = "text/csv;charset=utf-8";
         content = createUncertaintyCsv(uncertainty);
+      } else if (format === "benchmark-csv") {
+        if (!benchmarkResult) throw new Error("Run the deterministic physics benchmarks before exporting their evidence.");
+        filename = `${fileStem}-physics-benchmarks.csv`;
+        mediaType = "text/csv;charset=utf-8";
+        content = createPhysicsBenchmarkCsv(benchmarkResult);
       } else if (format === "report") {
         filename = `${fileStem}-engineering-report.md`;
         mediaType = "text/markdown;charset=utf-8";
@@ -6726,6 +6736,7 @@ export default function Home() {
           stageFlightComparison: stageFlightIsCurrent && stageFlightResult && stageComparisonReference
             ? createStageFlightComparison(stageComparisonReference, stageFlightResult)
             : null,
+          benchmarkSuite: benchmarkResult,
           stageUncertainty: stageUncertaintyIsCurrent ? stageUncertainty : null,
           uncertainty,
           landing: landingPrediction,
@@ -10150,6 +10161,11 @@ export default function Home() {
                 <span><strong>Uncertainty samples</strong><small>Every seeded scenario input, output, and retained error with method and ensemble metadata.</small></span>
                 <em>↓</em>
               </button>
+              {benchmarkResult && <button onClick={() => exportArtifact("benchmark-csv")}>
+                <span className="export-extension">CSV</span>
+                <span><strong>Physics benchmark evidence</strong><small>Deterministic SI anchors and closed-form fixture results with model identity, tolerances, assumptions, and regression-only status.</small></span>
+                <em>↓</em>
+              </button>}
               {stageFlightResult && <button onClick={() => exportArtifact("stage-flight-csv")}>
                 <span className="export-extension">CSV</span>
                 <span><strong>Staged 6DOF trace</strong><small>Attached-stage topology, mass, thrust, altitude, and speed at each integration sample; convergence is retained in project JSON and the engineering report.</small></span>

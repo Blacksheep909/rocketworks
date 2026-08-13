@@ -670,6 +670,10 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(page, /exportArtifact\("flight-path-geojson"\)/);
   assert.match(page, /WGS84 GeoJSON/);
   assert.match(page, /createUncertaintyCsv/);
+  assert.match(page, /createPhysicsBenchmarkCsv/);
+  assert.match(page, /Physics benchmark evidence/);
+  assert.match(exportSource, /createPhysicsBenchmarkCsv/);
+  assert.match(exportSource, /Deterministic physics evidence/);
   assert.match(page, /createAerodynamicPolarCsv/);
   assert.match(page, /exportArtifact\("aero-polar-csv"\)/);
   assert.match(exportSource, /RocketWorks aerodynamic polar export/);

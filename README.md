@@ -254,6 +254,9 @@ research, standards, and original code.
 - on-demand deterministic physics benchmarks for atmosphere, gravity,
   thrust-curve impulse, static aerodynamics, rigid-body 6DOF, structural, and
   preliminary aeroelastic regression fixtures;
+- benchmark evidence CSV and matching engineering-report section with model
+  identity, fixture tolerances, assumptions, and explicit regression-only
+  interpretation;
 - validated project import, topology- and source-complete device-local
   autosave/history, templates,
   beginner/expert modes, keyboard command search, and compact browser design

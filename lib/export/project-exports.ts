@@ -9,6 +9,7 @@ import type {
   StageFlightTracePoint,
 } from "../physics/stage-flight-preview.ts";
 import type { StageFlightComparisonResult } from "../physics/stage-flight-comparison.ts";
+import type { PhysicsBenchmarkSuiteResult } from "../physics/benchmark-suite.ts";
 import type { StageFlightUncertaintyResult } from "../physics/stage-flight-uncertainty.ts";
 import type {
   ParameterSweepResult,
@@ -182,6 +183,8 @@ export type EngineeringReportInput = Readonly<{
   stageFlight?: StageFlightPreviewResult | null;
   /** Optional session-local current-minus-reference staged run delta. */
   stageFlightComparison?: StageFlightComparisonResult | null;
+  /** Optional deterministic regression evidence captured from the browser. */
+  benchmarkSuite?: PhysicsBenchmarkSuiteResult | null;
   stageUncertainty?: StageFlightUncertaintyResult | null;
   uncertainty?: UncertaintyAnalysisResult | null;
   landing?: LandingDispersionResult | null;
@@ -602,6 +605,84 @@ export function createStageFlightComparisonCsv(
       metric.delta,
     ].map(csvCell).join(",");
   });
+  return `${metadata.join("\r\n")}\r\n${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
+}
+
+function assertPhysicsBenchmarkSuite(
+  result: PhysicsBenchmarkSuiteResult,
+): void {
+  if (!result || result.cases.length === 0) {
+    throw new Error("physics benchmark suite cannot be empty");
+  }
+  if (result.totalCount !== result.cases.length) {
+    throw new Error("physics benchmark suite total count does not match its cases");
+  }
+  const passedCount = result.cases.filter((benchmark) => benchmark.passed).length;
+  if (result.passedCount !== passedCount) {
+    throw new Error("physics benchmark suite passed count does not match its cases");
+  }
+  if ((result.status === "pass" && passedCount !== result.totalCount) ||
+      (result.status === "fail" && passedCount === result.totalCount)) {
+    throw new Error("physics benchmark suite status does not match its cases");
+  }
+  for (const [index, benchmark] of result.cases.entries()) {
+    if (!benchmark.id.trim() || !benchmark.label.trim() || !benchmark.metric.trim() || !benchmark.unit.trim() || !benchmark.method.trim()) {
+      throw new Error(`physics benchmark case ${index + 1} requires labels and method`);
+    }
+    if (!Number.isFinite(benchmark.observed) || !Number.isFinite(benchmark.expected) || !Number.isFinite(benchmark.absoluteError) || !Number.isFinite(benchmark.relativeError) || !Number.isFinite(benchmark.tolerance)) {
+      throw new Error(`physics benchmark case ${benchmark.id} contains a non-finite value`);
+    }
+    if (benchmark.tolerance < 0 || benchmark.absoluteError < 0 || benchmark.relativeError < 0) {
+      throw new Error(`physics benchmark case ${benchmark.id} contains a negative error or tolerance`);
+    }
+  }
+}
+
+/**
+ * Serialize deterministic benchmark evidence as a CSV that can be archived
+ * beside a project export. Metadata keeps the regression-only status and
+ * assumptions attached to the numeric rows instead of implying validation.
+ */
+export function createPhysicsBenchmarkCsv(
+  result: PhysicsBenchmarkSuiteResult,
+): string {
+  assertPhysicsBenchmarkSuite(result);
+  const metadata = [
+    ["# rocketworks_export", KESTREL_EXPORT_MODEL_VERSION],
+    ["# benchmark_model_version", result.modelVersion],
+    ["# validation_status", result.validationStatus],
+    ["# result_status", result.status],
+    ["# passed_count", result.passedCount],
+    ["# total_count", result.totalCount],
+    ...result.warnings.map((warning) => ["# warning", warning]),
+    ...result.assumptions.map((assumption) => ["# assumption", assumption]),
+  ].map(([key, value]) => `${key},${csvCell(value)}`);
+  const headers = [
+    "case_id",
+    "label",
+    "metric",
+    "unit",
+    "observed",
+    "expected",
+    "absolute_error",
+    "relative_error",
+    "tolerance",
+    "passed",
+    "method",
+  ];
+  const rows = result.cases.map((benchmark) => [
+    benchmark.id,
+    benchmark.label,
+    benchmark.metric,
+    benchmark.unit,
+    benchmark.observed,
+    benchmark.expected,
+    benchmark.absoluteError,
+    benchmark.relativeError,
+    benchmark.tolerance,
+    benchmark.passed,
+    benchmark.method,
+  ].map(csvCell).join(","));
   return `${metadata.join("\r\n")}\r\n${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
 }
 
@@ -1827,6 +1908,7 @@ export function createEngineeringReportMarkdown(
     }
   }
   const landing = input.landing?.footprint;
+  if (input.benchmarkSuite) assertPhysicsBenchmarkSuite(input.benchmarkSuite);
   const lines = [
     `# ${markdownText(input.projectName)} — Preliminary Engineering Report`,
     "",
@@ -1837,6 +1919,27 @@ export function createEngineeringReportMarkdown(
     "",
     "> **Not flight-safe or manufacturing-approved.** This report contains engineering-preview calculations with analytical component checks only. Independently validate all geometry, loads, materials, recovery behavior, weather, and operational constraints.",
     "",
+    ...(input.benchmarkSuite
+      ? [
+          "## Deterministic physics evidence",
+          "",
+          `Model: \`${markdownText(input.benchmarkSuite.modelVersion)}\`  `,
+          `Validation status: \`${markdownText(input.benchmarkSuite.validationStatus)}\`  `,
+          `Result: ${input.benchmarkSuite.status === "pass" ? "all fixtures pass" : "review failed fixtures"} (${input.benchmarkSuite.passedCount}/${input.benchmarkSuite.totalCount})`,
+          "",
+          "| Fixture | Observed | Expected | Absolute error | Tolerance | Status |",
+          "|---|---:|---:|---:|---:|---|",
+          ...input.benchmarkSuite.cases.map(
+            (benchmark) => `| ${markdownText(benchmark.label)} | ${formatNumber(benchmark.observed, 8)} ${markdownText(benchmark.unit)} | ${formatNumber(benchmark.expected, 8)} ${markdownText(benchmark.unit)} | ${formatNumber(benchmark.absoluteError, 8)} | ${formatNumber(benchmark.tolerance, 8)} | ${benchmark.passed ? "pass" : "fail"} |`,
+          ),
+          "",
+          ...input.benchmarkSuite.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+          ...input.benchmarkSuite.warnings.map((warning) => `- **Benchmark warning:** ${markdownText(warning)}`),
+          "",
+          "> These fixed SI anchors and closed-form fixtures are regression evidence only. They are not experimental validation, certification, manufacturing evidence, or a flight-safety assessment.",
+          "",
+        ]
+      : []),
     "## Vehicle summary",
     "",
     "| Property | Value |",

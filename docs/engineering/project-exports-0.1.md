@@ -1,4 +1,4 @@
-# Project, analysis, report, and CAD exports 0.10
+# Project, analysis, report, and CAD exports 0.11
 
 Status: `engineering-preview-unvalidated`
 
@@ -17,17 +17,19 @@ The browser's Export action now opens a keyboard-accessible artifact center.
 Escape or the close button dismisses it. Downloads are created in memory and
 initiated only after the user selects a format.
 
-Version 0.9 offers eight inspectable formats plus a validated project-import path:
+The center offers inspectable project, simulation, evidence, and CAD formats
+plus a validated project-import path:
 
 1. Versioned RocketWorks project JSON
 2. Flight-trace CSV
 3. Vertical uncertainty-sample CSV
-4. Staged 6DOF trace CSV
-5. Released-body trajectory CSV
-6. Parameter-sweep CSV
-7. Preliminary engineering report in Markdown
-8. R11/R12-compatible ASCII DXF side profile
-9. Parametric OpenSCAD reference geometry
+4. Deterministic physics benchmark evidence CSV (after running the on-demand suite)
+5. Staged 6DOF trace CSV
+6. Released-body trajectory CSV
+7. Parameter-sweep CSV
+8. Preliminary engineering report in Markdown
+9. R11/R12-compatible ASCII DXF side profile
+10. Parametric OpenSCAD reference geometry
 
 Every engineering or CAD surface presents manufacturing and validation limits
 before download. The DXF, SCAD, project, and report files also embed status or
@@ -38,6 +40,15 @@ the motor's selected propellant depletion source, and, when supplied, the
 integrated measured outflow mass. This keeps report provenance aligned with
 the live source configuration without conflating measured flow with the
 independent thrust curve.
+
+When the deterministic physics suite has been run, the report adds a
+**Deterministic physics evidence** section and the artifact center offers a
+matching `-physics-benchmarks.csv` extract. The CSV begins with model version,
+regression-only validation status, pass counts, warnings, and assumptions,
+then lists each fixture's observed/expected value, absolute and relative error,
+tolerance, pass state, and method. These values are fixed-equation regression
+evidence; they do not establish experimental validation, certification,
+manufacturing evidence, or flight safety.
 
 For coupled previews, the report also records the selected relation-based
 normal-force model (`low-speed`, `prandtl-glauert`, `supersonic-linearized`, or
@@ -67,6 +78,11 @@ analysis, optional optimization Pareto summary, optional landing footprint,
   source/licence provenance, including the ascent-to-recovery handoff
   proxy, recovery deployment reliability assumptions, and sampled outcomes when
   a landing dispersion is present.
+
+If the browser benchmark lane has been run, the `analyses.benchmarkSuite`
+branch preserves its model version, pass counts, cases, assumptions, and
+warnings. It remains deterministic regression evidence, not a validation
+certificate.
 
 When a current coupled 6DOF preview exists, the project JSON retains its
 step-size convergence diagnostic, and the Markdown report includes the same

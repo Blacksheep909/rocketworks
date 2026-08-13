@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { runPhysicsBenchmarkSuite } from "../lib/physics/index.ts";
+import { createPhysicsBenchmarkCsv } from "../lib/export/project-exports.ts";
 
 test("physics benchmark suite passes deterministic standards and closed-form fixtures", () => {
   const result = runPhysicsBenchmarkSuite();
@@ -28,4 +29,19 @@ test("physics benchmark suite returns finite error diagnostics", () => {
     assert.ok(Number.isFinite(benchmark.relativeError));
     assert.ok(benchmark.tolerance >= 0);
   }
+});
+
+test("physics benchmark evidence CSV preserves provenance and deterministic rows", () => {
+  const result = runPhysicsBenchmarkSuite();
+  const csv = createPhysicsBenchmarkCsv(result);
+
+  assert.equal(csv, createPhysicsBenchmarkCsv(result));
+  assert.match(csv, /# benchmark_model_version,kestrel-physics-benchmark-suite-0\.4\.0/);
+  assert.match(csv, /# validation_status,mathematical-regression-tests-only/);
+  assert.match(csv, /# result_status,pass/);
+  assert.match(csv, /# passed_count,17/);
+  assert.match(csv, /case_id,label,metric,unit,observed,expected,absolute_error,relative_error,tolerance,passed,method/);
+  assert.match(csv, /atmosphere-sea-level-pressure/);
+  assert.match(csv, /six-dof-torque-free-angular-momentum/);
+  assert.match(csv, /These checks exercise deterministic equations/);
 });

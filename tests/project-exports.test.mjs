@@ -16,7 +16,7 @@ import {
   createRocketProfileDxf,
   createRocketStl,
 } from "../lib/export/project-exports.ts";
-import { analyzeAttachedAeroInterference, analyzeLandingFootprint, computeStageFlightForceBudget, computeStructuralScreen, createAttachedAeroInterferenceBody, createEngineeringDesignReview, createStageFlightComparison, createStageInterfaceLoadReview, createStageStructuralReview, runUncertaintyAnalysis } from "../lib/physics/index.ts";
+import { analyzeAttachedAeroInterference, analyzeLandingFootprint, computeStageFlightForceBudget, computeStructuralScreen, createAttachedAeroInterferenceBody, createEngineeringDesignReview, createStageFlightComparison, createStageInterfaceLoadReview, createStageStructuralReview, runPhysicsBenchmarkSuite, runUncertaintyAnalysis } from "../lib/physics/index.ts";
 
 const trace = [
   {
@@ -1132,6 +1132,7 @@ test("engineering report leads with status and preserves calculations and limita
       },
     },
     stageFlightComparison,
+    benchmarkSuite: runPhysicsBenchmarkSuite(),
     stageUncertainty: {
       ...uncertainty,
       adapterVersion: "kestrel-stage-flight-uncertainty-1.1.0",
@@ -1178,6 +1179,10 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Site coordinates \(WGS84\): -36\.85000°, 174\.76000°/);
   assert.match(report, /Mean-wind profile: user-supplied \(3 altitude layers\)/);
   assert.match(report, /Turbulence RMS scale: 1\.20×/);
+  assert.match(report, /## Deterministic physics evidence/);
+  assert.match(report, /Result: all fixtures pass \(17\/17\)/);
+  assert.match(report, /6DOF constant-force translation/);
+  assert.match(report, /regression evidence only/);
   assert.match(report, /Weather replay seed: `report-weather-v1`/);
   assert.match(report, /Pad pressure observation: 1004\.0 hPa/);
   assert.match(report, /Wind azimuth input: 35° ENU/);
