@@ -2851,7 +2851,7 @@ function FlightDataComparisonCard({
         <div>
           <span className="eyebrow">Measured-data check</span>
           <h4 id="flight-data-title">Compare an instrumented flight</h4>
-          <p>Load a simple SI CSV log to inspect model residuals against measured altitude, velocity, or acceleration. Choose the vertical or coupled 6DOF trace; a validated log is kept locally in this browser.</p>
+          <p>Load a simple SI CSV log to inspect model residuals against measured altitude, velocity, or acceleration. Optional positive one-sigma columns add normalized residuals for uncertainty-aware review. Choose the vertical or coupled 6DOF trace; the imported log is kept locally in this browser.</p>
         </div>
         <div className="flight-data-actions">
           <label className="flight-data-import-button">
@@ -2909,6 +2909,8 @@ function FlightDataComparisonCard({
               <span role="columnheader">Mean residual</span>
               <span role="columnheader">RMSE</span>
               <span role="columnheader">P95 |residual|</span>
+              <span role="columnheader">Normalized RMSE</span>
+              <span role="columnheader">σ coverage</span>
             </div>
             {(Object.keys(FLIGHT_DATA_METRIC_DISPLAY) as Array<keyof typeof FLIGHT_DATA_METRIC_DISPLAY>).map((metric) => {
               const summary = comparison.metrics[metric];
@@ -2920,12 +2922,14 @@ function FlightDataComparisonCard({
                   <strong role="cell" className={summary.meanResidual > 0 ? "positive" : summary.meanResidual < 0 ? "negative" : "neutral"}>{formatFlightDataMetric(summary.meanResidual, metric)}</strong>
                   <span role="cell">{formatFlightDataMetric(summary.rootMeanSquareError, metric)}</span>
                   <span role="cell">{formatFlightDataMetric(summary.p95AbsoluteResidual, metric)}</span>
+                  <span role="cell">{summary.rootMeanSquareNormalizedResidual === null ? "Not supplied" : `${summary.rootMeanSquareNormalizedResidual.toFixed(2)} σ`}</span>
+                  <span role="cell">{summary.uncertaintySampleCount > 0 ? `${(summary.uncertaintyCoverageFraction * 100).toFixed(0)}%` : "None"}</span>
                 </div>
               );
             })}
           </div>
           {comparison.warnings.length > 0 && <div className="flight-data-warnings"><strong>Coverage notes</strong>{comparison.warnings.map((warning) => <span key={warning}>{warning}</span>)}</div>}
-          <p className="flight-data-note">Residuals are simulated minus measured and use linear interpolation between trace samples. This is an engineering diagnostic, not validation, certification, or flight-safety evidence.</p>
+          <p className="flight-data-note">Residuals are simulated minus measured and use linear interpolation between trace samples. Normalized residuals divide by supplied one-sigma measurement uncertainty; they are diagnostic, not an acceptance test, validation, certification, or flight-safety evidence.</p>
         </>
       )}
     </section>

@@ -963,7 +963,7 @@ kbd {
 .flight-data-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 11px; color: #7d929e; font: 7px var(--font-geist-mono), monospace; }
 .flight-data-meta strong { color: #d1e8f5; font-weight: 650; }
 .flight-data-table { margin-top: 10px; overflow: hidden; border: 1px solid rgba(47,159,255,.18); border-radius: 3px; background: rgba(47,159,255,.16); }
-.flight-data-row { display: grid; grid-template-columns: minmax(130px, 1.2fr) repeat(3, minmax(112px, 1fr)); gap: 1px; min-width: 0; background: rgba(47,159,255,.16); }
+.flight-data-row { display: grid; grid-template-columns: minmax(130px, 1.2fr) repeat(5, minmax(112px, 1fr)); gap: 1px; min-width: 0; background: rgba(47,159,255,.16); }
 .flight-data-row > * { min-width: 0; padding: 8px 9px; background: rgba(12,18,24,.92); color: #a8bbc7; font: 8px var(--font-geist-mono), monospace; }
 .flight-data-row-header > * { padding-top: 7px; padding-bottom: 7px; background: rgba(47,159,255,.08); color: #82b9d9; font-size: 7px; letter-spacing: .06em; text-align: right; text-transform: uppercase; }
 .flight-data-row-header > :first-child,
@@ -3001,7 +3001,7 @@ body {
   .flight-data-empty span { text-align: left; }
   .flight-data-meta { align-items: flex-start; flex-direction: column; }
   .flight-data-table { overflow-x: auto; }
-  .flight-data-row { min-width: 560px; }
+  .flight-data-row { min-width: 900px; }
   .benchmark-heading { flex-direction: column; }
   .benchmark-run { align-self: flex-start; }
   .benchmark-empty { align-items: flex-start; flex-direction: column; }

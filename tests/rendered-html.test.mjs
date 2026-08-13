@@ -282,6 +282,9 @@ test("ships a seeded and clearly qualified uncertainty panel", async () => {
   assert.match(source, /flight-data-trace-source/);
   assert.match(source, /coupled 6DOF/);
   assert.match(source, /Residuals are simulated minus measured/);
+  assert.match(source, /Normalized residuals divide by supplied one-sigma/);
+  assert.match(source, /Normalized RMSE/);
+  assert.match(source, /σ coverage/);
   assert.match(source, /Measured time offset/);
   assert.match(source, /Simulation time = measured time \+ offset/);
   assert.match(source, /Export residuals/);

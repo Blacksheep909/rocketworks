@@ -6,6 +6,13 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extend measured-flight comparison to accept optional positive one-sigma
+  altitude, velocity, and acceleration uncertainty columns. The browser now
+  reports normalized residual RMSE and coverage, matched rows retain sigma and
+  normalized values in the residual CSV, and incomplete uncertainty coverage
+  stays visible as a warning. This is an uncertainty-aware diagnostic, not a
+  chi-square acceptance test, model validation, certification, or flight-safety
+  result.
 - Add an ideal-to-trace mission delta-v composition bridge to the staged Flight
   workspace and engineering report. The new versioned diagnostic compares the
   serial-stack ideal rocket-equation preview with the recorded thrust impulse

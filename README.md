@@ -230,8 +230,9 @@ research, standards, and original code.
   metric deltas after a design or environment change;
 - measured-flight CSV comparison with strict SI parsing, vertical or coupled
   6DOF trace selection, interpolation-based residuals, event-timestamp
-  normalization, deterministic residual CSV export, browser-local persistence,
-  and explicit validation boundaries;
+  normalization, optional positive one-sigma measurement uncertainty with
+  normalized residual statistics, deterministic residual CSV export,
+  browser-local persistence, and explicit validation boundaries;
 - on-demand deterministic physics benchmarks for atmosphere, gravity,
   thrust-curve impulse, static aerodynamics, rigid-body 6DOF, structural, and
   preliminary aeroelastic regression fixtures;

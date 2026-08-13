@@ -1,16 +1,25 @@
 import type { FlightTracePoint } from "./vertical-flight.ts";
 
-export const FLIGHT_DATA_COMPARISON_MODEL_VERSION = "kestrel-flight-data-comparison-0.1.0";
+export const FLIGHT_DATA_COMPARISON_MODEL_VERSION = "kestrel-flight-data-comparison-0.2.0";
 export const FLIGHT_DATA_COMPARISON_STATUS = "engineering-preview-unvalidated";
 export type FlightDataTraceSource = "vertical-1d" | "coupled-6dof";
 
 export type FlightDataMetricKey = "altitudeM" | "velocityMps" | "accelerationMps2";
+export type FlightDataMetricUncertaintyKey =
+  | "altitudeUncertaintyM"
+  | "velocityUncertaintyMps"
+  | "accelerationUncertaintyMps2";
+type FlightDataColumnKey = FlightDataMetricKey | FlightDataMetricUncertaintyKey | "timeS";
 
 export type FlightDataSample = Readonly<{
   timeS: number;
   altitudeM?: number;
   velocityMps?: number;
   accelerationMps2?: number;
+  /** Optional one-sigma measurement uncertainty for the corresponding channel. */
+  altitudeUncertaintyM?: number;
+  velocityUncertaintyMps?: number;
+  accelerationUncertaintyMps2?: number;
 }>;
 
 export type FlightDataSeries = Readonly<{
@@ -27,12 +36,19 @@ export type FlightDataMetricComparison = Readonly<{
   rootMeanSquareError: number;
   maximumAbsoluteResidual: number;
   p95AbsoluteResidual: number;
+  uncertaintySampleCount: number;
+  uncertaintyCoverageFraction: number;
+  meanNormalizedResidual: number | null;
+  rootMeanSquareNormalizedResidual: number | null;
+  p95AbsoluteNormalizedResidual: number | null;
 }>;
 
 export type FlightDataMetricResidual = Readonly<{
   measured: number;
   simulated: number;
   residual: number;
+  uncertainty?: number;
+  normalizedResidual?: number;
 }>;
 
 export type FlightDataComparisonRow = Readonly<{
@@ -72,14 +88,15 @@ const METRIC_DEFINITIONS: readonly Readonly<{
   key: FlightDataMetricKey;
   label: string;
   sample: (value: FlightDataSample) => number | undefined;
+  uncertainty: (value: FlightDataSample) => number | undefined;
   trace: (value: TracePoint) => number;
 }>[] = [
-  { key: "altitudeM", label: "altitude", sample: (value) => value.altitudeM, trace: (value) => value.altitudeAglM },
-  { key: "velocityMps", label: "velocity", sample: (value) => value.velocityMps, trace: (value) => value.velocityMps },
-  { key: "accelerationMps2", label: "acceleration", sample: (value) => value.accelerationMps2, trace: (value) => value.accelerationMps2 },
+  { key: "altitudeM", label: "altitude", sample: (value) => value.altitudeM, uncertainty: (value) => value.altitudeUncertaintyM, trace: (value) => value.altitudeAglM },
+  { key: "velocityMps", label: "velocity", sample: (value) => value.velocityMps, uncertainty: (value) => value.velocityUncertaintyMps, trace: (value) => value.velocityMps },
+  { key: "accelerationMps2", label: "acceleration", sample: (value) => value.accelerationMps2, uncertainty: (value) => value.accelerationUncertaintyMps2, trace: (value) => value.accelerationMps2 },
 ];
 
-const CSV_COLUMN_ALIASES: Readonly<Record<string, FlightDataMetricKey | "timeS">> = {
+const CSV_COLUMN_ALIASES: Readonly<Record<string, FlightDataColumnKey>> = {
   time: "timeS",
   time_s: "timeS",
   timestamp_s: "timeS",
@@ -96,6 +113,22 @@ const CSV_COLUMN_ALIASES: Readonly<Record<string, FlightDataMetricKey | "timeS">
   acceleration_mps2: "accelerationMps2",
   accel: "accelerationMps2",
   accel_mps2: "accelerationMps2",
+  altitude_sigma_m: "altitudeUncertaintyM",
+  altitude_uncertainty_m: "altitudeUncertaintyM",
+  altitude_stddev_m: "altitudeUncertaintyM",
+  sigma_altitude_m: "altitudeUncertaintyM",
+  altitude_sigma: "altitudeUncertaintyM",
+  velocity_sigma_mps: "velocityUncertaintyMps",
+  velocity_uncertainty_mps: "velocityUncertaintyMps",
+  velocity_stddev_mps: "velocityUncertaintyMps",
+  sigma_velocity_mps: "velocityUncertaintyMps",
+  velocity_sigma: "velocityUncertaintyMps",
+  acceleration_sigma_mps2: "accelerationUncertaintyMps2",
+  acceleration_uncertainty_mps2: "accelerationUncertaintyMps2",
+  acceleration_stddev_mps2: "accelerationUncertaintyMps2",
+  sigma_acceleration_mps2: "accelerationUncertaintyMps2",
+  acceleration_sigma: "accelerationUncertaintyMps2",
+  accel_sigma_mps2: "accelerationUncertaintyMps2",
 };
 
 const MAX_FLIGHT_DATA_CSV_BYTES = 5_000_000;
@@ -125,6 +158,26 @@ function validateSamples(samples: readonly FlightDataSample[], label: string) {
     values.forEach((value, metricIndex) => {
       if (value !== undefined) assertFinite(value, `${label} sample ${index + 1} metric ${metricIndex + 1}`);
     });
+    const uncertainties = [
+      sample.altitudeUncertaintyM,
+      sample.velocityUncertaintyMps,
+      sample.accelerationUncertaintyMps2,
+    ];
+    uncertainties.forEach((value, metricIndex) => {
+      if (value !== undefined) {
+        assertFinite(value, `${label} sample ${index + 1} uncertainty ${metricIndex + 1}`);
+        if (!(value > 0)) throw new Error(`${label} sample ${index + 1} uncertainties must be positive.`);
+      }
+    });
+    if (sample.altitudeUncertaintyM !== undefined && sample.altitudeM === undefined) {
+      throw new Error(`${label} sample ${index + 1} altitude uncertainty requires altitude.`);
+    }
+    if (sample.velocityUncertaintyMps !== undefined && sample.velocityMps === undefined) {
+      throw new Error(`${label} sample ${index + 1} velocity uncertainty requires velocity.`);
+    }
+    if (sample.accelerationUncertaintyMps2 !== undefined && sample.accelerationMps2 === undefined) {
+      throw new Error(`${label} sample ${index + 1} acceleration uncertainty requires acceleration.`);
+    }
   });
 }
 
@@ -158,7 +211,7 @@ export function parseFlightDataCsv(csv: string, sourceName = "Flight data CSV"):
     if (fields.length !== headers.length) {
       throw new Error(`Flight data CSV line ${row.lineNumber} must contain ${headers.length} columns.`);
     }
-    const values: Partial<Record<FlightDataMetricKey | "timeS", number>> = {};
+    const values: Partial<Record<FlightDataColumnKey, number>> = {};
     fields.forEach((field, index) => {
       const key = mappedHeaders[index];
       if (key === null || field === "") return;
@@ -172,6 +225,9 @@ export function parseFlightDataCsv(csv: string, sourceName = "Flight data CSV"):
       ...(values.altitudeM === undefined ? {} : { altitudeM: values.altitudeM }),
       ...(values.velocityMps === undefined ? {} : { velocityMps: values.velocityMps }),
       ...(values.accelerationMps2 === undefined ? {} : { accelerationMps2: values.accelerationMps2 }),
+      ...(values.altitudeUncertaintyM === undefined ? {} : { altitudeUncertaintyM: values.altitudeUncertaintyM }),
+      ...(values.velocityUncertaintyMps === undefined ? {} : { velocityUncertaintyMps: values.velocityUncertaintyMps }),
+      ...(values.accelerationUncertaintyMps2 === undefined ? {} : { accelerationUncertaintyMps2: values.accelerationUncertaintyMps2 }),
     };
     if (![sample.altitudeM, sample.velocityMps, sample.accelerationMps2].some((value) => value !== undefined)) {
       throw new Error(`Flight data CSV line ${row.lineNumber} needs altitude, velocity, or acceleration.`);
@@ -246,7 +302,17 @@ export function compareFlightDataToTrace(
       const measured = definition.sample(row.sample);
       if (measured === undefined) return;
       const simulated = definition.trace(traceSample);
-      metricValues[definition.key] = { measured, simulated, residual: simulated - measured };
+      const uncertainty = definition.uncertainty(row.sample);
+      const residual = simulated - measured;
+      metricValues[definition.key] = {
+        measured,
+        simulated,
+        residual,
+        ...(uncertainty === undefined ? {} : {
+          uncertainty,
+          normalizedResidual: residual / uncertainty,
+        }),
+      };
     });
     if (Object.keys(metricValues).length > 0) {
       rows.push({ timeS: row.sample.timeS, simulationTimeS: row.sample.timeS + timeOffsetS, ...metricValues });
@@ -257,11 +323,16 @@ export function compareFlightDataToTrace(
     const pairs = matchedRows.flatMap((row) => {
       const measured = definition.sample(row.sample);
       const simulated = row.trace === null ? undefined : definition.trace(row.trace);
-      return measured === undefined || simulated === undefined ? [] : [{ measured, simulated }];
+      const uncertainty = definition.uncertainty(row.sample);
+      return measured === undefined || simulated === undefined ? [] : [{ measured, simulated, uncertainty }];
     });
     if (pairs.length === 0) return;
     const residuals = pairs.map((pair) => pair.simulated - pair.measured);
     const absoluteResiduals = residuals.map(Math.abs).sort((a, b) => a - b);
+    const normalizedResiduals = pairs.flatMap((pair) =>
+      pair.uncertainty === undefined ? [] : [(pair.simulated - pair.measured) / pair.uncertainty],
+    );
+    const absoluteNormalizedResiduals = normalizedResiduals.map(Math.abs).sort((a, b) => a - b);
     metrics[definition.key] = {
       metric: definition.key,
       sampleCount: pairs.length,
@@ -271,7 +342,21 @@ export function compareFlightDataToTrace(
       rootMeanSquareError: Math.sqrt(residuals.reduce((sum, value) => sum + value ** 2, 0) / residuals.length),
       maximumAbsoluteResidual: absoluteResiduals.at(-1)!,
       p95AbsoluteResidual: quantile(absoluteResiduals, 0.95)!,
+      uncertaintySampleCount: normalizedResiduals.length,
+      uncertaintyCoverageFraction: normalizedResiduals.length / pairs.length,
+      meanNormalizedResidual: normalizedResiduals.length > 0
+        ? normalizedResiduals.reduce((sum, value) => sum + value, 0) / normalizedResiduals.length
+        : null,
+      rootMeanSquareNormalizedResidual: normalizedResiduals.length > 0
+        ? Math.sqrt(normalizedResiduals.reduce((sum, value) => sum + value ** 2, 0) / normalizedResiduals.length)
+        : null,
+      p95AbsoluteNormalizedResidual: absoluteNormalizedResiduals.length > 0
+        ? quantile(absoluteNormalizedResiduals, 0.95)
+        : null,
     };
+    if (normalizedResiduals.length > 0 && normalizedResiduals.length < pairs.length) {
+      warnings.push(`${definition.label} uncertainty coverage is ${normalizedResiduals.length}/${pairs.length} matched samples; normalized residuals use only rows with a supplied positive one-sigma value.`);
+    }
   });
   if (Object.keys(metrics).length === 0) warnings.push("No supported measured metric overlaps the simulated trace.");
   return {
@@ -291,6 +376,7 @@ export function compareFlightDataToTrace(
     assumptions: [
       "Measured samples are compared against linearly interpolated simulation trace values.",
       "Residuals are simulated minus measured; a positive value means the model is higher.",
+      "Optional uncertainty columns are interpreted as positive one-sigma measurement values; normalized residuals are residual / sigma and are not a statistical acceptance test.",
       "Timestamps are assumed to share a common time reference; no automatic event alignment or sensor calibration is applied.",
       "This comparison is an engineering diagnostic, not validation, certification, or a flight-safety assessment.",
     ],
@@ -364,7 +450,7 @@ export function createFlightDataComparisonCsv(result: FlightDataComparisonResult
     `# time_offset_s,${csvField(result.timeOffsetS)}`,
     `# measured_samples,${csvField(result.measuredSampleCount)}`,
     `# matched_samples,${csvField(result.matchedSampleCount)}`,
-    "time_s,simulation_time_s,altitude_measured_m,altitude_simulated_m,altitude_residual_m,velocity_measured_mps,velocity_simulated_mps,velocity_residual_mps,acceleration_measured_mps2,acceleration_simulated_mps2,acceleration_residual_mps2",
+    "time_s,simulation_time_s,altitude_measured_m,altitude_simulated_m,altitude_residual_m,velocity_measured_mps,velocity_simulated_mps,velocity_residual_mps,acceleration_measured_mps2,acceleration_simulated_mps2,acceleration_residual_mps2,altitude_uncertainty_m,altitude_normalized_residual_sigma,velocity_uncertainty_mps,velocity_normalized_residual_sigma,acceleration_uncertainty_mps2,acceleration_normalized_residual_sigma",
   ];
   result.rows.forEach((row) => {
     const values = [
@@ -379,6 +465,12 @@ export function createFlightDataComparisonCsv(result: FlightDataComparisonResult
       row.accelerationMps2?.measured,
       row.accelerationMps2?.simulated,
       row.accelerationMps2?.residual,
+      row.altitudeM?.uncertainty,
+      row.altitudeM?.normalizedResidual,
+      row.velocityMps?.uncertainty,
+      row.velocityMps?.normalizedResidual,
+      row.accelerationMps2?.uncertainty,
+      row.accelerationMps2?.normalizedResidual,
     ];
     values.forEach((value, index) => {
       if (value !== undefined) assertFinite(value, `flight data CSV row ${index + 1}`);
