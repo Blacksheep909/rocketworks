@@ -39,6 +39,13 @@ test("relative-flow interaction detects directed wake exposure and dynamic-press
   });
 
   assert.equal(result.modelVersion, RELATIVE_AERO_INTERACTION_MODEL_VERSION);
+  assert.deepEqual(result.configuration, {
+    enabled: true,
+    wakeHalfAngleDeg: 8,
+    wakeRecoveryDistanceBodyDiameters: 30,
+    peakVelocityDeficitFraction: 0.5,
+    maximumVelocityDeficitFraction: 0.7,
+  });
   assert.equal(result.status, "assessed");
   assert.equal(result.assessedPairCount, 2);
   assert.equal(result.exposedPairCount, 1);
@@ -89,6 +96,7 @@ test("relative-flow interaction reports missing geometry and disabled analysis e
   });
   assert.equal(disabled.status, "not-assessed");
   assert.equal(disabled.pairs.length, 0);
+  assert.equal(disabled.configuration.enabled, false);
   assert.ok(disabled.warnings.some((warning) => warning.includes("disabled")));
 });
 
@@ -108,12 +116,22 @@ test("relative-flow interaction validates bounds and preserves the no-provider b
     /cannot exceed/,
   );
   const result = analyzeRelativeAeroInteraction({
+    options: {
+      wakeHalfAngleDeg: 12,
+      wakeRecoveryDistanceBodyDiameters: 40,
+      peakVelocityDeficitFraction: 0.4,
+      maximumVelocityDeficitFraction: 0.65,
+    },
     bodies: [body("source", sourceTrace), body("target", sourceTrace.map((point) => ({
       ...point,
       positionWorldM: { ...point.positionWorldM, x: point.positionWorldM.x + 5 },
     })))],
   });
   const pair = result.pairs.find((candidate) => candidate.sourceBodyId === "source" && candidate.targetBodyId === "target");
+  assert.equal(result.configuration.wakeHalfAngleDeg, 12);
+  assert.equal(result.configuration.wakeRecoveryDistanceBodyDiameters, 40);
+  assert.equal(result.configuration.peakVelocityDeficitFraction, 0.4);
+  assert.equal(result.configuration.maximumVelocityDeficitFraction, 0.65);
   assert.equal(pair?.maximumEstimatedDynamicPressureDeltaPa, null);
   assert.ok(result.warnings.some((warning) => warning.includes("dynamic-pressure deltas remain unavailable")));
 });

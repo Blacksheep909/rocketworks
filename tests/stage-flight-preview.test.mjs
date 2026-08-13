@@ -309,6 +309,12 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
       dampingNsPerM: 125,
       maximumNormalForceN: 250_000,
     },
+    relativeAeroInteraction: {
+      wakeHalfAngleDeg: 12,
+      wakeRecoveryDistanceBodyDiameters: 48,
+      peakVelocityDeficitFraction: 0.4,
+      maximumVelocityDeficitFraction: 0.65,
+    },
     integration: { method: "adaptive-rk4-step-doubling" },
     launchAltitudeM: 0,
     events: [
@@ -415,6 +421,14 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.equal(result.coupledMultiBodyFlight.contact.stiffnessNPerM, 75_000);
   assert.equal(result.coupledMultiBodyFlight.contact.contactPairCount, 0);
   assert.equal(result.coupledMultiBodyFlight.status, "assessed");
+  assert.ok(result.relativeAeroInteraction);
+  assert.deepEqual(result.relativeAeroInteraction.configuration, {
+    enabled: true,
+    wakeHalfAngleDeg: 12,
+    wakeRecoveryDistanceBodyDiameters: 48,
+    peakVelocityDeficitFraction: 0.4,
+    maximumVelocityDeficitFraction: 0.65,
+  });
   assert.ok(result.assumptions.some((assumption) => assumption.includes("shared mission-time grid")));
   assert.equal(result.separatedBodies[0].stageId, "booster");
   assert.equal(result.separatedBodies[0].releaseTimeS, 1);

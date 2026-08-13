@@ -1,4 +1,4 @@
-# Released-body relative-flow interaction 0.1
+# Released-body relative-flow interaction 0.2
 
 Status: `analytical-component-checks-only`.
 
@@ -59,6 +59,18 @@ Defaults are an 8° half-angle, 30 source diameters of finite wake length, a
 50% peak deficit, and a 70% hard cap. They are deliberately conservative
 engineering-preview controls, not calibrated stage-separation coefficients.
 
+The browser exposes and persists these values as part of the staged-preview
+project contract. The bounded controls are:
+
+- wake half-angle: 0-45 degrees;
+- recovery distance: 1-1,000 source body diameters;
+- peak and maximum deficit: 0-99%, with peak no greater than maximum.
+
+Every result returns the exact normalized `configuration` used for the run,
+and the engineering report repeats it beside the model version. Disabling the
+screen is also persisted; it changes the diagnostic status only and never
+changes the retained or detached trajectory.
+
 ## Why this is separate
 
 NASA stage-separation wind-tunnel work treats proximity-flow interference
@@ -87,9 +99,9 @@ vehicle.
 
 Regression fixtures cover directed in-wake exposure, lateral non-exposure,
 dynamic-pressure proxy calculation, missing geometry, disabled analysis,
-option bounds, and the no-provider boundary. Staged preview tests retain the
-result and model provenance alongside existing kinematic envelope/contact
-screens.
+option bounds, custom configuration round-tripping, and the no-provider
+boundary. Staged preview tests retain the normalized configuration and model
+provenance alongside existing kinematic envelope/contact screens.
 
 The engineering-report export mirrors the screen status, assessed and exposed
 pair counts, peak proxy metrics, the highest-exposure directed pairs, model

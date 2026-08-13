@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add persisted, bounded controls for the released-body relative-flow screen.
+  Staged previews now expose wake half-angle, recovery distance, and peak/max
+  deficit sliders, return the normalized configuration used by the diagnostic,
+  and repeat those settings in engineering-report exports. The screen remains
+  post-trace only and never feeds wake forces or moments into flight.
+
 - Add bounded motor-local throttle schedules. The topology editor now exposes
   linearly interpolated 0–100% commands, while the independent multi-stage
   evaluator integrates delivered thrust impulse across thrust and throttle

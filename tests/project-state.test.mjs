@@ -266,6 +266,11 @@ test("project snapshots preserve coupled-flight contract settings and legacy def
     coupledContactDampingNsPerM: 125,
     coupledContactMaximumNormalForceN: 250_000,
     releasedBodyDragModel: "coefficient-table",
+    relativeAeroInteractionEnabled: false,
+    relativeAeroWakeHalfAngleDeg: 12,
+    relativeAeroWakeRecoveryDistanceBodyDiameters: 48,
+    relativeAeroPeakVelocityDeficitFraction: 0.45,
+    relativeAeroMaximumVelocityDeficitFraction: 0.72,
     separationContactStoppingDistanceM: 0.025,
     separationContactCoefficientOfRestitution: 0.35,
     sixDofIntegrationMethod: "adaptive-rk4-step-doubling",
@@ -278,6 +283,11 @@ test("project snapshots preserve coupled-flight contract settings and legacy def
   assert.equal(parsed.inputs.coupledContactDampingNsPerM, 125);
   assert.equal(parsed.inputs.coupledContactMaximumNormalForceN, 250_000);
   assert.equal(parsed.inputs.releasedBodyDragModel, "coefficient-table");
+  assert.equal(parsed.inputs.relativeAeroInteractionEnabled, false);
+  assert.equal(parsed.inputs.relativeAeroWakeHalfAngleDeg, 12);
+  assert.equal(parsed.inputs.relativeAeroWakeRecoveryDistanceBodyDiameters, 48);
+  assert.equal(parsed.inputs.relativeAeroPeakVelocityDeficitFraction, 0.45);
+  assert.equal(parsed.inputs.relativeAeroMaximumVelocityDeficitFraction, 0.72);
   assert.equal(parsed.inputs.separationContactStoppingDistanceM, 0.025);
   assert.equal(parsed.inputs.separationContactCoefficientOfRestitution, 0.35);
   assert.equal(parsed.inputs.sixDofIntegrationMethod, "adaptive-rk4-step-doubling");
@@ -309,6 +319,18 @@ test("project snapshots reject invalid coupled-flight contract settings", () => 
   assert.throws(
     () => snapshot(1, { releasedBodyDragModel: "unsupported" }),
     /releasedBodyDragModel must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { relativeAeroInteractionEnabled: "yes" }),
+    /relativeAeroInteractionEnabled must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { relativeAeroWakeHalfAngleDeg: 45.1 }),
+    /relativeAeroWakeHalfAngleDeg/,
+  );
+  assert.throws(
+    () => snapshot(1, { relativeAeroPeakVelocityDeficitFraction: 0.8, relativeAeroMaximumVelocityDeficitFraction: 0.7 }),
+    /cannot exceed/,
   );
   assert.throws(
     () => snapshot(1, { separationContactStoppingDistanceM: 0 }),

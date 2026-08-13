@@ -1065,8 +1065,15 @@ test("engineering report leads with status and preserves calculations and limita
         assumptions: ["Contact-load fixture assumption."],
       },
       relativeAeroInteraction: {
-        modelVersion: "rocketworks-relative-aero-interaction-0.1.0",
+        modelVersion: "rocketworks-relative-aero-interaction-0.2.0",
         validationStatus: "analytical-component-checks-only",
+        configuration: {
+          enabled: true,
+          wakeHalfAngleDeg: 8,
+          wakeRecoveryDistanceBodyDiameters: 30,
+          peakVelocityDeficitFraction: 0.5,
+          maximumVelocityDeficitFraction: 0.7,
+        },
         bodies: [
           { id: "retained-vehicle", label: "Retained vehicle", releaseTimeS: 0, sampleCount: 8, equivalentDiameterM: 0.08, envelopeRadiusM: 0.05 },
           { id: "booster/logical-1", label: "Booster", releaseTimeS: 4.2, sampleCount: 5, equivalentDiameterM: 0.06, envelopeRadiusM: 0.03 },
@@ -1313,6 +1320,9 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Pairs with wake overlap \| 1/);
   assert.match(report, /Peak proxy velocity deficit \| 18\.00%/);
   assert.match(report, /Maximum estimated dynamic-pressure reduction \| 120\.00 Pa/);
+  assert.match(report, /Wake half-angle \| 8\.00°/);
+  assert.match(report, /Wake recovery distance \| 30\.00 source body diameters/);
+  assert.match(report, /Deficit bounds \| 50\.00–70\.00%/);
   assert.match(report, /Retained vehicle \| Booster \| 50\.0% \| 18\.00%/);
   assert.match(report, /Relative-flow fixture warning/);
   assert.match(report, /### Coupled separation impulse allocation/);

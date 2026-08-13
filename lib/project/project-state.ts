@@ -141,6 +141,16 @@ export type EditableProjectInputs = Readonly<{
   coupledContactMaximumNormalForceN?: number;
   /** Aerodynamic contract used for released-body tracks in the coupled preview. */
   releasedBodyDragModel?: ReleasedBodyDragModel;
+  /** Enables the post-trace released-body wake/relative-flow diagnostic. */
+  relativeAeroInteractionEnabled?: boolean;
+  /** Half-angle of the bounded released-body wake cone, degrees. */
+  relativeAeroWakeHalfAngleDeg?: number;
+  /** Wake recovery distance in source equivalent-body diameters. */
+  relativeAeroWakeRecoveryDistanceBodyDiameters?: number;
+  /** Peak proxy velocity-deficit fraction at the source envelope. */
+  relativeAeroPeakVelocityDeficitFraction?: number;
+  /** Hard upper bound on the reported proxy velocity deficit. */
+  relativeAeroMaximumVelocityDeficitFraction?: number;
   /** Positive distance used by the non-trajectory contact-load screen, in metres. */
   separationContactStoppingDistanceM?: number;
   /** Normal restitution used by the non-trajectory contact-load screen. */
@@ -183,7 +193,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "coupledContactEnabled" | "coupledContactStiffnessNPerM" | "coupledContactDampingNsPerM" | "coupledContactMaximumNormalForceN" | "releasedBodyDragModel" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "coupledContactEnabled" | "coupledContactStiffnessNPerM" | "coupledContactDampingNsPerM" | "coupledContactMaximumNormalForceN" | "releasedBodyDragModel" | "relativeAeroInteractionEnabled" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -224,6 +234,10 @@ const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material
   recoveryReefingDurationS: [0.1, 30],
   recoveryReefingStartAreaFraction: [0.05, 1],
   uncertaintySampleCount: [16, 512],
+  relativeAeroWakeHalfAngleDeg: [0, 45],
+  relativeAeroWakeRecoveryDistanceBodyDiameters: [1, 1_000],
+  relativeAeroPeakVelocityDeficitFraction: [0, 0.99],
+  relativeAeroMaximumVelocityDeficitFraction: [0, 0.99],
 };
 
 const numericDefaults: Readonly<Partial<Record<keyof typeof numericRanges, number>>> = {
@@ -257,6 +271,10 @@ const numericDefaults: Readonly<Partial<Record<keyof typeof numericRanges, numbe
   recoveryReefingDurationS: 3,
   recoveryReefingStartAreaFraction: 0.35,
   uncertaintySampleCount: DEFAULT_UNCERTAINTY_SAMPLE_COUNT,
+  relativeAeroWakeHalfAngleDeg: 8,
+  relativeAeroWakeRecoveryDistanceBodyDiameters: 30,
+  relativeAeroPeakVelocityDeficitFraction: 0.5,
+  relativeAeroMaximumVelocityDeficitFraction: 0.7,
 };
 
 function objectValue(value: unknown, label: string): Record<string, unknown> {
@@ -510,6 +528,15 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   ) {
     throw new Error("releasedBodyDragModel must be isotropic-point, attitude-projected-area, or coefficient-table.");
   }
+  const relativeAeroInteractionEnabled = input.relativeAeroInteractionEnabled === undefined
+    ? true
+    : input.relativeAeroInteractionEnabled;
+  if (typeof relativeAeroInteractionEnabled !== "boolean") {
+    throw new Error("relativeAeroInteractionEnabled must be boolean.");
+  }
+  if (validated.relativeAeroPeakVelocityDeficitFraction > validated.relativeAeroMaximumVelocityDeficitFraction) {
+    throw new Error("relativeAeroPeakVelocityDeficitFraction cannot exceed relativeAeroMaximumVelocityDeficitFraction.");
+  }
   const separationContactStoppingDistanceM = input.separationContactStoppingDistanceM;
   if (
     separationContactStoppingDistanceM !== undefined &&
@@ -576,6 +603,11 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     ...(coupledContactDampingNsPerM === undefined ? {} : { coupledContactDampingNsPerM }),
     ...(coupledContactMaximumNormalForceN === undefined ? {} : { coupledContactMaximumNormalForceN }),
     ...(releasedBodyDragModel === undefined ? {} : { releasedBodyDragModel }),
+    relativeAeroInteractionEnabled,
+    relativeAeroWakeHalfAngleDeg: validated.relativeAeroWakeHalfAngleDeg,
+    relativeAeroWakeRecoveryDistanceBodyDiameters: validated.relativeAeroWakeRecoveryDistanceBodyDiameters,
+    relativeAeroPeakVelocityDeficitFraction: validated.relativeAeroPeakVelocityDeficitFraction,
+    relativeAeroMaximumVelocityDeficitFraction: validated.relativeAeroMaximumVelocityDeficitFraction,
     ...(separationContactStoppingDistanceM === undefined ? {} : { separationContactStoppingDistanceM }),
     ...(separationContactCoefficientOfRestitution === undefined ? {} : { separationContactCoefficientOfRestitution }),
     ...(sixDofIntegrationMethod === undefined ? {} : { sixDofIntegrationMethod }),
@@ -753,6 +785,11 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
   coupledContactDampingNsPerM: "contact closing-speed damping",
   coupledContactMaximumNormalForceN: "contact normal-force cap",
   releasedBodyDragModel: "released-body aerodynamic mode",
+  relativeAeroInteractionEnabled: "released-body wake interaction screen",
+  relativeAeroWakeHalfAngleDeg: "wake half-angle",
+  relativeAeroWakeRecoveryDistanceBodyDiameters: "wake recovery distance",
+  relativeAeroPeakVelocityDeficitFraction: "peak wake deficit",
+  relativeAeroMaximumVelocityDeficitFraction: "maximum wake deficit",
   separationContactStoppingDistanceM: "contact stopping distance",
   separationContactCoefficientOfRestitution: "contact restitution",
   sixDofIntegrationMethod: "6DOF integration method",

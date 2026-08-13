@@ -16,7 +16,7 @@ import {
  * separation wind-tunnel data or a CFD solution.
  */
 export const RELATIVE_AERO_INTERACTION_MODEL_VERSION =
-  "rocketworks-relative-aero-interaction-0.1.0";
+  "rocketworks-relative-aero-interaction-0.2.0";
 export const RELATIVE_AERO_INTERACTION_STATUS =
   "analytical-component-checks-only" as const;
 
@@ -70,6 +70,14 @@ export type RelativeAeroInteractionPair = Readonly<{
   maximumEstimatedDynamicPressureDeltaTimeS: number | null;
 }>;
 
+export type RelativeAeroInteractionConfiguration = Readonly<{
+  enabled: boolean;
+  wakeHalfAngleDeg: number;
+  wakeRecoveryDistanceBodyDiameters: number;
+  peakVelocityDeficitFraction: number;
+  maximumVelocityDeficitFraction: number;
+}>;
+
 export type RelativeAeroInteractionResult = Readonly<{
   modelVersion: typeof RELATIVE_AERO_INTERACTION_MODEL_VERSION;
   validationStatus: typeof RELATIVE_AERO_INTERACTION_STATUS;
@@ -86,6 +94,7 @@ export type RelativeAeroInteractionResult = Readonly<{
   exposedPairCount: number;
   maximumVelocityDeficitFraction: number | null;
   maximumEstimatedDynamicPressureDeltaPa: number | null;
+  configuration: RelativeAeroInteractionConfiguration;
   status: "assessed" | "partial" | "not-assessed";
   warnings: readonly string[];
   assumptions: readonly string[];
@@ -456,6 +465,10 @@ export function analyzeRelativeAeroInteraction(input: Readonly<{
     throw new Error(`relative-flow analysis supports at most ${MAX_BODY_COUNT} bodies`);
   }
   const normalizedOptions = normalizeOptions(input.options ?? {});
+  const configuration: RelativeAeroInteractionConfiguration = {
+    enabled: input.options?.enabled !== false,
+    ...normalizedOptions,
+  };
   const ids = new Set<string>();
   const bodies = input.bodies.map((body, index) => {
     const normalized = validateBody(body, index);
@@ -480,6 +493,7 @@ export function analyzeRelativeAeroInteraction(input: Readonly<{
       exposedPairCount: 0,
       maximumVelocityDeficitFraction: null,
       maximumEstimatedDynamicPressureDeltaPa: null,
+      configuration,
       status: "not-assessed",
       warnings: [input.options?.enabled === false ? "Relative-flow interaction screen is disabled." : "At least two released-body traces are required for pairwise interaction analysis."],
       assumptions: [
@@ -529,6 +543,7 @@ export function analyzeRelativeAeroInteraction(input: Readonly<{
     exposedPairCount,
     maximumVelocityDeficitFraction: finiteDeficits.length > 0 ? Math.max(...finiteDeficits) : null,
     maximumEstimatedDynamicPressureDeltaPa: finiteDynamicPressureDeltas.length > 0 ? Math.max(...finiteDynamicPressureDeltas) : null,
+    configuration,
     status,
     warnings,
     assumptions: [

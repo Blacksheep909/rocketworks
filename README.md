@@ -360,8 +360,9 @@ tests/                Deterministic physics, UI, export, and integration checks
 
 Near-term work is stronger experimental/benchmark validation, extension of the
 new opt-in released-body rigid-state branch toward contact and relative-load
-validation, validated stage-interface/load-transfer and mission-level mass-ratio
-loss models, and validated structural/aeroelastic benchmarks beyond the
+validation, including evidence-backed calibration of the now-configurable
+relative-flow wake proxy, validated stage-interface/load-transfer and
+mission-level mass-ratio loss models, and validated structural/aeroelastic benchmarks beyond the
 preliminary fin flutter screen. Angular and direct force/moment coefficient
 volumes are now supported as explicit
 interpolation sources, and seeded event-factor dispersion now covers timing,
