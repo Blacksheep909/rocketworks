@@ -1,4 +1,4 @@
-# Coupled stage-flight uncertainty 0.4
+# Coupled stage-flight uncertainty 0.5
 
 RocketWorks' coupled dispersion adapter is an independent wrapper around the
 existing staging, topology-aerodynamics, launch-environment, launch-rail, and
@@ -6,7 +6,7 @@ rigid-body models. It does not import or reuse an external rocket simulator.
 
 ## Contract
 
-- Adapter version: `kestrel-stage-flight-uncertainty-1.0.0`
+- Adapter version: `kestrel-stage-flight-uncertainty-1.1.0`
 - Sampling: seeded Latin hypercube through the shared uncertainty model
   (`kestrel-uncertainty-0.4.0`)
 - Default browser ensemble: 16 samples, retained as individual input/output or
@@ -26,7 +26,9 @@ selected topology source exposes direct body-axis force or static-moment
 volumes, the browser also exposes separate direct-force and direct-moment
 coefficient scales. The coupled browser additionally samples an ignition-delay
 offset, a separation-impulse scale, a small launch-alignment offset, and (when
-the rail is enabled) bounded guide-friction and rail-exit tip-off scales. The
+the rail is enabled) bounded guide-friction and rail-exit tip-off scales. When
+a separation contact-load scenario is available, it also samples bounded
+stopping-distance and (for nonzero nominal restitution) restitution scales. The
 variant builder scales structural and dry motor mass properties with the
 dry-mass factor, initial propellant mass properties with the propellant factor,
 every thrust-curve ordinate with the global thrust factor and its declared
@@ -42,6 +44,9 @@ separation events receive the sampled impulse scale, including measured
 body-frame impulse vectors; the initial body attitude receives a body-`+Y`
 pitch perturbation for alignment uncertainty; the rail variant rescales the
 effective axial guide-loss acceleration and authored body-frame release rate.
+The contact variant rescales the post-trace stopping-distance scenario and
+restitution coefficient used by the separation contact-load analyzer; it never
+injects a contact force or collision response into the propagated trajectory.
 
 When any selected aerodynamic table declares absolute uncertainty cells, the
 browser adds `coefficientUncertaintyScale` as a bounded normal factor (−2 to
@@ -77,6 +82,8 @@ Each successful sample exposes:
 - peak speed and maximum dynamic pressure;
 - peak retained-vehicle recovery drag and effective canopy area when recovery
   is configured;
+- maximum post-trace separation-contact normal impulse, absorbed-energy force
+  scale, and linear-stop force scale when a contact scenario is available;
 - time to the sampled apogee estimate;
 - final position magnitude and final speed;
 - applied event count, separated-body branch count, and a numerical-convergence
@@ -124,6 +131,10 @@ design exploration and independent engineering review only.
   separation-delta-v annotation or measured body-frame impulse vector.
   Mechanism compliance, plume interaction, contact, angular impulse, and
   relative-body propagation remain outside this adapter.
+- Contact stopping-distance scaling changes the authored force-scale scenario
+  after the trace is generated. Restitution scaling is bounded to the physical
+  `[0, 1]` coefficient domain; contact response, structural capacity, and
+  collision resolution remain outside the adapter.
 - Alignment uncertainty is a body-frame pitch perturbation at the initial
   state. It is not a pad-survey, rail-flexure, tip-off, or guidance-error
   model.

@@ -531,7 +531,7 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
     sampleCount: 6,
   });
 
-  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-1.0.0");
+  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-1.1.0");
   assert.equal(first.requestedSampleCount, 6);
   assert.equal(first.successfulSampleCount, 6);
   assert.deepEqual(first.samples, second.samples);
@@ -654,6 +654,72 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
     discreteGustWindWorldMps: { x: 0.8, y: 1, z: 1.2 },
     windWorldMps: { x: 3, y: 5.4, z: 7.8 },
   });
+});
+
+test("stage contact-load uncertainty scales the post-trace scenario without changing flight forces", () => {
+  const baseInput = {
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages,
+    regimes,
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 2.5,
+    timeStepS: 0.05,
+    launchAltitudeM: 0,
+    separationContactLoad: {
+      stoppingDistanceM: 0.02,
+      coefficientOfRestitution: 0.2,
+    },
+    events: [createScheduledStageSeparationEvent({
+      stageId: "booster",
+      timeS: 1,
+      separationDeltaVBodyMps: { x: 0.1, y: 0, z: 0 },
+    }), createScheduledStageIgnitionEvent({ stageId: "upper", timeS: 1 })],
+  };
+  const nominal = simulateStageFlightPreview(baseInput);
+  const variant = createStageFlightVariant(baseInput, {
+    contactStoppingDistanceScale: 2,
+    contactRestitutionScale: 1.25,
+  });
+  assert.equal(baseInput.separationContactLoad.stoppingDistanceM, 0.02);
+  assert.equal(baseInput.separationContactLoad.coefficientOfRestitution, 0.2);
+  assert.equal(variant.separationContactLoad.stoppingDistanceM, 0.04);
+  assert.equal(variant.separationContactLoad.coefficientOfRestitution, 0.25);
+  assert.ok(variant.additionalWarnings.some((warning) => warning.includes("post-trace stopping-distance")));
+  const nominalTrace = nominal.trace.map((point) => [point.timeS, point.positionWorldM, point.velocityWorldMps]);
+  const variantResult = simulateStageFlightPreview(variant);
+  assert.deepEqual(
+    variantResult.trace.map((point) => [point.timeS, point.positionWorldM, point.velocityWorldMps]),
+    nominalTrace,
+  );
+  assert.ok(nominal.separationContactLoad);
+  assert.equal(variantResult.separationContactLoad.stoppingDistanceM, 0.04);
+  assert.equal(variantResult.separationContactLoad.coefficientOfRestitution, 0.25);
+  const uncertainty = analyzeStageFlightUncertainty({
+    baseInput,
+    factors: [
+      {
+        key: "contactStoppingDistanceScale",
+        label: "Contact stopping distance",
+        distribution: { kind: "uniform", minimum: 0.8, maximum: 1.2 },
+      },
+      {
+        key: "contactRestitutionScale",
+        label: "Contact restitution",
+        distribution: { kind: "uniform", minimum: 0.8, maximum: 1.2 },
+      },
+    ],
+    seed: "contact-load-uncertainty-fixture",
+    sampleCount: 4,
+  });
+  assert.equal(uncertainty.failedSampleCount, 0);
+  assert.ok(uncertainty.metrics.maxContactNormalImpulseNs);
+  assert.ok(uncertainty.metrics.maxContactLinearStopPeakForceN);
+  assert.ok(uncertainty.assumptions.some((assumption) => assumption.includes("Contact-load percentile metrics")));
+  assert.throws(
+    () => createStageFlightVariant(baseInput, { contactRestitutionScale: 6 }),
+    /sampled contact restitution/,
+  );
 });
 
 test("stage-flight uncertainty perturbs event timing, separation impulse, and alignment without mutating the base", () => {

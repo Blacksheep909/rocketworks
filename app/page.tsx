@@ -6786,6 +6786,29 @@ export default function Home() {
             label: "Separation impulse",
             distribution: { kind: "triangular" as const, minimum: 0.8, mode: 1, maximum: 1.2 },
           },
+          ...(stageFlightResult.separationContactLoad
+            ? [
+                {
+                  key: "contactStoppingDistanceScale" as const,
+                  label: "Contact stopping distance",
+                  distribution: { kind: "triangular" as const, minimum: 0.5, mode: 1, maximum: 2 },
+                },
+                ...(separationContactCoefficientOfRestitution > 0
+                  ? [
+                      {
+                        key: "contactRestitutionScale" as const,
+                        label: "Contact restitution",
+                        distribution: {
+                          kind: "triangular" as const,
+                          minimum: 0.75,
+                          mode: 1,
+                          maximum: Math.min(1.25, 1 / separationContactCoefficientOfRestitution),
+                        },
+                      },
+                    ]
+                  : []),
+              ]
+            : []),
           {
             key: "alignmentOffsetRad" as const,
             label: "Launch alignment",
@@ -9919,7 +9942,7 @@ function StageFlightUncertaintyCard({
         <div>
           <span className="eyebrow">Coupled dispersion</span>
           <h4 id="stage-flight-uncertainty-title">6DOF uncertainty envelope</h4>
-          <p>Propagates bounded mass, thrust, drag, recovery-area, wind, ignition-delay, separation-impulse, launch-alignment, guide-friction, and rail-exit tip-off assumptions through staging, launch-rail constraints, topology aerodynamics, and the coupled rigid-body run.{hasDirectForceMomentDatabase ? " Direct force and static-moment coefficient databases receive separate bounded scales when present." : ""}</p>
+          <p>Propagates bounded mass, thrust, drag, recovery-area, wind, ignition-delay, separation-impulse, contact-load scenario, launch-alignment, guide-friction, and rail-exit tip-off assumptions through staging, launch-rail constraints, topology aerodynamics, and the coupled rigid-body run.{hasDirectForceMomentDatabase ? " Direct force and static-moment coefficient databases receive separate bounded scales when present." : ""}</p>
         </div>
         <button className="secondary-button" type="button" onClick={onRun} disabled={running || !current}>
           {running ? "Sampling…" : result ? "Rerun dispersion" : "Run dispersion"}
@@ -9951,6 +9974,12 @@ function StageFlightUncertaintyCard({
             )}
             {result.metrics.maxRecoveryEffectiveAreaM2 && (
               <UncertaintyMetric label="Peak canopy area P05 / P50 / P95" summary={result.metrics.maxRecoveryEffectiveAreaM2} unit="m²" decimals={3} />
+            )}
+            {result.metrics.maxContactNormalImpulseNs && (
+              <UncertaintyMetric label="Contact impulse P05 / P50 / P95" summary={result.metrics.maxContactNormalImpulseNs} unit="N·s" decimals={2} />
+            )}
+            {result.metrics.maxContactLinearStopPeakForceN && (
+              <UncertaintyMetric label="Contact force scale P05 / P50 / P95" summary={result.metrics.maxContactLinearStopPeakForceN} unit="N" decimals={1} />
             )}
           </div>
           <UncertaintySensitivityList result={result} metricKey="maxAltitudeAglM" metricLabel="Peak altitude" />

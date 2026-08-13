@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extend staged uncertainty propagation to the separation contact-load
+  scenario. When a contact result is available, seeded variants now sample
+  bounded stopping-distance and restitution scales and retain percentile
+  impulse/force-scale metrics without injecting contact forces into the flight
+  trajectory.
 - Extend the stage-interface review with an independent equal-share parallel
   load audit. Repeated radial stages now expose per-instance axial demand,
   canted-thrust radial force, eccentric moment, and symmetric resultant in the

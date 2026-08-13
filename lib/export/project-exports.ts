@@ -2234,6 +2234,12 @@ export function createEngineeringReportMarkdown(
           `- Peak speed P05 / P50 / P95: ${formatMetricRange(input.stageUncertainty.metrics.maxSpeedMps, 2, "m/s")}`,
           `- Maximum dynamic pressure P05 / P50 / P95: ${formatMetricRange(input.stageUncertainty.metrics.maxDynamicPressurePa, 0, "Pa")}`,
           `- Final speed P05 / P50 / P95: ${formatMetricRange(input.stageUncertainty.metrics.finalSpeedMps, 2, "m/s")}`,
+          ...(input.stageUncertainty.metrics.maxContactNormalImpulseNs
+            ? [
+                `- Contact normal impulse P05 / P50 / P95: ${formatMetricRange(input.stageUncertainty.metrics.maxContactNormalImpulseNs, 2, "N·s")}`,
+                `- Contact linear-stop force scale P05 / P50 / P95: ${formatMetricRange(input.stageUncertainty.metrics.maxContactLinearStopPeakForceN, 1, "N")}`,
+              ]
+            : []),
           `- Correlated parameter pairs: ${input.stageUncertainty.correlations.length}`,
           `- Maximum split-sample quantile shift: ${input.stageUncertainty.convergence.maximumRelativeQuantileShift === null ? "not available" : `${formatNumber(input.stageUncertainty.convergence.maximumRelativeQuantileShift * 100, 1)}%`}`,
           ...input.stageUncertainty.convergence.warnings.map((warning) => `- ${markdownText(warning)}`),

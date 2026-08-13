@@ -934,6 +934,10 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Aero table uncertainty/);
   assert.match(page, /ignitionDelayOffsetS/);
   assert.match(page, /separationImpulseScale/);
+  assert.match(page, /contactStoppingDistanceScale/);
+  assert.match(page, /contactRestitutionScale/);
+  assert.match(page, /maxContactNormalImpulseNs/);
+  assert.match(page, /Contact force scale P05/);
   assert.match(page, /alignmentOffsetRad/);
   assert.match(page, /Direct force and static-moment coefficient databases receive separate bounded scales/);
   assert.match(page, /Run dispersion/);

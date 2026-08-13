@@ -37,7 +37,7 @@ import {
 } from "./stage-flight-preview.ts";
 
 export const STAGE_FLIGHT_UNCERTAINTY_ADAPTER_VERSION =
-  "kestrel-stage-flight-uncertainty-1.0.0";
+  "kestrel-stage-flight-uncertainty-1.1.0";
 
 /** Prefix used for independent thrust multipliers keyed by motor identifier. */
 export const MOTOR_THRUST_SCALE_FACTOR_PREFIX = "motorThrustScale:";
@@ -64,6 +64,8 @@ export type StageFlightUncertaintyFactorKey =
   | "windScale"
   | "ignitionDelayOffsetS"
   | "separationImpulseScale"
+  | "contactStoppingDistanceScale"
+  | "contactRestitutionScale"
   | "alignmentOffsetRad"
   | "railFrictionScale"
   | "railTipOffScale"
@@ -410,6 +412,26 @@ export function createStageFlightVariant(
     values.separationImpulseScale ?? 1,
     "separation impulse scale",
   );
+  const contactStoppingDistanceScale = positiveScale(
+    values.contactStoppingDistanceScale ?? 1,
+    "contact stopping-distance scale",
+  );
+  const contactRestitutionScale = positiveScale(
+    values.contactRestitutionScale ?? 1,
+    "contact restitution scale",
+  );
+  const hasContactFactors =
+    Object.prototype.hasOwnProperty.call(values, "contactStoppingDistanceScale") ||
+    Object.prototype.hasOwnProperty.call(values, "contactRestitutionScale");
+  if (hasContactFactors && !base.separationContactLoad) {
+    throw new Error("contact-load uncertainty requires a separation contact-load scenario");
+  }
+  const baseContactStoppingDistanceM = base.separationContactLoad?.stoppingDistanceM ?? 0.01;
+  const baseContactRestitution = base.separationContactLoad?.coefficientOfRestitution ?? 0;
+  const sampledContactRestitution = baseContactRestitution * contactRestitutionScale;
+  if (sampledContactRestitution < 0 || sampledContactRestitution > 1) {
+    throw new Error("sampled contact restitution must remain within 0 through 1");
+  }
   const alignmentOffsetRad = finiteOffset(
     values.alignmentOffsetRad ?? 0,
     "alignment offset",
@@ -497,6 +519,15 @@ export function createStageFlightVariant(
         ? { inflationTimeS: device.inflationTimeS * recoveryInflationTimeScale }
         : {}),
     })),
+    ...(base.separationContactLoad
+      ? {
+          separationContactLoad: {
+            ...base.separationContactLoad,
+            stoppingDistanceM: baseContactStoppingDistanceM * contactStoppingDistanceScale,
+            coefficientOfRestitution: sampledContactRestitution,
+          },
+        }
+      : {}),
     events: [
       ...(base.events ?? []),
       ...failureEvents,
@@ -516,7 +547,7 @@ export function createStageFlightVariant(
     ...(hasCoefficientUncertaintyFactor
       ? { coefficientUncertaintyScale }
       : {}),
-    ...(hasEventFactors || hasMotorFactors || hasCoefficientUncertaintyFactor
+    ...(hasEventFactors || hasMotorFactors || hasCoefficientUncertaintyFactor || hasContactFactors
       ? {
           additionalWarnings: [
             ...(base.additionalWarnings ?? []),
@@ -533,6 +564,11 @@ export function createStageFlightVariant(
             ...(separationImpulseScale !== 1
               ? [
                   "Sampled separation-impulse uncertainty rescales configured measured impulse vectors and legacy event delta-v annotations; mechanism compliance, plume interaction, and contact remain outside the model.",
+                ]
+              : []),
+            ...(hasContactFactors
+              ? [
+                  "Sampled contact-load uncertainty rescales the post-trace stopping-distance scenario and restitution coefficient; it never feeds a contact force or collision response back into the flight trajectory.",
                 ]
               : []),
             ...(recoveryInflationTimeScale !== 1
@@ -571,6 +607,11 @@ export function createStageFlightVariant(
             ...(hasEventFactors
               ? [
                   "Event uncertainty factors are deterministic scenario perturbations sampled from caller-supplied distributions, not measured distributions or certification evidence.",
+                ]
+              : []),
+            ...(hasContactFactors
+              ? [
+                  "Contact-load factors are deterministic post-trace compliance scenarios around the configured stopping distance and restitution; they are not measured contact distributions or structural qualification data.",
                 ]
               : []),
             ...(hasCoefficientUncertaintyFactor
@@ -621,9 +662,12 @@ export function analyzeStageFlightUncertainty({
   thresholds?: ThresholdDefinition[];
   correlations?: readonly UncertaintyCorrelation[];
 }): StageFlightUncertaintyResult {
-  return {
-    adapterVersion: STAGE_FLIGHT_UNCERTAINTY_ADAPTER_VERSION,
-    ...runUncertaintyAnalysis({
+  const contactScenarioSelected = factors.some(
+    (factor) =>
+      factor.key === "contactStoppingDistanceScale" ||
+      factor.key === "contactRestitutionScale",
+  );
+  const analysis = runUncertaintyAnalysis({
     seed,
     method: "latin-hypercube",
     sampleCount,
@@ -661,9 +705,36 @@ export function analyzeStageFlightUncertainty({
         separatedBodyCount: result.separatedBodies.length,
         converged: result.convergence.status === "converged" ? 1 : 0,
       };
+      if (result.separationContactLoad) {
+        Object.assign(outputs, {
+          maxContactNormalImpulseNs: result.separationContactLoad.maximumNormalImpulseNs,
+          maxContactAverageAbsorptionForceN: result.separationContactLoad.maximumAverageAbsorptionForceN,
+          maxContactLinearStopPeakForceN: result.separationContactLoad.maximumLinearStopPeakForceN,
+          maxContactAbsorbedNormalEnergyJ: result.separationContactLoad.maximumAbsorbedNormalEnergyJ,
+        });
+      }
       Object.assign(outputs, recoveryMetrics);
       return outputs;
     },
-    }),
+  });
+  return {
+    adapterVersion: STAGE_FLIGHT_UNCERTAINTY_ADAPTER_VERSION,
+    ...analysis,
+    warnings: [
+      ...analysis.warnings,
+      ...(contactScenarioSelected
+        ? [
+            "Contact-load uncertainty varies a post-trace stopping-distance/restitution scenario; it does not add collision forces or structural response to the propagated flight.",
+          ]
+        : []),
+    ],
+    assumptions: [
+      ...analysis.assumptions,
+      ...(contactScenarioSelected
+        ? [
+            "Contact-load percentile metrics are scenario outputs derived after each trace; they are not measured contact distributions, structural capacity, or flight-safety evidence.",
+          ]
+        : []),
+    ],
   };
 }

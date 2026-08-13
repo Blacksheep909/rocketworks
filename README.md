@@ -164,8 +164,10 @@ research, standards, and original code.
   deployment-outcome, wind, and declared aerodynamic-table absolute-uncertainty
   assumptions through stage events and launch-rail
   handoff, plus sampled ignition-delay, separation-impulse, and
-  launch-alignment factors, with recovery-load percentile telemetry and an
-  explicit common-sigma correlation boundary;
+  launch-alignment factors; contact-load scenarios can additionally sample
+  stopping-distance and restitution scales with post-trace percentile impulse
+  and force-scale telemetry, all with an explicit common-sigma correlation
+  boundary;
 - optional Gaussian-copula correlation pairs for uncertainty propagation,
   validated as positive-definite while preserving each declared marginal;
 - a persisted Dependence model editor that carries correlation assumptions
