@@ -6,6 +6,13 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an ideal-to-trace mission delta-v composition bridge to the staged Flight
+  workspace and engineering report. The new versioned diagnostic compares the
+  serial-stack ideal rocket-equation preview with the recorded thrust impulse
+  equivalent and net thrust-vector magnitude, reports signed gaps and
+  normalized fractions when defined, and keeps topology exclusions and trace
+  coverage visible. It is explicitly not an achieved-performance, validated
+  loss-budget, certification, or flight-safety result.
 - Extend staged uncertainty propagation to the separation contact-load
   scenario. When a contact result is available, seeded variants now sample
   bounded stopping-distance and restitution scales and retain percentile

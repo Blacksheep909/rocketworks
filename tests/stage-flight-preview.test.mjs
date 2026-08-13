@@ -247,7 +247,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.29.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.30.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);
@@ -273,6 +273,10 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.equal(result.missionLossBudget.sampleCount, result.trace.length);
   assert.ok((result.missionLossBudget.thrustImpulseEquivalentMps ?? 0) > 0);
   assert.ok(result.missionLossBudget.warnings.some((warning) => warning.includes("not a validated mission")));
+  assert.equal(result.missionDeltaVBridge.idealSerialStackDeltaVMps, result.missionMassRatio.totalIdealDeltaVMps);
+  assert.equal(result.missionDeltaVBridge.traceThrustImpulseEquivalentMps, result.missionLossBudget.thrustImpulseEquivalentMps);
+  assert.ok(result.missionDeltaVBridge.idealToTraceGapMps !== null);
+  assert.ok(result.missionDeltaVBridge.warnings.some((warning) => warning.includes("not achieved delta-v")));
   assert.ok(result.assumptions.some((assumption) => assumption.includes("velocity-equivalent accounting")));
   assert.ok(result.assumptions.some((assumption) => assumption.includes("Tsiolkovsky")));
   assert.equal(result.events.length, 2);

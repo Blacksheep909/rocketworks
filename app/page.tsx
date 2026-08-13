@@ -7656,6 +7656,28 @@ export default function Home() {
                       <p className="stage-loss-budget-note">{stageFlightResult.missionLossBudget.warnings[0] ?? "Analytical thrust-axis projection only; do not interpret as mission performance or flight-safety evidence."}</p>
                       <small className="stage-loss-budget-model">{publicModelVersion(stageFlightResult.missionLossBudget.modelVersion)} / {stageFlightResult.missionLossBudget.validationStatus}</small>
                     </section>
+                    <section className={`stage-delta-v-bridge-card stage-delta-v-bridge-${stageFlightResult.missionDeltaVBridge.status}`} aria-labelledby="stage-delta-v-bridge-title">
+                      <div className="stage-delta-v-bridge-heading">
+                        <div>
+                          <span className="eyebrow">Composition comparison</span>
+                          <h4 id="stage-delta-v-bridge-title">Ideal-to-trace delta-v bridge</h4>
+                          <p>Lines up the serial-stack ideal composition preview with the recorded thrust integral so topology and mass-model differences are visible without treating the gap as achieved performance.</p>
+                        </div>
+                        <span className={`uncertainty-status uncertainty-status-${stageFlightResult.missionDeltaVBridge.status}`}>
+                          {stageFlightResult.missionDeltaVBridge.status === "assessed" ? "COMPARISON READY" : stageFlightResult.missionDeltaVBridge.status === "partial" ? "PARTIAL COMPARISON" : "NOT ASSESSED"}
+                        </span>
+                      </div>
+                      <div className="stage-delta-v-bridge-grid">
+                        <div><span>Ideal serial-stack Δv</span><strong>{stageFlightResult.missionDeltaVBridge.idealSerialStackDeltaVMps === null ? "Not assessed" : `${stageFlightResult.missionDeltaVBridge.idealSerialStackDeltaVMps.toFixed(2)} m/s`}</strong><small>downstream-mass composition</small></div>
+                        <div><span>Trace thrust integral</span><strong>{stageFlightResult.missionDeltaVBridge.traceThrustImpulseEquivalentMps === null ? "Not assessed" : `${stageFlightResult.missionDeltaVBridge.traceThrustImpulseEquivalentMps.toFixed(2)} m/s`}</strong><small>∫‖F thrust‖/m dt</small></div>
+                        <div><span>Signed ideal → trace gap</span><strong>{stageFlightResult.missionDeltaVBridge.idealToTraceGapMps === null ? "Not assessed" : `${stageFlightResult.missionDeltaVBridge.idealToTraceGapMps.toFixed(2)} m/s`}</strong><small>ideal minus trace</small></div>
+                        <div><span>Trace / ideal</span><strong>{stageFlightResult.missionDeltaVBridge.traceToIdealFraction === null ? "Not defined" : `${(stageFlightResult.missionDeltaVBridge.traceToIdealFraction * 100).toFixed(1)}%`}</strong><small>scalar comparison only</small></div>
+                        <div><span>Ideal → net-vector gap</span><strong>{stageFlightResult.missionDeltaVBridge.idealToNetThrustGapMps === null ? "Not assessed" : `${stageFlightResult.missionDeltaVBridge.idealToNetThrustGapMps.toFixed(2)} m/s`}</strong><small>vector magnitude comparison</small></div>
+                        <div><span>Thrust-axis coverage</span><strong>{(stageFlightResult.missionDeltaVBridge.thrustAxisCoverageFraction * 100).toFixed(1)}%</strong><small>{stageFlightResult.missionDeltaVBridge.serialStageCount} serial / {stageFlightResult.missionDeltaVBridge.excludedStageCount} excluded</small></div>
+                      </div>
+                      <p className="stage-delta-v-bridge-note">{stageFlightResult.missionDeltaVBridge.warnings[0] ?? "Analytical composition-to-trace comparison only; do not interpret as mission performance or flight-safety evidence."}</p>
+                      <small className="stage-delta-v-bridge-model">{publicModelVersion(stageFlightResult.missionDeltaVBridge.modelVersion)} / {stageFlightResult.missionDeltaVBridge.validationStatus}</small>
+                    </section>
                     {stageRecoveryOpeningLoad && (
                       <section className="recovery-opening-load-card" aria-labelledby="recovery-opening-load-title">
                         <div className="recovery-opening-load-heading">

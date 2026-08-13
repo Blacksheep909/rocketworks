@@ -210,6 +210,10 @@ research, standards, and original code.
   speed, steering dispersion, and positive opposing/assisting projections for
   gravity, aerodynamics, recovery, and available event vectors without
   mislabeling the trace as a validated mission budget;
+- an ideal-to-trace mission delta-v composition bridge that compares the
+  serial-stack ideal preview with recorded scalar and vector thrust metrics,
+  keeps topology exclusions and axis coverage visible, and does not claim
+  achieved performance;
 - deterministic structural and aeroelastic benchmark anchors for thin-wall
   section area, axial stress, Euler critical load, fin-root bending, and the
   preliminary fin-flutter equation, kept separate from experimental validation;

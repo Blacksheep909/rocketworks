@@ -745,6 +745,23 @@ test("engineering report leads with status and preserves calculations and limita
         assumptions: ["Fixture thrust-axis assumption."],
         warnings: ["Fixture thrust-axis warning."],
       },
+      missionDeltaVBridge: {
+        modelVersion: "rocketworks-mission-delta-v-bridge-0.1.0",
+        validationStatus: "analytical-composition-to-trace-comparison",
+        status: "partial",
+        idealSerialStackDeltaVMps: 95,
+        traceThrustImpulseEquivalentMps: 19,
+        traceNetThrustDeltaVMagnitudeMps: 18,
+        idealToTraceGapMps: 76,
+        idealToNetThrustGapMps: 77,
+        traceToIdealFraction: 0.2,
+        netThrustToIdealFraction: 18 / 95,
+        thrustAxisCoverageFraction: 0.8,
+        serialStageCount: 1,
+        excludedStageCount: 1,
+        assumptions: ["Fixture bridge assumption."],
+        warnings: ["Fixture bridge warning."],
+      },
       eventAllocation: {
         modelVersion: "rocketworks-event-allocator-0.1.0",
         validationStatus: "analytical-event-ordering-checks-only",
@@ -991,6 +1008,9 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /### Thrust-axis loss accounting/);
   assert.match(report, /rocketworks-mission-loss-budget-0.1.0/);
   assert.match(report, /Fixture thrust-axis warning/);
+  assert.match(report, /### Ideal-to-trace delta-v bridge/);
+  assert.match(report, /rocketworks-mission-delta-v-bridge-0.1.0/);
+  assert.match(report, /Fixture bridge warning/);
   assert.match(report, /### Vertical integration-step convergence/);
   assert.match(report, /Heuristic status \| converged/);
   assert.match(report, /Step convergence \| watch/);

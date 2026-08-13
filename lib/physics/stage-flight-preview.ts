@@ -110,9 +110,13 @@ import {
   computeMissionLossBudget,
   type MissionLossBudgetResult,
 } from "./mission-loss-budget.ts";
+import {
+  computeMissionDeltaVBridge,
+  type MissionDeltaVBridgeResult,
+} from "./mission-delta-v-bridge.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.29.0";
+  "kestrel-stage-flight-preview-0.30.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -296,6 +300,7 @@ export type StageFlightPreviewResult = Readonly<{
   forceBudget: StageFlightForceBudgetResult;
   vectorBudget: StageFlightVectorBudgetResult;
   missionLossBudget: MissionLossBudgetResult;
+  missionDeltaVBridge: MissionDeltaVBridgeResult;
   separatedBodies: readonly SeparatedBodyTrajectory[];
   separationDynamics: readonly SeparationDynamicsResult[];
   separationImpulseSolutions: readonly CoupledSeparationImpulseResult[];
@@ -1080,6 +1085,10 @@ export function simulateStageFlightPreview(
         : {}),
     },
   );
+  const missionDeltaVBridge = computeMissionDeltaVBridge({
+    missionMassRatio,
+    missionLossBudget,
+  });
   const eventAllocation: MissionEventAllocation =
     primaryRun.simulation?.eventAllocation ??
     primaryRun.rail?.freeFlight?.eventAllocation ??
@@ -1464,6 +1473,7 @@ export function simulateStageFlightPreview(
     ...forceBudget.warnings,
     ...vectorBudget.warnings,
     ...missionLossBudget.warnings,
+    ...missionDeltaVBridge.warnings,
   ];
   const assumptions = [
     ...(input.additionalAssumptions ?? []),
@@ -1502,6 +1512,7 @@ export function simulateStageFlightPreview(
     ...forceBudget.assumptions,
     ...vectorBudget.assumptions,
     ...missionLossBudget.assumptions,
+    ...missionDeltaVBridge.assumptions,
     ...(recovery
       ? [
           `Retained-vehicle recovery devices are coupled as body loads through ${recovery.modelVersion}; deployment commands, inflation, and reefing remain deterministic effective-area approximations.`,
@@ -1534,6 +1545,7 @@ export function simulateStageFlightPreview(
     forceBudget,
     vectorBudget,
     missionLossBudget,
+    missionDeltaVBridge,
     separatedBodies,
     separationDynamics,
     separationImpulseSolutions,
