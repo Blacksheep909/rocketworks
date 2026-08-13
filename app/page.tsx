@@ -8057,6 +8057,44 @@ export default function Home() {
                             <small className="stage-separation-contact-load-model">{publicModelVersion(stageFlightResult.separationContactLoad.modelVersion)} · {stageFlightResult.separationContactLoad.validationStatus}</small>
                           </div>
                         )}
+                        {stageFlightResult.relativeAeroInteraction && (
+                          <div className={`stage-relative-aero-interaction stage-relative-aero-interaction-${stageFlightResult.relativeAeroInteraction.status}`}>
+                            <div className="stage-relative-aero-interaction-heading">
+                              <div>
+                                <span className="eyebrow">Relative flow / wake review</span>
+                                <h5>Released-body aerodynamic interaction screen</h5>
+                                <p>Checks directed finite wake-cone overlap on the released-body traces and estimates a bounded velocity-deficit / dynamic-pressure proxy. It is post-processing only and never changes the flight path.</p>
+                              </div>
+                              <span className="stage-relative-aero-interaction-status">{stageFlightResult.relativeAeroInteraction.status}</span>
+                            </div>
+                            <div className="stage-relative-aero-interaction-grid">
+                              <div><span>Directed pairs assessed</span><strong>{stageFlightResult.relativeAeroInteraction.assessedPairCount} / {stageFlightResult.relativeAeroInteraction.pairs.length}</strong><small>source → target directions</small></div>
+                              <div><span>Wake overlaps</span><strong>{stageFlightResult.relativeAeroInteraction.exposedPairCount}</strong><small>geometry-qualified directions</small></div>
+                              <div><span>Peak proxy deficit</span><strong>{stageFlightResult.relativeAeroInteraction.maximumVelocityDeficitFraction === null ? "Not assessed" : `${(stageFlightResult.relativeAeroInteraction.maximumVelocityDeficitFraction * 100).toFixed(1)}%`}</strong><small>bounded diagnostic</small></div>
+                              <div><span>Max q reduction proxy</span><strong>{stageFlightResult.relativeAeroInteraction.maximumEstimatedDynamicPressureDeltaPa === null ? "Not available" : `${stageFlightResult.relativeAeroInteraction.maximumEstimatedDynamicPressureDeltaPa.toFixed(0)} Pa`}</strong><small>environment provider required</small></div>
+                            </div>
+                            {stageFlightResult.relativeAeroInteraction.pairs.some((pair) => pair.exposedSampleCount > 0) && (
+                              <div className="stage-relative-aero-interaction-list">
+                                {stageFlightResult.relativeAeroInteraction.pairs
+                                  .filter((pair) => pair.exposedSampleCount > 0)
+                                  .sort((left, right) => (right.peakVelocityDeficitFraction ?? 0) - (left.peakVelocityDeficitFraction ?? 0))
+                                  .slice(0, 3)
+                                  .map((pair) => (
+                                    <div key={`${pair.sourceBodyId}-${pair.targetBodyId}`}>
+                                      <strong>{pair.sourceBodyLabel} → {pair.targetBodyLabel}</strong>
+                                      <span>{(pair.exposureCoverageFraction * 100).toFixed(0)}% samples exposed · peak {(pair.peakVelocityDeficitFraction! * 100).toFixed(1)}% · min clearance {pair.minimumWakeClearanceM === null ? "—" : `${pair.minimumWakeClearanceM.toFixed(2)} m`}</span>
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                            {stageFlightResult.relativeAeroInteraction.warnings.length > 0 && (
+                              <ul className="stage-relative-aero-interaction-warnings">
+                                {stageFlightResult.relativeAeroInteraction.warnings.slice(0, 3).map((warning) => <li key={warning}>{warning}</li>)}
+                              </ul>
+                            )}
+                            <small className="stage-relative-aero-interaction-model">{publicModelVersion(stageFlightResult.relativeAeroInteraction.modelVersion)} · {stageFlightResult.relativeAeroInteraction.validationStatus}</small>
+                          </div>
+                        )}
                         <div className="stage-separated-body-grid">
                           {stageFlightResult.separatedBodies.map((body) => (
                             <article className="stage-separated-body" key={`${body.stageId}-${body.instanceId ?? "logical"}-${body.releaseTimeS}`}>

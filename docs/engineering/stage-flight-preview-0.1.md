@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.30.0`.
+`kestrel-stage-flight-preview-0.31.0`.
 
 Relation-based aerodynamics retain both the selected normal-force trend and
 the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions
@@ -298,6 +298,12 @@ When supplied component geometry is available, a separate fixed spherical
 envelope screen subtracts conservative bounds from the COM paths; that screen
 is still only a potential-overlap diagnostic. Retained-vehicle and explicitly
 configured detached-stage recovery remain effective-area load approximations.
+A separate directed relative-flow screen now evaluates finite expanding wake
+cones on the released-body traces when geometry is available. It reports
+bounded velocity-deficit and dynamic-pressure proxies, but it remains
+post-processing only: no wake force, moment, contact impulse, or state
+correction is returned to the flight integrator. Calibrated stage-separation
+interference still requires wind-tunnel, CFD, or measured-flight evidence.
 The result status is
 `analytical-component-checks-only`, and the UI, project JSON, and engineering
 report retain the warning so an impact time cannot be mistaken for a range or
@@ -373,8 +379,8 @@ This track is intentionally distinct from the existing independent detached
 full rigid-body multi-body solver. The optional point-mass gravity mode
 exchanges only the modeled Newtonian body force; the track does not model
 contact forces, momentum transfer after impact, attitude, lift, plume
-interaction, stage-to-stage aerodynamic interference, structural compliance,
-or collision response. A coarsened time step is labeled `partial` when the
+ interaction, stage-to-stage aerodynamic interference beyond the separate
+ relative-flow screen, structural compliance, or collision response. A coarsened time step is labeled `partial` when the
 requested step would exceed the explicit maximum-step budget. It remains an
 engineering preview and must not be used for range-safety or flight approval.
 

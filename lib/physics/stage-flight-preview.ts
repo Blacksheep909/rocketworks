@@ -77,6 +77,11 @@ import {
   type SeparationContactLoadResult,
 } from "./separation-contact-load.ts";
 import {
+  analyzeRelativeAeroInteraction,
+  type RelativeAeroInteractionOptions,
+  type RelativeAeroInteractionResult,
+} from "./relative-aero-interaction.ts";
+import {
   auditSeparationDynamics,
   solveCoupledSeparationImpulse,
   type CoupledSeparationImpulseResult,
@@ -116,7 +121,7 @@ import {
 } from "./mission-delta-v-bridge.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.30.0";
+  "kestrel-stage-flight-preview-0.31.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -159,6 +164,8 @@ export type StageFlightPreviewInput = Readonly<{
   separationContactLoad?: SeparationContactLoadOptions;
   /** Optional pairwise gravity mode for the shared released-body track. */
   coupledMultiBodyGravity?: CoupledMultiBodyGravityOptions;
+  /** Optional post-trace wake/relative-flow screen; it never feeds forces back into flight. */
+  relativeAeroInteraction?: RelativeAeroInteractionOptions;
   launchRail?: LaunchRailConfig;
   launchRailMaximumSteps?: number;
   additionalWarnings?: readonly string[];
@@ -308,6 +315,7 @@ export type StageFlightPreviewResult = Readonly<{
   separationEnvelope: SeparationEnvelopeResult | null;
   separationContact: SeparationContactResult | null;
   separationContactLoad: SeparationContactLoadResult | null;
+  relativeAeroInteraction: RelativeAeroInteractionResult | null;
   coupledMultiBodyFlight: CoupledMultiBodyFlightResult | null;
   convergence: StageFlightConvergenceDiagnostic;
   eventAllocation: MissionEventAllocation;
@@ -1451,6 +1459,60 @@ export function simulateStageFlightPreview(
       );
     }
   }
+  let relativeAeroInteraction: RelativeAeroInteractionResult | null = null;
+  if (retainedBodyTrace.length > 0 && separatedBodies.length > 0) {
+    const detachedInteractionBodies = coupledMultiBodyFlight
+      ? coupledMultiBodyFlight.trajectories.map((trajectory) => ({
+          id: trajectory.id,
+          label: trajectory.label,
+          releaseTimeS: trajectory.releaseTimeS,
+          referenceAreaM2: trajectory.referenceAreaM2,
+          envelopeRadiusM: trajectory.envelopeRadiusM,
+          trace: trajectory.trace.map((point) => ({
+            timeS: point.timeS,
+            positionWorldM: point.positionWorldM,
+            velocityWorldMps: point.velocityWorldMps,
+          })),
+        }))
+      : separatedBodies.map((body, index) => ({
+          id: `${body.stageId}/${body.instanceId ?? `logical-${index + 1}`}`,
+          label: body.instanceId ? `${body.stageName} / ${body.instanceId}` : body.stageName,
+          releaseTimeS: body.releaseTimeS,
+          referenceAreaM2: body.referenceAreaM2,
+          envelopeRadiusM: body.envelopeRadiusM,
+          trace: body.trace.map((point) => ({
+            timeS: point.timeS,
+            positionWorldM: point.positionWorldM,
+            velocityWorldMps: point.velocityWorldMps,
+          })),
+        }));
+    if (detachedInteractionBodies.length > 0) {
+      try {
+        relativeAeroInteraction = analyzeRelativeAeroInteraction({
+          environmentAt: input.environmentAt,
+          options: input.relativeAeroInteraction,
+          bodies: [
+            {
+              id: "retained-vehicle",
+              label: "Retained vehicle",
+              releaseTimeS: retainedBodyTrace[0]!.timeS,
+              envelopeRadiusM: input.separationEnvelopeRadiiM?.["retained-vehicle"],
+              trace: retainedBodyTrace.map((state) => ({
+                timeS: state.timeS,
+                positionWorldM: state.positionWorldM,
+                velocityWorldMps: state.velocityWorldMps,
+              })),
+            },
+            ...detachedInteractionBodies,
+          ],
+        });
+      } catch (error) {
+        separatedBodyWarnings.push(
+          `Relative-flow interaction screen unavailable: ${error instanceof Error ? error.message : "unknown error"}`,
+        );
+      }
+    }
+  }
   const warnings = [
     ...(input.additionalWarnings ?? []),
     ...staging.warnings,
@@ -1466,6 +1528,7 @@ export function simulateStageFlightPreview(
     ...(separationEnvelope?.warnings ?? []),
     ...(separationContact?.warnings ?? []),
     ...(separationContactLoad?.warnings ?? []),
+    ...(relativeAeroInteraction?.warnings ?? []),
     ...separationDynamics.flatMap((audit) => audit.warnings),
     ...separationImpulseSolutions.flatMap((solution) => solution.warnings),
     ...massRatio.warnings,
@@ -1505,6 +1568,7 @@ export function simulateStageFlightPreview(
     ...(separationEnvelope?.assumptions ?? []),
     ...(separationContact?.assumptions ?? []),
     ...(separationContactLoad?.assumptions ?? []),
+    ...(relativeAeroInteraction?.assumptions ?? []),
     ...separationDynamics.flatMap((audit) => audit.assumptions),
     ...separationImpulseSolutions.flatMap((solution) => solution.assumptions),
     ...massRatio.assumptions,
@@ -1553,6 +1617,7 @@ export function simulateStageFlightPreview(
     separationEnvelope,
     separationContact,
     separationContactLoad,
+    relativeAeroInteraction,
     coupledMultiBodyFlight,
     convergence,
     eventAllocation,

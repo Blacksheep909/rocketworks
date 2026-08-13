@@ -1135,8 +1135,11 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /separationContact/);
   assert.match(page, /separationContactLoad/);
   assert.match(page, /Contact impulse and force-scale estimate/);
+  assert.match(page, /Released-body aerodynamic interaction screen/);
+  assert.match(stagePreview, /analyzeRelativeAeroInteraction/);
   assert.match(stylesheet, /\.stage-separation-envelope/);
   assert.match(stylesheet, /\.stage-separation-contact/);
+  assert.match(stylesheet, /\.stage-relative-aero-interaction/);
   assert.match(stylesheet, /\.stage-interface-load-card/);
   assert.match(stylesheet, /\.stage-interface-load-row-unavailable/);
   assert.match(stylesheet, /\.stage-parallel-load-audit/);

@@ -142,6 +142,10 @@ research, standards, and original code.
   component geometry, with explicit potential-overlap and missing-geometry
   states plus relative and inward-closing speed telemetry at closest approach;
   it remains outside contact and range-safety analysis;
+- a directed released-body relative-flow/wake review that checks finite
+  expanding-cone overlap, reports bounded velocity-deficit and dynamic-pressure
+  proxies when an environment provider is available, and keeps the explicit
+  no-force-feedback / no-validation boundary;
 - an instantaneous separation impulse audit that checks mass-ratio linear
   momentum balance and exposes unmodeled first-order angular impulse before
   detached-body propagation;

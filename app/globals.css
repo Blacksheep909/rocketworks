@@ -2928,6 +2928,26 @@ body {
 .stage-separation-contact-load-list span { color: #aa9478; font: 7px var(--font-geist-mono), monospace; text-align: right; }
 .stage-separation-contact-load-note { margin: 8px 1px 0; color: #a08b74; font: 7px/1.5 var(--font-geist-mono), monospace; }
 .stage-separation-contact-load-model { display: block; margin-top: 5px; color: #8c7863; font: 7px var(--font-geist-mono), monospace; }
+.stage-relative-aero-interaction { margin-top: 10px; padding: 10px; border: 1px solid rgba(47, 209, 190, .28); border-radius: 3px; background: linear-gradient(135deg, rgba(47, 209, 190, .09), rgba(10, 16, 22, .78) 68%); }
+.stage-relative-aero-interaction-partial { border-color: rgba(244, 163, 64, .38); background: linear-gradient(135deg, rgba(244, 163, 64, .09), rgba(10, 16, 22, .78) 68%); }
+.stage-relative-aero-interaction-not-assessed { border-color: rgba(198, 212, 221, .24); background: linear-gradient(135deg, rgba(198, 212, 221, .06), rgba(10, 16, 22, .78) 68%); }
+.stage-relative-aero-interaction-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.stage-relative-aero-interaction-heading h5 { margin-top: 4px; color: #d5fff7; font-size: 10px; letter-spacing: .02em; }
+.stage-relative-aero-interaction-heading p { max-width: 730px; margin-top: 4px; color: #91b9b4; font-size: 8px; line-height: 1.45; }
+.stage-relative-aero-interaction-status { flex: 0 0 auto; padding: 5px 7px; border: 1px solid rgba(47, 209, 190, .44); border-radius: 2px; color: #a9f1e4; font: 650 7px var(--font-geist-mono), monospace; letter-spacing: .09em; text-transform: uppercase; }
+.stage-relative-aero-interaction-partial .stage-relative-aero-interaction-status { color: #ffc477; border-color: rgba(244, 163, 64, .48); }
+.stage-relative-aero-interaction-not-assessed .stage-relative-aero-interaction-status { color: #ffae98; border-color: rgba(255, 112, 67, .4); }
+.stage-relative-aero-interaction-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin-top: 9px; overflow: hidden; border: 1px solid rgba(47, 209, 190, .18); border-radius: 3px; background: rgba(47, 209, 190, .18); }
+.stage-relative-aero-interaction-grid div { min-width: 0; padding: 8px; background: rgba(13, 18, 23, .92); }
+.stage-relative-aero-interaction-grid span { display: block; color: #83aaa6; font-size: 7px; }
+.stage-relative-aero-interaction-grid strong { display: block; overflow: hidden; margin-top: 4px; color: #d5fff7; font: 700 9px var(--font-geist-mono), monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-relative-aero-interaction-grid small { display: block; overflow: hidden; margin-top: 3px; color: #719490; font: 7px var(--font-geist-mono), monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-relative-aero-interaction-list { display: grid; gap: 1px; margin-top: 8px; }
+.stage-relative-aero-interaction-list div { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 8px; border-left: 2px solid rgba(47, 209, 190, .52); background: rgba(47, 209, 190, .045); }
+.stage-relative-aero-interaction-list strong { overflow: hidden; color: #c8fff5; font: 650 8px var(--font-geist-mono), monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-relative-aero-interaction-list span { color: #8db5af; font: 7px var(--font-geist-mono), monospace; text-align: right; }
+.stage-relative-aero-interaction-warnings { display: flex; flex-direction: column; gap: 3px; margin: 8px 0 0; padding: 0 0 0 13px; color: #9fc1bc; font-size: 7px; line-height: 1.45; }
+.stage-relative-aero-interaction-model { display: block; margin-top: 5px; color: #769b96; font: 7px var(--font-geist-mono), monospace; }
 .stage-separated-body-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin-top: 10px; overflow: hidden; border: 1px solid rgba(244, 163, 64, .2); border-radius: 3px; background: rgba(244, 163, 64, .2); }
 .stage-separated-body { min-width: 0; padding: 10px; background: rgba(13, 18, 23, .93); }
 .stage-separated-body-title { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
@@ -2988,6 +3008,9 @@ body {
   .stage-separation-contact-load-heading { flex-direction: column; }
   .stage-separation-contact-load-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stage-separation-contact-load-list div { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .stage-relative-aero-interaction-heading { flex-direction: column; }
+  .stage-relative-aero-interaction-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stage-relative-aero-interaction-list div { align-items: flex-start; flex-direction: column; gap: 3px; }
   .stage-separated-body-grid { grid-template-columns: 1fr; }
   .flight-comparison-heading { flex-direction: column; }
   .flight-comparison-actions { justify-content: flex-start; }
