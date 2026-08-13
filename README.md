@@ -242,8 +242,9 @@ research, standards, and original code.
   JSON, and a WGS84 GeoJSON flight-path export with retained/released tracks,
   sample-time arrays, optional attitude/rate telemetry, and event markers for
   GIS review;
-- local run comparison that pins a reference estimate and exposes explicit
-  metric deltas after a design or environment change;
+- local vertical and coupled/staged run comparisons that pin a reference
+  estimate, expose signed metric deltas after a design or environment change,
+  and keep sampled event/released-body counts visible;
 - measured-flight CSV comparison with strict SI parsing, vertical or coupled
   6DOF trace selection, interpolation-based residuals, event-timestamp
   normalization, optional positive one-sigma measurement uncertainty with

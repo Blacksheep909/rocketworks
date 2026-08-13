@@ -963,6 +963,11 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Vertical vs coupled preview/);
   assert.match(page, /formatSignedMetric/);
   assert.match(page, /stage-flight-comparison/);
+  assert.match(page, /StageFlightComparisonCard/);
+  assert.match(page, /stageComparisonReference/);
+  assert.match(page, /Pin current run/);
+  assert.match(page, /Staged run comparison/);
+  assert.match(page, /Rerun required/);
   assert.match(page, /Stage flight profile/);
   assert.match(page, /createStageInterfaceLoadReview/);
   assert.match(page, /STAGE-INTERFACE AXIAL LOAD PATH/);
@@ -1192,4 +1197,13 @@ test("ships a local flight-run comparison workflow with stale-result guardrails"
   assert.match(page, /flight-safety evidence/);
   assert.match(stylesheet, /\.flight-comparison-card/);
   assert.match(stylesheet, /\.flight-comparison-row/);
+});
+
+test("ships a tested staged-run comparison contract", async () => {
+  const comparison = await readFile(new URL("../lib/physics/stage-flight-comparison.ts", import.meta.url), "utf8");
+  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.match(comparison, /STAGE_FLIGHT_COMPARISON_MODEL_VERSION/);
+  assert.match(comparison, /current minus reference/);
+  assert.match(comparison, /diagnostic-only/);
+  assert.match(packageJson.scripts?.test ?? "", /tests\/stage-flight-comparison\.test\.mjs/);
 });

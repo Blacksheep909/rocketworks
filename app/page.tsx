@@ -64,6 +64,7 @@ import {
   transformMassProperties,
   createVehicleAssemblyModel,
   analyzeAttachedAeroInterference,
+  createStageFlightComparison,
   createAttachedAeroComponentEnvelope,
   createAttachedAeroInterferenceBody,
   simulateStageFlightPreview,
@@ -108,6 +109,7 @@ import {
   type Matrix3,
   type MotorDataRecord,
   type StageFlightPreviewResult,
+  type StageFlightComparisonResult,
   type ReleasedBodyDragModel,
   type StageFlightUncertaintyResult,
   type CoupledMultiBodyGravityOptions,
@@ -2882,6 +2884,96 @@ function FlightComparisonCard({
   );
 }
 
+function formatStageFlightComparisonValue(
+  value: number | null,
+  metric: StageFlightComparisonResult["metrics"][number],
+): string {
+  return value === null
+    ? "—"
+    : `${value.toFixed(metric.decimals)} ${metric.unit}`;
+}
+
+function formatStageFlightComparisonDelta(
+  value: number | null,
+  metric: StageFlightComparisonResult["metrics"][number],
+): string {
+  if (value === null) return "—";
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(metric.decimals)} ${metric.unit}`;
+}
+
+function StageFlightComparisonCard({
+  current,
+  reference,
+  referenceFingerprint,
+  currentFingerprint,
+  resultIsCurrent,
+  running,
+  onPin,
+  onClear,
+}: {
+  current: StageFlightPreviewResult;
+  reference: StageFlightPreviewResult | null;
+  referenceFingerprint: string | null;
+  currentFingerprint: string | null;
+  resultIsCurrent: boolean;
+  running: boolean;
+  onPin: () => void;
+  onClear: () => void;
+}) {
+  const exactReference = resultIsCurrent && reference !== null && referenceFingerprint !== null && referenceFingerprint === currentFingerprint;
+  const currentLabel = resultIsCurrent ? "Current result" : "Last result / rerun required";
+  const comparison = reference === null ? null : createStageFlightComparison(reference, current);
+  return (
+    <section className="flight-comparison-card stage-flight-run-comparison-card" aria-labelledby="stage-flight-run-comparison-title">
+      <div className="flight-comparison-heading">
+        <div>
+          <span className="eyebrow">Coupled design delta</span>
+          <h4 id="stage-flight-run-comparison-title">Staged run comparison</h4>
+          <p>Pin a coupled or staged preview, change the vehicle or environment, then rerun to inspect the output delta without losing the original decision point.</p>
+        </div>
+        <div className="flight-comparison-actions">
+          <span className={exactReference ? "flight-comparison-state same" : reference ? resultIsCurrent ? "flight-comparison-state ready" : "flight-comparison-state stale" : "flight-comparison-state empty"}>
+            {exactReference ? "Reference = current" : reference ? resultIsCurrent ? "Delta ready" : "Rerun required" : "No reference pinned"}
+          </span>
+          <button type="button" onClick={onPin} disabled={running || !resultIsCurrent}>
+            {reference ? "Replace reference" : "Pin current run"}
+          </button>
+          {reference && <button type="button" className="flight-comparison-clear" onClick={onClear}>Clear</button>}
+        </div>
+      </div>
+      {comparison ? (
+        <>
+          <div className="flight-comparison-table" role="table" aria-label="Coupled staged flight run comparison">
+            <div className="flight-comparison-row flight-comparison-row-header" role="row">
+              <span role="columnheader">Metric</span>
+              <span role="columnheader">Reference</span>
+              <span role="columnheader">{currentLabel}</span>
+              <span role="columnheader">Delta</span>
+            </div>
+            {comparison.metrics.map((metric) => (
+              <div className="flight-comparison-row" role="row" key={metric.key}>
+                <span role="cell">{metric.label}</span>
+                <span role="cell">{formatStageFlightComparisonValue(metric.reference, metric)}</span>
+                <span role="cell">{formatStageFlightComparisonValue(metric.current, metric)}</span>
+                <strong className={metric.delta === null ? "" : metric.delta > 0 ? "positive" : metric.delta < 0 ? "negative" : "neutral"} role="cell">
+                  {formatStageFlightComparisonDelta(metric.delta, metric)}
+                </strong>
+              </div>
+            ))}
+          </div>
+          <p className="flight-comparison-note">{comparison.warnings[0]} The delta is current minus reference; a stale result is labeled explicitly until the current inputs are simulated. This comparison does not add validation or flight-safety evidence.</p>
+        </>
+      ) : (
+        <div className="flight-comparison-empty">
+          <strong>Keep a staged design decision visible</strong>
+          <span>Pin the current coupled preview before trying a stage, motor, separation, recovery, or environment change.</span>
+        </div>
+      )}
+    </section>
+  );
+}
+
 const FLIGHT_DATA_METRIC_DISPLAY: Readonly<Record<"altitudeM" | "velocityMps" | "accelerationMps2", Readonly<{ label: string; unit: string; decimals: number }>>> = {
   altitudeM: { label: "Altitude", unit: "m", decimals: 2 },
   velocityMps: { label: "Velocity", unit: "m/s", decimals: 2 },
@@ -4277,6 +4369,10 @@ export default function Home() {
   const [stageFlightFingerprint, setStageFlightFingerprint] = useState<string | null>(
     null,
   );
+  const [stageComparisonReference, setStageComparisonReference] =
+    useState<StageFlightPreviewResult | null>(null);
+  const [stageComparisonReferenceFingerprint, setStageComparisonReferenceFingerprint] =
+    useState<string | null>(null);
   const [selectedStageEventTimeS, setSelectedStageEventTimeS] = useState<number | null>(null);
   const [stageFlightRunning, setStageFlightRunning] = useState(false);
   const [stageFlightError, setStageFlightError] = useState("");
@@ -5331,6 +5427,20 @@ export default function Home() {
     setComparisonReference(null);
     setComparisonReferenceFingerprint(null);
     notify("Comparison reference cleared");
+  };
+  const pinStageComparisonReference = () => {
+    if (!stageFlightResult || !stageFlightIsCurrent) {
+      notify("Run the current coupled preview before pinning a staged reference");
+      return;
+    }
+    setStageComparisonReference(stageFlightResult);
+    setStageComparisonReferenceFingerprint(stageFlightFingerprint ?? simulationFingerprint);
+    notify("Current coupled preview pinned as staged comparison reference");
+  };
+  const clearStageComparisonReference = () => {
+    setStageComparisonReference(null);
+    setStageComparisonReferenceFingerprint(null);
+    notify("Staged comparison reference cleared");
   };
   const importFlightData = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
@@ -8300,6 +8410,16 @@ export default function Home() {
                       }))}
                       selectedTimeS={selectedStageEventTimeS}
                       onSelectionChange={setSelectedStageEventTimeS}
+                    />
+                    <StageFlightComparisonCard
+                      current={stageFlightResult}
+                      reference={stageComparisonReference}
+                      referenceFingerprint={stageComparisonReferenceFingerprint}
+                      currentFingerprint={stageFlightFingerprint}
+                      resultIsCurrent={stageFlightIsCurrent}
+                      running={stageFlightRunning}
+                      onPin={pinStageComparisonReference}
+                      onClear={clearStageComparisonReference}
                     />
                     {activeStageCount === 1 && (
                       <section className="stage-flight-comparison" aria-labelledby="stage-flight-comparison-title">
