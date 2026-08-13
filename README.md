@@ -272,6 +272,10 @@ research, standards, and original code.
   autosave/history, templates,
   beginner/expert modes, keyboard command search, and compact browser design
   share links;
+- a functional project console behind the workspace header with local save
+  status, revision handoff, history, template, import, export, checkpoint, and
+  share actions; cloud sync and multi-user collaboration remain explicitly
+  out of scope for this browser-only surface;
 - coupled-flight contract settings are carried through validated autosave,
   project JSON, and share links, including released-body aerodynamic mode,
   mutual-gravity softening, contact-screen assumptions, and 6DOF integration

@@ -163,6 +163,12 @@ test("ships a portable project import path with validated restoration warnings",
   assert.match(source, /namedProjectFingerprint/);
   assert.match(source, /projectFileStem/);
   assert.match(source, /setProjectName\(imported\.projectName\)/);
+  assert.match(source, /projectConsoleOpen/);
+  assert.match(source, /aria-label="Open project console"/);
+  assert.match(source, /project-console-dialog/);
+  assert.match(source, /Open artifact center/);
+  assert.match(source, /Copy design share link/);
+  assert.match(source, /LOCAL ONLY/);
   assert.match(source, /LOCAL_COMPONENT_LIBRARY_STORAGE_KEY/);
   assert.match(source, /componentLibrary/);
   assert.match(source, /Component library/);
@@ -173,6 +179,8 @@ test("ships a portable project import path with validated restoration warnings",
   assert.match(exportSource, /validateVehicleTopology/);
   assert.match(exportSource, /validateLocalComponentRecords/);
   assert.match(stylesheet, /export-import-option/);
+  assert.match(stylesheet, /project-console-overview/);
+  assert.match(stylesheet, /project-console-actions/);
   assert.match(stylesheet, /\.project-name-input/);
 });
 

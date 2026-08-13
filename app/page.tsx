@@ -4104,6 +4104,8 @@ export default function Home() {
   const [topologyFailureDrafts, setTopologyFailureDrafts] = useState<Record<string, string>>({});
   const [experienceMode, setExperienceMode] = useState<ExperienceMode>("beginner");
   const [guideOpen, setGuideOpen] = useState(false);
+  const [projectConsoleOpen, setProjectConsoleOpen] = useState(false);
+  const projectConsoleCloseRef = useRef<HTMLButtonElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyCloseRef = useRef<HTMLButtonElement>(null);
   const [projectHistory, setProjectHistory] = useState<LocalProjectHistory>(() =>
@@ -5432,6 +5434,16 @@ export default function Home() {
     }, 0);
     return () => window.clearTimeout(importTimer);
   }, [projectImportRequested]);
+
+  useEffect(() => {
+    if (!projectConsoleOpen) return;
+    projectConsoleCloseRef.current?.focus();
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setProjectConsoleOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [projectConsoleOpen]);
 
   useEffect(() => {
     if (!historyOpen) return;
@@ -7507,6 +7519,7 @@ export default function Home() {
     { id: "open-aero", label: "Open aerodynamic data", description: "Review or import Mach-Reynolds coefficient tables", run: () => setAerodynamicLibraryOpen(true) },
     { id: "open-components", label: "Open component library", description: "Reuse attributed geometry, recovery, equipment, and pod presets", run: () => setComponentLibraryOpen(true) },
     { id: "open-templates", label: "Choose a project template", description: "Start from a beginner, high-power, weather, or diagnostic setup", run: () => setTemplatesOpen(true) },
+    { id: "open-project-console", label: "Open project console", description: "Review local save status and hand off this design", run: () => setProjectConsoleOpen(true) },
     { id: "open-history", label: "Open local project history", description: "Restore a validated device-local checkpoint", run: () => setHistoryOpen(true) },
     { id: "open-export", label: "Open artifact center", description: "Export project JSON, traces, reports, and CAD references", run: () => setExportOpen(true) },
     { id: "share-design", label: "Copy design share link", description: "Share validated inputs and stage topology without embedding local library data", run: () => { void copyProjectShare(); } },
@@ -7562,7 +7575,13 @@ export default function Home() {
           <div><strong>RocketWorks</strong><span>{uiCopy.brandTagline}</span></div>
         </div>
         <div className="project-title">
-          <button className="quiet-button" aria-label="Go back to projects">‹</button>
+          <button
+            className="quiet-button"
+            aria-label="Open project console"
+            onClick={() => setProjectConsoleOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={projectConsoleOpen}
+          >‹</button>
           <div><strong>{projectName} / Vehicle 01</strong><span><i className="live-dot" />{saveError ? "Review required" : saved ? "Saved locally" : "Saving changes…"}</span></div>
         </div>
         <div className="top-actions">
@@ -10452,6 +10471,91 @@ export default function Home() {
             <div className="history-notice">
               <span>MODEL BOUNDARY</span>
               <p>Topology changes update analytical assembly mass, centre of gravity, inertia, instance counts, and stage-level aerodynamic source assignments. Repeated physical copies can separate independently in the retained-body event model. A regime with one available table uses it; combined stages with conflicting or unavailable tables fall back to the global source with an explicit warning. Coupled separation clearance, aerodynamic interference, and flight-safety validation remain outside this retained-body model; the staged preview exposes an independent trajectory for detached bodies, carries stage recovery with an apogee, descending-altitude, or mission-time command when configured, and otherwise uses bounded isotropic point drag or the gravity-only fallback.</p>
+            </div>
+          </section>
+        </div>
+      )}
+      {projectConsoleOpen && (
+        <div
+          className="export-backdrop project-console-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setProjectConsoleOpen(false);
+          }}
+        >
+          <section
+            className="export-dialog project-console-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="project-console-title"
+            aria-describedby="project-console-description"
+          >
+            <div className="export-heading">
+              <div>
+                <span className="eyebrow">Project workspace</span>
+                <h2 id="project-console-title">{projectName}</h2>
+                <p id="project-console-description">Keep the current design moving between local checkpoints, portable files, and a shareable browser link.</p>
+              </div>
+              <button
+                ref={projectConsoleCloseRef}
+                className="export-close"
+                aria-label="Close project console"
+                onClick={() => setProjectConsoleOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="project-console-overview" aria-label="Current project status">
+              <div>
+                <span>WORKSPACE</span>
+                <strong>Vehicle 01</strong>
+                <small>Mission RKW-01 · {activeStageCount} active stage{activeStageCount === 1 ? "" : "s"}</small>
+              </div>
+              <div>
+                <span>LOCAL SAVE</span>
+                <strong>{saveError ? "REVIEW" : saved ? "SAVED" : "SAVING"}</strong>
+                <small>{storageReady ? "Browser storage ready" : "Waiting for browser storage"}</small>
+              </div>
+              <div>
+                <span>REVISION</span>
+                <strong>R{String(projectHistory.entries.at(-1)?.snapshot.revision ?? 0).padStart(2, "0")}</strong>
+                <small>{projectHistory.entries.at(-1) ? new Date(projectHistory.entries.at(-1)!.snapshot.savedAtIso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "No checkpoint yet"}</small>
+              </div>
+            </div>
+            <div className="project-console-actions" aria-label="Project handoff actions">
+              <button className="project-console-action project-console-action-primary" onClick={() => { setProjectConsoleOpen(false); setExportOpen(true); }}>
+                <span className="export-extension">JSON</span>
+                <span><strong>Open artifact center</strong><small>Export the project package, traces, reports, and CAD references.</small></span>
+                <em>→</em>
+              </button>
+              <button className="project-console-action" onClick={() => { setProjectConsoleOpen(false); openProjectImport(); }}>
+                <span className="export-extension">OPEN</span>
+                <span><strong>Import a project file</strong><small>Restore validated inputs, topology, and user libraries from a portable document.</small></span>
+                <em>↑</em>
+              </button>
+              <button className="project-console-action" onClick={() => { setProjectConsoleOpen(false); setHistoryOpen(true); }}>
+                <span className="export-extension">HIST</span>
+                <span><strong>Review local history</strong><small>Restore an earlier checkpoint without deleting newer revisions.</small></span>
+                <em>↗</em>
+              </button>
+              <button className="project-console-action" onClick={() => { setProjectConsoleOpen(false); setTemplatesOpen(true); }}>
+                <span className="export-extension">NEW</span>
+                <span><strong>Choose a template</strong><small>Start a new design direction while keeping this project recoverable locally.</small></span>
+                <em>＋</em>
+              </button>
+              <button className="project-console-action" onClick={() => { setProjectConsoleOpen(false); void copyProjectShare(); }}>
+                <span className="export-extension">LINK</span>
+                <span><strong>Copy design share link</strong><small>Share validated design inputs and topology; device-local libraries stay on this browser.</small></span>
+                <em>↗</em>
+              </button>
+              <button className="project-console-action" onClick={() => { createManualCheckpoint(); setProjectConsoleOpen(false); }} disabled={!storageReady}>
+                <span className="export-extension">SAVE</span>
+                <span><strong>Create checkpoint</strong><small>Record a named revision in the device-local timeline before a handoff.</small></span>
+                <em>＋</em>
+              </button>
+            </div>
+            <div className="history-notice">
+              <span>LOCAL ONLY</span>
+              <p>RocketWorks does not claim cloud sync or multi-user collaboration yet. Use a project JSON file for durable handoff, or a share link when the recipient has the referenced local data sources.</p>
             </div>
           </section>
         </div>

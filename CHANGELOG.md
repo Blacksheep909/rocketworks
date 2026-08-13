@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Make the workspace project navigation functional with a local project
+  console. The header action now exposes save/revision status and direct
+  handoff actions for history, templates, import, project JSON export,
+  checkpoints, and share links, while keeping the cloud-sync boundary explicit.
+
 - Add bounded custom airframe material profiles. Users can name a profile and
   edit density, wall thickness, modulus, Poisson ratio, and preliminary
   allowables with exact fields or sliders. The profile participates in

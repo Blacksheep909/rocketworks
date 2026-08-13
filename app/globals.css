@@ -1608,6 +1608,47 @@ kbd {
 }
 .export-warning p { margin: 0; }
 .history-dialog { width: min(660px,100%); }
+.project-console-dialog { width: min(760px,100%); }
+.project-console-overview {
+  display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1px;
+  margin: 0 22px 16px; border: 1px solid var(--line); border-radius: 5px;
+  overflow: hidden; background: var(--line);
+}
+.project-console-overview > div {
+  min-width: 0; display: flex; flex-direction: column; gap: 5px;
+  padding: 13px; background: rgba(47,159,255,.045);
+}
+.project-console-overview span {
+  color: #75c6ff; font: 650 7px var(--font-geist-mono),monospace; letter-spacing: .08em;
+}
+.project-console-overview strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.project-console-overview small { color: var(--muted); font-size: 8px; line-height: 1.4; }
+.project-console-actions {
+  display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px;
+  padding: 0 22px 18px;
+}
+.project-console-action {
+  min-width: 0; display: grid; grid-template-columns: 42px minmax(0,1fr) auto;
+  align-items: center; gap: 11px; min-height: 78px; padding: 11px;
+  border: 1px solid var(--line); border-radius: 5px; background: #10171d;
+  color: var(--ink); text-align: left; cursor: pointer;
+}
+.project-console-action:hover, .project-console-action:focus-visible {
+  border-color: rgba(47,159,255,.4); background: rgba(47,159,255,.075);
+}
+.project-console-action-primary {
+  border-color: rgba(255,107,61,.34);
+  background: linear-gradient(135deg, rgba(255,107,61,.1), rgba(16,23,29,.95));
+}
+.project-console-action-primary:hover, .project-console-action-primary:focus-visible {
+  border-color: rgba(255,107,61,.62); background: rgba(255,107,61,.12);
+}
+.project-console-action > span:nth-child(2) { min-width: 0; }
+.project-console-action strong { display: block; font-size: 10px; }
+.project-console-action small { display: block; margin-top: 5px; color: var(--muted); font-size: 8px; line-height: 1.45; }
+.project-console-action em { color: #65b9f5; font-style: normal; font-size: 14px; }
+.project-console-action-primary em { color: #ff9a78; }
+.project-console-action:disabled { opacity: .48; cursor: wait; }
 .templates-dialog { width: min(920px,100%); }
 .template-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; padding: 18px 22px; }
 .template-card {
@@ -2152,6 +2193,8 @@ kbd {
   .history-list { padding: 12px 14px; }
   .history-notice { margin: 0 14px 14px; }
   .history-error { margin: 12px 14px 0; }
+  .project-console-overview { grid-template-columns: 1fr; margin: 0 14px 14px; }
+  .project-console-actions { grid-template-columns: 1fr; padding: 0 14px 14px; }
   .configuration-timeline { grid-template-columns: minmax(155px,1fr) auto minmax(155px,1fr) auto minmax(155px,1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
