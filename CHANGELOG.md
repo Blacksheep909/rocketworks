@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an independent thrust-axis loss-accounting screen to the staged Flight
+  workspace and engineering report. It exposes thrust impulse-equivalent speed,
+  steering dispersion, positive opposing/assisting projections, axis coverage,
+  and projected versus unprojected event vectors while keeping mission-loss,
+  performance-certification, and flight-safety claims explicitly out of scope.
 - Add a conservative staged separation contact and relative-load screen. The
   shared released-body paths now root-find potential fixed-envelope crossings
   and expose closing speed plus a reduced-mass relative kinetic-energy proxy in

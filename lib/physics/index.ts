@@ -24,6 +24,7 @@ export * from "./stage-aware-aerodynamics.ts";
 export * from "./stage-flight-preview.ts";
 export * from "./stage-flight-force-budget.ts";
 export * from "./stage-flight-vector-budget.ts";
+export * from "./mission-loss-budget.ts";
 export * from "./stage-flight-uncertainty.ts";
 export * from "./separated-body-flight.ts";
 export * from "./separation-clearance.ts";

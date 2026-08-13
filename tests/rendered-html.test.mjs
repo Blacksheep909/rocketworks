@@ -683,6 +683,7 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(exportSource, /radial Z offset is projected out/);
   assert.match(page, /computeStructuralScreen/);
   assert.match(page, /stageFlightResult\.massRatio/);
+  assert.match(page, /stageFlightResult\.missionLossBudget/);
   assert.match(page, /missionMassRatio/);
   assert.match(page, /Serial-stack mass-ratio preview/);
   assert.match(page, /mission-mass-ratio-list/);

@@ -7562,6 +7562,32 @@ export default function Home() {
                       <p className="stage-vector-budget-note">{stageFlightResult.vectorBudget.warnings[0] ?? "World-frame vector accounting only; this is not a validated mission delta-v or flight-safety result."}</p>
                       <small className="stage-vector-budget-model">{publicModelVersion(stageFlightResult.vectorBudget.modelVersion)} / {stageFlightResult.vectorBudget.validationStatus}</small>
                     </section>
+                    <section className={`stage-loss-budget-card stage-loss-budget-${stageFlightResult.missionLossBudget.status}`} aria-labelledby="stage-loss-budget-title">
+                      <div className="stage-loss-budget-heading">
+                        <div>
+                          <span className="eyebrow">Mission performance screen</span>
+                          <h4 id="stage-loss-budget-title">Thrust-axis loss accounting</h4>
+                          <p>Projects recorded gravity, aerodynamic, recovery, and event contributions onto the local thrust direction so steering dispersion and opposing components are visible without claiming a validated mission budget.</p>
+                        </div>
+                        <span className={`uncertainty-status uncertainty-status-${stageFlightResult.missionLossBudget.status}`}>
+                          {stageFlightResult.missionLossBudget.status === "assessed" ? "AXIS COVERED" : stageFlightResult.missionLossBudget.status === "partial" ? "PARTIAL AXIS" : "NOT ASSESSED"}
+                        </span>
+                      </div>
+                      <div className="stage-loss-budget-grid">
+                        <div><span>Thrust impulse equivalent</span><strong>{stageFlightResult.missionLossBudget.thrustImpulseEquivalentMps === null ? "Not assessed" : `${stageFlightResult.missionLossBudget.thrustImpulseEquivalentMps.toFixed(2)} m/s`}</strong><small>∫‖F thrust‖/m dt</small></div>
+                        <div><span>Net thrust Δv</span><strong>{stageFlightResult.missionLossBudget.netThrustDeltaVMagnitudeMps === null ? "Not assessed" : `${stageFlightResult.missionLossBudget.netThrustDeltaVMagnitudeMps.toFixed(2)} m/s`}</strong><small>magnitude of vector integral</small></div>
+                        <div><span>Steering dispersion</span><strong>{stageFlightResult.missionLossBudget.steeringDispersionMps === null ? "Not assessed" : `${stageFlightResult.missionLossBudget.steeringDispersionMps.toFixed(2)} m/s`}</strong><small>scalar–vector gap</small></div>
+                        <div><span>Thrust-axis coverage</span><strong>{(stageFlightResult.missionLossBudget.thrustAxisCoverageFraction * 100).toFixed(1)}%</strong><small>{stageFlightResult.missionLossBudget.thrustAxisSampleCount} active-axis samples</small></div>
+                      </div>
+                      <div className="stage-loss-budget-components">
+                        <div><span>Gravity opposition</span><strong>{stageFlightResult.missionLossBudget.gravity === null ? "Not assessed" : `${stageFlightResult.missionLossBudget.gravity.opposingMps.toFixed(2)} m/s`}</strong><small>positive opposing projection</small></div>
+                        <div><span>Aero opposition</span><strong>{stageFlightResult.missionLossBudget.aerodynamic === null ? "Not assessed" : `${stageFlightResult.missionLossBudget.aerodynamic.opposingMps.toFixed(2)} m/s`}</strong><small>drag + normal force</small></div>
+                        <div><span>Recovery opposition</span><strong>{stageFlightResult.missionLossBudget.recovery === null ? "Not assessed" : `${stageFlightResult.missionLossBudget.recovery.opposingMps.toFixed(2)} m/s`}</strong><small>canopy/load component</small></div>
+                        <div><span>Event opposition</span><strong>{stageFlightResult.missionLossBudget.discreteEvents === null ? "Not projected" : `${stageFlightResult.missionLossBudget.discreteEvents.opposingMps.toFixed(2)} m/s`}</strong><small>{stageFlightResult.missionLossBudget.projectedEventCount} / {stageFlightResult.missionLossBudget.eventCount} events projected</small></div>
+                      </div>
+                      <p className="stage-loss-budget-note">{stageFlightResult.missionLossBudget.warnings[0] ?? "Analytical thrust-axis projection only; do not interpret as mission performance or flight-safety evidence."}</p>
+                      <small className="stage-loss-budget-model">{publicModelVersion(stageFlightResult.missionLossBudget.modelVersion)} / {stageFlightResult.missionLossBudget.validationStatus}</small>
+                    </section>
                     {stageRecoveryOpeningLoad && (
                       <section className="recovery-opening-load-card" aria-labelledby="recovery-opening-load-title">
                         <div className="recovery-opening-load-heading">

@@ -653,6 +653,29 @@ kbd {
 .stage-vector-budget-model { display: block; margin-top: 6px; color: #708a7e; font: 7px var(--font-geist-mono),monospace; }
 .stage-vector-budget-review .stage-vector-budget-note { color: #b89b7a; }
 .stage-vector-budget-review .stage-vector-budget-vectors div { border-left-color: rgba(244,163,64,.56); background: rgba(244,163,64,.045); }
+.stage-loss-budget-card { margin-top: 12px; padding: 12px; border: 1px solid rgba(255,177,79,.28); border-radius: 3px; background: linear-gradient(135deg, rgba(255,177,79,.08), rgba(13,19,24,.78) 62%); }
+.stage-loss-budget-partial { border-color: rgba(244,163,64,.38); background: linear-gradient(135deg, rgba(244,163,64,.09), rgba(13,19,24,.78) 62%); }
+.stage-loss-budget-not-assessed { border-color: rgba(198,212,221,.24); background: linear-gradient(135deg, rgba(198,212,221,.06), rgba(13,19,24,.78) 62%); }
+.stage-loss-budget-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.stage-loss-budget-heading h4 { margin-top: 4px; color: #fff0d8; font-size: 11px; letter-spacing: .02em; }
+.stage-loss-budget-heading p { max-width: 720px; margin-top: 4px; color: #ab987f; font-size: 8px; line-height: 1.45; }
+.stage-loss-budget-heading .uncertainty-status { flex: 0 0 auto; color: #ffc477; border-color: rgba(244,163,64,.42); background: rgba(244,163,64,.09); }
+.stage-loss-budget-partial .stage-loss-budget-heading .uncertainty-status { color: #ffc477; border-color: rgba(244,163,64,.42); background: rgba(244,163,64,.09); }
+.stage-loss-budget-not-assessed .stage-loss-budget-heading .uncertainty-status { color: #a5b5bd; border-color: rgba(198,212,221,.3); background: rgba(198,212,221,.06); }
+.stage-loss-budget-assessed .stage-loss-budget-heading .uncertainty-status { color: #ffd49a; border-color: rgba(255,177,79,.42); background: rgba(255,177,79,.09); }
+.stage-loss-budget-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1px; margin-top: 10px; overflow: hidden; border: 1px solid rgba(255,177,79,.2); border-radius: 3px; background: rgba(255,177,79,.2); }
+.stage-loss-budget-grid div { min-width: 0; padding: 8px; background: rgba(12,18,24,.9); }
+.stage-loss-budget-grid span { display: block; color: #aa9478; font-size: 8px; }
+.stage-loss-budget-grid strong { display: block; overflow: hidden; margin-top: 4px; color: #fff0d8; font: 700 9px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-loss-budget-grid small { display: block; overflow: hidden; margin-top: 3px; color: #8f7d69; font: 7px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-loss-budget-components { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1px; margin-top: 10px; }
+.stage-loss-budget-components div { min-width: 0; padding: 7px 8px; border-left: 2px solid rgba(255,177,79,.52); background: rgba(255,177,79,.045); }
+.stage-loss-budget-components span { display: block; color: #aa9478; font-size: 7px; }
+.stage-loss-budget-components strong { display: block; overflow: hidden; margin-top: 3px; color: #ffe5b8; font: 700 8px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-loss-budget-components small { display: block; overflow: hidden; margin-top: 3px; color: #8f7d69; font: 7px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.stage-loss-budget-note { margin: 9px 1px 0; color: #a08b74; font: 7px/1.5 var(--font-geist-mono),monospace; }
+.stage-loss-budget-model { display: block; margin-top: 6px; color: #8c7863; font: 7px var(--font-geist-mono),monospace; }
+.stage-loss-budget-not-assessed .stage-loss-budget-note { color: #8797a0; }
 .recovery-opening-load-card {
   margin-top: 12px; padding: 12px; border: 1px solid rgba(244,163,64,.28); border-radius: 3px;
   background: linear-gradient(135deg, rgba(244,163,64,.09), rgba(12,18,24,.84) 62%);
@@ -1997,6 +2020,9 @@ kbd {
   .stage-vector-budget-heading { flex-direction: column; }
   .stage-vector-budget-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .stage-vector-budget-vectors { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .stage-loss-budget-heading { flex-direction: column; }
+  .stage-loss-budget-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .stage-loss-budget-components { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .recovery-opening-load-heading { flex-direction: column; }
   .uncertainty-sensitivity-row { grid-template-columns: minmax(88px,1.15fr) minmax(60px,1.7fr) 34px 28px; gap: 6px; }
   .stage-flight-heading .primary-button { width: 100%; }

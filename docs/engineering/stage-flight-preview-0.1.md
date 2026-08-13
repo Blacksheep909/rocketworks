@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.27.0`.
+`kestrel-stage-flight-preview-0.28.0`.
 
 Relation-based aerodynamics retain both the selected normal-force trend and
 the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions
@@ -199,6 +199,24 @@ losses because the trace does not expose a complete force-vector and
 propulsive-efficiency history. It is a trace-accounting diagnostic, not a
 mission-performance budget, validation result, or flight-safety gate. See
 `stage-flight-force-budget.ts` for the contract and limits.
+
+## Thrust-axis loss accounting
+
+The adapter also returns `missionLossBudget` from
+`mission-loss-budget.ts`. This independent trace screen projects the recorded
+gravity, aerodynamic, recovery, and discrete-event contributions onto the
+instantaneous thrust direction. It reports thrust impulse-equivalent speed, net
+thrust-vector delta-v magnitude, steering dispersion, positive opposing and
+assisting components, and the fraction of the trace for which a thrust axis was
+available. The report and browser card retain the model identity and the count
+of projected versus unprojected events.
+
+This is deliberately not a mission loss budget. Positive-part projections do
+not reconstruct guidance, propellant efficiency, staging transients, rail or
+contact reactions, plume interaction, structural loads, or omitted constraint
+forces. Coast intervals without an active thrust direction remain partial
+coverage, and event vectors without an active thrust sample are left
+unprojected. See `mission-loss-budget-0.1.md` for the equations and limits.
 
 ## Stability telemetry
 

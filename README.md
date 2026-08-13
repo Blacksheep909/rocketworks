@@ -199,6 +199,10 @@ research, standards, and original code.
   thrust, aerodynamic, gravity, recovery, and discrete-event contributions and
   reports observed-versus-accounted velocity closure with an explicit review
   residual;
+- a thrust-axis mission-loss screen that exposes thrust impulse-equivalent
+  speed, steering dispersion, and positive opposing/assisting projections for
+  gravity, aerodynamics, recovery, and available event vectors without
+  mislabeling the trace as a validated mission budget;
 - deterministic structural and aeroelastic benchmark anchors for thin-wall
   section area, axial stress, Euler critical load, fin-root bending, and the
   preliminary fin-flutter equation, kept separate from experimental validation;

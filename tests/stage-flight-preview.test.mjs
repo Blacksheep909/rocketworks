@@ -247,7 +247,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.27.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.28.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);
@@ -269,6 +269,10 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.ok((result.forceBudget.thrustImpulseNs ?? 0) > 0);
   assert.ok((result.forceBudget.thrustVelocityEquivalentMps ?? 0) > 0);
   assert.ok(result.forceBudget.stages.some((stage) => stage.stageId === "booster"));
+  assert.ok(["assessed", "partial", "not-assessed"].includes(result.missionLossBudget.status));
+  assert.equal(result.missionLossBudget.sampleCount, result.trace.length);
+  assert.ok((result.missionLossBudget.thrustImpulseEquivalentMps ?? 0) > 0);
+  assert.ok(result.missionLossBudget.warnings.some((warning) => warning.includes("not a validated mission")));
   assert.ok(result.assumptions.some((assumption) => assumption.includes("velocity-equivalent accounting")));
   assert.ok(result.assumptions.some((assumption) => assumption.includes("Tsiolkovsky")));
   assert.equal(result.events.length, 2);

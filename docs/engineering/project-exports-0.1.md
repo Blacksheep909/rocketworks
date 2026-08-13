@@ -153,6 +153,14 @@ relative kinetic-energy proxy when masses are available. These values are
 kinematic review telemetry only; no contact force, structural load, rebound,
 or flight-safety claim is encoded. See `stage-separation-contact-0.1.md`.
 
+They also retain the staged `missionLossBudget` thrust-axis screen. It records
+thrust impulse-equivalent speed, net thrust-vector magnitude, steering
+dispersion, thrust-axis coverage, positive opposing/assisting projections, and
+projected versus unprojected event counts. These values are explanatory trace
+projections only; they are not a validated mission delta-v or loss budget,
+performance certification, or flight-safety result. See
+`mission-loss-budget-0.1.md`.
+
 ## Uncertainty-sample CSV
 
 The uncertainty export writes one row per seeded scenario, including the

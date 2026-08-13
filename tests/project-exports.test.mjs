@@ -720,6 +720,30 @@ test("engineering report leads with status and preserves calculations and limita
         warnings: ["Fixture serial-stack warning."],
       },
       forceBudget,
+      missionLossBudget: {
+        modelVersion: "rocketworks-mission-loss-budget-0.1.0",
+        validationStatus: "analytical-thrust-axis-projection",
+        status: "partial",
+        sampleCount: 2,
+        eventCount: 1,
+        timeSpanS: 1,
+        thrustAxisSampleCount: 2,
+        thrustAxisCoverageS: 0.8,
+        thrustAxisCoverageFraction: 0.8,
+        thrustImpulseEquivalentMps: 19,
+        netThrustDeltaVWorldMps: { x: 0, y: 0, z: 18 },
+        netThrustDeltaVMagnitudeMps: 18,
+        steeringDispersionMps: 1,
+        gravity: { signedAlongThrustMps: -9, opposingMps: 9, assistingMps: 0 },
+        aerodynamic: { signedAlongThrustMps: -2, opposingMps: 2, assistingMps: 0 },
+        recovery: { signedAlongThrustMps: 0, opposingMps: 0, assistingMps: 0 },
+        discreteEvents: { signedAlongThrustMps: -0.1, opposingMps: 0.1, assistingMps: 0 },
+        projectedEventCount: 1,
+        unprojectedEventCount: 0,
+        observedVelocityChangeWorldMps: { x: 0, y: 0, z: 16 },
+        assumptions: ["Fixture thrust-axis assumption."],
+        warnings: ["Fixture thrust-axis warning."],
+      },
       eventAllocation: {
         modelVersion: "rocketworks-event-allocator-0.1.0",
         validationStatus: "analytical-event-ordering-checks-only",
@@ -924,6 +948,9 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /### Force impulse budget/);
   assert.match(report, /rocketworks-stage-flight-force-budget-0.1.0/);
   assert.match(report, /Drag \/ thrust velocity-equivalent ratio/);
+  assert.match(report, /### Thrust-axis loss accounting/);
+  assert.match(report, /rocketworks-mission-loss-budget-0.1.0/);
+  assert.match(report, /Fixture thrust-axis warning/);
   assert.match(report, /### Vertical integration-step convergence/);
   assert.match(report, /Heuristic status \| converged/);
   assert.match(report, /Step convergence \| watch/);
