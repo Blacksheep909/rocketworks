@@ -798,6 +798,40 @@ test("engineering report leads with status and preserves calculations and limita
         warnings: ["Pairwise fixture warning."],
         assumptions: ["Pairwise fixture assumption."],
       },
+      separationContact: {
+        modelVersion: "rocketworks-separation-contact-0.1.0",
+        validationStatus: "analytical-component-checks-only",
+        bodies: [
+          { id: "retained-vehicle", label: "Retained vehicle", releaseTimeS: 0, sampleCount: 8, envelopeRadiusM: 0.5, massKg: 0.58 },
+          { id: "booster/logical-1", label: "Booster", releaseTimeS: 4.2, sampleCount: 5, envelopeRadiusM: 0.3, massKg: 0.2 },
+        ],
+        pairs: [{
+          firstBodyId: "retained-vehicle",
+          firstBodyLabel: "Retained vehicle",
+          secondBodyId: "booster/logical-1",
+          secondBodyLabel: "Booster",
+          status: "assessed",
+          contactStatus: "contact-detected",
+          envelopeRadiusSumM: 0.8,
+          minimumClearanceM: -0.1,
+          minimumClearanceTimeS: 4.8,
+          firstContactTimeS: 4.6,
+          relativeSpeedAtFirstContactMps: 3.2,
+          closingSpeedAtFirstContactMps: 3.1,
+          reducedMassKg: 0.149,
+          relativeKineticEnergyAtFirstContactJ: 0.76,
+          potentialContact: true,
+        }],
+        assessedPairCount: 1,
+        contactPairCount: 1,
+        minimumClearanceM: -0.1,
+        closestPair: { firstBodyId: "retained-vehicle", secondBodyId: "booster/logical-1", timeS: 4.8, clearanceM: -0.1 },
+        firstContactPair: { firstBodyId: "retained-vehicle", secondBodyId: "booster/logical-1", timeS: 4.6, closingSpeedMps: 3.1, relativeKineticEnergyJ: 0.76 },
+        status: "assessed",
+        contactStatus: "contact-detected",
+        warnings: ["Contact fixture warning."],
+        assumptions: ["Contact fixture assumption."],
+      },
     },
     stageUncertainty: {
       ...uncertainty,
@@ -903,6 +937,10 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Closest pair \| retained-vehicle \/ booster\/logical-1 at 4\.20 s/);
   assert.match(report, /Closing speed at closest pair \| not estimated/);
   assert.match(report, /Pairwise fixture warning/);
+  assert.match(report, /### Potential contact and relative-load screen/);
+  assert.match(report, /Contact status \| contact-detected/);
+  assert.match(report, /Relative COM kinetic energy/);
+  assert.match(report, /Contact fixture warning/);
   assert.match(report, /### Coupled separation impulse allocation/);
   assert.match(report, /Impulse allocator fixture warning/);
   assert.match(report, /Convergence status: converged/);

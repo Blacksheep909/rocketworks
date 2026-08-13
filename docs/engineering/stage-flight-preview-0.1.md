@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.26.0`.
+`kestrel-stage-flight-preview-0.27.0`.
 
 Relation-based aerodynamics retain both the selected normal-force trend and
 the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions
@@ -297,6 +297,17 @@ results now carry relative speed and inward radial closing speed at the
 closest assessed approach when the trace data support it; those values are
 kinematic telemetry only, not impact loads or contact-response predictions.
 
+The adapter also exposes a separate `separationContact` result. It prefers the
+shared released-body mission grid, maps the retained staged trace into the same
+world-frame comparison, and root-finds the first fixed-envelope boundary
+crossing between samples. At that crossing it reports relative speed, inward
+closing speed, and—when positive masses are supplied—the reduced-mass relative
+kinetic-energy proxy. The screen is deliberately display-only: it does not
+modify the trajectories, apply contact impulses, resolve rebound or structural
+loads, or upgrade the engineering-preview status. Missing geometry and mass
+remain explicit. See `stage-separation-contact-0.1.md` for the equations and
+limits.
+
 The adapter also returns a coupled separation impulse allocation diagnostic for
 each event that releases one or more bodies. It starts from the configured
 retained-body delta-v and the existing detached-body mass-ratio increments,
@@ -377,5 +388,5 @@ independently versioned makes it possible to improve propulsion, aerodynamics,
 environment, or event mechanics without hiding a new monolithic simulator
   behind the browser UI. Future work can add correlated/model-form uncertainty,
   relative-body aerodynamic databases, attitude-aware envelope geometry, and a
-  time-propagated coupled multi-body separation solver with contact, relative
+  force-coupled multi-body separation solver with contact, relative
   aerodynamics, and attitude while preserving this provenance boundary.

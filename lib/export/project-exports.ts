@@ -2061,6 +2061,28 @@ export function createEngineeringReportMarkdown(
                   : []),
               ]
             : []),
+          ...(input.stageFlight.separationContact
+            ? [
+                "",
+                "### Potential contact and relative-load screen",
+                "",
+                "| Diagnostic | Value |",
+                "|---|---:|",
+                `| Contact status | ${markdownText(input.stageFlight.separationContact.contactStatus)} |`,
+                `| Geometry-assessed pairs | ${input.stageFlight.separationContact.assessedPairCount} / ${input.stageFlight.separationContact.pairs.length} |`,
+                `| Potential contact pairs | ${input.stageFlight.separationContact.contactPairCount} |`,
+                `| Minimum envelope clearance | ${input.stageFlight.separationContact.minimumClearanceM === null ? "not assessed" : `${formatNumber(input.stageFlight.separationContact.minimumClearanceM, 3)} m`} |`,
+                `| First contact pair | ${input.stageFlight.separationContact.firstContactPair ? `${markdownText(input.stageFlight.separationContact.firstContactPair.firstBodyId)} / ${markdownText(input.stageFlight.separationContact.firstContactPair.secondBodyId)} at ${formatNumber(input.stageFlight.separationContact.firstContactPair.timeS, 2)} s` : "not detected"} |`,
+                `| Closing speed at first contact | ${input.stageFlight.separationContact.firstContactPair?.closingSpeedMps === null || input.stageFlight.separationContact.firstContactPair?.closingSpeedMps === undefined ? "not estimated" : `${formatNumber(input.stageFlight.separationContact.firstContactPair.closingSpeedMps, 3)} m/s`} |`,
+                `| Relative COM kinetic energy | ${input.stageFlight.separationContact.firstContactPair?.relativeKineticEnergyJ === null || input.stageFlight.separationContact.firstContactPair?.relativeKineticEnergyJ === undefined ? "not available" : `${formatNumber(input.stageFlight.separationContact.firstContactPair.relativeKineticEnergyJ, 3)} J`} |`,
+                `| Model | \`${markdownText(input.stageFlight.separationContact.modelVersion)}\` |`,
+                "",
+                ...input.stageFlight.separationContact.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+                ...input.stageFlight.separationContact.warnings.map((warning) => `- **Contact-screen warning:** ${markdownText(warning)}`),
+                "",
+                "> This fixed-envelope screen reports potential contact and relative centre-of-mass energy only. It does not resolve contact forces, impulse distribution, rebound, deformation, structural load, plume interaction, aerodynamic interference, range safety, or flight safety.",
+              ]
+            : []),
           ...(input.stageFlight.coupledMultiBodyFlight
             ? [
                 "",

@@ -36,7 +36,7 @@ import {
 } from "./separation-clearance.ts";
 
 export const SEPARATED_BODY_FLIGHT_MODEL_VERSION =
-  "kestrel-separated-body-flight-0.5.0";
+  "kestrel-separated-body-flight-0.6.0";
 export const SEPARATED_BODY_FLIGHT_STATUS =
   "analytical-component-checks-only" as const;
 
@@ -58,6 +58,8 @@ export type SeparatedBodyTrajectory = Readonly<{
   stageId: string;
   instanceId?: string;
   stageName: string;
+  /** Constant branch mass used by pairwise relative-energy screens. */
+  massKg: number;
   modelVersion: string;
   validationStatus: typeof SEPARATED_BODY_FLIGHT_STATUS;
   releaseTimeS: number;
@@ -416,6 +418,7 @@ export function simulateSeparatedBodyFlight(
     stageId: input.stageId,
     ...(input.instanceId ? { instanceId: input.instanceId } : {}),
     stageName: input.stageName,
+    massKg: input.stageMassProperties.massKg,
     modelVersion: SEPARATED_BODY_FLIGHT_MODEL_VERSION,
     validationStatus: SEPARATED_BODY_FLIGHT_STATUS,
     releaseTimeS: input.releaseState.timeS,

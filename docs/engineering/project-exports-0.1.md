@@ -146,6 +146,13 @@ legacy records without them retain blank cells. See
 `stage-flight-attitude-telemetry-0.1.md` for the coordinate convention and
 validation boundary.
 
+The staged project JSON and engineering report also retain the optional
+`separationContact` screen. It records fixed-envelope pair coverage, first
+potential-contact time, centre-of-mass closing speed, and the reduced-mass
+relative kinetic-energy proxy when masses are available. These values are
+kinematic review telemetry only; no contact force, structural load, rebound,
+or flight-safety claim is encoded. See `stage-separation-contact-0.1.md`.
+
 ## Uncertainty-sample CSV
 
 The uncertainty export writes one row per seeded scenario, including the

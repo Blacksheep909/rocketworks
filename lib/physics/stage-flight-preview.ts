@@ -67,6 +67,11 @@ import {
   type SeparationEnvelopeResult,
 } from "./separation-envelope.ts";
 import {
+  analyzeSeparationContact,
+  type SeparationContactResult,
+  type SeparationContactTracePoint,
+} from "./separation-contact.ts";
+import {
   auditSeparationDynamics,
   solveCoupledSeparationImpulse,
   type CoupledSeparationImpulseResult,
@@ -98,7 +103,7 @@ import {
 } from "./stage-flight-vector-budget.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.26.0";
+  "kestrel-stage-flight-preview-0.27.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -284,6 +289,7 @@ export type StageFlightPreviewResult = Readonly<{
   separationImpulseSolutions: readonly CoupledSeparationImpulseResult[];
   multiBodySeparation: MultiBodySeparationResult | null;
   separationEnvelope: SeparationEnvelopeResult | null;
+  separationContact: SeparationContactResult | null;
   coupledMultiBodyFlight: CoupledMultiBodyFlightResult | null;
   convergence: StageFlightConvergenceDiagnostic;
   eventAllocation: MissionEventAllocation;
@@ -1330,6 +1336,66 @@ export function simulateStageFlightPreview(
           ],
         })
       : null;
+  let separationContact: SeparationContactResult | null = null;
+  if (primaryRun.trace.length > 0 && separatedBodies.length > 0) {
+    const retainedContactTrace: SeparationContactTracePoint[] = primaryRun.trace.map(
+      (point, index) => ({
+        // The display trace and the retained rigid-body trace are produced from
+        // the same state array; preserving the index avoids silently replacing
+        // a mismatched sample with a fabricated origin.
+        ...(() => {
+          const state = retainedBodyTrace[index];
+          if (!state || Math.abs(state.timeS - point.timeS) > 1e-8) {
+            throw new Error("retained contact trace lost alignment with the staged state trace");
+          }
+          return {
+            positionWorldM: state.positionWorldM,
+          };
+        })(),
+        timeS: point.timeS,
+        velocityWorldMps: point.velocityWorldMps,
+        massKg: point.massKg,
+      }),
+    );
+    const detachedContactBodies = coupledMultiBodyFlight
+      ? coupledMultiBodyFlight.trajectories.map((trajectory) => ({
+          id: trajectory.id,
+          label: trajectory.label,
+          releaseTimeS: trajectory.releaseTimeS,
+          envelopeRadiusM: trajectory.envelopeRadiusM ?? null,
+          massKg: trajectory.massKg,
+          trace: trajectory.trace,
+        }))
+      : separatedBodies.map((body, index) => ({
+          id: `${body.stageId}/${body.instanceId ?? `logical-${index + 1}`}`,
+          label: body.instanceId ? `${body.stageName} / ${body.instanceId}` : body.stageName,
+          releaseTimeS: body.releaseTimeS,
+          envelopeRadiusM: body.envelopeRadiusM ?? null,
+          massKg: body.massKg,
+          trace: body.trace,
+        }));
+    if (detachedContactBodies.length > 0) {
+      try {
+        separationContact = analyzeSeparationContact({
+          bodies: [
+            {
+              id: "retained-vehicle",
+              label: "Retained vehicle",
+              releaseTimeS: retainedContactTrace[0]!.timeS,
+              envelopeRadiusM: input.separationEnvelopeRadiiM?.["retained-vehicle"],
+              massKg: primaryRun.trace[0]?.massKg ?? null,
+              trace: retainedContactTrace,
+            },
+            ...detachedContactBodies,
+          ],
+        });
+      } catch (error) {
+        separatedBodyWarnings.push(
+          `Pairwise contact screen unavailable: ${error instanceof Error ? error.message : "unknown error"}`,
+        );
+      }
+    }
+  }
   const warnings = [
     ...(input.additionalWarnings ?? []),
     ...staging.warnings,
@@ -1343,6 +1409,7 @@ export function simulateStageFlightPreview(
     ...(multiBodySeparation?.warnings ?? []),
     ...(coupledMultiBodyFlight?.warnings ?? []),
     ...(separationEnvelope?.warnings ?? []),
+    ...(separationContact?.warnings ?? []),
     ...separationDynamics.flatMap((audit) => audit.warnings),
     ...separationImpulseSolutions.flatMap((solution) => solution.warnings),
     ...massRatio.warnings,
@@ -1378,6 +1445,7 @@ export function simulateStageFlightPreview(
     ...(multiBodySeparation?.assumptions ?? []),
     ...(coupledMultiBodyFlight?.assumptions ?? []),
     ...(separationEnvelope?.assumptions ?? []),
+    ...(separationContact?.assumptions ?? []),
     ...separationDynamics.flatMap((audit) => audit.assumptions),
     ...separationImpulseSolutions.flatMap((solution) => solution.assumptions),
     ...massRatio.assumptions,
@@ -1420,6 +1488,7 @@ export function simulateStageFlightPreview(
     separationImpulseSolutions,
     multiBodySeparation,
     separationEnvelope,
+    separationContact,
     coupledMultiBodyFlight,
     convergence,
     eventAllocation,

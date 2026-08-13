@@ -2,7 +2,7 @@
 
 Status: `engineering-preview-unvalidated`  
 Implementation: `lib/physics/stage-flight-preview.ts`, `app/page.tsx`, and `lib/export/project-exports.ts`  
-Model: `kestrel-stage-flight-preview-0.26.0`
+Model: `kestrel-stage-flight-preview-0.27.0`
 
 ## Purpose
 
@@ -65,4 +65,3 @@ with a zero or inferred attitude.
 - legacy CSV fixtures retain deterministic blank fields;
 - rendered UI source exposes the two new profile metrics;
 - full build, regression, typecheck, and lint gates remain required.
-

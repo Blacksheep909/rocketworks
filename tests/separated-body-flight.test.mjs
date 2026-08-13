@@ -34,8 +34,9 @@ test("separated-body preview preserves release offset and angular-rate velocity"
     timeStepS: 0.02,
   });
 
-  assert.equal(result.modelVersion, "kestrel-separated-body-flight-0.5.0");
+  assert.equal(result.modelVersion, "kestrel-separated-body-flight-0.6.0");
   assert.equal(result.validationStatus, "analytical-component-checks-only");
+  assert.equal(result.massKg, 2);
   assert.deepEqual(result.releasePositionWorldM, { x: 5, y: 2, z: 100 });
   assert.deepEqual(result.releaseVelocityWorldMps, { x: 3, y: 0, z: 19 });
   assert.deepEqual(result.retainedBodyDeltaVBodyMps, { x: 0, y: 0, z: 0 });

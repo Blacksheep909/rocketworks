@@ -26,6 +26,9 @@ research, standards, and original code.
   normal-force slope, with interactive plots, SI CSV columns, and report ranges;
 - staged 6DOF attitude and angular-rate telemetry, including quaternion/rate
   export, local-vertical tilt, and interactive profile modes;
+- a conservative staged separation contact screen that root-finds potential
+  fixed-envelope crossings on shared released-body paths and reports relative
+  closing speed plus an explicitly non-structural kinetic-energy proxy;
 - serial, parallel, radial, clustered, and multi-stage vehicle topology;
 - editable topology point-mass equipment and cylindrical pod primitives with
   slider/exact-number placement controls and optional principal local inertia

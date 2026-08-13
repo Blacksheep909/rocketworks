@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a conservative staged separation contact and relative-load screen. The
+  shared released-body paths now root-find potential fixed-envelope crossings
+  and expose closing speed plus a reduced-mass relative kinetic-energy proxy in
+  the Flight workspace and engineering report, while explicitly keeping
+  contact forces, structural loads, rebound, and flight-safety decisions out of
+  scope.
 - Preserve staged 6DOF quaternion attitude and body angular-rate telemetry in
   the Flight trace. The profile now exposes local-vertical attitude tilt and
   angular-rate plots, while staged CSV and reports retain the state projections

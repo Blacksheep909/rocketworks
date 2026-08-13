@@ -55,7 +55,10 @@ The screen does not model oriented body envelopes, fin sweep intersection,
 joint or spring mechanisms, angular separation impulse, plume impingement,
 aerodynamic interference, contact response, terrain, or range-safety rules. It
 is useful for highlighting a geometry review item, not for certifying a
-separation event.
+separation event. The staged adapter may additionally expose the separate
+`stage-separation-contact-0.1.md` kinematic screen; that screen root-finds a
+potential fixed-envelope crossing but does not turn this envelope into a
+contact solver or structural-load result.
 
 ## Verification
 

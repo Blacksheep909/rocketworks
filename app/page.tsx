@@ -7880,6 +7880,33 @@ export default function Home() {
                             )}
                           </div>
                         )}
+                        {stageFlightResult.separationContact && (
+                          <div className="stage-separation-contact">
+                            <div className="stage-separation-contact-heading">
+                              <div>
+                                <span className="eyebrow">Relative kinematics / review screen</span>
+                                <h5>Potential contact and relative-load screen</h5>
+                                <p>Root-finds first fixed-envelope contact on the shared released-body paths and reports centre-of-mass closing kinematics plus a relative kinetic-energy proxy. It does not apply contact forces or predict structural loads.</p>
+                              </div>
+                              <span className={`stage-separation-contact-status stage-separation-contact-status-${stageFlightResult.separationContact.contactStatus}`}>
+                                {stageFlightResult.separationContact.contactStatus}
+                              </span>
+                            </div>
+                            <div className="stage-separation-contact-grid">
+                              <div><span>Assessed pairs</span><strong>{stageFlightResult.separationContact.assessedPairCount} / {stageFlightResult.separationContact.pairs.length}</strong><small>{stageFlightResult.separationContact.status} geometry coverage</small></div>
+                              <div><span>Potential contact pairs</span><strong>{stageFlightResult.separationContact.contactPairCount}</strong><small>{stageFlightResult.separationContact.contactStatus === "contact-detected" ? "fixed-envelope crossing" : "no crossing in assessed paths"}</small></div>
+                              <div><span>First contact</span><strong>{stageFlightResult.separationContact.firstContactPair ? `${stageFlightResult.separationContact.firstContactPair.firstBodyId} / ${stageFlightResult.separationContact.firstContactPair.secondBodyId}` : "Not detected"}</strong><small>{stageFlightResult.separationContact.firstContactPair ? `at ${stageFlightResult.separationContact.firstContactPair.timeS.toFixed(2)} s` : "requires two geometry bounds"}</small></div>
+                              <div><span>Closing speed at contact</span><strong>{stageFlightResult.separationContact.firstContactPair?.closingSpeedMps === null || stageFlightResult.separationContact.firstContactPair?.closingSpeedMps === undefined ? "Not estimated" : `${stageFlightResult.separationContact.firstContactPair.closingSpeedMps.toFixed(2)} m/s`}</strong><small>centre-of-mass kinematics</small></div>
+                              <div><span>Relative COM energy</span><strong>{stageFlightResult.separationContact.firstContactPair?.relativeKineticEnergyJ === null || stageFlightResult.separationContact.firstContactPair?.relativeKineticEnergyJ === undefined ? "Not available" : `${stageFlightResult.separationContact.firstContactPair.relativeKineticEnergyJ.toFixed(2)} J`}</strong><small>reduced-mass proxy only</small></div>
+                              <div><span>Minimum clearance</span><strong>{stageFlightResult.separationContact.minimumClearanceM === null ? "Not assessed" : `${stageFlightResult.separationContact.minimumClearanceM.toFixed(2)} m`}</strong><small>{stageFlightResult.separationContact.closestPair ? `at ${stageFlightResult.separationContact.closestPair.timeS.toFixed(2)} s` : "no geometry-qualified pair"}</small></div>
+                            </div>
+                            {stageFlightResult.separationContact.warnings.length > 0 && (
+                              <ul className="stage-separation-contact-warnings">
+                                {stageFlightResult.separationContact.warnings.slice(0, 3).map((warning) => <li key={warning}>{warning}</li>)}
+                              </ul>
+                            )}
+                          </div>
+                        )}
                         <div className="stage-separated-body-grid">
                           {stageFlightResult.separatedBodies.map((body) => (
                             <article className="stage-separated-body" key={`${body.stageId}-${body.instanceId ?? "logical"}-${body.releaseTimeS}`}>
