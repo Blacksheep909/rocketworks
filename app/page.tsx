@@ -303,6 +303,11 @@ import {
   type SimulationReviewExport,
 } from "../lib/export/simulation-review-exports.ts";
 import {
+  createSimulationRunLibraryExport,
+  MAX_SIMULATION_RUN_LIBRARY_EXPORT_LENGTH,
+  parseSimulationRunLibraryExport,
+} from "../lib/export/simulation-run-library-exports.ts";
+import {
   createDefaultUiPreferences,
   UI_PREFERENCES_LEGACY_STORAGE_KEYS,
   parseUiPreferences,
@@ -317,7 +322,7 @@ type ViewKey = "design" | "flight";
 type DesignViewKey = UiDesignView;
 type MaterialKey = "kraft" | "fiberglass" | "carbon" | "custom";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
-type ExportFormat = "project" | "vertical-review-json" | "staged-review-json" | "flight-csv" | "stage-flight-csv" | "stage-flight-comparison-csv" | "separated-body-csv" | "coupled-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "benchmark-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad" | "manufacturing-manifest";
+type ExportFormat = "project" | "vertical-review-json" | "staged-review-json" | "run-library-json" | "flight-csv" | "stage-flight-csv" | "stage-flight-comparison-csv" | "separated-body-csv" | "coupled-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "benchmark-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad" | "manufacturing-manifest";
 type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
@@ -4141,6 +4146,7 @@ export default function Home() {
   const projectImportInputRef = useRef<HTMLInputElement>(null);
   const workspaceBackupImportInputRef = useRef<HTMLInputElement>(null);
   const simulationReviewImportInputRef = useRef<HTMLInputElement>(null);
+  const simulationRunLibraryImportInputRef = useRef<HTMLInputElement>(null);
   const historyDiffImportInputRef = useRef<HTMLInputElement>(null);
   const [projectImportRequested, setProjectImportRequested] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
@@ -6024,6 +6030,47 @@ export default function Home() {
       notify("Simulation review import failed; project inputs were not changed");
     }
   };
+  const openSimulationRunLibraryImport = () => {
+    simulationRunLibraryImportInputRef.current?.click();
+  };
+  const importSimulationRunLibraryFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    try {
+      if (file.size > MAX_SIMULATION_RUN_LIBRARY_EXPORT_LENGTH) {
+        throw new Error(`Simulation run library exports must be ${MAX_SIMULATION_RUN_LIBRARY_EXPORT_LENGTH.toLocaleString()} characters or smaller.`);
+      }
+      const imported = parseSimulationRunLibraryExport(await file.text());
+      if (imported.sourceProjectId !== activeProjectId) {
+        throw new Error(`This run library belongs to project ${imported.sourceProjectId}; open or import that project before merging its catalog.`);
+      }
+      let merged = simulationRunLibraryRef.current;
+      let addedCount = 0;
+      for (const run of imported.library.runs) {
+        const existing = merged.runs.find((candidate) => candidate.id === run.id);
+        if (existing) {
+          if (JSON.stringify(existing) !== JSON.stringify(run)) {
+            throw new Error(`Imported run id ${run.id} conflicts with an existing local record.`);
+          }
+          continue;
+        }
+        merged = appendLocalSimulationRun(merged, run);
+        addedCount += 1;
+      }
+      simulationRunLibraryRef.current = merged;
+      setSimulationRunLibrary(merged);
+      setRunLibraryError("");
+      const persisted = persistSimulationRunLibrary(merged);
+      setExportOpen(false);
+      setRunLibraryOpen(true);
+      notify(`Imported ${addedCount} simulation run${addedCount === 1 ? "" : "s"}${persisted ? "" : " for this session"}`);
+    } catch (error) {
+      setRunLibraryError(error instanceof Error ? error.message : "Unable to import the simulation run library.");
+      setRunLibraryOpen(true);
+      notify("Simulation run library import failed; project inputs were not changed");
+    }
+  };
   const clearImportedSimulationReview = () => {
     if (!importedSimulationReview) return;
     if (importedSimulationReview.reference.kind === "vertical") {
@@ -7320,6 +7367,9 @@ export default function Home() {
       if (format === "vertical-review-json" && !resultIsCurrent) {
         throw new Error("Run the vertical estimate again before exporting its portable review artifact.");
       }
+      if (format === "run-library-json" && simulationRunLibrary.runs.length === 0) {
+        throw new Error("Save at least one simulation run before exporting the run library.");
+      }
       if ((format === "stage-flight-csv" || format === "stage-flight-comparison-csv" || format === "separated-body-csv" || format === "coupled-body-csv" || format === "flight-path-geojson") && !stageFlightIsCurrent) {
         throw new Error("Rerun the coupled 6DOF preview before exporting its trace for this design.");
       }
@@ -7495,6 +7545,10 @@ export default function Home() {
           result: stageFlightResult,
           savedAtIso: generatedAtIso,
         }));
+      } else if (format === "run-library-json") {
+        filename = `${fileStem}-simulation-run-library.rocketworks.json`;
+        mediaType = "application/json;charset=utf-8";
+        content = createSimulationRunLibraryExport(simulationRunLibrary, generatedAtIso);
       } else if (format === "flight-csv") {
         filename = `${fileStem}-flight-trace.csv`;
         mediaType = "text/csv;charset=utf-8";
@@ -8317,6 +8371,14 @@ export default function Home() {
         accept=".json,application/json"
         aria-label="Import RocketWorks simulation review artifact"
         onChange={importSimulationReviewFile}
+      />
+      <input
+        ref={simulationRunLibraryImportInputRef}
+        className="sr-only"
+        type="file"
+        accept=".json,application/json"
+        aria-label="Import RocketWorks simulation run library"
+        onChange={importSimulationRunLibraryFile}
       />
       <header className="topbar">
         <div className="brand">
@@ -11425,6 +11487,7 @@ export default function Home() {
                 />
                 <button type="button" onClick={() => saveCurrentSimulationRun("vertical")} disabled={running || !resultIsCurrent || simulationRunLibrary.runs.length >= 8}>Save vertical</button>
                 <button type="button" onClick={() => saveCurrentSimulationRun("staged")} disabled={stageFlightRunning || !stageFlightIsCurrent || simulationRunLibrary.runs.length >= 8}>Save staged</button>
+                <button type="button" onClick={openSimulationRunLibraryImport}>Import catalog</button>
               </div>
             </div>
             {runLibraryError && <p className="run-library-error" role="alert">{runLibraryError}</p>}
@@ -11696,6 +11759,11 @@ export default function Home() {
                 <span><strong>Import simulation review</strong><small>Verify a portable vertical or staged run artifact and use it as a session-only comparison reference.</small></span>
                 <em>↑</em>
               </button>
+              <button className="export-import-option" onClick={openSimulationRunLibraryImport}>
+                <span className="export-extension">LIB</span>
+                <span><strong>Import simulation run library</strong><small>Merge a strict catalog export for this project; duplicate records are idempotent and conflicts fail without changing local runs.</small></span>
+                <em>↑</em>
+              </button>
               <button className="export-import-option" onClick={() => { setExportOpen(false); setRunLibraryOpen(true); }}>
                 <span className="export-extension">LIB</span>
                 <span><strong>Open simulation run library</strong><small>Save, inspect, and reuse up to eight local vertical or staged decision points.</small></span>
@@ -11714,6 +11782,11 @@ export default function Home() {
               {stageFlightIsCurrent && <button onClick={() => exportArtifact("staged-review-json")}>
                 <span className="export-extension">RUN</span>
                 <span><strong>Staged run review</strong><small>Portable coupled/staged result handoff with events, released-body output, fingerprint, and model status.</small></span>
+                <em>↓</em>
+              </button>}
+              {simulationRunLibrary.runs.length > 0 && <button onClick={() => exportArtifact("run-library-json")}>
+                <span className="export-extension">LIB</span>
+                <span><strong>Simulation run library</strong><small>Export all named vertical and staged review runs for this project as one strict, mergeable catalog.</small></span>
                 <em>↓</em>
               </button>}
               <button onClick={() => exportArtifact("flight-csv")}>

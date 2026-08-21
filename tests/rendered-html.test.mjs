@@ -203,6 +203,21 @@ test("ships a local simulation run library without changing project inputs", asy
   assert.match(stylesheet, /\.run-library-record/);
 });
 
+test("ships a portable simulation run-library handoff", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const exportSource = await readFile(new URL("../lib/export/simulation-run-library-exports.ts", import.meta.url), "utf8");
+  const docs = await readFile(new URL("../docs/engineering/simulation-run-library-export-0.1.md", import.meta.url), "utf8");
+  assert.match(source, /Import simulation run library/);
+  assert.match(source, /Export all named vertical and staged review runs/);
+  assert.match(source, /parseSimulationRunLibraryExport/);
+  assert.match(source, /sourceProjectId !== activeProjectId/);
+  assert.match(source, /conflicts with an existing local record/);
+  assert.match(exportSource, /SIMULATION_RUN_LIBRARY_EXPORT_SCHEMA/);
+  assert.match(exportSource, /SIMULATION_RUN_LIBRARY_EXPORT_REVIEW_BOUNDARY/);
+  assert.match(exportSource, /MAX_SIMULATION_RUN_LIBRARY_EXPORT_LENGTH = 4_700_000/);
+  assert.match(docs, /transactionally/);
+});
+
 test("ships a validated browser design-share path without bundling local libraries", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const shareSource = await readFile(new URL("../lib/project/project-share.ts", import.meta.url), "utf8");

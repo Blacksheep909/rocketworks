@@ -70,6 +70,10 @@ keeps the catalog in memory and labels the result as session-only.
 The catalog is a review convenience, not simulation evidence, validation,
 certification, or flight-safety analysis. Use the portable simulation-review
 JSON export when a named result must move between browser profiles or devices.
+When several named runs need to move together, the Artifact center can export
+the project-scoped `rocketworks.simulation-run-library` envelope documented in
+`simulation-run-library-export-0.1.md`; importing it merges identical-project
+records transactionally without restoring editable inputs.
 
 ## Compared metrics
 

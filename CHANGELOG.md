@@ -6,6 +6,14 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a strict portable simulation run-library JSON handoff. The Artifact
+  center and run-library dialog can export all named vertical/staged records
+  for the active project and merge them back later; identical IDs are
+  idempotent, conflicts and capacity overflow fail transactionally, and a
+  mismatched project is rejected without changing design state. The envelope
+  remains review metadata, not validation, certification, flight-safety, or
+  cloud-collaboration evidence.
+
 - Add a strict device-local simulation run library with eight bounded slots per
   project. Users can name and save fresh vertical or staged results, inspect
   their fingerprints and headline metrics, load one as a session comparison

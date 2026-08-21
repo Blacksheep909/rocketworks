@@ -270,6 +270,8 @@ research, standards, and original code.
 - a device-local simulation run library with eight bounded slots for named
   vertical and staged decision points; saved runs can be inspected, reused as
   session comparison references, or removed without changing editable inputs;
+  the catalog can also be exported or merged through a strict project-scoped
+  JSON handoff;
 - measured-flight CSV comparison with strict SI parsing, vertical or coupled
   6DOF trace selection, interpolation-based residuals, event-timestamp
   normalization, optional positive one-sigma measurement uncertainty with
