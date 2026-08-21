@@ -6,6 +6,13 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a strict device-local simulation run library with eight bounded slots per
+  project. Users can name and save fresh vertical or staged results, inspect
+  their fingerprints and headline metrics, load one as a session comparison
+  reference, or remove it without changing project inputs. The catalog stays
+  outside project JSON, cloud sync, validation, certification, and flight-safety
+  evidence boundaries.
+
 - Add portable vertical/staged simulation-review JSON artifacts. Fresh results
   can be exported with their model status, timestamp, and simulation
   fingerprint, then strictly verified and loaded as session-only comparison

@@ -50,6 +50,27 @@ changes editable inputs, local checkpoints, or cloud state; the imported source
 must be treated as a separate review artifact rather than evidence for the
 current configuration.
 
+## Local run library
+
+The Flight workspace also exposes a device-local **Simulation run library**.
+After a fresh vertical or staged preview, a user can save a short label and
+retain the result in one of eight bounded slots for the active project. Each
+record keeps the result, model status, timestamp, project identity, and
+simulation fingerprint. The library is stored under its own versioned
+browser-local key and is intentionally separate from editable project inputs,
+checkpoints, workspace backups, and portable project JSON.
+
+Selecting **Use as reference** loads the saved result into the corresponding
+comparison table for the current session. It does not overwrite the pinned
+reference record and does not alter the active design. Removing a catalog
+entry only removes that entry; an already-loaded comparison remains available
+until it is cleared or replaced. If browser storage is unavailable, the UI
+keeps the catalog in memory and labels the result as session-only.
+
+The catalog is a review convenience, not simulation evidence, validation,
+certification, or flight-safety analysis. Use the portable simulation-review
+JSON export when a named result must move between browser profiles or devices.
+
 ## Compared metrics
 
 The vertical table reports deterministic differences for:

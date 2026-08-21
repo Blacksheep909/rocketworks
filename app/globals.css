@@ -919,6 +919,60 @@ kbd {
 .flight-comparison-empty { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 11px; padding: 11px 12px; border: 1px dashed rgba(112,199,167,.26); border-radius: 3px; background: rgba(112,199,167,.035); }
 .flight-comparison-empty strong { color: #c4e4d5; font-size: 9px; }
 .flight-comparison-empty span { color: #7d929e; font: 7px/1.45 var(--font-geist-mono), monospace; text-align: right; }
+.simulation-run-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(47,159,255,.24);
+  border-radius: 4px;
+  background: linear-gradient(135deg, rgba(47,159,255,.07), rgba(10,16,22,.9) 64%);
+}
+.simulation-run-toolbar > div:first-child { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.simulation-run-toolbar strong { color: #dbeef8; font-size: 10px; }
+.simulation-run-toolbar p { max-width: 650px; color: #8196a2; font: 7px/1.45 var(--font-geist-mono),monospace; }
+.simulation-run-toolbar-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+.simulation-run-toolbar-actions button,
+.run-library-record-actions button,
+.run-library-save-controls button {
+  min-height: 26px; padding: 0 9px; border: 1px solid rgba(47,159,255,.35); border-radius: 3px;
+  background: rgba(47,159,255,.09); color: #a8dbf8; cursor: pointer;
+  font: 650 7px var(--font-geist-mono),monospace; letter-spacing: .05em; text-transform: uppercase;
+}
+.simulation-run-toolbar-actions button:hover,
+.simulation-run-toolbar-actions button:focus-visible,
+.run-library-record-actions button:hover,
+.run-library-record-actions button:focus-visible,
+.run-library-save-controls button:hover,
+.run-library-save-controls button:focus-visible { border-color: rgba(146,212,255,.72); background: rgba(47,159,255,.18); }
+.simulation-run-toolbar-actions button:disabled,
+.run-library-save-controls button:disabled { cursor: not-allowed; opacity: .42; }
+.simulation-run-toolbar-actions .simulation-run-library-open { border-color: rgba(112,199,167,.35); background: rgba(112,199,167,.08); color: #bcebd7; }
+.run-library-dialog { width: min(920px,100%); }
+.run-library-save { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 22px; border-bottom: 1px solid var(--line); background: rgba(47,159,255,.055); }
+.run-library-save > div:first-child { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.run-library-save strong { color: #e3f2f8; font-size: 11px; }
+.run-library-save small { color: var(--muted); font-size: 8px; }
+.run-library-save-controls { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.run-library-save-controls input { width: min(220px, 36vw); min-height: 29px; padding: 0 8px; border: 1px solid var(--line); border-radius: 3px; background: #0c1217; color: var(--ink); font-size: 9px; }
+.run-library-save-controls input:focus { border-color: rgba(47,159,255,.52); outline: 0; box-shadow: 0 0 0 2px rgba(47,159,255,.12); }
+.run-library-error { margin: 12px 22px 0; padding: 9px 10px; border: 1px solid rgba(219,128,94,.3); border-radius: 3px; background: rgba(219,128,94,.07); color: #efb09a; font-size: 8px; line-height: 1.45; }
+.run-library-list { display: flex; max-height: 430px; overflow-y: auto; flex-direction: column; gap: 7px; padding: 16px 22px; border-bottom: 1px solid var(--line); }
+.run-library-empty { display: flex; flex-direction: column; gap: 5px; padding: 22px 18px; border: 1px dashed var(--line-strong); border-radius: 4px; color: var(--muted); text-align: center; }
+.run-library-empty strong { color: #dbe9f0; font-size: 10px; }
+.run-library-empty span { font-size: 8px; }
+.run-library-record { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 4px; background: #10171d; }
+.run-library-record-main { min-width: 0; display: flex; align-items: center; gap: 10px; }
+.run-library-record-main > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.run-library-record-main strong { overflow: hidden; color: #e4f2f8; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.run-library-record-main small { overflow: hidden; color: var(--muted); font: 7px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.run-library-summary { color: #9cc2d4; font: 8px var(--font-geist-mono),monospace; }
+.run-library-kind { display: grid; flex: 0 0 auto; place-items: center; width: 48px; height: 28px; border: 1px solid rgba(47,159,255,.3); border-radius: 3px; color: #75c6ff; font: 650 7px var(--font-geist-mono),monospace; }
+.run-library-kind.staged { border-color: rgba(112,199,167,.32); color: #8fd7b5; }
+.run-library-record-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+.run-library-record-actions .danger-button { border-color: rgba(219,128,94,.3); color: #e5a18d; }
 .flight-data-card {
   margin-top: 12px;
   padding: 14px;
@@ -2209,6 +2263,14 @@ kbd {
   .mode-switch { display: inline-flex; }
   .mode-switch button { min-height: 26px; padding: 0 6px; font-size: 8px; }
   .motor-library-list { padding: 12px 14px; }
+  .simulation-run-toolbar { align-items: flex-start; flex-direction: column; padding: 12px 14px; }
+  .simulation-run-toolbar-actions { justify-content: flex-start; }
+  .run-library-save { align-items: flex-start; flex-direction: column; padding: 12px 14px; }
+  .run-library-save-controls { width: 100%; justify-content: flex-start; }
+  .run-library-save-controls input { width: 100%; }
+  .run-library-list { padding: 12px 14px; }
+  .run-library-record { align-items: flex-start; flex-direction: column; gap: 9px; }
+  .run-library-record-actions { justify-content: flex-start; }
   .component-library-current { align-items: flex-start; flex-direction: column; padding: 12px 14px; }
   .component-library-list { padding: 12px 14px; }
   .component-record { align-items: flex-start; flex-direction: column; gap: 9px; }

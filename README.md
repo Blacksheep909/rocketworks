@@ -267,6 +267,9 @@ research, standards, and original code.
   retain result fingerprints, model status, timestamps, and explicit review
   boundaries; imports are strictly verified and session-only, never project
   restores or cloud synchronization;
+- a device-local simulation run library with eight bounded slots for named
+  vertical and staged decision points; saved runs can be inspected, reused as
+  session comparison references, or removed without changing editable inputs;
 - measured-flight CSV comparison with strict SI parsing, vertical or coupled
   6DOF trace selection, interpolation-based residuals, event-timestamp
   normalization, optional positive one-sigma measurement uncertainty with

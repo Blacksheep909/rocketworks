@@ -284,6 +284,18 @@ import {
   simulationReferenceStorageKey,
 } from "../lib/project/simulation-reference.ts";
 import {
+  appendLocalSimulationRun,
+  createLocalSimulationRunLibrary,
+  createStagedSimulationRun,
+  createVerticalSimulationRun,
+  parseLocalSimulationRunLibrary,
+  removeLocalSimulationRun,
+  serializeLocalSimulationRunLibrary,
+  simulationRunLibraryStorageKey,
+  type LocalSimulationRun,
+  type LocalSimulationRunLibrary,
+} from "../lib/project/simulation-run-library.ts";
+import {
   createStagedSimulationReviewExport,
   createVerticalSimulationReviewExport,
   MAX_SIMULATION_REVIEW_EXPORT_LENGTH,
@@ -4152,6 +4164,14 @@ export default function Home() {
   const [componentPresetDraft, setComponentPresetDraft] = useState<ComponentPresetDraft>(defaultComponentPresetDraft);
   const [componentImportJson, setComponentImportJson] = useState("");
   const [componentError, setComponentError] = useState("");
+  const [runLibraryOpen, setRunLibraryOpen] = useState(false);
+  const runLibraryCloseRef = useRef<HTMLButtonElement>(null);
+  const [simulationRunLibrary, setSimulationRunLibrary] = useState<LocalSimulationRunLibrary>(() =>
+    createLocalSimulationRunLibrary({ projectId: "arc54", projectName: DEFAULT_PROJECT_NAME }),
+  );
+  const simulationRunLibraryRef = useRef(simulationRunLibrary);
+  const [runLibraryLabel, setRunLibraryLabel] = useState("");
+  const [runLibraryError, setRunLibraryError] = useState("");
   const [topologyOpen, setTopologyOpen] = useState(false);
   const topologyCloseRef = useRef<HTMLButtonElement>(null);
   const [vehicleTopology, setVehicleTopology] = useState<LocalVehicleTopology>(() => createDefaultVehicleTopology());
@@ -5404,6 +5424,30 @@ export default function Home() {
 
   useEffect(() => {
     if (!storageReady) return;
+    const restoreTimer = window.setTimeout(() => {
+      let library = createLocalSimulationRunLibrary({
+        projectId: activeProjectId,
+        projectName,
+      });
+      try {
+        const serialized = window.localStorage.getItem(simulationRunLibraryStorageKey(activeProjectId));
+        if (serialized) {
+          const restored = parseLocalSimulationRunLibrary(serialized);
+          if (restored.projectId !== activeProjectId) throw new Error("project scope mismatch");
+          library = restored;
+        }
+        setRunLibraryError("");
+      } catch {
+        notify("Saved simulation runs could not be restored; the browser record was left untouched");
+      }
+      simulationRunLibraryRef.current = library;
+      setSimulationRunLibrary(library);
+    }, 0);
+    return () => window.clearTimeout(restoreTimer);
+  }, [activeProjectId, projectName, storageReady]);
+
+  useEffect(() => {
+    if (!storageReady) return;
     try {
       window.localStorage.setItem(
         UI_PREFERENCES_STORAGE_KEY,
@@ -5706,6 +5750,16 @@ export default function Home() {
   }, [componentLibraryOpen]);
 
   useEffect(() => {
+    if (!runLibraryOpen) return;
+    runLibraryCloseRef.current?.focus();
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setRunLibraryOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [runLibraryOpen]);
+
+  useEffect(() => {
     if (!topologyOpen) return;
     topologyCloseRef.current?.focus();
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
@@ -5858,6 +5912,87 @@ export default function Home() {
       // The in-memory reference is still cleared when browser storage is unavailable.
     }
     notify("Staged comparison reference cleared");
+  };
+  const createSimulationRunId = () =>
+    `run-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const persistSimulationRunLibrary = (library: LocalSimulationRunLibrary) => {
+    try {
+      window.localStorage.setItem(
+        simulationRunLibraryStorageKey(activeProjectId),
+        serializeLocalSimulationRunLibrary(library),
+      );
+      setRunLibraryError("");
+      return true;
+    } catch (error) {
+      setRunLibraryError(error instanceof Error ? error.message : "Browser storage is unavailable for the run library.");
+      return false;
+    }
+  };
+  const saveCurrentSimulationRun = (kind: "vertical" | "staged") => {
+    if (kind === "vertical" && !resultIsCurrent) {
+      notify("Run the current vertical estimate before saving it to the run library");
+      return;
+    }
+    if (kind === "staged" && (!stageFlightResult || !stageFlightIsCurrent)) {
+      notify("Run the current coupled preview before saving it to the run library");
+      return;
+    }
+    try {
+      const label = runLibraryLabel.trim() || `${kind === "vertical" ? "Vertical" : "Staged"} run ${simulationRunLibrary.runs.length + 1}`;
+      const run = kind === "vertical"
+        ? createVerticalSimulationRun({
+            id: createSimulationRunId(),
+            label,
+            projectId: activeProjectId,
+            projectName,
+            fingerprint: lastRunFingerprint ?? simulationFingerprint,
+            result,
+          })
+        : createStagedSimulationRun({
+            id: createSimulationRunId(),
+            label,
+            projectId: activeProjectId,
+            projectName,
+            fingerprint: stageFlightFingerprint ?? simulationFingerprint,
+            result: stageFlightResult!,
+          });
+      const nextLibrary = appendLocalSimulationRun(simulationRunLibraryRef.current, run);
+      simulationRunLibraryRef.current = nextLibrary;
+      setSimulationRunLibrary(nextLibrary);
+      setRunLibraryLabel("");
+      const persisted = persistSimulationRunLibrary(nextLibrary);
+      setRunLibraryOpen(true);
+      notify(`${label} saved to the local run library${persisted ? "" : " for this session"}`);
+    } catch (error) {
+      setRunLibraryError(error instanceof Error ? error.message : "Unable to save this simulation run.");
+      setRunLibraryOpen(true);
+      notify("Simulation run was not saved");
+    }
+  };
+  const loadSimulationRunAsReference = (run: LocalSimulationRun) => {
+    if (run.kind === "vertical") {
+      setComparisonReference(run.reference.result);
+      setComparisonReferenceFingerprint(run.reference.fingerprint);
+    } else {
+      setStageComparisonReference(run.reference.result);
+      setStageComparisonReferenceFingerprint(run.reference.fingerprint);
+    }
+    setImportedSimulationReview(null);
+    setSimulationReviewImportError("");
+    setRunLibraryOpen(false);
+    setView("flight");
+    notify(`${run.label} loaded as a session comparison reference`);
+  };
+  const deleteSimulationRun = (id: string) => {
+    try {
+      const nextLibrary = removeLocalSimulationRun(simulationRunLibraryRef.current, id);
+      simulationRunLibraryRef.current = nextLibrary;
+      setSimulationRunLibrary(nextLibrary);
+      const persisted = persistSimulationRunLibrary(nextLibrary);
+      notify(`Simulation run removed${persisted ? "" : " for this session"}`);
+    } catch (error) {
+      setRunLibraryError(error instanceof Error ? error.message : "Unable to remove this simulation run.");
+    }
   };
   const openSimulationReviewImport = () => {
     simulationReviewImportInputRef.current?.click();
@@ -6232,6 +6367,11 @@ export default function Home() {
       setStageFlightError("");
       setImportedSimulationReview(null);
       setSimulationReviewImportError("");
+      const nextRunLibrary = createLocalSimulationRunLibrary({ projectId: record.projectId, projectName: record.projectName });
+      simulationRunLibraryRef.current = nextRunLibrary;
+      setSimulationRunLibrary(nextRunLibrary);
+      setRunLibraryLabel("");
+      setRunLibraryError("");
       setSweepResult(null);
       setSweepError("");
       setSaveError(
@@ -6280,6 +6420,7 @@ export default function Home() {
         window.localStorage.removeItem(
           simulationReferenceStorageKey(record.projectId, "staged"),
         );
+        window.localStorage.removeItem(simulationRunLibraryStorageKey(record.projectId));
       } catch {
         // Project removal remains valid even if browser-local reference cleanup fails.
       }
@@ -6325,6 +6466,11 @@ export default function Home() {
       setActiveProjectId(nextId);
       setImportedSimulationReview(null);
       setSimulationReviewImportError("");
+      const nextRunLibrary = createLocalSimulationRunLibrary({ projectId: nextId, projectName: nextName });
+      simulationRunLibraryRef.current = nextRunLibrary;
+      setSimulationRunLibrary(nextRunLibrary);
+      setRunLibraryLabel("");
+      setRunLibraryError("");
       lastSavedInputsRef.current = duplicateSnapshot.inputs;
       lastSavedFingerprintRef.current = namedProjectFingerprint(
         duplicateSnapshot.inputs,
@@ -8094,6 +8240,7 @@ export default function Home() {
     { id: "open-motors", label: "Open motor library", description: "Review or import a provenance-qualified user motor curve", run: () => setMotorLibraryOpen(true) },
     { id: "open-aero", label: "Open aerodynamic data", description: "Review or import Mach-Reynolds coefficient tables", run: () => setAerodynamicLibraryOpen(true) },
     { id: "open-components", label: "Open component library", description: "Reuse attributed geometry, recovery, equipment, and pod presets", run: () => setComponentLibraryOpen(true) },
+    { id: "open-run-library", label: "Open simulation run library", description: "Save, review, and reuse local vertical or staged simulation runs", run: () => setRunLibraryOpen(true) },
     { id: "open-templates", label: "Choose a project template", description: "Start from a beginner, high-power, weather, or diagnostic setup", run: () => setTemplatesOpen(true) },
     { id: "open-project-console", label: "Open project console", description: "Review local save status and hand off this design", run: () => setProjectConsoleOpen(true) },
     { id: "open-history", label: "Open local project history", description: "Restore a validated device-local checkpoint", run: () => setHistoryOpen(true) },
@@ -9533,6 +9680,18 @@ export default function Home() {
               </div>
               {running ? <div className="chart-loading"><Skeleton height={260} borderRadius={12} /></div> : <FlightChart result={result} selectedTimeS={selectedFlightEventTimeS} onSelectionChange={setSelectedFlightEventTimeS} copy={uiCopy} />}
             </div>
+            <section className="simulation-run-toolbar" aria-label="Simulation run library controls">
+              <div>
+                <span className="eyebrow">Run library</span>
+                <strong>{simulationRunLibrary.runs.length} / 8 saved locally</strong>
+                <p>Keep named vertical and staged decision points on this device, then load one as a comparison reference without changing design inputs.</p>
+              </div>
+              <div className="simulation-run-toolbar-actions">
+                <button type="button" onClick={() => saveCurrentSimulationRun("vertical")} disabled={running || !resultIsCurrent}>Save vertical run</button>
+                {stageFlightResult && <button type="button" onClick={() => saveCurrentSimulationRun("staged")} disabled={stageFlightRunning || !stageFlightIsCurrent}>Save staged run</button>}
+                <button type="button" className="simulation-run-library-open" onClick={() => setRunLibraryOpen(true)}>Open library</button>
+              </div>
+            </section>
             <FlightComparisonCard
               current={result}
               reference={comparisonReference}
@@ -11220,6 +11379,82 @@ export default function Home() {
           </section>
         </div>
       )}
+      {runLibraryOpen && (
+        <div
+          className="export-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setRunLibraryOpen(false);
+          }}
+        >
+          <section
+            className="export-dialog run-library-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="run-library-title"
+            aria-describedby="run-library-description"
+          >
+            <div className="export-heading">
+              <div>
+                <span className="eyebrow">Flight data center</span>
+                <h2 id="run-library-title">Simulation run library</h2>
+                <p id="run-library-description">Save named vertical or staged results on this device. Loading a run changes only the in-memory comparison reference; it never rewrites project inputs.</p>
+              </div>
+              <button
+                ref={runLibraryCloseRef}
+                className="export-close"
+                aria-label="Close simulation run library"
+                onClick={() => setRunLibraryOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="run-library-save">
+              <div>
+                <span className="eyebrow">Save a decision point</span>
+                <strong>{simulationRunLibrary.runs.length} / 8 slots used</strong>
+                <small>Use a short label such as “baseline motor” or “booster separation check”.</small>
+              </div>
+              <div className="run-library-save-controls">
+                <label className="sr-only" htmlFor="simulation-run-label">Simulation run label</label>
+                <input
+                  id="simulation-run-label"
+                  value={runLibraryLabel}
+                  maxLength={120}
+                  placeholder="Optional run label"
+                  onChange={(event) => setRunLibraryLabel(event.target.value)}
+                />
+                <button type="button" onClick={() => saveCurrentSimulationRun("vertical")} disabled={running || !resultIsCurrent || simulationRunLibrary.runs.length >= 8}>Save vertical</button>
+                <button type="button" onClick={() => saveCurrentSimulationRun("staged")} disabled={stageFlightRunning || !stageFlightIsCurrent || simulationRunLibrary.runs.length >= 8}>Save staged</button>
+              </div>
+            </div>
+            {runLibraryError && <p className="run-library-error" role="alert">{runLibraryError}</p>}
+            <div className="run-library-list" aria-label="Saved simulation runs">
+              {simulationRunLibrary.runs.length === 0 ? (
+                <div className="run-library-empty"><strong>No saved runs yet</strong><span>Run an estimate, give it a label, and save it here to keep a reusable comparison point.</span></div>
+              ) : simulationRunLibrary.runs.map((run) => (
+                <article className="run-library-record" key={run.id}>
+                  <div className="run-library-record-main">
+                    <span className={`run-library-kind ${run.kind}`}>{run.kind === "vertical" ? "VERT" : "STAGE"}</span>
+                    <div>
+                      <strong>{run.label}</strong>
+                      <small>{new Date(run.reference.savedAtIso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })} · {run.reference.fingerprint}</small>
+                      <span className="run-library-summary">{run.kind === "vertical" ? `Apogee ${run.reference.result.apogeeM.toFixed(1)} m · max speed ${run.reference.result.maxSpeedMps.toFixed(1)} m/s` : `Altitude ${run.reference.result.maxAltitudeAglM.toFixed(1)} m · max speed ${run.reference.result.maxSpeedMps.toFixed(1)} m/s`}</span>
+                    </div>
+                  </div>
+                  <div className="run-library-record-actions">
+                    <button type="button" onClick={() => loadSimulationRunAsReference(run)}>Use as reference</button>
+                    <button type="button" className="danger-button" onClick={() => deleteSimulationRun(run.id)}>Remove</button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="history-notice">
+              <span>LOCAL ONLY</span>
+              <p>Run records stay in this browser profile and are scoped to {activeProjectId}. They are review handoffs, not validation, certification, or flight-safety evidence. Export a portable simulation review when you need to move one result to another device.</p>
+            </div>
+          </section>
+        </div>
+      )}
       {historyOpen && (
         <div
           className="export-backdrop"
@@ -11460,6 +11695,11 @@ export default function Home() {
                 <span className="export-extension">RUN</span>
                 <span><strong>Import simulation review</strong><small>Verify a portable vertical or staged run artifact and use it as a session-only comparison reference.</small></span>
                 <em>↑</em>
+              </button>
+              <button className="export-import-option" onClick={() => { setExportOpen(false); setRunLibraryOpen(true); }}>
+                <span className="export-extension">LIB</span>
+                <span><strong>Open simulation run library</strong><small>Save, inspect, and reuse up to eight local vertical or staged decision points.</small></span>
+                <em>◫</em>
               </button>
               <button onClick={() => exportArtifact("project")}>
                 <span className="export-extension">JSON</span>
