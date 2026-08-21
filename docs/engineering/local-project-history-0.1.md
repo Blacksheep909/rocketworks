@@ -32,7 +32,7 @@ The history schema is `dev.kestrel-lab.local-project-history`, version 1. Every 
 ## Checkpoint comparison
 
 Selecting **Compare** on a checkpoint produces a deterministic
-`rocketworks-project-diff-0.1.0` review table against the preceding entry by
+`rocketworks-project-diff-0.2.0` review table against the preceding entry by
 default. The **Baseline checkpoint** selector can switch to any earlier entry;
 later revisions are never offered as a before-state. Rows
 retain project-name and before/after values for editable inputs, summarize wind and
@@ -42,8 +42,13 @@ validated snapshots and does not mutate them. It is review metadata only: it
 does not rerun physics, compare flight traces, establish configuration control,
 or upgrade any result to validation or flight-safety evidence.
 
+Each diff also carries a normalized-configuration fingerprint using
+`rocketworks-config-fingerprint-fnv1a32-0.1.0`. The digest is a deterministic,
+non-cryptographic equality aid for correlating exports; it is not a tamper
+signature, identity proof, or security control.
+
 The comparison panel can also download the selected pair as deterministic CSV or
-Markdown. These artifacts use the `rocketworks-project-diff-export-0.1.0`
+Markdown. These artifacts use the `rocketworks-project-diff-export-0.2.0`
 envelope, retain the source revisions/timestamps and review boundary, and are
 intended for issue descriptions or engineering handoff. They are not project
 documents, simulation exports, or a replacement for an approved configuration

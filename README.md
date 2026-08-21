@@ -47,8 +47,8 @@ research, standards, and original code.
   portable-project import/export;
 - checkpoint-to-checkpoint configuration review with an adjacent default and
   selectable earlier baseline, plus deterministic CSV and Markdown handoff
-  artifacts that preserve revisions, source selections, and the explicit
-  non-validation boundary;
+  artifacts that preserve revisions, source selections, normalized-configuration
+  fingerprints, and the explicit non-validation boundary;
 - one-click configured-stage duplication with authored-component copies and
   safe component rehoming when a non-core stage is removed;
 - per-stage body-length, diameter, and nose-length overrides for generated

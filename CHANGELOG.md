@@ -6,18 +6,24 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add deterministic normalized-configuration fingerprints to checkpoint diffs
+  and their CSV/Markdown handoff artifacts. The
+  `rocketworks-config-fingerprint-fnv1a32-0.1.0` digest is explicitly a
+  non-cryptographic equality aid, not a tamper signature or flight-validation
+  claim.
+
 - Extend local checkpoint comparison beyond adjacent revisions. The history
   dialog now keeps the adjacent checkpoint as the default baseline while
   allowing any earlier checkpoint to be selected, with chronology-safe fallback
   behavior and accessible responsive controls.
 
 - Add a checkpoint-to-checkpoint project diff in the local history dialog. The
-  original `rocketworks-project-diff-0.1.0` contract reports changed inputs,
+  original `rocketworks-project-diff-0.2.0` contract reports changed inputs,
   topology counts, and source selections with explicit before/after values;
   it remains review metadata and does not imply simulation validation or cloud
   collaboration. The selected comparison can now be handed off as deterministic
   CSV or Markdown using the versioned
-  `rocketworks-project-diff-export-0.1.0` envelope.
+  `rocketworks-project-diff-export-0.2.0` envelope.
 
 - Add a deterministic topology-aware manufacturing manifest CSV beside the
   DXF, STL, and OpenSCAD reference artifacts. It lists nose, airframe, fin-set,

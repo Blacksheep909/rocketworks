@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   compareProjectSnapshots,
+  fingerprintProjectSnapshot,
+  PROJECT_DIFF_FINGERPRINT_MODEL_VERSION,
   PROJECT_DIFF_MODEL_VERSION,
 } from "../lib/project/project-diff.ts";
 import {
@@ -55,6 +57,9 @@ test("project snapshot diffs expose signed before/after design review rows", () 
   assert.equal(diff.modelVersion, PROJECT_DIFF_MODEL_VERSION);
   assert.equal(diff.beforeRevision, 1);
   assert.equal(diff.afterRevision, 2);
+  assert.match(diff.beforeConfigurationFingerprint, new RegExp(`^${PROJECT_DIFF_FINGERPRINT_MODEL_VERSION}:`));
+  assert.match(diff.afterConfigurationFingerprint, new RegExp(`^${PROJECT_DIFF_FINGERPRINT_MODEL_VERSION}:`));
+  assert.notEqual(diff.beforeConfigurationFingerprint, diff.afterConfigurationFingerprint);
   assert.equal(diff.changedCount, 3);
   assert.deepEqual(
     diff.rows.map((row) => [row.category, row.key, row.before, row.after]),
@@ -126,4 +131,16 @@ test("project snapshot diffs retain project identity changes", () => {
     before: "ARC 54",
     after: "ARC 54 Flight Article",
   }]);
+});
+
+test("configuration fingerprints are stable across revisions but change with normalized design state", () => {
+  const first = snapshot(1);
+  const sameConfiguration = snapshot(2);
+  const changedConfiguration = snapshot(3, { inputs: { diameterMm: 62 } });
+  assert.equal(fingerprintProjectSnapshot(first), fingerprintProjectSnapshot(sameConfiguration));
+  assert.notEqual(fingerprintProjectSnapshot(first), fingerprintProjectSnapshot(changedConfiguration));
+  assert.equal(
+    fingerprintProjectSnapshot(first),
+    compareProjectSnapshots(first, sameConfiguration).beforeConfigurationFingerprint,
+  );
 });

@@ -11,7 +11,8 @@ import type { LocalVehicleTopology } from "./vehicle-topology.ts";
  * checkpoints. This is review metadata only: it never changes project inputs
  * and never claims that either checkpoint is flight-safe or validated.
  */
-export const PROJECT_DIFF_MODEL_VERSION = "rocketworks-project-diff-0.1.0";
+export const PROJECT_DIFF_MODEL_VERSION = "rocketworks-project-diff-0.2.0";
+export const PROJECT_DIFF_FINGERPRINT_MODEL_VERSION = "rocketworks-config-fingerprint-fnv1a32-0.1.0";
 
 export type ProjectDiffCategory = "identity" | "input" | "topology" | "source";
 
@@ -30,6 +31,8 @@ export type ProjectSnapshotDiff = Readonly<{
   afterRevision: number;
   beforeSavedAtIso: string;
   afterSavedAtIso: string;
+  beforeConfigurationFingerprint: string;
+  afterConfigurationFingerprint: string;
   changedCount: number;
   summary: string;
   rows: readonly ProjectDiffRow[];
@@ -76,6 +79,32 @@ function topologySummary(topology: LocalVehicleTopology | undefined): string {
 
 function parseSnapshot(snapshot: LocalProjectSnapshot): LocalProjectSnapshot {
   return parseLocalProjectSnapshot(JSON.stringify(snapshot));
+}
+
+function fnv1a32(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
+
+/**
+ * Returns a stable equality fingerprint for the normalized design state.
+ * This is deliberately a non-cryptographic FNV-1a digest: it helps reviewers
+ * correlate artifacts, but it is not a tamper signature or security boundary.
+ */
+export function fingerprintProjectSnapshot(snapshot: LocalProjectSnapshot): string {
+  const validated = parseSnapshot(snapshot);
+  const canonicalConfiguration = JSON.stringify({
+    projectName: validated.projectName,
+    inputs: validated.inputs,
+    topology: validated.topology ?? null,
+    selectedMotorId: validated.selectedMotorId ?? "synthetic",
+    selectedAerodynamicTableId: validated.selectedAerodynamicTableId ?? "constant",
+  });
+  return `${PROJECT_DIFF_FINGERPRINT_MODEL_VERSION}:${fnv1a32(canonicalConfiguration)}`;
 }
 
 export function compareProjectSnapshots(
@@ -156,6 +185,8 @@ export function compareProjectSnapshots(
     afterRevision: current.revision,
     beforeSavedAtIso: previous.savedAtIso,
     afterSavedAtIso: current.savedAtIso,
+    beforeConfigurationFingerprint: fingerprintProjectSnapshot(previous),
+    afterConfigurationFingerprint: fingerprintProjectSnapshot(current),
     changedCount,
     summary,
     rows,

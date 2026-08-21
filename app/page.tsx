@@ -11146,6 +11146,9 @@ export default function Home() {
                       <strong>{historyDiff.summary}</strong>
                       <div className="history-diff-summary-meta">
                         <span>{PROJECT_DIFF_MODEL_VERSION} · review metadata only</span>
+                        <span title={`Non-cryptographic configuration equality aid (not a tamper signature): ${historyDiff.beforeConfigurationFingerprint} → ${historyDiff.afterConfigurationFingerprint}`}>
+                          config {historyDiff.beforeConfigurationFingerprint.split(":").at(-1)} → {historyDiff.afterConfigurationFingerprint.split(":").at(-1)}
+                        </span>
                         <div className="history-diff-actions" aria-label="Export checkpoint comparison">
                           <button type="button" onClick={() => exportHistoryDiff("csv")}>Export CSV</button>
                           <button type="button" onClick={() => exportHistoryDiff("markdown")}>Export Markdown</button>

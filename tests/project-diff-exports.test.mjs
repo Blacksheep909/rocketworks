@@ -6,7 +6,10 @@ import {
   createProjectDiffMarkdown,
   PROJECT_DIFF_EXPORT_MODEL_VERSION,
 } from "../lib/export/project-diff-exports.ts";
-import { compareProjectSnapshots } from "../lib/project/project-diff.ts";
+import {
+  compareProjectSnapshots,
+  PROJECT_DIFF_FINGERPRINT_MODEL_VERSION,
+} from "../lib/project/project-diff.ts";
 import { createLocalProjectSnapshot } from "../lib/project/project-state.ts";
 
 const baseInputs = {
@@ -50,6 +53,9 @@ function sampleDiff(overrides = {}) {
 test("checkpoint diff CSV preserves metadata and escaped change rows", () => {
   const csv = createProjectDiffCsv(sampleDiff({ launchSiteName: "Pad 1, north" }));
   assert.match(csv, new RegExp(`# export_model_version,${PROJECT_DIFF_EXPORT_MODEL_VERSION}`));
+  assert.match(csv, new RegExp(`# fingerprint_model_version,${PROJECT_DIFF_FINGERPRINT_MODEL_VERSION}`));
+  assert.match(csv, /# before_configuration_fingerprint,rocketworks-config-fingerprint-fnv1a32-0\.1\.0:/);
+  assert.match(csv, /# after_configuration_fingerprint,rocketworks-config-fingerprint-fnv1a32-0\.1\.0:/);
   assert.match(csv, /# review_boundary,Configuration review metadata only; not simulation evidence or a flight-safety assessment\./);
   assert.match(csv, /category,key,label,before,after/);
   assert.match(csv, /input,diameterMm,outer diameter,54,62/);
@@ -62,8 +68,10 @@ test("checkpoint diff Markdown is deterministic and retains the review boundary"
   const markdown = createProjectDiffMarkdown(diff);
   assert.match(markdown, /^# RocketWorks checkpoint configuration diff/m);
   assert.match(markdown, /Revisions: R01 → R02/);
+  assert.match(markdown, /Fingerprint model: `rocketworks-config-fingerprint-fnv1a32-0\.1\.0`/);
+  assert.match(markdown, /Configuration fingerprints: `rocketworks-config-fingerprint-fnv1a32-0\.1\.0:/);
   assert.match(markdown, /\| input \| diameterMm \| outer diameter \| 54 \| 62 \|/);
-  assert.match(markdown, /not simulation evidence, validation, certification, configuration control, or a flight-safety assessment/);
+  assert.match(markdown, /non-cryptographic equality aids, not tamper signatures/);
   assert.equal(markdown, createProjectDiffMarkdown(diff));
 });
 

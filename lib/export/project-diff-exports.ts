@@ -1,4 +1,5 @@
 import {
+  PROJECT_DIFF_FINGERPRINT_MODEL_VERSION,
   PROJECT_DIFF_MODEL_VERSION,
   type ProjectDiffCategory,
   type ProjectSnapshotDiff,
@@ -9,7 +10,7 @@ import {
  * These files contain configuration review metadata only; they never contain
  * simulation traces or a claim that a design is flight-ready.
  */
-export const PROJECT_DIFF_EXPORT_MODEL_VERSION = "rocketworks-project-diff-export-0.1.0";
+export const PROJECT_DIFF_EXPORT_MODEL_VERSION = "rocketworks-project-diff-export-0.2.0";
 export const PROJECT_DIFF_EXPORT_VALIDATION_STATUS = "engineering-preview-unvalidated";
 
 const MAX_DIFF_ROWS = 128;
@@ -53,6 +54,15 @@ function assertUtcTimestamp(value: unknown, label: string): string {
   return timestamp;
 }
 
+function assertFingerprint(value: unknown, label: string): string {
+  const fingerprint = assertText(value, label);
+  const prefix = `${PROJECT_DIFF_FINGERPRINT_MODEL_VERSION}:`;
+  if (!fingerprint.startsWith(prefix) || fingerprint.length !== prefix.length + 8) {
+    throw new Error(`${label} must use the ${PROJECT_DIFF_FINGERPRINT_MODEL_VERSION} model`);
+  }
+  return fingerprint;
+}
+
 function validateDiff(input: ProjectSnapshotDiff): ProjectSnapshotDiff {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
     throw new Error("project checkpoint diff must be an object");
@@ -72,6 +82,14 @@ function validateDiff(input: ProjectSnapshotDiff): ProjectSnapshotDiff {
   if (Date.parse(afterSavedAtIso) < Date.parse(beforeSavedAtIso)) {
     throw new Error("project checkpoint diff afterSavedAtIso cannot precede beforeSavedAtIso");
   }
+  const beforeConfigurationFingerprint = assertFingerprint(
+    input.beforeConfigurationFingerprint,
+    "project checkpoint diff beforeConfigurationFingerprint",
+  );
+  const afterConfigurationFingerprint = assertFingerprint(
+    input.afterConfigurationFingerprint,
+    "project checkpoint diff afterConfigurationFingerprint",
+  );
   const summary = assertText(input.summary, "project checkpoint diff summary");
   if (!Number.isInteger(input.changedCount) || input.changedCount < 0 || input.changedCount > MAX_DIFF_ROWS) {
     throw new Error(`project checkpoint diff changedCount must be an integer from 0 through ${MAX_DIFF_ROWS}`);
@@ -110,6 +128,8 @@ function validateDiff(input: ProjectSnapshotDiff): ProjectSnapshotDiff {
     afterRevision: input.afterRevision,
     beforeSavedAtIso,
     afterSavedAtIso,
+    beforeConfigurationFingerprint,
+    afterConfigurationFingerprint,
     changedCount: input.changedCount,
     summary,
     rows,
@@ -134,6 +154,9 @@ export function createProjectDiffCsv(input: ProjectSnapshotDiff): string {
     ["# after_revision", diff.afterRevision],
     ["# before_saved_at_iso", diff.beforeSavedAtIso],
     ["# after_saved_at_iso", diff.afterSavedAtIso],
+    ["# fingerprint_model_version", PROJECT_DIFF_FINGERPRINT_MODEL_VERSION],
+    ["# before_configuration_fingerprint", diff.beforeConfigurationFingerprint],
+    ["# after_configuration_fingerprint", diff.afterConfigurationFingerprint],
     ["# changed_count", diff.changedCount],
     ["# summary", diff.summary],
   ];
@@ -170,13 +193,15 @@ export function createProjectDiffMarkdown(input: ProjectSnapshotDiff): string {
     `- Project: \`${markdownCell(diff.projectId)}\``,
     `- Revisions: R${String(diff.beforeRevision).padStart(2, "0")} → R${String(diff.afterRevision).padStart(2, "0")}`,
     `- Saved: ${diff.beforeSavedAtIso} → ${diff.afterSavedAtIso}`,
+    `- Fingerprint model: \`${PROJECT_DIFF_FINGERPRINT_MODEL_VERSION}\``,
+    `- Configuration fingerprints: \`${diff.beforeConfigurationFingerprint}\` → \`${diff.afterConfigurationFingerprint}\``,
     `- Summary: ${markdownCell(diff.summary)}`,
     "",
     "## Configuration changes",
     "",
     rows,
     "",
-    "> Review boundary: this artifact describes saved inputs, topology, and source selections only. It is not simulation evidence, validation, certification, configuration control, or a flight-safety assessment.",
+    "> Review boundary: fingerprints are non-cryptographic equality aids, not tamper signatures. This artifact describes saved inputs, topology, and source selections only; it is not simulation evidence, validation, certification, configuration control, or a flight-safety assessment.",
     "",
   ].join("\n");
 }
