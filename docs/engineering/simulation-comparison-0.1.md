@@ -42,6 +42,14 @@ both simulation fingerprints, metric rows, warnings, and assumptions. The
 engineering Markdown report includes the same delta table when generated from
 that fresh result.
 
+The Artifact center also exports fresh vertical and staged results as the
+versioned `rocketworks-simulation-review-export-0.1.0` JSON envelope. A verified
+import can become a session-only comparison reference, including the source
+project identity, timestamp, fingerprint, and result model status. It never
+changes editable inputs, local checkpoints, or cloud state; the imported source
+must be treated as a separate review artifact rather than evidence for the
+current configuration.
+
 ## Compared metrics
 
 The vertical table reports deterministic differences for:

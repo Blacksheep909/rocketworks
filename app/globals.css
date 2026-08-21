@@ -2877,6 +2877,29 @@ body {
 .stale-result-banner p { margin-top: 3px; color: #b89b7a; font-size: 8px; line-height: 1.45; }
 .stale-result-banner .secondary-button { border-color: rgba(244, 163, 64, .42); color: #ffd5a1; white-space: nowrap; }
 .stage-stale-result-banner { margin: 0 0 12px; }
+.simulation-review-import-banner,
+.simulation-review-import-error {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(83, 220, 167, .3);
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgba(83, 220, 167, .1), rgba(10, 16, 22, .72));
+  box-shadow: inset 2px 0 0 #53dca7;
+}
+.simulation-review-import-banner > span {
+  color: #7cf0c1;
+  font: 700 8px var(--font-geist-mono), monospace;
+  letter-spacing: .1em;
+  white-space: nowrap;
+}
+.simulation-review-import-banner strong { display: block; color: #d7ffec; font-size: 10px; }
+.simulation-review-import-banner p { margin-top: 3px; color: #8fbba9; font: 7px/1.45 var(--font-geist-mono), monospace; }
+.simulation-review-import-banner .secondary-button { border-color: rgba(83, 220, 167, .38); color: #b8f7d9; white-space: nowrap; }
+.simulation-review-import-error { display: block; border-color: rgba(244, 163, 64, .34); background: rgba(244, 163, 64, .06); box-shadow: inset 2px 0 0 var(--signal-amber); color: #e9bc8d; font-size: 8px; line-height: 1.5; }
 
 .vertical-flight-convergence {
   margin-top: 12px;
@@ -3207,6 +3230,8 @@ body {
   .benchmark-row { min-width: 650px; }
   .stale-result-banner { grid-template-columns: 1fr; gap: 7px; }
   .stale-result-banner .secondary-button { width: max-content; }
+  .simulation-review-import-banner { grid-template-columns: 1fr; gap: 7px; }
+  .simulation-review-import-banner .secondary-button { width: max-content; }
 }
 
 /*

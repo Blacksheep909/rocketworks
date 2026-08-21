@@ -836,6 +836,7 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(projectState, /Unsupported local project schema version/);
   const projectDiff = await readFile(new URL("../lib/project/project-diff.ts", import.meta.url), "utf8");
   const projectDiffExports = await readFile(new URL("../lib/export/project-diff-exports.ts", import.meta.url), "utf8");
+  const simulationReviewExports = await readFile(new URL("../lib/export/simulation-review-exports.ts", import.meta.url), "utf8");
   assert.match(projectDiff, /PROJECT_DIFF_MODEL_VERSION/);
   assert.match(projectDiff, /PROJECT_DIFF_FINGERPRINT_MODEL_VERSION/);
   assert.match(projectDiff, /fingerprintProjectSnapshot/);
@@ -846,6 +847,11 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(page, /Verify diff CSV/);
   assert.match(page, /Verified handoff artifact/);
   assert.match(page, /no project state changed/);
+  assert.match(page, /Import simulation review/);
+  assert.match(page, /Vertical run review/);
+  assert.match(page, /Staged run review/);
+  assert.match(page, /session-only comparison reference/);
+  assert.match(page, /SESSION ONLY/);
   assert.match(page, /Export CSV/);
   assert.match(page, /Export Markdown/);
   assert.match(projectDiffExports, /PROJECT_DIFF_EXPORT_MODEL_VERSION/);
@@ -855,12 +861,18 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(projectDiffExports, /createProjectDiffMarkdown/);
   assert.match(projectDiffExports, /parseProjectDiffCsv/);
   assert.match(projectDiffExports, /MAX_PROJECT_DIFF_CSV_LENGTH/);
+  assert.match(simulationReviewExports, /SIMULATION_REVIEW_EXPORT_MODEL_VERSION/);
+  assert.match(simulationReviewExports, /SIMULATION_REVIEW_EXPORT_REVIEW_BOUNDARY/);
+  assert.match(simulationReviewExports, /parseSimulationReviewExport/);
+  assert.match(simulationReviewExports, /MAX_SIMULATION_REVIEW_EXPORT_LENGTH/);
   assert.match(stylesheet, /\.history-entry button:focus-visible/);
   assert.match(stylesheet, /\.history-diff-table/);
   assert.match(stylesheet, /\.history-diff-actions/);
   assert.match(stylesheet, /\.history-diff-controls/);
   assert.match(stylesheet, /\.history-toolbar-actions/);
   assert.match(stylesheet, /\.history-diff-imported/);
+  assert.match(stylesheet, /\.simulation-review-import-banner/);
+  assert.match(stylesheet, /\.simulation-review-import-error/);
 });
 
 test("ships beginner and expert workflows with original templates and guidance", async () => {

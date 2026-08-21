@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add portable vertical/staged simulation-review JSON artifacts. Fresh results
+  can be exported with their model status, timestamp, and simulation
+  fingerprint, then strictly verified and loaded as session-only comparison
+  references on another browser. Import never restores project state or implies
+  validation, certification, flight safety, or cloud collaboration.
+
 - Add a strict, read-only checkpoint-diff CSV verifier. The history dialog can
   reopen exported `rocketworks-project-diff-export-0.2.0` artifacts, validate
   quoted cells, envelope/version metadata, chronology, row counts, and

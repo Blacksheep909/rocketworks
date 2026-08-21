@@ -284,6 +284,13 @@ import {
   simulationReferenceStorageKey,
 } from "../lib/project/simulation-reference.ts";
 import {
+  createStagedSimulationReviewExport,
+  createVerticalSimulationReviewExport,
+  MAX_SIMULATION_REVIEW_EXPORT_LENGTH,
+  parseSimulationReviewExport,
+  type SimulationReviewExport,
+} from "../lib/export/simulation-review-exports.ts";
+import {
   createDefaultUiPreferences,
   UI_PREFERENCES_LEGACY_STORAGE_KEYS,
   parseUiPreferences,
@@ -298,7 +305,7 @@ type ViewKey = "design" | "flight";
 type DesignViewKey = UiDesignView;
 type MaterialKey = "kraft" | "fiberglass" | "carbon" | "custom";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
-type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "stage-flight-comparison-csv" | "separated-body-csv" | "coupled-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "benchmark-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad" | "manufacturing-manifest";
+type ExportFormat = "project" | "vertical-review-json" | "staged-review-json" | "flight-csv" | "stage-flight-csv" | "stage-flight-comparison-csv" | "separated-body-csv" | "coupled-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "benchmark-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad" | "manufacturing-manifest";
 type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
@@ -4121,6 +4128,7 @@ export default function Home() {
   const exportCloseRef = useRef<HTMLButtonElement>(null);
   const projectImportInputRef = useRef<HTMLInputElement>(null);
   const workspaceBackupImportInputRef = useRef<HTMLInputElement>(null);
+  const simulationReviewImportInputRef = useRef<HTMLInputElement>(null);
   const historyDiffImportInputRef = useRef<HTMLInputElement>(null);
   const [projectImportRequested, setProjectImportRequested] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
@@ -4589,6 +4597,8 @@ export default function Home() {
   );
   const [comparisonReference, setComparisonReference] = useState<VerticalFlightResult | null>(null);
   const [comparisonReferenceFingerprint, setComparisonReferenceFingerprint] = useState<string | null>(null);
+  const [importedSimulationReview, setImportedSimulationReview] = useState<SimulationReviewExport | null>(null);
+  const [simulationReviewImportError, setSimulationReviewImportError] = useState("");
   const [selectedFlightEventTimeS, setSelectedFlightEventTimeS] = useState<number | null>(null);
   const [flightDataSeries, setFlightDataSeries] = useState<FlightDataSeries | null>(null);
   const [flightDataError, setFlightDataError] = useState("");
@@ -5787,8 +5797,15 @@ export default function Home() {
     }
   };
   const clearComparisonReference = () => {
+    const importedReference = importedSimulationReview?.reference.kind === "vertical";
     setComparisonReference(null);
     setComparisonReferenceFingerprint(null);
+    if (importedReference) {
+      setImportedSimulationReview(null);
+      setSimulationReviewImportError("");
+      notify("Imported vertical comparison reference cleared for this session");
+      return;
+    }
     try {
       window.localStorage.removeItem(
         simulationReferenceStorageKey(activeProjectId, "vertical"),
@@ -5806,6 +5823,7 @@ export default function Home() {
     const fingerprint = stageFlightFingerprint ?? simulationFingerprint;
     setStageComparisonReference(stageFlightResult);
     setStageComparisonReferenceFingerprint(fingerprint);
+    if (importedSimulationReview?.reference.kind === "staged") setImportedSimulationReview(null);
     try {
       const reference = createStagedSimulationReference({
         projectId: activeProjectId,
@@ -5823,8 +5841,15 @@ export default function Home() {
     }
   };
   const clearStageComparisonReference = () => {
+    const importedReference = importedSimulationReview?.reference.kind === "staged";
     setStageComparisonReference(null);
     setStageComparisonReferenceFingerprint(null);
+    if (importedReference) {
+      setImportedSimulationReview(null);
+      setSimulationReviewImportError("");
+      notify("Imported staged comparison reference cleared for this session");
+      return;
+    }
     try {
       window.localStorage.removeItem(
         simulationReferenceStorageKey(activeProjectId, "staged"),
@@ -5833,6 +5858,45 @@ export default function Home() {
       // The in-memory reference is still cleared when browser storage is unavailable.
     }
     notify("Staged comparison reference cleared");
+  };
+  const openSimulationReviewImport = () => {
+    simulationReviewImportInputRef.current?.click();
+  };
+  const importSimulationReviewFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    try {
+      if (file.size > MAX_SIMULATION_REVIEW_EXPORT_LENGTH) {
+        throw new Error(`Simulation review artifacts must be ${MAX_SIMULATION_REVIEW_EXPORT_LENGTH.toLocaleString()} characters or smaller.`);
+      }
+      const imported = parseSimulationReviewExport(await file.text());
+      setImportedSimulationReview(imported);
+      setSimulationReviewImportError("");
+      if (imported.reference.kind === "vertical") {
+        setComparisonReference(imported.reference.result);
+        setComparisonReferenceFingerprint(imported.reference.fingerprint);
+      } else {
+        setStageComparisonReference(imported.reference.result);
+        setStageComparisonReferenceFingerprint(imported.reference.fingerprint);
+      }
+      setView("flight");
+      setExportOpen(false);
+      notify(`Imported ${imported.reference.kind} run review as a session-only comparison reference`);
+    } catch (error) {
+      setImportedSimulationReview(null);
+      setSimulationReviewImportError(error instanceof Error ? error.message : "Unable to import simulation review artifact.");
+      notify("Simulation review import failed; project inputs were not changed");
+    }
+  };
+  const clearImportedSimulationReview = () => {
+    if (!importedSimulationReview) return;
+    if (importedSimulationReview.reference.kind === "vertical") {
+      clearComparisonReference();
+    } else {
+      clearStageComparisonReference();
+    }
+    setSimulationReviewImportError("");
   };
   const importFlightData = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
@@ -6166,6 +6230,8 @@ export default function Home() {
       );
       setStageFlightResult(null);
       setStageFlightError("");
+      setImportedSimulationReview(null);
+      setSimulationReviewImportError("");
       setSweepResult(null);
       setSweepError("");
       setSaveError(
@@ -6257,6 +6323,8 @@ export default function Home() {
       setProjectHistory(duplicateHistory);
       setProjectName(nextName);
       setActiveProjectId(nextId);
+      setImportedSimulationReview(null);
+      setSimulationReviewImportError("");
       lastSavedInputsRef.current = duplicateSnapshot.inputs;
       lastSavedFingerprintRef.current = namedProjectFingerprint(
         duplicateSnapshot.inputs,
@@ -7058,6 +7126,8 @@ export default function Home() {
         throw new Error("RocketWorks project files must be 10 MB or smaller.");
       }
       const imported = parseKestrelProjectJson(await file.text());
+      setImportedSimulationReview(null);
+      setSimulationReviewImportError("");
       setProjectName(imported.projectName);
       applyEditableInputs(imported.editableInputs);
       persistVehicleTopology(imported.topology);
@@ -7101,8 +7171,14 @@ export default function Home() {
       if ((format === "flight-csv" || format === "uncertainty-csv" || format === "report") && !resultIsCurrent) {
         throw new Error("Run the vertical estimate again before exporting simulation results for this design.");
       }
+      if (format === "vertical-review-json" && !resultIsCurrent) {
+        throw new Error("Run the vertical estimate again before exporting its portable review artifact.");
+      }
       if ((format === "stage-flight-csv" || format === "stage-flight-comparison-csv" || format === "separated-body-csv" || format === "coupled-body-csv" || format === "flight-path-geojson") && !stageFlightIsCurrent) {
         throw new Error("Rerun the coupled 6DOF preview before exporting its trace for this design.");
+      }
+      if (format === "staged-review-json" && !stageFlightIsCurrent) {
+        throw new Error("Rerun the coupled 6DOF preview before exporting its portable review artifact.");
       }
       if (format === "stage-flight-comparison-csv" && !stageComparisonReference) {
         throw new Error("Pin a staged comparison reference before exporting its delta.");
@@ -7252,6 +7328,27 @@ export default function Home() {
             cleanRoomImplementation: true,
           } as unknown as JsonValue,
         });
+      } else if (format === "vertical-review-json") {
+        filename = `${fileStem}-vertical-run-review.rocketworks.json`;
+        mediaType = "application/json;charset=utf-8";
+        content = createVerticalSimulationReviewExport(createVerticalSimulationReference({
+          projectId: activeProjectId,
+          projectName,
+          fingerprint: lastRunFingerprint ?? simulationFingerprint,
+          result,
+          savedAtIso: generatedAtIso,
+        }));
+      } else if (format === "staged-review-json") {
+        if (!stageFlightResult) throw new Error("Run the coupled 6DOF preview before exporting its review artifact.");
+        filename = `${fileStem}-staged-run-review.rocketworks.json`;
+        mediaType = "application/json;charset=utf-8";
+        content = createStagedSimulationReviewExport(createStagedSimulationReference({
+          projectId: activeProjectId,
+          projectName,
+          fingerprint: stageFlightFingerprint ?? simulationFingerprint,
+          result: stageFlightResult,
+          savedAtIso: generatedAtIso,
+        }));
       } else if (format === "flight-csv") {
         filename = `${fileStem}-flight-trace.csv`;
         mediaType = "text/csv;charset=utf-8";
@@ -8066,6 +8163,14 @@ export default function Home() {
         aria-label="Verify RocketWorks checkpoint diff CSV"
         onChange={importHistoryDiffFile}
       />
+      <input
+        ref={simulationReviewImportInputRef}
+        className="sr-only"
+        type="file"
+        accept=".json,application/json"
+        aria-label="Import RocketWorks simulation review artifact"
+        onChange={importSimulationReviewFile}
+      />
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">R</span>
@@ -8408,6 +8513,17 @@ export default function Home() {
                   <p>Vehicle, motor, weather, recovery, rail, topology, or aerodynamic-table inputs changed after the last vertical estimate. Recalculate before interpreting or exporting these results.</p>
                 </div>
                 <button className="secondary-button" onClick={simulate} disabled={running}>{running ? "Running…" : "Rerun estimate"}</button>
+              </div>
+            )}
+            {simulationReviewImportError && <div className="simulation-review-import-error" role="alert">{simulationReviewImportError}</div>}
+            {importedSimulationReview && (
+              <div className="simulation-review-import-banner" role="status">
+                <span>SESSION ONLY</span>
+                <div>
+                  <strong>Imported {importedSimulationReview.reference.kind} run review reference</strong>
+                  <p>{importedSimulationReview.reference.projectName} · saved {new Date(importedSimulationReview.reference.savedAtIso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })} · fingerprint {importedSimulationReview.reference.fingerprint.slice(0, 18)}…</p>
+                </div>
+                <button className="secondary-button" type="button" onClick={clearImportedSimulationReview}>Clear imported reference</button>
               </div>
             )}
             {verticalConvergence && verticalConvergenceIsCurrent && (
@@ -11340,11 +11456,26 @@ export default function Home() {
                 <span><strong>Restore workspace backup</strong><small>Merge a validated workspace envelope into this browser; matching project IDs are replaced and capacity is enforced.</small></span>
                 <em>↑</em>
               </button>
+              <button className="export-import-option" onClick={openSimulationReviewImport}>
+                <span className="export-extension">RUN</span>
+                <span><strong>Import simulation review</strong><small>Verify a portable vertical or staged run artifact and use it as a session-only comparison reference.</small></span>
+                <em>↑</em>
+              </button>
               <button onClick={() => exportArtifact("project")}>
                 <span className="export-extension">JSON</span>
                 <span><strong>RocketWorks project document</strong><small>Versioned geometry, models, simulation, uncertainty, landing results, and provenance.</small></span>
                 <em>↓</em>
               </button>
+              {resultIsCurrent && <button onClick={() => exportArtifact("vertical-review-json")}>
+                <span className="export-extension">RUN</span>
+                <span><strong>Vertical run review</strong><small>Portable, versioned result handoff with its simulation fingerprint and explicit review boundary.</small></span>
+                <em>↓</em>
+              </button>}
+              {stageFlightIsCurrent && <button onClick={() => exportArtifact("staged-review-json")}>
+                <span className="export-extension">RUN</span>
+                <span><strong>Staged run review</strong><small>Portable coupled/staged result handoff with events, released-body output, fingerprint, and model status.</small></span>
+                <em>↓</em>
+              </button>}
               <button onClick={() => exportArtifact("flight-csv")}>
                 <span className="export-extension">CSV</span>
                 <span><strong>Flight trace</strong><small>SI-unit time history for plotting, analysis, and reproducible comparisons.</small></span>

@@ -263,6 +263,10 @@ research, standards, and original code.
   estimate, expose signed metric deltas after a design or environment change,
   keep sampled event/released-body counts visible, and export the staged delta
   with run fingerprints into CSV and engineering reports;
+- portable, versioned vertical and staged simulation-review JSON artifacts that
+  retain result fingerprints, model status, timestamps, and explicit review
+  boundaries; imports are strictly verified and session-only, never project
+  restores or cloud synchronization;
 - measured-flight CSV comparison with strict SI parsing, vertical or coupled
   6DOF trace selection, interpolation-based residuals, event-timestamp
   normalization, optional positive one-sigma measurement uncertainty with
