@@ -18,9 +18,11 @@ import {
   computeStructuralScreen,
   type StructuralMaterialModel,
 } from "./structural-screen.ts";
+import { createStageInterfaceLoadReview } from "./stage-interface-loads.ts";
+import { computeMissionMassRatio } from "./stage-mass-ratio.ts";
 
 export const BENCHMARK_SUITE_MODEL_VERSION =
-  "kestrel-physics-benchmark-suite-0.4.0";
+  "kestrel-physics-benchmark-suite-0.5.0";
 export const BENCHMARK_SUITE_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -93,6 +95,73 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
     { timeS: 1, thrustN: 10 },
     { timeS: 2, thrustN: 0 },
   ]);
+  const benchmarkMassProperties = (massKg: number, x = 0) => ({
+    massKg,
+    centerOfMassM: { x, y: 0, z: 0 },
+    inertiaAtCenterKgM2: [
+      [0.02, 0, 0],
+      [0, 0.02, 0],
+      [0, 0, 0.02],
+    ],
+  } as const);
+  const benchmarkMotor = (id: string) => ({
+    id,
+    name: id,
+    thrustCurve: [
+      { timeS: 0, thrustN: 0 },
+      { timeS: 1, thrustN: 30 },
+      { timeS: 2, thrustN: 0 },
+    ],
+    dryMassProperties: benchmarkMassProperties(0.1, 0.7),
+    initialPropellantMassProperties: benchmarkMassProperties(0.2, 0.7),
+    thrustApplicationPointBodyM: { x: 0.7, y: 0, z: 0 },
+  } as const);
+  const benchmarkSerialStages = [
+    {
+      id: "benchmark-booster",
+      name: "Benchmark booster",
+      structuralMassProperties: benchmarkMassProperties(0.5, 0.9),
+      motors: [benchmarkMotor("benchmark-booster-motor")],
+    },
+    {
+      id: "benchmark-upper",
+      name: "Benchmark upper",
+      structuralMassProperties: benchmarkMassProperties(0.35, 0.5),
+      motors: [benchmarkMotor("benchmark-upper-motor")],
+    },
+  ] as const;
+  const missionMassRatio = computeMissionMassRatio({
+    serialStages: benchmarkSerialStages,
+    retainedPayloadMassKg: 0.4,
+  });
+  const stageInterfaceLoads = createStageInterfaceLoadReview({
+    retainedMassKg: 0.5,
+    stages: [
+      {
+        id: "benchmark-core",
+        label: "Benchmark core",
+        attachment: "serial",
+        stageMassKg: 2,
+        peakThrustN: 100,
+        sectionAreaM2: 0.01,
+        allowableCompressionPa: 1e6,
+      },
+      {
+        id: "benchmark-upper-interface",
+        label: "Benchmark upper interface",
+        parentStageId: "benchmark-core",
+        attachment: "serial",
+        stageMassKg: 1,
+        peakThrustN: 0,
+        sectionAreaM2: 0.01,
+        allowableCompressionPa: 1e6,
+      },
+    ],
+  });
+  const benchmarkInterface = stageInterfaceLoads.interfaces[0];
+  if (!benchmarkInterface || benchmarkInterface.axialDemandN === null || benchmarkInterface.factorOfSafety === null) {
+    throw new Error("stage-interface benchmark fixture did not produce a serial demand");
+  }
   const coneStability = computeStaticStability({
     centerOfMassXM: 0.2,
     referenceDiameterM: 0.1,
@@ -351,6 +420,46 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
       method: "trapezoidal integration of a 0–10–0 N, 2 s curve",
     }),
     compareCase({
+      id: "stage-interface-axial-demand",
+      label: "Serial stage-interface axial demand",
+      metric: "axial demand",
+      unit: "N",
+      observed: benchmarkInterface.axialDemandN,
+      expected: (1.5 * (100 / 3.5)),
+      tolerance: 1e-12,
+      method: "downstream mass times common peak-thrust acceleration for a two-stage serial stack",
+    }),
+    compareCase({
+      id: "stage-interface-factor-of-safety",
+      label: "Serial stage-interface factor of safety",
+      metric: "factor of safety",
+      unit: "1",
+      observed: benchmarkInterface.factorOfSafety,
+      expected: (0.01 * 1e6) / (1.5 * (100 / 3.5)),
+      tolerance: 1e-12,
+      method: "section-area times compression allowable divided by the axial demand anchor",
+    }),
+    compareCase({
+      id: "mission-mass-ratio-booster",
+      label: "Serial mission mass ratio for the first stage",
+      metric: "attached mass ratio",
+      unit: "1",
+      observed: missionMassRatio.stages[0]?.massRatio ?? Number.NaN,
+      expected: 1.85 / 1.65,
+      tolerance: 1e-12,
+      method: "full first-stage mass plus downstream stack divided by its burnout attached mass",
+    }),
+    compareCase({
+      id: "mission-mass-ratio-total-ideal-delta-v",
+      label: "Serial mission ideal delta-v composition",
+      metric: "ideal delta-v",
+      unit: "m/s",
+      observed: missionMassRatio.totalIdealDeltaVMps ?? Number.NaN,
+      expected: 150 * Math.log((1.85 / 1.65) * (1.05 / 0.85)),
+      tolerance: 1e-11,
+      method: "two serial stages with 30 N·s impulse and 0.2 kg propellant per motor under Tsiolkovsky composition",
+    }),
+    compareCase({
       id: "cone-center-of-pressure",
       label: "Slender cone center of pressure",
       metric: "center of pressure",
@@ -477,6 +586,7 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
     assumptions: [
       "Reference values are SI anchors and closed-form published relations, not a substitute for instrumented flight data.",
       "The suite uses fixed inputs and no user or manufacturer data.",
+      "The stage-interface and serial mission-mass-ratio fixtures use independent two-stage SI stacks with explicit retained mass, section evidence, thrust, and propellant values.",
       "Tolerance checks compare absolute error; relative error is reported for review.",
     ],
   };

@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extend the deterministic physics benchmark suite to 21 regression anchors,
+  including serial stage-interface axial demand/factor-of-safety arithmetic and
+  serial mission mass-ratio/ideal-delta-v composition. The new cases retain the
+  `mathematical-regression-tests-only` boundary and do not upgrade any result to
+  flight validation.
+
 - Add a portable local workspace-backup artifact. The project console, artifact
   center, and command palette can now checkpoint the active design and download
   a strict versioned envelope containing every browser-local project snapshot

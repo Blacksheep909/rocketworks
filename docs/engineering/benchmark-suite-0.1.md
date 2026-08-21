@@ -1,4 +1,4 @@
-# Deterministic physics benchmark suite 0.4
+# Deterministic physics benchmark suite 0.5
 
 Status: `mathematical-regression-tests-only`.
 
@@ -26,13 +26,17 @@ enough to run in CI.
 - equal-load fin-root bending stress;
 - a preliminary NACA-TN-4197-style fin flutter-speed equation anchor using the
   local standard-atmosphere pressure and sound speed.
+- a serial stage-interface axial-demand and factor-of-safety anchor using
+  explicit section evidence and common peak-thrust acceleration;
+- a serial mission mass-ratio and ideal-delta-v composition anchor with a
+  retained payload and downstream stage stack.
 
 Each case reports the observed value, public-reference expected value, absolute
 and relative error, and a declared tolerance. The suite currently contains
-seventeen cases because the atmosphere fixture checks pressure and density as
+twenty-one cases because the atmosphere fixture checks pressure and density as
 separate metrics, the 6DOF conservation checks are reported independently,
-and the structural/aeroelastic equations are checked against independent
-closed-form recomputations.
+and the structural/aeroelastic, stage-interface, and serial mass-ratio
+equations are checked against independent closed-form recomputations.
 
 ## Interpretation
 

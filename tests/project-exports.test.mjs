@@ -1226,7 +1226,7 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Mean-wind profile: user-supplied \(3 altitude layers\)/);
   assert.match(report, /Turbulence RMS scale: 1\.20×/);
   assert.match(report, /## Deterministic physics evidence/);
-  assert.match(report, /Result: all fixtures pass \(17\/17\)/);
+  assert.match(report, /Result: all fixtures pass \(21\/21\)/);
   assert.match(report, /6DOF constant-force translation/);
   assert.match(report, /regression evidence only/);
   assert.match(report, /Weather replay seed: `report-weather-v1`/);
