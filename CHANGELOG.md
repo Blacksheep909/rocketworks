@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a checkpoint-to-checkpoint project diff in the local history dialog. The
+  original `rocketworks-project-diff-0.1.0` contract reports changed inputs,
+  topology counts, and source selections with explicit before/after values;
+  it remains review metadata and does not imply simulation validation or cloud
+  collaboration.
+
 - Add a deterministic topology-aware manufacturing manifest CSV beside the
   DXF, STL, and OpenSCAD reference artifacts. It lists nose, airframe, fin-set,
   and nozzle reference rows for every physical stage instance, preserves axial

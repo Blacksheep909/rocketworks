@@ -272,7 +272,8 @@ research, standards, and original code.
 - validated project import, topology- and source-complete device-local
   autosave/history, templates,
   beginner/expert modes, keyboard command search, and compact browser design
-  share links;
+  share links; local history can compare adjacent checkpoints with deterministic
+  before/after input, topology-count, and source-selection rows;
 - a functional project console behind the workspace header with local save
   status, revision handoff, history, template, import, export, checkpoint, and
   share actions; the console now indexes up to 24 validated browser-local

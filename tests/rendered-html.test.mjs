@@ -798,6 +798,10 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(page, /\}, 600\)/);
   assert.match(page, /Local project history/);
   assert.match(page, /Close local project history/);
+  assert.match(page, /Checkpoint comparison/);
+  assert.match(page, /Compare/);
+  assert.match(page, /compareProjectSnapshots/);
+  assert.match(page, /Configuration delta/);
   assert.match(page, /Restored revision/);
   assert.match(page, /not cloud sync or collaboration/);
   assert.match(projectState, /DEFAULT_LOCAL_HISTORY_LIMIT = 40/);
@@ -827,7 +831,11 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(projectState, /vehicle topology/);
   assert.match(projectState, /ProjectSourceSelections/);
   assert.match(projectState, /Unsupported local project schema version/);
+  const projectDiff = await readFile(new URL("../lib/project/project-diff.ts", import.meta.url), "utf8");
+  assert.match(projectDiff, /PROJECT_DIFF_MODEL_VERSION/);
+  assert.match(projectDiff, /Project checkpoints must belong to the same project/);
   assert.match(stylesheet, /\.history-entry button:focus-visible/);
+  assert.match(stylesheet, /\.history-diff-table/);
 });
 
 test("ships beginner and expert workflows with original templates and guidance", async () => {

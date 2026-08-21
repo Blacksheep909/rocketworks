@@ -4,7 +4,7 @@ Status: implemented browser persistence; engineering preview.
 
 ## Purpose
 
-RocketWorks keeps the editable ARC 54 inputs across refreshes and exposes a recoverable checkpoint timeline. This is device-local continuity, not a shared project service.
+RocketWorks keeps the editable ARC 54 inputs across refreshes and exposes a recoverable checkpoint timeline. The history dialog can compare any checkpoint with its immediately preceding revision, showing changed inputs, topology counts, and source selections. This is device-local continuity, not a shared project service.
 
 ## Stored records
 
@@ -28,6 +28,17 @@ The history schema is `dev.kestrel-lab.local-project-history`, version 1. Every 
 - An unreadable record never populates application state. The default design remains active and the interface reports that local data needs attention.
 - The separate current-topology cache remains for fast browser startup, while checkpoints carry their own topology so a restore is configuration-complete.
 - The selected motor ID is cached separately from the user motor library, and the aerodynamic source ID is cached with its library. When a checkpoint references a source that is no longer present, RocketWorks falls back explicitly to the synthetic motor or constant-drag source and reports the limitation instead of creating a dangling selection.
+
+## Checkpoint comparison
+
+Selecting **Compare** on a checkpoint produces a deterministic
+`rocketworks-project-diff-0.1.0` review table against the preceding entry. Rows
+retain project-name and before/after values for editable inputs, summarize wind and
+correlation collections by count, report logical/physical topology counts, and
+identify motor or aerodynamic source changes. The diff is derived from the
+validated snapshots and does not mutate them. It is review metadata only: it
+does not rerun physics, compare flight traces, establish configuration control,
+or upgrade any result to validation or flight-safety evidence.
 
 ## Limits and privacy
 

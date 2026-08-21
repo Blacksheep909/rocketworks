@@ -1957,18 +1957,42 @@ kbd {
   display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 11px;
   padding: 10px 11px; border: 1px solid var(--line); border-radius: 4px; background: #10171d;
 }
+.history-entry-selected { border-color: rgba(47,159,255,.48); background: rgba(47,159,255,.06); }
 .history-revision {
   display: grid; place-items: center; min-height: 30px; border: 1px solid rgba(47,159,255,.25);
   border-radius: 3px; color: #75c6ff; font: 650 8px var(--font-geist-mono), monospace;
 }
-.history-entry div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.history-entry strong { overflow: hidden; color: var(--ink); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.history-entry div span { color: var(--muted); font-size: 8px; }
+.history-entry-content { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.history-entry-content strong { overflow: hidden; color: var(--ink); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.history-entry-content span { color: var(--muted); font-size: 8px; }
+.history-entry-actions { display: flex; align-items: center; gap: 5px; }
 .history-entry button {
   padding: 7px 9px; border: 1px solid var(--line); border-radius: 3px;
   background: transparent; color: #bcd0df; font-size: 8px; cursor: pointer;
 }
 .history-entry button:hover, .history-entry button:focus-visible { border-color: rgba(47,159,255,.45); color: #fff; }
+.history-diff {
+  margin: 14px 22px 0; border: 1px solid rgba(47,159,255,.26); border-radius: 5px;
+  background: rgba(47,159,255,.045); overflow: hidden;
+}
+.history-diff-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 11px 12px; border-bottom: 1px solid rgba(47,159,255,.16); }
+.history-diff-heading > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.history-diff-heading strong { color: var(--ink); font-size: 10px; }
+.history-diff-close { flex: 0 0 auto; padding: 5px 7px; border: 1px solid var(--line); border-radius: 3px; background: transparent; color: var(--muted); font-size: 8px; cursor: pointer; }
+.history-diff-close:hover, .history-diff-close:focus-visible { border-color: rgba(47,159,255,.45); color: #fff; }
+.history-diff-summary { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 10px 12px 0; }
+.history-diff-summary strong { color: #bfe4ff; font-size: 9px; }
+.history-diff-summary span { color: var(--muted); font: 7px var(--font-geist-mono), monospace; text-align: right; }
+.history-diff-table-wrap { overflow-x: auto; padding: 9px 12px 0; }
+.history-diff-table { width: 100%; border-collapse: collapse; font-size: 8px; }
+.history-diff-table th, .history-diff-table td { padding: 7px 6px; border-bottom: 1px solid rgba(255,255,255,.07); text-align: left; vertical-align: top; }
+.history-diff-table thead th { color: var(--muted); font: 650 7px var(--font-geist-mono), monospace; letter-spacing: .04em; text-transform: uppercase; }
+.history-diff-table tbody th { min-width: 145px; color: var(--ink); font-weight: 600; }
+.history-diff-table tbody th span { display: block; margin-bottom: 2px; color: #75c6ff; font: 650 6px var(--font-geist-mono), monospace; letter-spacing: .08em; text-transform: uppercase; }
+.history-diff-table td { color: #b4c5d0; font-family: var(--font-geist-mono), monospace; }
+.history-diff-table td:last-child { color: #e8f4fb; }
+.history-diff-empty, .history-diff-note { margin: 0; padding: 10px 12px; color: var(--muted); font-size: 8px; line-height: 1.5; }
+.history-diff-note { padding-top: 5px; }
 .history-empty { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 38px 16px; color: var(--muted); }
 .history-empty strong { color: var(--ink); font-size: 10px; }
 .history-empty span { font-size: 8px; }
@@ -2213,6 +2237,11 @@ kbd {
   .topology-failure-toggle { grid-column: 1 / -1; min-height: 29px; justify-content: flex-start; }
   .history-toolbar { align-items: flex-start; padding: 14px; }
   .history-list { padding: 12px 14px; }
+  .history-entry { grid-template-columns: 34px minmax(0,1fr); gap: 9px; }
+  .history-entry-actions { grid-column: 2; justify-content: flex-start; }
+  .history-diff { margin: 12px 14px 0; }
+  .history-diff-summary { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .history-diff-summary span { text-align: left; }
   .history-notice { margin: 0 14px 14px; }
   .history-error { margin: 12px 14px 0; }
   .project-console-overview { grid-template-columns: 1fr; margin: 0 14px 14px; }

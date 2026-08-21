@@ -177,6 +177,11 @@ import {
   type CustomMaterialProfile,
 } from "../lib/project/material-profile.ts";
 import {
+  compareProjectSnapshots,
+  PROJECT_DIFF_MODEL_VERSION,
+  type ProjectSnapshotDiff,
+} from "../lib/project/project-diff.ts";
+import {
   LOCAL_PROJECT_REGISTRY_STORAGE_KEY,
   createEmptyProjectRegistry,
   createLocalProjectRecord,
@@ -4144,6 +4149,7 @@ export default function Home() {
   const [projectRegistryError, setProjectRegistryError] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyCloseRef = useRef<HTMLButtonElement>(null);
+  const [historyCompareEntryId, setHistoryCompareEntryId] = useState<string | null>(null);
   const [projectHistory, setProjectHistory] = useState<LocalProjectHistory>(() =>
     createEmptyProjectHistory("arc54"),
   );
@@ -4162,6 +4168,22 @@ export default function Home() {
     setToast(message);
     window.setTimeout(() => setToast(""), 2200);
   };
+  const historyCompareEntry = historyCompareEntryId === null
+    ? null
+    : projectHistory.entries.find((entry) => entry.id === historyCompareEntryId) ?? null;
+  const historyCompareIndex = historyCompareEntry === null
+    ? -1
+    : projectHistory.entries.indexOf(historyCompareEntry);
+  const historyComparePreviousEntry = historyCompareIndex > 0
+    ? projectHistory.entries[historyCompareIndex - 1]
+    : null;
+  let historyDiff: ProjectSnapshotDiff | null = null;
+  if (historyCompareEntry && historyComparePreviousEntry) {
+    historyDiff = compareProjectSnapshots(
+      historyComparePreviousEntry.snapshot,
+      historyCompareEntry.snapshot,
+    );
+  }
   const editableInputs = useMemo<EditableProjectInputs>(
     () => ({
       lengthMm: length,
@@ -11056,20 +11078,73 @@ export default function Home() {
               <button className="secondary-button" onClick={createManualCheckpoint} disabled={!storageReady}>Create checkpoint</button>
             </div>
             {saveError && <p className="history-error" role="status">{saveError}</p>}
+            {historyCompareEntry && (
+              <section className="history-diff" aria-label="Checkpoint comparison">
+                <div className="history-diff-heading">
+                  <div>
+                    <span className="eyebrow">Configuration delta</span>
+                    <strong>
+                      {historyComparePreviousEntry
+                        ? `R${String(historyComparePreviousEntry.snapshot.revision).padStart(2, "0")} → R${String(historyCompareEntry.snapshot.revision).padStart(2, "0")}`
+                        : `R${String(historyCompareEntry.snapshot.revision).padStart(2, "0")} has no earlier checkpoint`}
+                    </strong>
+                  </div>
+                  <button className="history-diff-close" type="button" onClick={() => setHistoryCompareEntryId(null)}>Close</button>
+                </div>
+                {!historyComparePreviousEntry || !historyDiff ? (
+                  <p className="history-diff-empty">Create another checkpoint before comparing this first revision.</p>
+                ) : (
+                  <>
+                    <div className="history-diff-summary">
+                      <strong>{historyDiff.summary}</strong>
+                      <span>{PROJECT_DIFF_MODEL_VERSION} · review metadata only</span>
+                    </div>
+                    {historyDiff.rows.length === 0 ? (
+                      <p className="history-diff-empty">These checkpoints contain the same validated configuration.</p>
+                    ) : (
+                      <div className="history-diff-table-wrap">
+                        <table className="history-diff-table">
+                          <caption className="sr-only">Project configuration changes between checkpoints</caption>
+                          <thead>
+                            <tr><th scope="col">Change</th><th scope="col">Before</th><th scope="col">After</th></tr>
+                          </thead>
+                          <tbody>
+                            {historyDiff.rows.map((row) => (
+                              <tr key={`${row.category}-${row.key}`}>
+                                <th scope="row"><span>{row.category}</span>{row.label}</th>
+                                <td>{row.before}</td>
+                                <td>{row.after}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    <p className="history-diff-note">This diff describes saved inputs, topology, and source selections. It is not simulation evidence, validation, or a flight-safety assessment.</p>
+                  </>
+                )}
+              </section>
+            )}
             <div className="history-list" aria-label="Saved local checkpoints">
               {projectHistory.entries.length === 0 ? (
                 <div className="history-empty"><strong>No checkpoints yet</strong><span>Your first edit will create one automatically after 600 ms.</span></div>
               ) : (
-                [...projectHistory.entries].reverse().map((entry) => (
-                  <article className="history-entry" key={entry.id}>
-                    <span className="history-revision">R{String(entry.snapshot.revision).padStart(2, "0")}</span>
-                    <div>
-                      <strong>{entry.label}</strong>
-                      <span>{new Date(entry.snapshot.savedAtIso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</span>
-                    </div>
-                    <button onClick={() => restoreCheckpoint(entry.snapshot)}>Restore</button>
-                  </article>
-                ))
+                [...projectHistory.entries].reverse().map((entry) => {
+                  const entryIndex = projectHistory.entries.indexOf(entry);
+                  return (
+                    <article className={`history-entry${historyCompareEntryId === entry.id ? " history-entry-selected" : ""}`} key={entry.id}>
+                      <span className="history-revision">R{String(entry.snapshot.revision).padStart(2, "0")}</span>
+                      <div className="history-entry-content">
+                        <strong>{entry.label}</strong>
+                        <span>{new Date(entry.snapshot.savedAtIso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</span>
+                      </div>
+                      <div className="history-entry-actions">
+                        {entryIndex > 0 && <button type="button" onClick={() => setHistoryCompareEntryId(entry.id)}>{historyCompareEntryId === entry.id ? "Comparing" : "Compare"}</button>}
+                        <button type="button" onClick={() => restoreCheckpoint(entry.snapshot)}>Restore</button>
+                      </div>
+                    </article>
+                  );
+                })
               )}
             </div>
             <div className="history-notice">

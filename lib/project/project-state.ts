@@ -731,7 +731,7 @@ export function projectConfigurationFingerprint(input: Readonly<{
   });
 }
 
-const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
+export const PROJECT_INPUT_LABELS: Readonly<Record<keyof EditableProjectInputs, string>> = {
   lengthMm: "airframe length",
   diameterMm: "outer diameter",
   noseLengthMm: "nose length",
@@ -810,11 +810,11 @@ const inputLabels: Readonly<Record<keyof EditableProjectInputs, string>> = {
 export function describeProjectInputChanges(previous: EditableProjectInputs, current: EditableProjectInputs): string {
   const before = validateEditableProjectInputs(previous);
   const after = validateEditableProjectInputs(current);
-  const changed = (Object.keys(inputLabels) as Array<keyof EditableProjectInputs>)
+  const changed = (Object.keys(PROJECT_INPUT_LABELS) as Array<keyof EditableProjectInputs>)
     .filter((key) => key === "uncertaintyCorrelations" || key === "windProfileLayers"
       ? JSON.stringify(before[key] ?? []) !== JSON.stringify(after[key] ?? [])
       : before[key] !== after[key])
-    .map((key) => inputLabels[key]);
+    .map((key) => PROJECT_INPUT_LABELS[key]);
   if (changed.length === 0) return "No input changes";
   if (changed.length <= 2) return `Changed ${changed.join(" and ")}`;
   return `Changed ${changed.slice(0, 2).join(", ")} +${changed.length - 2} more`;
