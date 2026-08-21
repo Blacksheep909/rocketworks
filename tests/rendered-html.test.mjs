@@ -761,6 +761,9 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(page, /Duplicate current project/);
   assert.match(page, /Open project/);
   assert.match(page, /Backup local workspace/);
+  assert.match(page, /Restore workspace backup/);
+  assert.match(page, /parseLocalWorkspaceBackup/);
+  assert.match(page, /mergeLocalWorkspaceBackup/);
   assert.match(page, /LOCAL_WORKSPACE_BACKUP_MEDIA_TYPE/);
   assert.match(page, /window\.localStorage\.setItem/);
   assert.match(page, /parseLocalProjectSnapshot/);
@@ -794,7 +797,7 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(page, /Local project history/);
   assert.match(page, /Close local project history/);
   assert.match(page, /Restored revision/);
-  assert.match(page, /not cloud sync, collaboration, or a backup/);
+  assert.match(page, /not cloud sync or collaboration/);
   assert.match(projectState, /DEFAULT_LOCAL_HISTORY_LIMIT = 40/);
   assert.match(projectState, /launchRailEnabled/);
   assert.match(projectState, /launchRailLengthM/);

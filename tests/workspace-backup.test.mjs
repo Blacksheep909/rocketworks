@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   LOCAL_WORKSPACE_BACKUP_SCHEMA_ID,
   createLocalWorkspaceBackup,
+  mergeLocalWorkspaceBackup,
   parseLocalWorkspaceBackup,
   serializeLocalWorkspaceBackup,
   validateLocalWorkspaceBackup,
@@ -83,5 +84,57 @@ test("workspace backups reject malformed identity and missing boundaries", () =>
   assert.throws(
     () => parseLocalWorkspaceBackup(JSON.stringify({ ...source, registry: { ...source.registry, activeProjectId: "missing" } })),
     /Could not read local workspace backup: Active project missing/,
+  );
+});
+
+test("workspace backup merge replaces matching ids and activates the imported project", () => {
+  const source = createLocalWorkspaceBackup(registry(), "2026-08-21T07:30:00.000Z");
+  const currentSnapshot = createLocalProjectSnapshot({
+    projectId: "arc54",
+    projectName: "Old ARC 54",
+    revision: 4,
+    savedAtIso: "2026-08-21T08:00:00.000Z",
+    inputs,
+  });
+  const currentHistory = appendProjectHistory(
+    createEmptyProjectHistory("arc54"),
+    currentSnapshot,
+    "Current local snapshot",
+  );
+  const current = upsertLocalProjectRecord(
+    createEmptyProjectRegistry("arc54"),
+    createLocalProjectRecord(currentSnapshot, currentHistory),
+  );
+  const merged = mergeLocalWorkspaceBackup(current, source);
+  assert.deepEqual(merged.projects.map((record) => record.projectId), ["arc54"]);
+  assert.equal(merged.activeProjectId, "arc54");
+  assert.equal(merged.projects[0].projectName, "ARC 54");
+});
+
+test("workspace backup merge rejects capacity overflow instead of dropping projects", () => {
+  const current = createEmptyProjectRegistry("arc54");
+  let filled = current;
+  for (let index = 0; index < 24; index += 1) {
+    const projectId = `existing-${index}`;
+    const snapshot = createLocalProjectSnapshot({
+      projectId,
+      projectName: `Existing ${index}`,
+      revision: 1,
+      savedAtIso: `2026-08-21T08:${String(index).padStart(2, "0")}:00.000Z`,
+      inputs,
+    });
+    const history = appendProjectHistory(
+      createEmptyProjectHistory(projectId),
+      snapshot,
+      "Initial local snapshot",
+    );
+    filled = upsertLocalProjectRecord(
+      filled,
+      createLocalProjectRecord(snapshot, history),
+    );
+  }
+  assert.throws(
+    () => mergeLocalWorkspaceBackup(filled, createLocalWorkspaceBackup(registry(), "2026-08-21T09:00:00.000Z")),
+    /browser limit is 24/,
   );
 });

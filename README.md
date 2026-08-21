@@ -275,10 +275,10 @@ research, standards, and original code.
 - a functional project console behind the workspace header with local save
   status, revision handoff, history, template, import, export, checkpoint, and
   share actions; the console now indexes up to 24 validated browser-local
-  workspaces, can open or duplicate a design, and can download a strict
-  workspace-backup envelope without implying cloud sync; multi-user
-  collaboration remains explicitly out of scope for this browser-only
-  surface;
+  workspaces, can open or duplicate a design, and can download or merge a
+  strict workspace-backup envelope without implying cloud sync; matching
+  project IDs replace their local records, capacity overflow is explicit, and
+  multi-user collaboration remains out of scope for this browser-only surface;
 - coupled-flight contract settings are carried through validated autosave,
   project JSON, and share links, including released-body aerodynamic mode,
   mutual-gravity softening, contact-screen assumptions, and 6DOF integration

@@ -11,6 +11,9 @@ flight-readiness claims.
   a strict versioned envelope containing every browser-local project snapshot
   and history. The backup discloses that external motor/aerodynamic/component
   libraries remain separate and that cloud sync/collaboration are not implied.
+  Restore now validates and merges that envelope back into the browser: matching
+  project IDs are replaced, new projects append, the imported active project is
+  opened, and capacity overflow fails without silently dropping records.
 
 - Add a strict device-local project registry behind the project console. The
   workspace now indexes up to 24 validated project snapshots and histories,

@@ -1,4 +1,5 @@
 import {
+  LOCAL_PROJECT_REGISTRY_LIMIT,
   serializeLocalProjectRegistry,
   validateLocalProjectRegistry,
   type LocalProjectRegistry,
@@ -82,6 +83,45 @@ export function createLocalWorkspaceBackup(
     source: WORKSPACE_BACKUP_SOURCE,
     registry: validateLocalProjectRegistry(registry),
     notes: [...WORKSPACE_BACKUP_NOTES],
+  });
+}
+
+/**
+ * Merge a validated backup into the current browser-local project index.
+ * Imported records replace records with the same project id; new records are
+ * appended in backup order. The imported active project becomes active when
+ * it exists, while the current active id is retained for an empty backup.
+ * Nothing is silently dropped when the device-local capacity would be
+ * exceeded.
+ */
+export function mergeLocalWorkspaceBackup(
+  currentRegistry: LocalProjectRegistry,
+  backup: LocalWorkspaceBackup,
+): LocalProjectRegistry {
+  const current = validateLocalProjectRegistry(currentRegistry);
+  const imported = validateLocalWorkspaceBackup(backup);
+  const projects = new Map(current.projects.map((record) => [record.projectId, record]));
+  for (const record of imported.registry.projects) projects.set(record.projectId, record);
+  if (projects.size > LOCAL_PROJECT_REGISTRY_LIMIT) {
+    throw new Error(
+      `Workspace backup merge would create ${projects.size} projects; the browser limit is ${LOCAL_PROJECT_REGISTRY_LIMIT}. Open or duplicate projects to make room before importing.`,
+    );
+  }
+  const importedActiveIsPresent = imported.registry.projects.some(
+    (record) => record.projectId === imported.registry.activeProjectId,
+  );
+  const currentActiveIsPresent = [...projects.values()].some(
+    (record) => record.projectId === current.activeProjectId,
+  );
+  const activeProjectId = importedActiveIsPresent
+    ? imported.registry.activeProjectId
+    : currentActiveIsPresent
+      ? current.activeProjectId
+      : imported.registry.activeProjectId;
+  return validateLocalProjectRegistry({
+    ...current,
+    activeProjectId,
+    projects: [...projects.values()],
   });
 }
 
