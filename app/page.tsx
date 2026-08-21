@@ -182,6 +182,10 @@ import {
   type ProjectSnapshotDiff,
 } from "../lib/project/project-diff.ts";
 import {
+  createProjectDiffCsv,
+  createProjectDiffMarkdown,
+} from "../lib/export/project-diff-exports.ts";
+import {
   LOCAL_PROJECT_REGISTRY_STORAGE_KEY,
   createEmptyProjectRegistry,
   createLocalProjectRecord,
@@ -4184,6 +4188,23 @@ export default function Home() {
       historyCompareEntry.snapshot,
     );
   }
+  const exportHistoryDiff = (format: "csv" | "markdown") => {
+    if (!historyDiff || !historyComparePreviousEntry || !historyCompareEntry) return;
+    try {
+      const beforeRevision = String(historyComparePreviousEntry.snapshot.revision).padStart(2, "0");
+      const afterRevision = String(historyCompareEntry.snapshot.revision).padStart(2, "0");
+      const stem = `${projectFileStem(projectName)}-r${beforeRevision}-r${afterRevision}-configuration-diff`;
+      const isCsv = format === "csv";
+      downloadTextArtifact(
+        `${stem}.${isCsv ? "csv" : "md"}`,
+        isCsv ? "text/csv;charset=utf-8" : "text/markdown;charset=utf-8",
+        isCsv ? createProjectDiffCsv(historyDiff) : createProjectDiffMarkdown(historyDiff),
+      );
+      notify(`Checkpoint diff ${isCsv ? "CSV" : "Markdown"} downloaded`);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unable to export checkpoint diff");
+    }
+  };
   const editableInputs = useMemo<EditableProjectInputs>(
     () => ({
       lengthMm: length,
@@ -11097,7 +11118,13 @@ export default function Home() {
                   <>
                     <div className="history-diff-summary">
                       <strong>{historyDiff.summary}</strong>
-                      <span>{PROJECT_DIFF_MODEL_VERSION} · review metadata only</span>
+                      <div className="history-diff-summary-meta">
+                        <span>{PROJECT_DIFF_MODEL_VERSION} · review metadata only</span>
+                        <div className="history-diff-actions" aria-label="Export checkpoint comparison">
+                          <button type="button" onClick={() => exportHistoryDiff("csv")}>Export CSV</button>
+                          <button type="button" onClick={() => exportHistoryDiff("markdown")}>Export Markdown</button>
+                        </div>
+                      </div>
                     </div>
                     {historyDiff.rows.length === 0 ? (
                       <p className="history-diff-empty">These checkpoints contain the same validated configuration.</p>

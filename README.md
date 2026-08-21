@@ -45,6 +45,9 @@ research, standards, and original code.
 - a device-local, provenance-aware component library for reusable core,
   recovery, equipment-mass, and cylindrical-pod presets, with strict bounds and
   portable-project import/export;
+- checkpoint-to-checkpoint configuration review with deterministic CSV and
+  Markdown handoff artifacts that preserve revisions, source selections, and
+  the explicit non-validation boundary;
 - one-click configured-stage duplication with authored-component copies and
   safe component rehoming when a non-core stage is removed;
 - per-stage body-length, diameter, and nose-length overrides for generated

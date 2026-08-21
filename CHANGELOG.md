@@ -10,7 +10,9 @@ flight-readiness claims.
   original `rocketworks-project-diff-0.1.0` contract reports changed inputs,
   topology counts, and source selections with explicit before/after values;
   it remains review metadata and does not imply simulation validation or cloud
-  collaboration.
+  collaboration. The selected comparison can now be handed off as deterministic
+  CSV or Markdown using the versioned
+  `rocketworks-project-diff-export-0.1.0` envelope.
 
 - Add a deterministic topology-aware manufacturing manifest CSV beside the
   DXF, STL, and OpenSCAD reference artifacts. It lists nose, airframe, fin-set,

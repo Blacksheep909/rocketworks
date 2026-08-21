@@ -40,6 +40,13 @@ validated snapshots and does not mutate them. It is review metadata only: it
 does not rerun physics, compare flight traces, establish configuration control,
 or upgrade any result to validation or flight-safety evidence.
 
+The comparison panel can also download the selected pair as deterministic CSV or
+Markdown. These artifacts use the `rocketworks-project-diff-export-0.1.0`
+envelope, retain the source revisions/timestamps and review boundary, and are
+intended for issue descriptions or engineering handoff. They are not project
+documents, simulation exports, or a replacement for an approved configuration
+record.
+
 ## Limits and privacy
 
 Browser storage is synchronous, capacity-limited, and specific to the current browser profile and origin. Private browsing, storage policies, browser cleanup, or site-data deletion can remove it. This implementation has no cloud synchronization, account identity, collaboration, multi-device merge, conflict resolution, server backup, encryption layer, or v0-to-v1 migration. Browser extensions and other software with access to the profile may be able to inspect local records.
