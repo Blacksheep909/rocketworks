@@ -54,6 +54,14 @@ intended for issue descriptions or engineering handoff. They are not project
 documents, simulation exports, or a replacement for an approved configuration
 record.
 
+The history dialog can verify a CSV handoff with **Verify diff CSV**. The parser
+checks the exact envelope/model versions, chronology, row count, escaped CSV
+cells, and normalized-configuration fingerprints before showing the artifact in
+a separate review card. Verification is local and read-only: it does not
+restore a project, merge history, rerun physics, or modify the active design.
+Files are bounded to 2,000,000 characters and malformed or unsupported
+artifacts are rejected without changing browser state.
+
 ## Limits and privacy
 
 Browser storage is synchronous, capacity-limited, and specific to the current browser profile and origin. Private browsing, storage policies, browser cleanup, or site-data deletion can remove it. This implementation has no cloud synchronization, account identity, collaboration, multi-device merge, conflict resolution, server backup, encryption layer, or v0-to-v1 migration. Browser extensions and other software with access to the profile may be able to inspect local records.

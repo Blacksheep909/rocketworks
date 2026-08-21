@@ -842,6 +842,10 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(projectDiff, /Project checkpoints must belong to the same project/);
   assert.match(page, /createProjectDiffCsv/);
   assert.match(page, /createProjectDiffMarkdown/);
+  assert.match(page, /parseProjectDiffCsv/);
+  assert.match(page, /Verify diff CSV/);
+  assert.match(page, /Verified handoff artifact/);
+  assert.match(page, /no project state changed/);
   assert.match(page, /Export CSV/);
   assert.match(page, /Export Markdown/);
   assert.match(projectDiffExports, /PROJECT_DIFF_EXPORT_MODEL_VERSION/);
@@ -849,10 +853,14 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(projectDiffExports, /non-cryptographic equality aids/);
   assert.match(projectDiffExports, /createProjectDiffCsv/);
   assert.match(projectDiffExports, /createProjectDiffMarkdown/);
+  assert.match(projectDiffExports, /parseProjectDiffCsv/);
+  assert.match(projectDiffExports, /MAX_PROJECT_DIFF_CSV_LENGTH/);
   assert.match(stylesheet, /\.history-entry button:focus-visible/);
   assert.match(stylesheet, /\.history-diff-table/);
   assert.match(stylesheet, /\.history-diff-actions/);
   assert.match(stylesheet, /\.history-diff-controls/);
+  assert.match(stylesheet, /\.history-toolbar-actions/);
+  assert.match(stylesheet, /\.history-diff-imported/);
 });
 
 test("ships beginner and expert workflows with original templates and guidance", async () => {

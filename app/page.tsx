@@ -188,6 +188,8 @@ import {
 import {
   createProjectDiffCsv,
   createProjectDiffMarkdown,
+  MAX_PROJECT_DIFF_CSV_LENGTH,
+  parseProjectDiffCsv,
 } from "../lib/export/project-diff-exports.ts";
 import {
   LOCAL_PROJECT_REGISTRY_STORAGE_KEY,
@@ -4119,6 +4121,7 @@ export default function Home() {
   const exportCloseRef = useRef<HTMLButtonElement>(null);
   const projectImportInputRef = useRef<HTMLInputElement>(null);
   const workspaceBackupImportInputRef = useRef<HTMLInputElement>(null);
+  const historyDiffImportInputRef = useRef<HTMLInputElement>(null);
   const [projectImportRequested, setProjectImportRequested] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const templatesCloseRef = useRef<HTMLButtonElement>(null);
@@ -4159,6 +4162,8 @@ export default function Home() {
   const historyCloseRef = useRef<HTMLButtonElement>(null);
   const [historyCompareEntryId, setHistoryCompareEntryId] = useState<string | null>(null);
   const [historyCompareBaselineEntryId, setHistoryCompareBaselineEntryId] = useState<string | null>(null);
+  const [importedHistoryDiff, setImportedHistoryDiff] = useState<ProjectSnapshotDiff | null>(null);
+  const [historyDiffImportError, setHistoryDiffImportError] = useState("");
   const [projectHistory, setProjectHistory] = useState<LocalProjectHistory>(() =>
     createEmptyProjectHistory("arc54"),
   );
@@ -4211,6 +4216,27 @@ export default function Home() {
       notify(`Checkpoint diff ${isCsv ? "CSV" : "Markdown"} downloaded`);
     } catch (error) {
       notify(error instanceof Error ? error.message : "Unable to export checkpoint diff");
+    }
+  };
+  const openHistoryDiffImport = () => {
+    historyDiffImportInputRef.current?.click();
+  };
+  const importHistoryDiffFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    try {
+      if (file.size > MAX_PROJECT_DIFF_CSV_LENGTH) {
+        throw new Error(`Checkpoint diff CSVs must be ${MAX_PROJECT_DIFF_CSV_LENGTH.toLocaleString()} characters or smaller.`);
+      }
+      const imported = parseProjectDiffCsv(await file.text());
+      setImportedHistoryDiff(imported);
+      setHistoryDiffImportError("");
+      notify(`Verified checkpoint diff R${String(imported.beforeRevision).padStart(2, "0")} → R${String(imported.afterRevision).padStart(2, "0")}`);
+    } catch (error) {
+      setImportedHistoryDiff(null);
+      setHistoryDiffImportError(error instanceof Error ? error.message : "Unable to verify checkpoint diff CSV.");
+      notify("Checkpoint diff verification failed; no project state changed");
     }
   };
   const editableInputs = useMemo<EditableProjectInputs>(
@@ -8032,6 +8058,14 @@ export default function Home() {
         aria-label="Import RocketWorks workspace backup"
         onChange={importWorkspaceBackupFile}
       />
+      <input
+        ref={historyDiffImportInputRef}
+        className="sr-only"
+        type="file"
+        accept=".csv,text/csv"
+        aria-label="Verify RocketWorks checkpoint diff CSV"
+        onChange={importHistoryDiffFile}
+      />
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">R</span>
@@ -11104,9 +11138,13 @@ export default function Home() {
                 <strong>{projectHistory.entries.length} / 40 checkpoints</strong>
                 <span>Newest changes are kept when the device timeline reaches its limit.</span>
               </div>
-              <button className="secondary-button" onClick={createManualCheckpoint} disabled={!storageReady}>Create checkpoint</button>
+              <div className="history-toolbar-actions">
+                <button className="secondary-button" onClick={openHistoryDiffImport}>Verify diff CSV</button>
+                <button className="secondary-button" onClick={createManualCheckpoint} disabled={!storageReady}>Create checkpoint</button>
+              </div>
             </div>
             {saveError && <p className="history-error" role="status">{saveError}</p>}
+            {historyDiffImportError && <p className="history-error" role="alert">{historyDiffImportError}</p>}
             {historyCompareEntry && (
               <section className="history-diff" aria-label="Checkpoint comparison">
                 <div className="history-diff-heading">
@@ -11179,6 +11217,48 @@ export default function Home() {
                     <p className="history-diff-note">This diff describes saved inputs, topology, and source selections. It is not simulation evidence, validation, or a flight-safety assessment.</p>
                   </>
                 )}
+              </section>
+            )}
+            {importedHistoryDiff && (
+              <section className="history-diff history-diff-imported" aria-label="Imported checkpoint diff">
+                <div className="history-diff-heading">
+                  <div>
+                    <span className="eyebrow">Verified handoff artifact</span>
+                    <strong>R{String(importedHistoryDiff.beforeRevision).padStart(2, "0")} → R{String(importedHistoryDiff.afterRevision).padStart(2, "0")}</strong>
+                  </div>
+                  <button className="history-diff-close" type="button" onClick={() => setImportedHistoryDiff(null)}>Clear</button>
+                </div>
+                <div className="history-diff-summary">
+                  <strong>{importedHistoryDiff.summary}</strong>
+                  <div className="history-diff-summary-meta">
+                    <span>CSV verified · review metadata only</span>
+                    <span title={`Non-cryptographic configuration equality aid (not a tamper signature): ${importedHistoryDiff.beforeConfigurationFingerprint} → ${importedHistoryDiff.afterConfigurationFingerprint}`}>
+                      config {importedHistoryDiff.beforeConfigurationFingerprint.split(":").at(-1)} → {importedHistoryDiff.afterConfigurationFingerprint.split(":").at(-1)}
+                    </span>
+                  </div>
+                </div>
+                {importedHistoryDiff.rows.length === 0 ? (
+                  <p className="history-diff-empty">The verified artifact contains no configuration changes.</p>
+                ) : (
+                  <div className="history-diff-table-wrap">
+                    <table className="history-diff-table">
+                      <caption className="sr-only">Imported project configuration changes between checkpoints</caption>
+                      <thead>
+                        <tr><th scope="col">Change</th><th scope="col">Before</th><th scope="col">After</th></tr>
+                      </thead>
+                      <tbody>
+                        {importedHistoryDiff.rows.map((row) => (
+                          <tr key={`imported-${row.category}-${row.key}`}>
+                            <th scope="row"><span>{row.category}</span>{row.label}</th>
+                            <td>{row.before}</td>
+                            <td>{row.after}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <p className="history-diff-note">Verified locally without changing the active design or history. This artifact is configuration review metadata, not simulation evidence, validation, or a flight-safety assessment.</p>
               </section>
             )}
             <div className="history-list" aria-label="Saved local checkpoints">

@@ -1942,6 +1942,7 @@ kbd {
 .history-toolbar div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .history-toolbar strong { font-size: 10px; }
 .history-toolbar span { color: var(--muted); font-size: 8px; line-height: 1.45; }
+.history-toolbar-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; }
 .history-toolbar button { flex: 0 0 auto; }
 .history-toolbar button:disabled { opacity: .45; cursor: wait; }
 .history-error {
@@ -1975,6 +1976,9 @@ kbd {
   margin: 14px 22px 0; border: 1px solid rgba(47,159,255,.26); border-radius: 5px;
   background: rgba(47,159,255,.045); overflow: hidden;
 }
+.history-diff-imported { border-color: rgba(83,220,167,.34); background: rgba(83,220,167,.045); }
+.history-diff-imported .history-diff-heading { border-bottom-color: rgba(83,220,167,.2); }
+.history-diff-imported .history-diff-heading strong { color: #d6ffe9; }
 .history-diff-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 11px 12px; border-bottom: 1px solid rgba(47,159,255,.16); }
 .history-diff-heading > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .history-diff-heading strong { color: var(--ink); font-size: 10px; }
@@ -2245,6 +2249,8 @@ kbd {
   .topology-stage-events { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .topology-failure-toggle { grid-column: 1 / -1; min-height: 29px; justify-content: flex-start; }
   .history-toolbar { align-items: flex-start; padding: 14px; }
+  .history-toolbar-actions { align-items: stretch; flex-direction: column; width: 100%; }
+  .history-toolbar-actions button { width: 100%; }
   .history-list { padding: 12px 14px; }
   .history-entry { grid-template-columns: 34px minmax(0,1fr); gap: 9px; }
   .history-entry-actions { grid-column: 2; justify-content: flex-start; }

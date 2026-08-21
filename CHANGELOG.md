@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a strict, read-only checkpoint-diff CSV verifier. The history dialog can
+  reopen exported `rocketworks-project-diff-export-0.2.0` artifacts, validate
+  quoted cells, envelope/version metadata, chronology, row counts, and
+  normalized-configuration fingerprints, then show the verified handoff beside
+  local history without restoring or changing any project state.
+
 - Add deterministic normalized-configuration fingerprints to checkpoint diffs
   and their CSV/Markdown handoff artifacts. The
   `rocketworks-config-fingerprint-fnv1a32-0.1.0` digest is explicitly a

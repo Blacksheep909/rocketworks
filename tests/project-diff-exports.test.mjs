@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   createProjectDiffCsv,
   createProjectDiffMarkdown,
+  parseProjectDiffCsv,
   PROJECT_DIFF_EXPORT_MODEL_VERSION,
 } from "../lib/export/project-diff-exports.ts";
 import {
@@ -61,6 +62,34 @@ test("checkpoint diff CSV preserves metadata and escaped change rows", () => {
   assert.match(csv, /input,diameterMm,outer diameter,54,62/);
   assert.match(csv, /input,launchSiteName,launch-site name,ARC 54 synthetic range,"Pad 1, north"/);
   assert.match(csv, /\r\n$/);
+});
+
+test("checkpoint diff CSV round-trips quoted commas and newlines exactly", () => {
+  const diff = sampleDiff({ launchSiteName: "Pad 1,\n north" });
+  const csv = createProjectDiffCsv(diff);
+  assert.match(csv, /"Pad 1,\n north"/);
+  assert.deepEqual(parseProjectDiffCsv(csv), diff);
+  assert.deepEqual(parseProjectDiffCsv(csv.replaceAll("\r\n", "\n")), diff);
+});
+
+test("checkpoint diff CSV parser rejects unsupported envelopes and malformed rows", () => {
+  const csv = createProjectDiffCsv(sampleDiff({ launchSiteName: "Pad 1, north" }));
+  assert.throws(
+    () => parseProjectDiffCsv(csv.replace(`# export_model_version,${PROJECT_DIFF_EXPORT_MODEL_VERSION}`, "# export_model_version,other")),
+    /unsupported checkpoint diff CSV export model/,
+  );
+  assert.throws(
+    () => parseProjectDiffCsv(csv.replace(/# before_configuration_fingerprint,[^\r\n]+/, "# before_configuration_fingerprint,broken")),
+    /beforeConfigurationFingerprint must use/,
+  );
+  assert.throws(
+    () => parseProjectDiffCsv(csv.replace(/"Pad 1, north"/, '"Pad 1, north')),
+    /unterminated quoted cell/,
+  );
+  assert.throws(
+    () => parseProjectDiffCsv(csv.replace("# changed_count,2", "# changed_count,1")),
+    /changedCount must match rows/,
+  );
 });
 
 test("checkpoint diff Markdown is deterministic and retains the review boundary", () => {

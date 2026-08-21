@@ -48,7 +48,8 @@ research, standards, and original code.
 - checkpoint-to-checkpoint configuration review with an adjacent default and
   selectable earlier baseline, plus deterministic CSV and Markdown handoff
   artifacts that preserve revisions, source selections, normalized-configuration
-  fingerprints, and the explicit non-validation boundary;
+  fingerprints, and the explicit non-validation boundary; exported CSVs can be
+  reopened through a strict, read-only verifier without mutating the design;
 - one-click configured-stage duplication with authored-component copies and
   safe component rehoming when a non-core stage is removed;
 - per-stage body-length, diameter, and nose-length overrides for generated

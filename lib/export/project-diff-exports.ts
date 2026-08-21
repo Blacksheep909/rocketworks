@@ -12,6 +12,8 @@ import {
  */
 export const PROJECT_DIFF_EXPORT_MODEL_VERSION = "rocketworks-project-diff-export-0.2.0";
 export const PROJECT_DIFF_EXPORT_VALIDATION_STATUS = "engineering-preview-unvalidated";
+export const MAX_PROJECT_DIFF_CSV_LENGTH = 2_000_000;
+const PROJECT_DIFF_CSV_REVIEW_BOUNDARY = "Configuration review metadata only; not simulation evidence or a flight-safety assessment.";
 
 const MAX_DIFF_ROWS = 128;
 const MAX_TEXT_LENGTH = 2_048;
@@ -136,6 +138,199 @@ function validateDiff(input: ProjectSnapshotDiff): ProjectSnapshotDiff {
   };
 }
 
+type CsvRecord = readonly string[];
+
+/**
+ * Parses RFC 4180-style records without relying on a browser CSV package.
+ * Exported artifacts can contain quoted commas and newlines in review text,
+ * so splitting on line breaks would silently corrupt a handoff.
+ */
+function parseCsvRecords(input: string): CsvRecord[] {
+  if (input.length > MAX_PROJECT_DIFF_CSV_LENGTH) {
+    throw new Error(`checkpoint diff CSVs must be ${MAX_PROJECT_DIFF_CSV_LENGTH.toLocaleString()} characters or smaller`);
+  }
+  const records: string[][] = [];
+  let record: string[] = [];
+  let cell = "";
+  let inQuotes = false;
+  let closedQuote = false;
+  let atCellStart = true;
+
+  const finishCell = () => {
+    record.push(cell);
+    cell = "";
+    atCellStart = true;
+    closedQuote = false;
+  };
+  const finishRecord = () => {
+    finishCell();
+    records.push(record);
+    record = [];
+  };
+
+  for (let index = 0; index < input.length; index += 1) {
+    const character = input[index];
+    if (inQuotes) {
+      if (character === '"') {
+        if (input[index + 1] === '"') {
+          cell += '"';
+          index += 1;
+        } else {
+          inQuotes = false;
+          closedQuote = true;
+        }
+      } else {
+        cell += character;
+      }
+      continue;
+    }
+    if (character === '"') {
+      if (!atCellStart || closedQuote) {
+        throw new Error("checkpoint diff CSV contains a quote outside a quoted cell");
+      }
+      inQuotes = true;
+      atCellStart = false;
+      continue;
+    }
+    if (closedQuote) {
+      if (character !== "," && character !== "\r" && character !== "\n") {
+        throw new Error("checkpoint diff CSV has content after a closing quote");
+      }
+    }
+    if (character === ",") {
+      finishCell();
+    } else if (character === "\n") {
+      finishRecord();
+    } else if (character === "\r") {
+      if (input[index + 1] !== "\n") {
+        throw new Error("checkpoint diff CSV must use LF or CRLF line endings");
+      }
+      index += 1;
+      finishRecord();
+    } else {
+      cell += character;
+      atCellStart = false;
+    }
+  }
+  if (inQuotes) throw new Error("checkpoint diff CSV contains an unterminated quoted cell");
+  if (record.length > 0 || cell.length > 0) finishRecord();
+  return records;
+}
+
+const REQUIRED_DIFF_CSV_METADATA = [
+  "# rocketworks_project_diff",
+  "# export_model_version",
+  "# diff_model_version",
+  "# validation_status",
+  "# review_boundary",
+  "# project_id",
+  "# before_revision",
+  "# after_revision",
+  "# before_saved_at_iso",
+  "# after_saved_at_iso",
+  "# fingerprint_model_version",
+  "# before_configuration_fingerprint",
+  "# after_configuration_fingerprint",
+  "# changed_count",
+  "# summary",
+] as const;
+
+function parseMetadataInteger(metadata: ReadonlyMap<string, string>, key: string, minimum: number): number {
+  const value = metadata.get(key);
+  if (value === undefined || !/^\d+$/.test(value)) {
+    throw new Error(`checkpoint diff CSV metadata ${key} must be a non-negative integer`);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < minimum) {
+    throw new Error(`checkpoint diff CSV metadata ${key} is outside the supported range`);
+  }
+  return parsed;
+}
+
+function requireMetadata(metadata: ReadonlyMap<string, string>, key: string): string {
+  const value = metadata.get(key);
+  if (value === undefined) throw new Error(`checkpoint diff CSV is missing metadata ${key}`);
+  return value;
+}
+
+/**
+ * Reopens a deterministic checkpoint-diff CSV and validates every envelope,
+ * fingerprint, revision, and change row. The result is review metadata only;
+ * this function never restores a project or changes browser state.
+ */
+export function parseProjectDiffCsv(input: string): ProjectSnapshotDiff {
+  if (typeof input !== "string") throw new Error("checkpoint diff CSV must be text");
+  const records = parseCsvRecords(input);
+  if (records.length === 0) throw new Error("checkpoint diff CSV is empty");
+
+  const metadata = new Map<string, string>();
+  let recordIndex = 0;
+  while (recordIndex < records.length && records[recordIndex][0]?.startsWith("#")) {
+    const record = records[recordIndex];
+    if (record.length !== 2 || !record[0]) {
+      throw new Error(`checkpoint diff CSV metadata row ${recordIndex + 1} must contain exactly two cells`);
+    }
+    if (metadata.has(record[0])) throw new Error(`checkpoint diff CSV repeats metadata ${record[0]}`);
+    metadata.set(record[0], record[1]);
+    recordIndex += 1;
+  }
+  if (recordIndex === 0) throw new Error("checkpoint diff CSV is missing its metadata envelope");
+  for (const key of REQUIRED_DIFF_CSV_METADATA) {
+    if (!metadata.has(key)) throw new Error(`checkpoint diff CSV is missing metadata ${key}`);
+  }
+  if (metadata.size !== REQUIRED_DIFF_CSV_METADATA.length) {
+    throw new Error("checkpoint diff CSV contains unsupported metadata");
+  }
+  if (metadata.get("# rocketworks_project_diff") !== "1") {
+    throw new Error("unsupported checkpoint diff CSV envelope");
+  }
+  if (metadata.get("# export_model_version") !== PROJECT_DIFF_EXPORT_MODEL_VERSION) {
+    throw new Error(`unsupported checkpoint diff CSV export model: ${metadata.get("# export_model_version")}`);
+  }
+  if (metadata.get("# diff_model_version") !== PROJECT_DIFF_MODEL_VERSION) {
+    throw new Error(`unsupported checkpoint diff CSV model: ${metadata.get("# diff_model_version")}`);
+  }
+  if (metadata.get("# validation_status") !== PROJECT_DIFF_EXPORT_VALIDATION_STATUS) {
+    throw new Error("checkpoint diff CSV has an unsupported validation status");
+  }
+  if (metadata.get("# review_boundary") !== PROJECT_DIFF_CSV_REVIEW_BOUNDARY) {
+    throw new Error("checkpoint diff CSV review boundary is not recognized");
+  }
+  if (metadata.get("# fingerprint_model_version") !== PROJECT_DIFF_FINGERPRINT_MODEL_VERSION) {
+    throw new Error("checkpoint diff CSV has an unsupported fingerprint model");
+  }
+  if (records[recordIndex]?.join(",") !== "category,key,label,before,after") {
+    throw new Error("checkpoint diff CSV has an unexpected change-row header");
+  }
+  recordIndex += 1;
+
+  const rows = records.slice(recordIndex).map((record, index) => {
+    if (record.length !== 5) {
+      throw new Error(`checkpoint diff CSV change row ${index + 1} must contain exactly five cells`);
+    }
+    const [category, key, label, before, after] = record;
+    if (!DIFF_CATEGORIES.includes(category as ProjectDiffCategory)) {
+      throw new Error(`checkpoint diff CSV change row ${index + 1} has an unknown category`);
+    }
+    return { category: category as ProjectDiffCategory, key, label, before, after };
+  });
+  const changedCount = parseMetadataInteger(metadata, "# changed_count", 0);
+  const diff = {
+    modelVersion: PROJECT_DIFF_MODEL_VERSION,
+    projectId: requireMetadata(metadata, "# project_id"),
+    beforeRevision: parseMetadataInteger(metadata, "# before_revision", 1),
+    afterRevision: parseMetadataInteger(metadata, "# after_revision", 1),
+    beforeSavedAtIso: requireMetadata(metadata, "# before_saved_at_iso"),
+    afterSavedAtIso: requireMetadata(metadata, "# after_saved_at_iso"),
+    beforeConfigurationFingerprint: requireMetadata(metadata, "# before_configuration_fingerprint"),
+    afterConfigurationFingerprint: requireMetadata(metadata, "# after_configuration_fingerprint"),
+    changedCount,
+    summary: requireMetadata(metadata, "# summary"),
+    rows,
+  } satisfies ProjectSnapshotDiff;
+  return validateDiff(diff);
+}
+
 /**
  * Exports a deterministic CSV with comment-prefixed metadata and one row per
  * configuration change. Empty diffs remain useful because the summary and
@@ -148,7 +343,7 @@ export function createProjectDiffCsv(input: ProjectSnapshotDiff): string {
     ["# export_model_version", PROJECT_DIFF_EXPORT_MODEL_VERSION],
     ["# diff_model_version", diff.modelVersion],
     ["# validation_status", PROJECT_DIFF_EXPORT_VALIDATION_STATUS],
-    ["# review_boundary", "Configuration review metadata only; not simulation evidence or a flight-safety assessment."],
+    ["# review_boundary", PROJECT_DIFF_CSV_REVIEW_BOUNDARY],
     ["# project_id", diff.projectId],
     ["# before_revision", diff.beforeRevision],
     ["# after_revision", diff.afterRevision],
