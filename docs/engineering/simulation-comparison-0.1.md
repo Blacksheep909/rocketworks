@@ -74,6 +74,9 @@ When several named runs need to move together, the Artifact center can export
 the project-scoped `rocketworks.simulation-run-library` envelope documented in
 `simulation-run-library-export-0.1.md`; importing it merges identical-project
 records transactionally without restoring editable inputs.
+The run-library dialog also provides a multi-run matrix documented in
+`simulation-run-library-comparison-0.1.md`; it keeps vertical and staged
+metrics in separate groups and can emit a long-form comparison CSV.
 
 ## Compared metrics
 

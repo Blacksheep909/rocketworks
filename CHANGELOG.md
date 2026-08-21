@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a kind-aware saved-run comparison matrix. Users can select multiple
+  vertical and staged decision points, inspect separate metric groups without
+  cross-model mixing, and export a deterministic long-form CSV that preserves
+  run fingerprints, timestamps, units, and the engineering-preview boundary.
+
 - Add a strict portable simulation run-library JSON handoff. The Artifact
   center and run-library dialog can export all named vertical/staged records
   for the active project and merge them back later; identical IDs are

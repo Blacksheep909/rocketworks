@@ -296,6 +296,11 @@ import {
   type LocalSimulationRunLibrary,
 } from "../lib/project/simulation-run-library.ts";
 import {
+  createSimulationRunLibraryComparison,
+  createSimulationRunLibraryComparisonCsv,
+  type SimulationRunLibraryComparison,
+} from "../lib/project/simulation-run-library-comparison.ts";
+import {
   createStagedSimulationReviewExport,
   createVerticalSimulationReviewExport,
   MAX_SIMULATION_REVIEW_EXPORT_LENGTH,
@@ -3314,6 +3319,64 @@ function PhysicsBenchmarkCard({
   );
 }
 
+function formatRunLibraryComparisonValue(value: number | null, unit: string): string {
+  if (value === null || !Number.isFinite(value)) return "—";
+  if (unit === "count") return value.toFixed(0);
+  if (unit === "Pa") return value >= 1000 ? value.toLocaleString(undefined, { maximumFractionDigits: 0 }) : value.toFixed(1);
+  if (unit === "Mach") return value.toFixed(3);
+  if (unit === "deg") return value.toFixed(2);
+  if (unit === "rad/s") return value.toFixed(3);
+  return value.toFixed(2);
+}
+
+function SimulationRunLibraryComparisonCard({
+  comparison,
+  onClose,
+  onExport,
+}: {
+  comparison: SimulationRunLibraryComparison;
+  onClose: () => void;
+  onExport: () => void;
+}) {
+  return (
+    <section className="run-library-comparison" aria-labelledby="run-library-comparison-title">
+      <div className="run-library-comparison-heading">
+        <div>
+          <span className="eyebrow">Decision matrix</span>
+          <h3 id="run-library-comparison-title">Compare saved runs</h3>
+          <p>{comparison.selectedRunIds.length} saved result{comparison.selectedRunIds.length === 1 ? "" : "s"} · values are read from their immutable result envelopes.</p>
+        </div>
+        <div className="run-library-comparison-actions">
+          <button type="button" onClick={onExport}>Export CSV</button>
+          <button type="button" className="secondary-button" onClick={onClose}>Close</button>
+        </div>
+      </div>
+      {comparison.warnings.map((warning) => <p className="run-library-comparison-warning" key={warning}>{warning}</p>)}
+      {comparison.groups.map((group) => (
+        <div className="run-library-comparison-group" key={group.kind}>
+          <div className="run-library-comparison-group-heading">
+            <strong>{group.kind === "vertical" ? "Vertical preview" : "Coupled staged preview"}</strong>
+            <span>{group.runs.length} run{group.runs.length === 1 ? "" : "s"} · {group.kind === "vertical" ? "1D metrics" : "6DOF metrics"}</span>
+          </div>
+          <div className="run-library-comparison-table" role="table" aria-label={`${group.kind} saved run comparison`}>
+            <div className="run-library-comparison-row run-library-comparison-row-header" role="row" style={{ gridTemplateColumns: `minmax(165px,1.25fr) repeat(${group.runs.length}, minmax(120px,1fr))` }}>
+              <span role="columnheader">Metric</span>
+              {group.runs.map((run) => <span role="columnheader" title={`${run.label} · ${run.fingerprint}`} key={run.id}>{run.label}</span>)}
+            </div>
+            {group.metrics.map((metric) => (
+              <div className="run-library-comparison-row" role="row" style={{ gridTemplateColumns: `minmax(165px,1.25fr) repeat(${group.runs.length}, minmax(120px,1fr))` }} key={metric.key}>
+                <span role="rowheader"><strong>{metric.label}</strong><small>{metric.unit}</small></span>
+                {metric.values.map((value, index) => <span role="cell" key={`${metric.key}-${group.runs[index]!.id}`}>{formatRunLibraryComparisonValue(value, metric.unit)}</span>)}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      <p className="run-library-comparison-note">Comparison values are diagnostic summaries, not a re-simulation or acceptance test. Each run keeps its model fingerprint, assumptions, warnings, and explicit engineering-preview boundary.</p>
+    </section>
+  );
+}
+
 type StageFlightMetricKey =
   | "altitude"
   | "speed"
@@ -4178,6 +4241,16 @@ export default function Home() {
   const simulationRunLibraryRef = useRef(simulationRunLibrary);
   const [runLibraryLabel, setRunLibraryLabel] = useState("");
   const [runLibraryError, setRunLibraryError] = useState("");
+  const [runLibraryCompareIds, setRunLibraryCompareIds] = useState<string[]>([]);
+  const [runLibraryComparisonOpen, setRunLibraryComparisonOpen] = useState(false);
+  const activeRunLibraryCompareIds = useMemo(
+    () => runLibraryCompareIds.filter((id) => simulationRunLibrary.runs.some((run) => run.id === id)),
+    [runLibraryCompareIds, simulationRunLibrary.runs],
+  );
+  const runLibraryComparison = useMemo<SimulationRunLibraryComparison | null>(() => {
+    if (!runLibraryComparisonOpen || activeRunLibraryCompareIds.length < 2) return null;
+    return createSimulationRunLibraryComparison(simulationRunLibrary, activeRunLibraryCompareIds);
+  }, [activeRunLibraryCompareIds, runLibraryComparisonOpen, simulationRunLibrary]);
   const [topologyOpen, setTopologyOpen] = useState(false);
   const topologyCloseRef = useRef<HTMLButtonElement>(null);
   const [vehicleTopology, setVehicleTopology] = useState<LocalVehicleTopology>(() => createDefaultVehicleTopology());
@@ -5994,10 +6067,45 @@ export default function Home() {
       const nextLibrary = removeLocalSimulationRun(simulationRunLibraryRef.current, id);
       simulationRunLibraryRef.current = nextLibrary;
       setSimulationRunLibrary(nextLibrary);
+      setRunLibraryCompareIds((current) => current.filter((candidate) => candidate !== id));
       const persisted = persistSimulationRunLibrary(nextLibrary);
       notify(`Simulation run removed${persisted ? "" : " for this session"}`);
     } catch (error) {
       setRunLibraryError(error instanceof Error ? error.message : "Unable to remove this simulation run.");
+    }
+  };
+  const toggleRunLibraryComparison = (id: string) => {
+    setRunLibraryCompareIds((current) => current.includes(id)
+      ? current.filter((candidate) => candidate !== id)
+      : current.length >= 8 ? current : [...current, id]);
+  };
+  const clearRunLibraryComparison = () => {
+    setRunLibraryCompareIds([]);
+    setRunLibraryComparisonOpen(false);
+  };
+  const openRunLibraryComparison = () => {
+    if (activeRunLibraryCompareIds.length < 2) {
+      notify("Select at least two saved runs before comparing");
+      return;
+    }
+    setRunLibraryComparisonOpen(true);
+  };
+  const exportRunLibraryComparison = () => {
+    if (activeRunLibraryCompareIds.length < 2) {
+      notify("Select at least two saved runs before exporting a comparison");
+      return;
+    }
+    try {
+      const comparison = createSimulationRunLibraryComparison(simulationRunLibrary, activeRunLibraryCompareIds);
+      downloadTextArtifact(
+        `${projectFileStem(projectName)}-simulation-run-comparison.csv`,
+        "text/csv;charset=utf-8",
+        createSimulationRunLibraryComparisonCsv(comparison),
+      );
+      notify("Saved-run comparison exported");
+    } catch (error) {
+      setRunLibraryError(error instanceof Error ? error.message : "Unable to export the saved-run comparison.");
+      notify("Saved-run comparison export failed");
     }
   };
   const openSimulationReviewImport = () => {
@@ -11490,7 +11598,18 @@ export default function Home() {
                 <button type="button" onClick={openSimulationRunLibraryImport}>Import catalog</button>
               </div>
             </div>
+            {simulationRunLibrary.runs.length > 0 && <div className="run-library-compare-toolbar">
+              <div>
+                <span className="eyebrow">Compare decision points</span>
+                <small>{activeRunLibraryCompareIds.length} selected · choose two or more saved runs to open a side-by-side matrix.</small>
+              </div>
+              <div className="run-library-compare-toolbar-actions">
+                <button type="button" onClick={openRunLibraryComparison} disabled={activeRunLibraryCompareIds.length < 2}>Compare selected</button>
+                <button type="button" className="secondary-button" onClick={clearRunLibraryComparison} disabled={activeRunLibraryCompareIds.length === 0}>Clear selection</button>
+              </div>
+            </div>}
             {runLibraryError && <p className="run-library-error" role="alert">{runLibraryError}</p>}
+            {runLibraryComparison && <SimulationRunLibraryComparisonCard comparison={runLibraryComparison} onClose={() => setRunLibraryComparisonOpen(false)} onExport={exportRunLibraryComparison} />}
             <div className="run-library-list" aria-label="Saved simulation runs">
               {simulationRunLibrary.runs.length === 0 ? (
                 <div className="run-library-empty"><strong>No saved runs yet</strong><span>Run an estimate, give it a label, and save it here to keep a reusable comparison point.</span></div>
@@ -11505,6 +11624,7 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="run-library-record-actions">
+                    <button type="button" className={activeRunLibraryCompareIds.includes(run.id) ? "run-library-compare-selected" : ""} aria-pressed={activeRunLibraryCompareIds.includes(run.id)} onClick={() => toggleRunLibraryComparison(run.id)}>{activeRunLibraryCompareIds.includes(run.id) ? "Selected" : "Compare"}</button>
                     <button type="button" onClick={() => loadSimulationRunAsReference(run)}>Use as reference</button>
                     <button type="button" className="danger-button" onClick={() => deleteSimulationRun(run.id)}>Remove</button>
                   </div>

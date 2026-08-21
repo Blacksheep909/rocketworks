@@ -218,6 +218,21 @@ test("ships a portable simulation run-library handoff", async () => {
   assert.match(docs, /transactionally/);
 });
 
+test("ships a kind-aware saved-run comparison matrix", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const comparisonSource = await readFile(new URL("../lib/project/simulation-run-library-comparison.ts", import.meta.url), "utf8");
+  const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(source, /Compare selected/);
+  assert.match(source, /Compare saved runs/);
+  assert.match(source, /createSimulationRunLibraryComparisonCsv/);
+  assert.match(source, /Select at least two saved runs/);
+  assert.match(comparisonSource, /SIMULATION_RUN_LIBRARY_COMPARISON_MODEL_VERSION/);
+  assert.match(comparisonSource, /Vertical and staged runs are shown in separate metric groups/);
+  assert.match(comparisonSource, /createSimulationRunLibraryComparisonCsv/);
+  assert.match(stylesheet, /\.run-library-comparison-table/);
+  assert.match(stylesheet, /\.run-library-compare-toolbar/);
+});
+
 test("ships a validated browser design-share path without bundling local libraries", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const shareSource = await readFile(new URL("../lib/project/project-share.ts", import.meta.url), "utf8");
