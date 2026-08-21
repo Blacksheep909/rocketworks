@@ -141,6 +141,10 @@ research, standards, and original code.
   changing its fixed-grid default;
 - half-step numerical convergence diagnostics for the fast vertical estimate,
   with explicit metric/event thresholds and stale-result handling;
+- expert Flight-inspector sliders for the persisted vertical and coupled 6DOF
+  integration steps (1 ms–200 ms), shared with uncertainty, sweep,
+  optimization, landing-drift, and stage-preview paths; smaller steps remain a
+  numerical-resolution choice, not a validation claim;
 - deterministic mission-event allocation for simultaneous rail, separation,
   ignition, failure, recovery, and custom transitions, with explicit priority,
   dependency, tie-group, cycle, and mutual-exclusion diagnostics carried into

@@ -164,6 +164,10 @@ export type EditableProjectInputs = Readonly<{
   separationContactCoefficientOfRestitution?: number;
   /** Numerical integration contract for coupled rigid-body propagation. */
   sixDofIntegrationMethod?: RigidBodyIntegrationMethod;
+  /** Fixed-step sample interval for the nominal vertical-flight preview, in seconds. */
+  verticalIntegrationTimeStepS?: number;
+  /** Base step for the coupled 6DOF preview, in seconds. */
+  coupledIntegrationTimeStepS?: number;
 }>;
 
 export type ProjectSourceSelections = Readonly<{
@@ -200,7 +204,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "customMaterial" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "coupledContactEnabled" | "coupledContactStiffnessNPerM" | "coupledContactDampingNsPerM" | "coupledContactMaximumNormalForceN" | "releasedBodyDragModel" | "relativeAeroInteractionEnabled" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "customMaterial" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "coupledContactEnabled" | "coupledContactStiffnessNPerM" | "coupledContactDampingNsPerM" | "coupledContactMaximumNormalForceN" | "releasedBodyDragModel" | "relativeAeroInteractionEnabled" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod" | "verticalIntegrationTimeStepS" | "coupledIntegrationTimeStepS">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -575,6 +579,25 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   ) {
     throw new Error("sixDofIntegrationMethod must be fixed-rk4 or adaptive-rk4-step-doubling.");
   }
+  const validateIntegrationTimeStep = (candidate: unknown, label: string): number => {
+    if (
+      typeof candidate !== "number" ||
+      !Number.isFinite(candidate) ||
+      candidate < 0.001 ||
+      candidate > 0.2
+    ) {
+      throw new Error(`${label} must be a finite number from 0.001 to 0.2.`);
+    }
+    return candidate;
+  };
+  const verticalIntegrationTimeStepS = validateIntegrationTimeStep(
+    input.verticalIntegrationTimeStepS === undefined ? 0.02 : input.verticalIntegrationTimeStepS,
+    "verticalIntegrationTimeStepS",
+  );
+  const coupledIntegrationTimeStepS = validateIntegrationTimeStep(
+    input.coupledIntegrationTimeStepS === undefined ? 0.02 : input.coupledIntegrationTimeStepS,
+    "coupledIntegrationTimeStepS",
+  );
   const uncertaintySeed = input.uncertaintySeed === undefined
     ? DEFAULT_UNCERTAINTY_SEED
     : nonEmptyString(input.uncertaintySeed, "uncertaintySeed", 80);
@@ -622,6 +645,8 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     ...(separationContactStoppingDistanceM === undefined ? {} : { separationContactStoppingDistanceM }),
     ...(separationContactCoefficientOfRestitution === undefined ? {} : { separationContactCoefficientOfRestitution }),
     ...(sixDofIntegrationMethod === undefined ? {} : { sixDofIntegrationMethod }),
+    ...(input.verticalIntegrationTimeStepS === undefined ? {} : { verticalIntegrationTimeStepS }),
+    ...(input.coupledIntegrationTimeStepS === undefined ? {} : { coupledIntegrationTimeStepS }),
     terrainModel,
     terrainEastSlopePercent: validated.terrainEastSlopePercent,
     terrainNorthSlopePercent: validated.terrainNorthSlopePercent,
@@ -805,6 +830,8 @@ export const PROJECT_INPUT_LABELS: Readonly<Record<keyof EditableProjectInputs, 
   separationContactStoppingDistanceM: "contact stopping distance",
   separationContactCoefficientOfRestitution: "contact restitution",
   sixDofIntegrationMethod: "6DOF integration method",
+  verticalIntegrationTimeStepS: "vertical integration step",
+  coupledIntegrationTimeStepS: "coupled 6DOF integration step",
 };
 
 export function describeProjectInputChanges(previous: EditableProjectInputs, current: EditableProjectInputs): string {

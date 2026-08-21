@@ -291,6 +291,14 @@ test("project snapshots preserve coupled-flight contract settings and legacy def
   assert.equal(parsed.inputs.separationContactStoppingDistanceM, 0.025);
   assert.equal(parsed.inputs.separationContactCoefficientOfRestitution, 0.35);
   assert.equal(parsed.inputs.sixDofIntegrationMethod, "adaptive-rk4-step-doubling");
+  assert.equal(parsed.inputs.verticalIntegrationTimeStepS, undefined);
+  assert.equal(parsed.inputs.coupledIntegrationTimeStepS, undefined);
+  const tuned = snapshot(3, {
+    verticalIntegrationTimeStepS: 0.005,
+    coupledIntegrationTimeStepS: 0.08,
+  });
+  assert.equal(tuned.inputs.verticalIntegrationTimeStepS, 0.005);
+  assert.equal(tuned.inputs.coupledIntegrationTimeStepS, 0.08);
   assert.equal(snapshot(2).inputs.coupledMutualGravityEnabled, undefined);
   assert.equal(snapshot(2).inputs.releasedBodyDragModel, undefined);
 });
@@ -343,6 +351,18 @@ test("project snapshots reject invalid coupled-flight contract settings", () => 
   assert.throws(
     () => snapshot(1, { sixDofIntegrationMethod: "euler" }),
     /sixDofIntegrationMethod must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { verticalIntegrationTimeStepS: 0 }),
+    /verticalIntegrationTimeStepS must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { coupledIntegrationTimeStepS: 0.201 }),
+    /coupledIntegrationTimeStepS must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { verticalIntegrationTimeStepS: "0.02" }),
+    /verticalIntegrationTimeStepS must be/,
   );
 });
 

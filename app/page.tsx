@@ -1573,6 +1573,7 @@ function createStageFlightPreviewInputs({
   recoveryReefingDurationS,
   recoveryReefingStartAreaFraction,
   sixDofIntegrationMethod,
+  coupledIntegrationTimeStepS = 0.02,
   normalForceModel,
   inducedDragModel,
   inducedDragFactor,
@@ -1621,6 +1622,7 @@ function createStageFlightPreviewInputs({
   recoveryReefingDurationS: number;
   recoveryReefingStartAreaFraction: number;
   sixDofIntegrationMethod: RigidBodyIntegrationMethod;
+  coupledIntegrationTimeStepS?: number;
   normalForceModel: NormalForceModelKind;
   inducedDragModel: InducedDragModelKind;
   inducedDragFactor: number;
@@ -2021,7 +2023,7 @@ function createStageFlightPreviewInputs({
     regimes,
     initiallyIgnitedStageIds,
     durationS: Math.max(12, maximumMotorBurnDurationS * (stages.length + 2) + 8),
-    timeStepS: 0.02,
+    timeStepS: coupledIntegrationTimeStepS,
     integration: { method: sixDofIntegrationMethod },
     environmentAt,
     alwaysActiveGeometryStageIds: [...geometryStageIds],
@@ -2116,6 +2118,7 @@ function createFlightConfig({
   recoveryReefingEnabled,
   recoveryReefingDurationS,
   recoveryReefingStartAreaFraction,
+  verticalIntegrationTimeStepS = 0.02,
   motorRecord,
   aerodynamicTable,
 }: {
@@ -2141,6 +2144,7 @@ function createFlightConfig({
   recoveryReefingEnabled: boolean;
   recoveryReefingDurationS: number;
   recoveryReefingStartAreaFraction: number;
+  verticalIntegrationTimeStepS?: number;
   motorRecord?: MotorDataRecord;
   aerodynamicTable?: AerodynamicCoefficientTableModel | null;
 }): VerticalFlightConfig {
@@ -2194,7 +2198,7 @@ function createFlightConfig({
         relativeHumidityFraction: relativeHumidityPercent / 100,
       },
     },
-    integration: { timeStepS: 0.02, maxTimeS: 180 },
+    integration: { timeStepS: verticalIntegrationTimeStepS, maxTimeS: 180 },
   };
 }
 
@@ -2574,7 +2578,7 @@ function createLandingPrediction(
         environmentAt: environment.at,
         dragCoefficient: inputs.dragCoefficient,
         referenceAreaM2: Math.PI * Math.pow(inputs.diameter / 2000, 2),
-        integration: { timeStepS: 0.02 },
+        integration: { timeStepS: inputs.verticalIntegrationTimeStepS ?? 0.02 },
       });
       return simulateRecoveryDescent({
         massKg: descentMassKg * values.descentMassScale,
@@ -4167,6 +4171,8 @@ export default function Home() {
   const [separationContactStoppingDistanceM, setSeparationContactStoppingDistanceM] = useState(0.01);
   const [separationContactCoefficientOfRestitution, setSeparationContactCoefficientOfRestitution] = useState(0);
   const [sixDofIntegrationMethod, setSixDofIntegrationMethod] = useState<RigidBodyIntegrationMethod>("fixed-rk4");
+  const [verticalIntegrationTimeStepS, setVerticalIntegrationTimeStepS] = useState(0.02);
+  const [coupledIntegrationTimeStepS, setCoupledIntegrationTimeStepS] = useState(0.02);
   const [recoveryEnabled, setRecoveryEnabled] = useState(true);
   const [recoveryDelay, setRecoveryDelay] = useState(0);
   const [recoveryInflationTime, setRecoveryInflationTime] = useState(1.2);
@@ -4421,8 +4427,10 @@ export default function Home() {
       separationContactStoppingDistanceM,
       separationContactCoefficientOfRestitution,
       sixDofIntegrationMethod,
+      verticalIntegrationTimeStepS,
+      coupledIntegrationTimeStepS,
     }),
-    [burnTime, coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, customMaterial, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, inducedDragFactor, inducedDragModel, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalForceModel, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, releasedBodyDragModel, relativeAeroInteractionEnabled, relativeAeroMaximumVelocityDeficitFraction, relativeAeroPeakVelocityDeficitFraction, relativeAeroWakeHalfAngleDeg, relativeAeroWakeRecoveryDistanceBodyDiameters, relativeHumidityPercent, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
+    [burnTime, coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledIntegrationTimeStepS, coupledMutualGravityEnabled, customMaterial, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, inducedDragFactor, inducedDragModel, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalForceModel, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, releasedBodyDragModel, relativeAeroInteractionEnabled, relativeAeroMaximumVelocityDeficitFraction, relativeAeroPeakVelocityDeficitFraction, relativeAeroWakeHalfAngleDeg, relativeAeroWakeRecoveryDistanceBodyDiameters, relativeHumidityPercent, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, verticalIntegrationTimeStepS, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const stageMotorMassKgById = useMemo(
@@ -4631,9 +4639,13 @@ export default function Home() {
             coefficientOfRestitution: separationContactCoefficientOfRestitution,
           },
           sixDofIntegrationMethod,
+          integrationSteps: {
+            verticalTimeStepS: verticalIntegrationTimeStepS,
+            coupledTimeStepS: coupledIntegrationTimeStepS,
+          },
         },
       }),
-    [coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledMutualGravityEnabled, editableInputs, previewMotor, releasedBodyDragModel, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, vehicleTopology],
+    [coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledIntegrationTimeStepS, coupledMutualGravityEnabled, editableInputs, previewMotor, releasedBodyDragModel, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, vehicleTopology, verticalIntegrationTimeStepS],
   );
   const previewEnvironment = useMemo(
     () => createPreviewEnvironment(launchAltitude, windSpeed, { siteName: launchSiteName, latitudeDeg: launchLatitudeDeg, longitudeDeg: launchLongitudeDeg, windAzimuthDeg, windProfileLayers, turbulenceScale, earthRotationEnabled, normalGravityEnabled, seed: weatherSeed, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
@@ -4683,6 +4695,7 @@ export default function Home() {
       recoveryReefingEnabled,
       recoveryReefingDurationS,
       recoveryReefingStartAreaFraction,
+      verticalIntegrationTimeStepS,
       motorRecord: previewMotor,
       aerodynamicTable: selectedAerodynamicTable,
     }),
@@ -4745,6 +4758,7 @@ export default function Home() {
       recoveryReefingDurationS,
       recoveryReefingStartAreaFraction,
       recoveryDeploymentSuccessProbability,
+      verticalIntegrationTimeStepS,
       motorRecord: previewMotor,
       aerodynamicTable: selectedAerodynamicTable,
     }, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed),
@@ -4785,6 +4799,7 @@ export default function Home() {
           recoveryReefingStartAreaFraction,
           recoveryDeploymentSuccessProbability,
           uncertaintyCorrelations,
+          verticalIntegrationTimeStepS,
           motorRecord: previewMotor,
         },
         result,
@@ -5415,6 +5430,8 @@ export default function Home() {
         setSeparationContactStoppingDistanceM(inputs.separationContactStoppingDistanceM ?? 0.01);
         setSeparationContactCoefficientOfRestitution(inputs.separationContactCoefficientOfRestitution ?? 0);
         setSixDofIntegrationMethod(inputs.sixDofIntegrationMethod ?? "fixed-rk4");
+        setVerticalIntegrationTimeStepS(inputs.verticalIntegrationTimeStepS ?? 0.02);
+        setCoupledIntegrationTimeStepS(inputs.coupledIntegrationTimeStepS ?? 0.02);
         if (restoredSnapshot.topology) {
           restoredTopology = restoredSnapshot.topology;
           topologyRef.current = restoredSnapshot.topology;
@@ -5634,6 +5651,8 @@ export default function Home() {
         setSeparationContactStoppingDistanceM(inputs.separationContactStoppingDistanceM ?? 0.01);
         setSeparationContactCoefficientOfRestitution(inputs.separationContactCoefficientOfRestitution ?? 0);
         setSixDofIntegrationMethod(inputs.sixDofIntegrationMethod ?? "fixed-rk4");
+        setVerticalIntegrationTimeStepS(inputs.verticalIntegrationTimeStepS ?? 0.02);
+        setCoupledIntegrationTimeStepS(inputs.coupledIntegrationTimeStepS ?? 0.02);
         topologyRef.current = shared.topology;
         setVehicleTopology(shared.topology);
         window.localStorage.setItem(
@@ -6420,6 +6439,8 @@ export default function Home() {
     setSeparationContactStoppingDistanceM(inputs.separationContactStoppingDistanceM ?? 0.01);
     setSeparationContactCoefficientOfRestitution(inputs.separationContactCoefficientOfRestitution ?? 0);
     setSixDofIntegrationMethod(inputs.sixDofIntegrationMethod ?? "fixed-rk4");
+    setVerticalIntegrationTimeStepS(inputs.verticalIntegrationTimeStepS ?? 0.02);
+    setCoupledIntegrationTimeStepS(inputs.coupledIntegrationTimeStepS ?? 0.02);
   };
   function persistProjectRegistryRecord(
     snapshot: LocalProjectSnapshot,
@@ -7910,6 +7931,7 @@ export default function Home() {
       recoveryReefingDurationS,
       recoveryReefingStartAreaFraction,
       recoveryDeploymentSuccessProbability,
+      verticalIntegrationTimeStepS,
       motorRecord: previewMotor,
       aerodynamicTable: selectedAerodynamicTable,
     };
@@ -8004,6 +8026,7 @@ export default function Home() {
             recoveryReefingDurationS,
             recoveryReefingStartAreaFraction,
             sixDofIntegrationMethod,
+            coupledIntegrationTimeStepS,
             aerodynamicTable: selectedAerodynamicTable,
             aerodynamicTableModels,
           }),
@@ -8078,6 +8101,7 @@ export default function Home() {
           recoveryReefingDurationS,
           recoveryReefingStartAreaFraction,
           sixDofIntegrationMethod,
+          coupledIntegrationTimeStepS,
           aerodynamicTable: selectedAerodynamicTable,
           aerodynamicTableModels,
         });
@@ -8298,6 +8322,7 @@ export default function Home() {
           recoveryReefingEnabled,
           recoveryReefingDurationS,
           recoveryReefingStartAreaFraction,
+          verticalIntegrationTimeStepS,
           motorRecord: previewMotor,
           aerodynamicTable: selectedAerodynamicTable,
         };
@@ -8351,6 +8376,7 @@ export default function Home() {
           recoveryReefingStartAreaFraction,
           recoveryDeploymentSuccessProbability,
           uncertaintyCorrelations,
+          verticalIntegrationTimeStepS,
           motorRecord: previewMotor,
           aerodynamicTable: selectedAerodynamicTable,
         };
@@ -10754,7 +10780,10 @@ export default function Home() {
                     <option value="adaptive-rk4-step-doubling">Adaptive RK4 · step-doubling error estimate</option>
                   </select>
                 </div>
+                <NumberField id="vertical-integration-time-step" label="Vertical integration step" value={verticalIntegrationTimeStepS} unit="s" min={0.001} max={0.2} step={0.001} slider onChange={(value) => { setVerticalIntegrationTimeStepS(value); markChanged(); }} />
+                <NumberField id="coupled-integration-time-step" label="Coupled 6DOF base step" value={coupledIntegrationTimeStepS} unit="s" min={0.001} max={0.2} step={0.001} slider onChange={(value) => { setCoupledIntegrationTimeStepS(value); markChanged(); }} />
                 <p className="field-help">Adaptive mode controls numerical truncation error with internal step refinement and keeps event boundaries exact. It does not detect inaccurate loads, omitted discontinuities, or model-form error; rerun the preview after changing this setting.</p>
+                <p className="field-help">The sliders set the nominal vertical sample interval and the coupled 6DOF base step. Smaller values can resolve short events more faithfully but increase preview time; both remain analytical, unvalidated controls.</p>
                 <div className="property-section-label">
                   <span>Flight environment</span>
                   <small>{publicModelVersion(previewEnvironment.modelVersion)}</small>

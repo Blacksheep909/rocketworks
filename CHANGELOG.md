@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add persisted expert controls for the vertical and coupled 6DOF integration
+  steps. The bounded sliders feed nominal runs, uncertainty, sweeps,
+  optimization, landing-drift, and staged previews; legacy projects default to
+  `0.02 s`, and the UI keeps numerical convergence separate from validation or
+  flight-safety evidence.
+
 - Add a kind-aware saved-run comparison matrix. Users can select multiple
   vertical and staged decision points, inspect separate metric groups without
   cross-model mixing, and export a deterministic long-form CSV that preserves
