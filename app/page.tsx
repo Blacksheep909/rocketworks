@@ -260,6 +260,15 @@ import {
   SIMULATION_FRESHNESS_MODEL_VERSION,
 } from "../lib/project/simulation-freshness.ts";
 import {
+  createStagedSimulationReference,
+  createVerticalSimulationReference,
+  parseStagedSimulationReference,
+  parseVerticalSimulationReference,
+  serializeStagedSimulationReference,
+  serializeVerticalSimulationReference,
+  simulationReferenceStorageKey,
+} from "../lib/project/simulation-reference.ts";
+import {
   createDefaultUiPreferences,
   UI_PREFERENCES_LEGACY_STORAGE_KEYS,
   parseUiPreferences,
@@ -5263,6 +5272,51 @@ export default function Home() {
 
   useEffect(() => {
     if (!storageReady) return;
+    const restoreTimer = window.setTimeout(() => {
+      setComparisonReference(null);
+      setComparisonReferenceFingerprint(null);
+      setStageComparisonReference(null);
+      setStageComparisonReferenceFingerprint(null);
+      const unreadable: string[] = [];
+      try {
+        const serialized = window.localStorage.getItem(
+          simulationReferenceStorageKey(activeProjectId, "vertical"),
+        );
+        if (serialized) {
+          const reference = parseVerticalSimulationReference(serialized);
+          if (reference.projectId !== activeProjectId) {
+            throw new Error("project scope mismatch");
+          }
+          setComparisonReference(reference.result);
+          setComparisonReferenceFingerprint(reference.fingerprint);
+        }
+      } catch {
+        unreadable.push("vertical comparison reference");
+      }
+      try {
+        const serialized = window.localStorage.getItem(
+          simulationReferenceStorageKey(activeProjectId, "staged"),
+        );
+        if (serialized) {
+          const reference = parseStagedSimulationReference(serialized);
+          if (reference.projectId !== activeProjectId) {
+            throw new Error("project scope mismatch");
+          }
+          setStageComparisonReference(reference.result);
+          setStageComparisonReferenceFingerprint(reference.fingerprint);
+        }
+      } catch {
+        unreadable.push("staged comparison reference");
+      }
+      if (unreadable.length > 0) {
+        notify(`${unreadable.join(" and ")} could not be restored; the browser record was left untouched`);
+      }
+    }, 0);
+    return () => window.clearTimeout(restoreTimer);
+  }, [activeProjectId, storageReady]);
+
+  useEffect(() => {
+    if (!storageReady) return;
     try {
       window.localStorage.setItem(
         UI_PREFERENCES_STORAGE_KEY,
@@ -5636,13 +5690,35 @@ export default function Home() {
       notify("Run the current vertical estimate before pinning a reference");
       return;
     }
+    const fingerprint = lastRunFingerprint ?? simulationFingerprint;
     setComparisonReference(result);
-    setComparisonReferenceFingerprint(lastRunFingerprint ?? simulationFingerprint);
-    notify("Current vertical estimate pinned as comparison reference");
+    setComparisonReferenceFingerprint(fingerprint);
+    try {
+      const reference = createVerticalSimulationReference({
+        projectId: activeProjectId,
+        projectName,
+        fingerprint,
+        result,
+      });
+      window.localStorage.setItem(
+        simulationReferenceStorageKey(activeProjectId, "vertical"),
+        serializeVerticalSimulationReference(reference),
+      );
+      notify("Current vertical estimate pinned · saved locally");
+    } catch {
+      notify("Current vertical estimate pinned for this session · browser storage unavailable");
+    }
   };
   const clearComparisonReference = () => {
     setComparisonReference(null);
     setComparisonReferenceFingerprint(null);
+    try {
+      window.localStorage.removeItem(
+        simulationReferenceStorageKey(activeProjectId, "vertical"),
+      );
+    } catch {
+      // The in-memory reference is still cleared when browser storage is unavailable.
+    }
     notify("Comparison reference cleared");
   };
   const pinStageComparisonReference = () => {
@@ -5650,13 +5726,35 @@ export default function Home() {
       notify("Run the current coupled preview before pinning a staged reference");
       return;
     }
+    const fingerprint = stageFlightFingerprint ?? simulationFingerprint;
     setStageComparisonReference(stageFlightResult);
-    setStageComparisonReferenceFingerprint(stageFlightFingerprint ?? simulationFingerprint);
-    notify("Current coupled preview pinned as staged comparison reference");
+    setStageComparisonReferenceFingerprint(fingerprint);
+    try {
+      const reference = createStagedSimulationReference({
+        projectId: activeProjectId,
+        projectName,
+        fingerprint,
+        result: stageFlightResult,
+      });
+      window.localStorage.setItem(
+        simulationReferenceStorageKey(activeProjectId, "staged"),
+        serializeStagedSimulationReference(reference),
+      );
+      notify("Current coupled preview pinned · saved locally");
+    } catch {
+      notify("Current coupled preview pinned for this session · browser storage unavailable");
+    }
   };
   const clearStageComparisonReference = () => {
     setStageComparisonReference(null);
     setStageComparisonReferenceFingerprint(null);
+    try {
+      window.localStorage.removeItem(
+        simulationReferenceStorageKey(activeProjectId, "staged"),
+      );
+    } catch {
+      // The in-memory reference is still cleared when browser storage is unavailable.
+    }
     notify("Staged comparison reference cleared");
   };
   const importFlightData = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -6032,6 +6130,16 @@ export default function Home() {
         LOCAL_PROJECT_REGISTRY_STORAGE_KEY,
         serializeLocalProjectRegistry(nextRegistry),
       );
+      try {
+        window.localStorage.removeItem(
+          simulationReferenceStorageKey(record.projectId, "vertical"),
+        );
+        window.localStorage.removeItem(
+          simulationReferenceStorageKey(record.projectId, "staged"),
+        );
+      } catch {
+        // Project removal remains valid even if browser-local reference cleanup fails.
+      }
       const nextActive = nextRegistry.projects.find(
         (candidate) => candidate.projectId === nextRegistry.activeProjectId,
       );

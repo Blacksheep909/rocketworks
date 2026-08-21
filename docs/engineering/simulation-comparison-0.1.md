@@ -21,12 +21,19 @@ run comparison**. That table also reports trace-sample, event, and released-
 body counts so changes in sampled topology remain visible alongside the main
 flight metrics.
 
-The reference is held in browser memory for the active workbench session. It
-is intentionally not written into local project checkpoints or share links yet:
-those documents preserve validated editable inputs and portable analysis data,
-while an in-memory reference avoids silently growing their storage footprint.
-Vertical and coupled/staged references are independent, so pinning one does
-not replace the other.
+The reference is stored in a strict, bounded browser-local record keyed by the
+active project and comparison kind. Reloading the project restores its vertical
+and coupled/staged references independently; changing projects loads that
+project's records instead. **Clear reference** removes the corresponding local
+record, and deleting a project cleans up both records when browser storage is
+available.
+
+These records are deliberately separate from editable project checkpoints,
+workspace backups, and share links. They are not cloud-synced, are not included
+in portable project documents, and are not a validation or safety gate. A
+browser quota or size-limit failure leaves the reference available for the
+current session only. Vertical and coupled/staged references are independent,
+so pinning one does not replace the other.
 
 When a fresh staged result and a pinned staged reference are available, the
 Artifact center offers a **Staged run comparison** CSV. It includes the

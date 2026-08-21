@@ -1237,13 +1237,20 @@ test("ships a bounded parameter-sweep workflow with inspectable exports", async 
 
 test("ships a local flight-run comparison workflow with stale-result guardrails", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const referenceStore = await readFile(new URL("../lib/project/simulation-reference.ts", import.meta.url), "utf8");
   const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(page, /FlightComparisonCard/);
   assert.match(page, /comparisonReference/);
+  assert.match(page, /parseVerticalSimulationReference/);
+  assert.match(page, /parseStagedSimulationReference/);
+  assert.match(page, /simulationReferenceStorageKey/);
+  assert.match(page, /saved locally/);
   assert.match(page, /Pin current run/);
   assert.match(page, /Replace reference/);
   assert.match(page, /Rerun required/);
   assert.match(page, /flight-safety evidence/);
+  assert.match(referenceStore, /LOCAL_SIMULATION_REFERENCE_MAX_SERIALIZED_LENGTH/);
+  assert.match(referenceStore, /projectId contains unsupported characters/);
   assert.match(stylesheet, /\.flight-comparison-card/);
   assert.match(stylesheet, /\.flight-comparison-row/);
 });
