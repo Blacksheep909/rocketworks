@@ -135,6 +135,6 @@ test("workspace backup merge rejects capacity overflow instead of dropping proje
   }
   assert.throws(
     () => mergeLocalWorkspaceBackup(filled, createLocalWorkspaceBackup(registry(), "2026-08-21T09:00:00.000Z")),
-    /browser limit is 24/,
+    /Remove an old local project/,
   );
 });

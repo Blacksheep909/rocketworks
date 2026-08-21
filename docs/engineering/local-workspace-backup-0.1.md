@@ -41,6 +41,10 @@ current browser. Records with the same `projectId` are replaced by the backup;
 new records append in backup order, and the backup's active project is opened.
 The 24-project device limit is enforced before any imported record is written;
 an overflow is reported to the user instead of silently dropping projects.
+The project console exposes a confirmation-gated remove action for old local
+projects, keeps at least one workspace available, and chooses the newest
+remaining project when the active record is removed. This makes capacity
+recovery explicit rather than requiring a hidden storage edit.
 The active project's snapshot and history are restored, while motor,
 aerodynamic, component, and measured-flight libraries remain unchanged because
 they are intentionally outside this envelope. If a restored snapshot references

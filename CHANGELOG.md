@@ -13,7 +13,8 @@ flight-readiness claims.
   libraries remain separate and that cloud sync/collaboration are not implied.
   Restore now validates and merges that envelope back into the browser: matching
   project IDs are replaced, new projects append, the imported active project is
-  opened, and capacity overflow fails without silently dropping records.
+  opened, capacity overflow fails without silently dropping records, and the
+  project console can remove a confirmed old local project to make room.
 
 - Add a strict device-local project registry behind the project console. The
   workspace now indexes up to 24 validated project snapshots and histories,

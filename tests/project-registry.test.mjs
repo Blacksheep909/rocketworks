@@ -8,6 +8,7 @@ import {
   createLocalProjectRecord,
   createProjectId,
   parseLocalProjectRegistry,
+  removeLocalProjectRecord,
   serializeLocalProjectRegistry,
   setActiveLocalProject,
   upsertLocalProjectRecord,
@@ -123,4 +124,45 @@ test("registry validation catches identity mismatches and capacity overflow", ()
     }),
     /cannot contain more than/,
   );
+});
+
+test("registry removal picks the newest remaining project when removing the active record", () => {
+  const first = createLocalProjectRecord(
+    snapshot("first", "First", 1),
+    appendProjectHistory(
+      createEmptyProjectHistory("first"),
+      snapshot("first", "First", 1),
+      "First",
+    ),
+  );
+  const secondSnapshot = createLocalProjectSnapshot({
+    projectId: "second",
+    projectName: "Second",
+    revision: 2,
+    savedAtIso: "2026-08-21T09:00:00.000Z",
+    inputs: { ...inputs },
+  });
+  const second = createLocalProjectRecord(
+    secondSnapshot,
+    appendProjectHistory(
+      createEmptyProjectHistory("second"),
+      secondSnapshot,
+      "Second",
+    ),
+  );
+  let registry = upsertLocalProjectRecord(createEmptyProjectRegistry("first"), first);
+  registry = upsertLocalProjectRecord(registry, second);
+  const removed = removeLocalProjectRecord(registry, "first");
+  assert.deepEqual(removed.projects.map((record) => record.projectId), ["second"]);
+  assert.equal(removed.activeProjectId, "second");
+});
+
+test("registry removal rejects unknown ids without changing the registry", () => {
+  const source = record();
+  const registry = upsertLocalProjectRecord(createEmptyProjectRegistry(), source);
+  assert.throws(
+    () => removeLocalProjectRecord(registry, "missing"),
+    /Cannot remove local project missing/,
+  );
+  assert.equal(registry.projects.length, 1);
 });

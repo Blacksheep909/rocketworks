@@ -760,6 +760,8 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(page, /Local projects/);
   assert.match(page, /Duplicate current project/);
   assert.match(page, /Open project/);
+  assert.match(page, /Remove \$\{record\.projectName\}/);
+  assert.match(page, /Keep at least one local project open/);
   assert.match(page, /Backup local workspace/);
   assert.match(page, /Restore workspace backup/);
   assert.match(page, /parseLocalWorkspaceBackup/);

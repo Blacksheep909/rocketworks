@@ -181,6 +181,7 @@ import {
   createLocalProjectRecord,
   createProjectId,
   parseLocalProjectRegistry,
+  removeLocalProjectRecord,
   serializeLocalProjectRegistry,
   setActiveLocalProject,
   upsertLocalProjectRecord,
@@ -6007,6 +6008,41 @@ export default function Home() {
       setProjectRegistryError(error instanceof Error ? error.message : "Unable to open the local project.");
     }
   };
+  const removeLocalProject = (record: LocalProjectRecord) => {
+    if (!storageReady) {
+      setProjectRegistryError("The browser workspace is still loading; try removing the project again in a moment.");
+      return;
+    }
+    if (projectRegistryRef.current.projects.length <= 1) {
+      setProjectRegistryError("Keep at least one local project open. Duplicate or export this design before removing it.");
+      return;
+    }
+    if (!window.confirm(`Remove ${record.projectName} from this browser? Its local snapshot and history will be deleted from the project index.`)) {
+      return;
+    }
+    try {
+      if (record.projectId === activeProjectId) {
+        persistCheckpoint(editableInputs, `Checkpoint before removing ${record.projectName}`);
+      }
+      const nextRegistry = removeLocalProjectRecord(projectRegistryRef.current, record.projectId);
+      projectRegistryRef.current = nextRegistry;
+      setProjectRegistry(nextRegistry);
+      window.localStorage.setItem(
+        LOCAL_PROJECT_REGISTRY_STORAGE_KEY,
+        serializeLocalProjectRegistry(nextRegistry),
+      );
+      const nextActive = nextRegistry.projects.find(
+        (candidate) => candidate.projectId === nextRegistry.activeProjectId,
+      );
+      if (record.projectId === activeProjectId && nextActive) {
+        switchLocalProject(nextActive, true);
+      }
+      setProjectRegistryError("");
+      notify(`${record.projectName} removed from this browser`);
+    } catch (error) {
+      setProjectRegistryError(error instanceof Error ? error.message : "Unable to remove the local project.");
+    }
+  };
   const duplicateLocalProject = () => {
     const nextName = projectDraftName.trim() || `${projectName} copy`;
     try {
@@ -10799,7 +10835,10 @@ export default function Home() {
                           <strong>{record.projectName}</strong>
                           <small>{record.projectId} · R{String(record.snapshot.revision).padStart(2, "0")} · {new Date(record.updatedAtIso).toLocaleDateString([], { month: "short", day: "numeric" })}</small>
                         </div>
-                        {record.projectId === activeProjectId ? <span className="project-console-project-status">OPEN</span> : <button className="secondary-button" type="button" onClick={() => switchLocalProject(record)}>Open project</button>}
+                        <div className="project-console-project-actions">
+                          {record.projectId === activeProjectId ? <span className="project-console-project-status">OPEN</span> : <button className="secondary-button" type="button" onClick={() => switchLocalProject(record)}>Open project</button>}
+                          <button className="danger-button" type="button" onClick={() => removeLocalProject(record)} disabled={!storageReady || projectRegistry.projects.length <= 1} aria-label={`Remove ${record.projectName}`} title={projectRegistry.projects.length <= 1 ? "Keep one local project open" : "Remove this local project from the browser"}>Remove</button>
+                        </div>
                       </article>
                     ))}
                 </div>

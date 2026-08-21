@@ -184,6 +184,31 @@ export function setActiveLocalProject(registry: LocalProjectRegistry, activeProj
   return validateLocalProjectRegistry({ ...current, activeProjectId: id });
 }
 
+/**
+ * Remove one browser-local project record without silently changing any other
+ * project. If the active project is removed, the newest remaining record
+ * becomes active; an empty registry keeps its previous validated active id so
+ * a future first save can still establish a project identity.
+ */
+export function removeLocalProjectRecord(
+  registry: LocalProjectRegistry,
+  projectIdToRemove: string,
+): LocalProjectRegistry {
+  const current = validateLocalProjectRegistry(registry);
+  const id = projectId(projectIdToRemove, "projectId");
+  if (!current.projects.some((record) => record.projectId === id)) {
+    throw new Error(`Cannot remove local project ${id}; it is not in the registry.`);
+  }
+  const projects = current.projects.filter((record) => record.projectId !== id);
+  const fallback = projects
+    .slice()
+    .sort((left, right) => Date.parse(right.updatedAtIso) - Date.parse(left.updatedAtIso))[0];
+  const activeProjectId = current.activeProjectId === id
+    ? fallback?.projectId ?? current.activeProjectId
+    : current.activeProjectId;
+  return validateLocalProjectRegistry({ ...current, activeProjectId, projects });
+}
+
 export function createProjectId(projectName: string, existingIds: ReadonlyArray<string> = []): string {
   const base = projectName
     .trim()

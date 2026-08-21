@@ -104,7 +104,7 @@ export function mergeLocalWorkspaceBackup(
   for (const record of imported.registry.projects) projects.set(record.projectId, record);
   if (projects.size > LOCAL_PROJECT_REGISTRY_LIMIT) {
     throw new Error(
-      `Workspace backup merge would create ${projects.size} projects; the browser limit is ${LOCAL_PROJECT_REGISTRY_LIMIT}. Open or duplicate projects to make room before importing.`,
+      `Workspace backup merge would create ${projects.size} projects; the browser limit is ${LOCAL_PROJECT_REGISTRY_LIMIT}. Remove an old local project to make room before importing.`,
     );
   }
   const importedActiveIsPresent = imported.registry.projects.some(
