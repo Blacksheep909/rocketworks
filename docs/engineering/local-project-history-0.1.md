@@ -4,7 +4,7 @@ Status: implemented browser persistence; engineering preview.
 
 ## Purpose
 
-RocketWorks keeps the editable ARC 54 inputs across refreshes and exposes a recoverable checkpoint timeline. The history dialog can compare any checkpoint with its immediately preceding revision, showing changed inputs, topology counts, and source selections. This is device-local continuity, not a shared project service.
+RocketWorks keeps the editable ARC 54 inputs across refreshes and exposes a recoverable checkpoint timeline. The history dialog can compare any checkpoint with its immediately preceding revision by default, or select any earlier checkpoint as the baseline, showing changed inputs, topology counts, and source selections. This is device-local continuity, not a shared project service.
 
 ## Stored records
 
@@ -32,7 +32,9 @@ The history schema is `dev.kestrel-lab.local-project-history`, version 1. Every 
 ## Checkpoint comparison
 
 Selecting **Compare** on a checkpoint produces a deterministic
-`rocketworks-project-diff-0.1.0` review table against the preceding entry. Rows
+`rocketworks-project-diff-0.1.0` review table against the preceding entry by
+default. The **Baseline checkpoint** selector can switch to any earlier entry;
+later revisions are never offered as a before-state. Rows
 retain project-name and before/after values for editable inputs, summarize wind and
 correlation collections by count, report logical/physical topology counts, and
 identify motor or aerodynamic source changes. The diff is derived from the

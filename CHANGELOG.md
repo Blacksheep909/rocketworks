@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extend local checkpoint comparison beyond adjacent revisions. The history
+  dialog now keeps the adjacent checkpoint as the default baseline while
+  allowing any earlier checkpoint to be selected, with chronology-safe fallback
+  behavior and accessible responsive controls.
+
 - Add a checkpoint-to-checkpoint project diff in the local history dialog. The
   original `rocketworks-project-diff-0.1.0` contract reports changed inputs,
   topology counts, and source selections with explicit before/after values;

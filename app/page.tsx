@@ -182,6 +182,10 @@ import {
   type ProjectSnapshotDiff,
 } from "../lib/project/project-diff.ts";
 import {
+  listComparisonBaselines,
+  selectComparisonBaseline,
+} from "../lib/project/project-history-comparison.ts";
+import {
   createProjectDiffCsv,
   createProjectDiffMarkdown,
 } from "../lib/export/project-diff-exports.ts";
@@ -4154,6 +4158,7 @@ export default function Home() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyCloseRef = useRef<HTMLButtonElement>(null);
   const [historyCompareEntryId, setHistoryCompareEntryId] = useState<string | null>(null);
+  const [historyCompareBaselineEntryId, setHistoryCompareBaselineEntryId] = useState<string | null>(null);
   const [projectHistory, setProjectHistory] = useState<LocalProjectHistory>(() =>
     createEmptyProjectHistory("arc54"),
   );
@@ -4175,12 +4180,15 @@ export default function Home() {
   const historyCompareEntry = historyCompareEntryId === null
     ? null
     : projectHistory.entries.find((entry) => entry.id === historyCompareEntryId) ?? null;
-  const historyCompareIndex = historyCompareEntry === null
-    ? -1
-    : projectHistory.entries.indexOf(historyCompareEntry);
-  const historyComparePreviousEntry = historyCompareIndex > 0
-    ? projectHistory.entries[historyCompareIndex - 1]
-    : null;
+  const historyComparePreviousEntry = selectComparisonBaseline(
+    projectHistory.entries,
+    historyCompareEntryId,
+    historyCompareBaselineEntryId,
+  );
+  const historyCompareBaselineOptions = listComparisonBaselines(
+    projectHistory.entries,
+    historyCompareEntryId,
+  );
   let historyDiff: ProjectSnapshotDiff | null = null;
   if (historyCompareEntry && historyComparePreviousEntry) {
     historyDiff = compareProjectSnapshots(
@@ -11110,8 +11118,26 @@ export default function Home() {
                         : `R${String(historyCompareEntry.snapshot.revision).padStart(2, "0")} has no earlier checkpoint`}
                     </strong>
                   </div>
-                  <button className="history-diff-close" type="button" onClick={() => setHistoryCompareEntryId(null)}>Close</button>
+                  <button className="history-diff-close" type="button" onClick={() => { setHistoryCompareEntryId(null); setHistoryCompareBaselineEntryId(null); }}>Close</button>
                 </div>
+                {historyCompareBaselineOptions.length > 0 && (
+                  <div className="history-diff-controls">
+                    <label htmlFor="history-diff-baseline">Baseline checkpoint</label>
+                    <select
+                      id="history-diff-baseline"
+                      aria-label="Baseline checkpoint"
+                      value={historyComparePreviousEntry?.id ?? ""}
+                      onChange={(event) => setHistoryCompareBaselineEntryId(event.target.value || null)}
+                    >
+                      {historyCompareBaselineOptions.map((entry) => (
+                        <option key={entry.id} value={entry.id}>
+                          R{String(entry.snapshot.revision).padStart(2, "0")} · {entry.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span>Target R{String(historyCompareEntry.snapshot.revision).padStart(2, "0")}</span>
+                  </div>
+                )}
                 {!historyComparePreviousEntry || !historyDiff ? (
                   <p className="history-diff-empty">Create another checkpoint before comparing this first revision.</p>
                 ) : (
@@ -11166,7 +11192,7 @@ export default function Home() {
                         <span>{new Date(entry.snapshot.savedAtIso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</span>
                       </div>
                       <div className="history-entry-actions">
-                        {entryIndex > 0 && <button type="button" onClick={() => setHistoryCompareEntryId(entry.id)}>{historyCompareEntryId === entry.id ? "Comparing" : "Compare"}</button>}
+                        {entryIndex > 0 && <button type="button" onClick={() => { setHistoryCompareEntryId(entry.id); setHistoryCompareBaselineEntryId(projectHistory.entries[entryIndex - 1]?.id ?? null); }}>{historyCompareEntryId === entry.id ? "Comparing" : "Compare"}</button>}
                         <button type="button" onClick={() => restoreCheckpoint(entry.snapshot)}>Restore</button>
                       </div>
                     </article>

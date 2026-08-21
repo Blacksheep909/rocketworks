@@ -45,9 +45,10 @@ research, standards, and original code.
 - a device-local, provenance-aware component library for reusable core,
   recovery, equipment-mass, and cylindrical-pod presets, with strict bounds and
   portable-project import/export;
-- checkpoint-to-checkpoint configuration review with deterministic CSV and
-  Markdown handoff artifacts that preserve revisions, source selections, and
-  the explicit non-validation boundary;
+- checkpoint-to-checkpoint configuration review with an adjacent default and
+  selectable earlier baseline, plus deterministic CSV and Markdown handoff
+  artifacts that preserve revisions, source selections, and the explicit
+  non-validation boundary;
 - one-click configured-stage duplication with authored-component copies and
   safe component rehoming when a non-core stage is removed;
 - per-stage body-length, diameter, and nose-length overrides for generated
@@ -275,8 +276,9 @@ research, standards, and original code.
 - validated project import, topology- and source-complete device-local
   autosave/history, templates,
   beginner/expert modes, keyboard command search, and compact browser design
-  share links; local history can compare adjacent checkpoints with deterministic
-  before/after input, topology-count, and source-selection rows;
+  share links; local history can compare adjacent or any earlier checkpoints
+  with deterministic before/after input, topology-count, and source-selection
+  rows;
 - a functional project console behind the workspace header with local save
   status, revision handoff, history, template, import, export, checkpoint, and
   share actions; the console now indexes up to 24 validated browser-local

@@ -346,7 +346,9 @@ part.
 
 ## Known limitations
 
-- No project import, schema migration, merge, or conflict handling yet.
+- Project JSON import and validated workspace-backup merge are available, but
+  there is no automatic schema migration or conflict-resolution merge for
+  concurrent edits.
 - No ZIP package, binary DXF, STEP, IGES, 3MF, OBJ, glTF, PDF, or native CAD
   export. STL remains a reference mesh, not a manufacturing export.
 - DXF contains a two-dimensional side reference, not separate fin templates or
