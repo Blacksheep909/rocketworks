@@ -293,7 +293,8 @@ research, standards, and original code.
   beginner/expert modes, keyboard command search, and compact browser design
   share links; local history can compare adjacent or any earlier checkpoints
   with deterministic before/after input, topology-count, and source-selection
-  rows;
+  rows; topbar and command-palette undo/redo navigate saved checkpoints without
+  deleting the audit timeline, while new edits correctly invalidate redo;
 - a functional project console behind the workspace header with local save
   status, revision handoff, history, template, import, export, checkpoint, and
   share actions; the console now indexes up to 24 validated browser-local

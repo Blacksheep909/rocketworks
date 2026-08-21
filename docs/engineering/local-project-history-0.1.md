@@ -23,6 +23,8 @@ The history schema is `dev.kestrel-lab.local-project-history`, version 1. Every 
 - Every editable field, the complete vehicle topology, and the selected motor/aerodynamic source IDs participate in one canonical fingerprint.
 - A change marks the project unsaved immediately and writes after a 600 ms debounce.
 - A restore creates a new revision from the selected inputs, topology, and source selections; it does not remove later checkpoints. Legacy checkpoints without topology or source IDs restore their inputs while retaining the current topology and available selections.
+- The topbar **Undo** and **Redo** controls navigate between validated checkpoints in the current browser session. Navigation updates the current snapshot and project registry without deleting or rewriting the chronological history; a new edit after an undo creates a new checkpoint and makes redo unavailable.
+- If the current design has unsaved edits, **Undo** first returns to the last saved checkpoint. The keyboard shortcuts are `⌘/Ctrl+Z` for undo and `⇧⌘/Ctrl+Shift+Z` for redo; text fields keep their native browser undo behavior.
 - When more than 40 checkpoints exist, the oldest entries are discarded.
 - JSON, schema identity, schema version, project identity, timestamps, revisions, types, finite numbers, and UI input ranges are validated before a record is accepted.
 - An unreadable record never populates application state. The default design remains active and the interface reports that local data needs attention.
@@ -65,6 +67,8 @@ artifacts are rejected without changing browser state.
 ## Limits and privacy
 
 Browser storage is synchronous, capacity-limited, and specific to the current browser profile and origin. Private browsing, storage policies, browser cleanup, or site-data deletion can remove it. This implementation has no cloud synchronization, account identity, collaboration, multi-device merge, conflict resolution, server backup, encryption layer, or v0-to-v1 migration. Browser extensions and other software with access to the profile may be able to inspect local records.
+
+Checkpoint navigation is a convenience recovery action, not a branching version-control system. It does not merge divergent edits, preserve a redo branch after a new edit, or create a new engineering revision by itself. Use a manual checkpoint or portable project export when a named review milestone must be retained.
 
 Use the versioned RocketWorks project JSON export for portable or durable storage. Local history is a convenience recovery mechanism and is not engineering evidence, configuration control, certification traceability, or a flight-safety record.
 

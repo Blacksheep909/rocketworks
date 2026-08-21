@@ -6,6 +6,11 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add session-safe local checkpoint navigation. The topbar and command palette
+  now expose Undo/Redo controls plus `⌘/Ctrl+Z` shortcuts; they move the active
+  browser snapshot without deleting the chronological history, revert unsaved
+  edits first, and invalidate redo after a new edit.
+
 - Add persisted expert controls for the vertical and coupled 6DOF integration
   steps. The bounded sliders feed nominal runs, uncertainty, sweeps,
   optimization, landing-drift, and staged previews; legacy projects default to

@@ -4281,6 +4281,9 @@ export default function Home() {
     createEmptyProjectHistory("arc54"),
   );
   const historyRef = useRef(projectHistory);
+  const [historyCursor, setHistoryCursor] = useState(-1);
+  const historyCursorRef = useRef(-1);
+  const historyNavigationRef = useRef<((direction: -1 | 1) => void) | null>(null);
   const revisionRef = useRef(0);
   const lastSavedInputsRef = useRef<EditableProjectInputs | null>(null);
   const lastSavedFingerprintRef = useRef("");
@@ -4294,6 +4297,14 @@ export default function Home() {
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 2200);
+  };
+  const setHistoryCursorValue = (index: number) => {
+    const entries = historyRef.current.entries;
+    const bounded = entries.length === 0
+      ? -1
+      : Math.max(0, Math.min(entries.length - 1, Math.trunc(index)));
+    historyCursorRef.current = bounded;
+    setHistoryCursor(bounded);
   };
   const historyCompareEntry = historyCompareEntryId === null
     ? null
@@ -4433,6 +4444,18 @@ export default function Home() {
     [burnTime, coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledIntegrationTimeStepS, coupledMutualGravityEnabled, customMaterial, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, inducedDragFactor, inducedDragModel, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalForceModel, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, releasedBodyDragModel, relativeAeroInteractionEnabled, relativeAeroMaximumVelocityDeficitFraction, relativeAeroPeakVelocityDeficitFraction, relativeAeroWakeHalfAngleDeg, relativeAeroWakeRecoveryDistanceBodyDiameters, relativeHumidityPercent, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, verticalIntegrationTimeStepS, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
+  const currentHistoryFingerprint = namedProjectFingerprint(
+    editableInputs,
+    vehicleTopology,
+    selectedMotorId,
+    selectedAerodynamicTableId,
+    projectName,
+  );
+  const historyHasPendingChanges = currentHistoryFingerprint !== lastSavedFingerprintRef.current;
+  const canUndoProjectHistory = historyCursor >= 0 && (historyHasPendingChanges || historyCursor > 0);
+  const canRedoProjectHistory = historyCursor >= 0
+    && !historyHasPendingChanges
+    && historyCursor < projectHistory.entries.length - 1;
   const stageMotorMassKgById = useMemo(
     () => createStageMotorMassMap(vehicleTopology.stages, selectedMotorId, userMotorRecords),
     [selectedMotorId, userMotorRecords, vehicleTopology.stages],
@@ -5460,6 +5483,10 @@ export default function Home() {
       revisionRef.current = Math.max(revisionRef.current, latestHistoryRevision);
       historyRef.current = restoredHistory;
       setProjectHistory(restoredHistory);
+      const restoredCursor = restoredSnapshot === null
+        ? restoredHistory.entries.length - 1
+        : restoredHistory.entries.findIndex((entry) => entry.snapshot.revision === restoredSnapshot.revision);
+      setHistoryCursorValue(restoredCursor >= 0 ? restoredCursor : restoredHistory.entries.length - 1);
       if (problems.length > 0 || selectionWarnings.length > 0) {
         const persistenceMessage = problems.length > 0
           ? `Could not read ${problems.join(" or ")}. Defaults are active; the unreadable browser record was left untouched.`
@@ -5756,6 +5783,7 @@ export default function Home() {
         revisionRef.current = snapshot.revision;
         historyRef.current = nextHistory;
         setProjectHistory(nextHistory);
+        setHistoryCursorValue(nextHistory.entries.length - 1);
         lastSavedInputsRef.current = editableInputs;
         lastSavedFingerprintRef.current = fingerprint;
         setSaveError("");
@@ -5874,6 +5902,13 @@ export default function Home() {
         setCommandQuery("");
         setCommandIndex(0);
         setCommandOpen(true);
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+        const target = event.target;
+        if (target instanceof HTMLElement && target.closest("input, textarea, select, [contenteditable=\"true\"]")) return;
+        event.preventDefault();
+        historyNavigationRef.current?.(event.shiftKey ? 1 : -1);
         return;
       }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -6442,6 +6477,94 @@ export default function Home() {
     setVerticalIntegrationTimeStepS(inputs.verticalIntegrationTimeStepS ?? 0.02);
     setCoupledIntegrationTimeStepS(inputs.coupledIntegrationTimeStepS ?? 0.02);
   };
+  const navigateProjectHistory = (direction: -1 | 1) => {
+    if (!storageReady) {
+      notify("Local history is still loading");
+      return;
+    }
+    const entries = historyRef.current.entries;
+    if (entries.length === 0) {
+      notify("No local checkpoints are available yet");
+      return;
+    }
+    const currentIndex = Math.max(0, Math.min(entries.length - 1, historyCursorRef.current));
+    const pendingChanges = namedProjectFingerprint(
+      editableInputs,
+      vehicleTopology,
+      selectedMotorId,
+      selectedAerodynamicTableId,
+      projectName,
+    ) !== lastSavedFingerprintRef.current;
+    const targetIndex = pendingChanges ? currentIndex : currentIndex + direction;
+    if (direction === 1 && (pendingChanges || targetIndex >= entries.length)) return;
+    if (direction === -1 && targetIndex < 0) return;
+    const targetEntry = entries[targetIndex];
+    if (!targetEntry) return;
+    const source = targetEntry.snapshot;
+    try {
+      const topology = source.topology ?? topologyRef.current;
+      const sourceMotorSelection = source.selectedMotorId ?? selectedMotorId;
+      const sourceAerodynamicSelection = source.selectedAerodynamicTableId ?? selectedAerodynamicTableId;
+      const motorAvailable = sourceMotorSelection === "synthetic"
+        || userMotorRecords.some((record) => record.id === sourceMotorSelection);
+      const aerodynamicAvailable = sourceAerodynamicSelection === "constant"
+        || aerodynamicTableDefinitions.some((table) => table.id === sourceAerodynamicSelection);
+      const effectiveMotorSelection = motorAvailable ? sourceMotorSelection : "synthetic";
+      const effectiveAerodynamicSelection = aerodynamicAvailable ? sourceAerodynamicSelection : "constant";
+      const appliedSnapshot = createLocalProjectSnapshot({
+        projectId: source.projectId,
+        projectName: source.projectName,
+        revision: source.revision,
+        savedAtIso: source.savedAtIso,
+        inputs: source.inputs,
+        topology,
+        selectedMotorId: effectiveMotorSelection,
+        selectedAerodynamicTableId: effectiveAerodynamicSelection,
+      });
+      setProjectName(source.projectName);
+      applyEditableInputs(source.inputs);
+      topologyRef.current = topology;
+      setVehicleTopology(topology);
+      window.localStorage.setItem(LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY, serializeVehicleTopology(topology));
+      setSelectedMotorId(effectiveMotorSelection);
+      setSelectedAerodynamicTableId(effectiveAerodynamicSelection);
+      window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, effectiveMotorSelection);
+      window.localStorage.setItem(LOCAL_AERODYNAMIC_SELECTION_STORAGE_KEY, effectiveAerodynamicSelection);
+      window.localStorage.setItem(LOCAL_PROJECT_STORAGE_KEY, serializeLocalProjectSnapshot(appliedSnapshot));
+      window.localStorage.setItem(LOCAL_PROJECT_HISTORY_STORAGE_KEY, serializeLocalProjectHistory(historyRef.current));
+      persistProjectRegistryRecord(appliedSnapshot, historyRef.current);
+      revisionRef.current = appliedSnapshot.revision;
+      historyCursorRef.current = targetIndex;
+      setHistoryCursor(targetIndex);
+      lastSavedInputsRef.current = source.inputs;
+      lastSavedFingerprintRef.current = namedProjectFingerprint(
+        source.inputs,
+        topology,
+        effectiveMotorSelection,
+        effectiveAerodynamicSelection,
+        source.projectName,
+      );
+      setStageFlightResult(null);
+      setStageFlightError("");
+      setImportedSimulationReview(null);
+      setSimulationReviewImportError("");
+      setSweepResult(null);
+      setSweepError("");
+      setSaveError([
+        !motorAvailable && sourceMotorSelection !== "synthetic"
+          ? `Referenced motor ${sourceMotorSelection} is not available on this device; synthetic preview selected.`
+          : "",
+        !aerodynamicAvailable && sourceAerodynamicSelection !== "constant"
+          ? `Referenced aerodynamic table ${sourceAerodynamicSelection} is not available on this device; constant drag selected.`
+          : "",
+      ].filter(Boolean).join(" "));
+      setSaved(motorAvailable && aerodynamicAvailable);
+      notify(`${direction === -1 ? "Undid to" : "Redid to"} revision ${source.revision}`);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Unable to navigate local project history");
+    }
+  };
+  historyNavigationRef.current = navigateProjectHistory;
   function persistProjectRegistryRecord(
     snapshot: LocalProjectSnapshot,
     history: LocalProjectHistory,
@@ -6484,6 +6607,7 @@ export default function Home() {
     revisionRef.current = snapshot.revision;
     historyRef.current = nextHistory;
     setProjectHistory(nextHistory);
+    setHistoryCursorValue(nextHistory.entries.length - 1);
     lastSavedInputsRef.current = inputs;
     lastSavedFingerprintRef.current = namedProjectFingerprint(
       inputs,
@@ -6531,6 +6655,8 @@ export default function Home() {
       revisionRef.current = record.snapshot.revision;
       historyRef.current = record.history;
       setProjectHistory(record.history);
+      const switchedCursor = record.history.entries.findIndex((entry) => entry.snapshot.revision === record.snapshot.revision);
+      setHistoryCursorValue(switchedCursor >= 0 ? switchedCursor : record.history.entries.length - 1);
       lastSavedInputsRef.current = record.snapshot.inputs;
       lastSavedFingerprintRef.current = namedProjectFingerprint(
         record.snapshot.inputs,
@@ -6638,6 +6764,7 @@ export default function Home() {
       revisionRef.current = duplicateSnapshot.revision;
       historyRef.current = duplicateHistory;
       setProjectHistory(duplicateHistory);
+      setHistoryCursorValue(duplicateHistory.entries.length - 1);
       setProjectName(nextName);
       setActiveProjectId(nextId);
       setImportedSimulationReview(null);
@@ -8420,6 +8547,8 @@ export default function Home() {
     { id: "view-2d", label: "Show 2D design view", description: "Switch to the orthographic vehicle profile", shortcut: "1", run: () => { setView("design"); setDesignView("2d"); } },
     { id: "view-3d-skeleton", label: "Show 3D skeleton view", description: "Switch to the low-ink structural display model", shortcut: "2", run: () => { setView("design"); setDesignView("3d-skeleton"); } },
     { id: "view-3d-final", label: "Show 3D final view", description: "Switch to the shaded display model", shortcut: "3", run: () => { setView("design"); setDesignView("3d-final"); } },
+    { id: "undo-project-history", label: "Undo last checkpoint", description: "Move to the previous validated local project state", shortcut: "⌘ Z", run: () => navigateProjectHistory(-1) },
+    { id: "redo-project-history", label: "Redo checkpoint", description: "Move forward to the next validated local project state", shortcut: "⇧⌘ Z", run: () => navigateProjectHistory(1) },
     { id: "run-estimate", label: "Run vertical estimate", description: "Propagate the current vehicle through the preliminary vertical model", shortcut: "R", run: simulate },
     { id: "run-sweep", label: "Run parameter sweep", description: "Evaluate a bounded one-variable trade study", shortcut: "S", run: runSweep },
     { id: "run-staged", label: activeStageCount > 1 ? "Run staged 6DOF preview" : "Run coupled 6DOF preview", description: activeStageCount > 1 ? "Propagate the active stage graph and event transitions" : "Propagate the current vehicle through the coupled rigid-body preview", run: runStageAwareEstimate },
@@ -8531,6 +8660,27 @@ export default function Home() {
         </div>
         <div className="top-actions">
           <div className="mission-chip" aria-label="Mission status"><span>MISSION</span><strong>RKW-01</strong><em>PRELIMINARY · REV 01</em></div>
+          <div className="history-nav" role="group" aria-label="Local checkpoint navigation">
+            <button
+              type="button"
+              className="quiet-button history-nav-button"
+              onClick={() => navigateProjectHistory(-1)}
+              disabled={!canUndoProjectHistory}
+              aria-keyshortcuts="Control+Z Meta+Z"
+              title="Undo last checkpoint (⌘/Ctrl+Z)"
+            >Undo</button>
+            <button
+              type="button"
+              className="quiet-button history-nav-button"
+              onClick={() => navigateProjectHistory(1)}
+              disabled={!canRedoProjectHistory}
+              aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z"
+              title="Redo checkpoint (⇧⌘/Ctrl+Shift+Z)"
+            >Redo</button>
+            <span className="history-nav-revision" aria-live="polite">
+              {historyCursor >= 0 ? `R${String(projectHistory.entries[historyCursor]?.snapshot.revision ?? 0).padStart(2, "0")}` : "—"}
+            </span>
+          </div>
           <button className="quiet-button command-button" onClick={openCommandPalette} aria-haspopup="dialog" aria-expanded={commandOpen}>
             <span>{uiCopy.searchActions}</span><kbd>⌘ K</kbd>
           </button>

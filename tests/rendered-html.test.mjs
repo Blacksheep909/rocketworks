@@ -32,11 +32,28 @@ test("server-renders the RocketWorks workbench", async () => {
   assert.match(html, /<title>RocketWorks/);
   assert.match(html, /Aerospace workbench/);
   assert.match(html, /Run estimate/);
+  assert.match(html, /Local checkpoint navigation/);
+  assert.match(html, />Undo<\/button>/);
+  assert.match(html, />Redo<\/button>/);
   assert.match(html, /Independent implementation/);
   assert.match(html, /analytical-checks-only/);
   assert.match(html, /Static aerodynamics are low-speed and small-angle only/);
   assert.doesNotMatch(html, /codex-preview/);
   assert.doesNotMatch(html, /OpenRocket/);
+});
+
+test("exposes session-safe checkpoint navigation affordances", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const historyDocs = await readFile(new URL("../docs/engineering/local-project-history-0.1.md", import.meta.url), "utf8");
+  const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(source, /navigateProjectHistory/);
+  assert.match(source, /historyNavigationRef/);
+  assert.match(source, /Control\+Z Meta\+Z/);
+  assert.match(source, /Control\+Shift\+Z Meta\+Shift\+Z/);
+  assert.match(source, /historyHasPendingChanges/);
+  assert.match(source, /Redo checkpoint/);
+  assert.match(historyDocs, /without deleting or rewriting the chronological history/);
+  assert.match(stylesheet, /\.history-nav/);
 });
 
 test("keeps the Node 22 TypeScript test-loader contract explicit", async () => {
