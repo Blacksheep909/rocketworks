@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.37.0`.
+`kestrel-stage-flight-preview-0.38.0`.
 
 Relation-based aerodynamics retain both the selected normal-force trend and
 the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions
@@ -412,6 +412,17 @@ contact forces, momentum transfer after impact, attitude, lift, plume
 requested step would exceed the explicit maximum-step budget. It remains an
 engineering preview and must not be used for range-safety or flight approval.
 
+When `coupledMultiBodyIncludeRetainedBody` is enabled, the shared-grid track
+also seeds the retained vehicle at the first separation event. The seed keeps
+the staged event handoff attitude, angular rate, mass, and inertia, while a
+callback replays interpolated thrust, aerodynamic, and recovery translation
+forces from the authoritative staged trace. Shared gravity, optional mutual
+gravity, and optional spherical-envelope contact are evaluated by the coupled
+solver. This is a bounded replay diagnostic: retained-stage propellant flow,
+fresh aerodynamic loads, aerodynamic moments, separation mechanics, and later
+mass-property changes remain outside the independent retained-stage model. The
+default remains detached bodies only.
+
 If the retained payload/recovery allowance is made only from collinear point
 masses, the browser adapter adds a versioned compact-package shape inertia
 (`kestrel-compact-package-inertia-0.1.0`) before constructing the rigid-body
@@ -420,12 +431,13 @@ explicitly approximate; it is not a substitute for retained CAD geometry.
 
 ## Limitations
 
-- The retained-body staging model remains a single tracked vehicle; each
-  separated-body branch is an independent 6DOF preview with optional isotropic
-  point drag and optional stage-specific recovery loads. The adapter also
-  exposes a shared-grid detached point-mass track; mutual gravity is an opt-in
-  translational force extension, not a contact or aerodynamic-interference
-  solver.
+- The retained-body staging model remains a single authoritative staged trace;
+  each separated-body branch is an independent 6DOF preview with optional
+  isotropic point drag and optional stage-specific recovery loads. The adapter
+  exposes a shared-grid detached point-mass track plus an opt-in retained
+  replay seed. Mutual gravity and replayed retained translation loads are
+  diagnostic force extensions, not a validated contact or
+  aerodynamic-interference solver.
 - A configured separation delta-v or measured retained-body impulse is applied
   in the event body frame and carried into event/trajectory diagnostics in body
   and world frames. The discarded-body branch receives the mass-ratio

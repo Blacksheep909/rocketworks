@@ -327,7 +327,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.37.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.38.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);
@@ -438,6 +438,48 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.ok(result.separatedBodies[0].warnings.some((warning) => warning.includes("equal-and-opposite")));
   assert.ok(result.separatedBodies[0].warnings.some((warning) => warning.includes("ballistic")));
   assert.deepEqual(result.clusterDiagnostics, []);
+});
+
+test("stage-flight adapter optionally includes a replay-backed retained vehicle in the shared track", () => {
+  const baseInput = {
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages,
+    regimes,
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 2.5,
+    timeStepS: 0.05,
+    events: [createScheduledStageSeparationEvent({ stageId: "booster", timeS: 1 })],
+  };
+  const detachedOnly = simulateStageFlightPreview(baseInput);
+  const replayed = simulateStageFlightPreview({
+    ...baseInput,
+    coupledMultiBodyIncludeRetainedBody: true,
+    coupledMultiBodyContact: {
+      enabled: true,
+      stiffnessNPerM: 75_000,
+      dampingNsPerM: 125,
+      maximumNormalForceN: 250_000,
+    },
+  });
+
+  assert.equal(detachedOnly.coupledMultiBodyFlight?.trajectories.length, 1);
+  const coupled = replayed.coupledMultiBodyFlight;
+  assert.ok(coupled);
+  assert.deepEqual(
+    coupled.trajectories.map((trajectory) => trajectory.id),
+    ["retained-vehicle", "booster/booster"],
+  );
+  const retained = coupled.trajectories.find((trajectory) => trajectory.id === "retained-vehicle");
+  assert.ok(retained);
+  assert.equal(retained.label, "Retained vehicle (trace replay)");
+  assert.equal(retained.releaseTimeS, 1);
+  assert.ok(retained.trace[0].timeS >= 1);
+  assert.ok(retained.trace.some((point) => Math.hypot(point.accelerationWorldMps2.x, point.accelerationWorldMps2.y, point.accelerationWorldMps2.z) > 0));
+  assert.equal(replayed.separationContact?.bodies.length, 2);
+  assert.ok(replayed.assumptions.some((assumption) => assumption.includes("replays interpolated thrust")));
+  assert.ok(replayed.assumptions.some((assumption) => assumption.includes("not an independent retained-stage 6DOF rerun")));
+  assert.equal(replayed.warnings.some((warning) => warning.includes("retained-vehicle coupled replay")), false);
 });
 
 test("stage-flight adapter forwards projected-area drag to the detached shared track", () => {

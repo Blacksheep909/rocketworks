@@ -128,7 +128,7 @@ import {
 } from "./mission-delta-v-bridge.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.37.0";
+  "kestrel-stage-flight-preview-0.38.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -181,6 +181,8 @@ export type StageFlightPreviewInput = Readonly<{
   coupledMultiBodyGravity?: CoupledMultiBodyGravityOptions;
   /** Optional equal-and-opposite envelope-contact force mode for released bodies. */
   coupledMultiBodyContact?: CoupledMultiBodyContactOptions;
+  /** Optional replay-backed retained-vehicle seed in the shared released-body track. */
+  coupledMultiBodyIncludeRetainedBody?: boolean;
   /** Optional detached-body force contract for shared-grid and branch tracks. */
   releasedBodyDragModel?: ReleasedBodyDragModel;
   /** Optional post-trace wake/relative-flow screen; it never feeds forces back into flight. */
@@ -347,6 +349,58 @@ export type StageFlightPreviewResult = Readonly<{
 const ZERO_VECTOR: Vector3 = { x: 0, y: 0, z: 0 };
 const STAGE_FLIGHT_CONVERGENCE_RELATIVE_TOLERANCE = 0.02;
 const STAGE_FLIGHT_CONVERGENCE_TIME_TOLERANCE_S = 0.05;
+
+function interpolateVector(left: Vector3, right: Vector3, fraction: number): Vector3 {
+  return {
+    x: left.x + (right.x - left.x) * fraction,
+    y: left.y + (right.y - left.y) * fraction,
+    z: left.z + (right.z - left.z) * fraction,
+  };
+}
+
+/**
+ * Replays the non-gravity translation loads from the authoritative staged
+ * trace. This is intentionally separate from the coupled solver's gravity,
+ * contact, and mutual-gravity loads so the replay does not double-count them.
+ */
+function interpolateStageTraceNonGravityForceWorldN(
+  trace: readonly StageFlightTracePoint[],
+  timeS: number,
+): Vector3 {
+  if (trace.length === 0) return ZERO_VECTOR;
+  const first = trace[0]!;
+  const last = trace[trace.length - 1]!;
+  if (timeS <= first.timeS) {
+    return addVectors(
+      addVectors(first.thrustForceWorldN, first.aerodynamicForceWorldN),
+      first.recoveryForceWorldN,
+    );
+  }
+  if (timeS >= last.timeS) {
+    return addVectors(
+      addVectors(last.thrustForceWorldN, last.aerodynamicForceWorldN),
+      last.recoveryForceWorldN,
+    );
+  }
+  let low = 0;
+  let high = trace.length - 1;
+  while (low + 1 < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (trace[middle]!.timeS <= timeS) low = middle;
+    else high = middle;
+  }
+  const left = trace[low]!;
+  const right = trace[high]!;
+  const span = right.timeS - left.timeS;
+  const fraction = span > 0 ? (timeS - left.timeS) / span : 0;
+  return addVectors(
+    addVectors(
+      interpolateVector(left.thrustForceWorldN, right.thrustForceWorldN, fraction),
+      interpolateVector(left.aerodynamicForceWorldN, right.aerodynamicForceWorldN, fraction),
+    ),
+    interpolateVector(left.recoveryForceWorldN, right.recoveryForceWorldN, fraction),
+  );
+}
 
 function combineRigidBodyLoads(
   primary: RigidBodyLoads,
@@ -1286,8 +1340,12 @@ export function simulateStageFlightPreview(
   const separationDynamics: SeparationDynamicsResult[] = [];
   const separationImpulseSolutions: CoupledSeparationImpulseResult[] = [];
   const coupledBodySeeds: CoupledMultiBodyFlightBodyInput[] = [];
+  let retainedBodyCoupledSeed: CoupledMultiBodyFlightBodyInput | null = null;
+  let retainedBodyLaterSeparationAssumptionAdded = false;
+  const retainedCoupledTrackAssumptions: string[] = [];
   const separatedBodyWarnings: string[] = [];
   const retainedBodyTrace = primaryRun.rail?.trace ?? primaryRun.simulation?.trace ?? [];
+  const retainedLoadTrace = primaryRun.trace;
   const stageNames = new Map(input.stages.map((stage) => [stage.id, stage.name]));
   const stageInstanceNames = new Map<string, string>(
     input.stages.flatMap((stage) =>
@@ -1354,6 +1412,55 @@ export function simulateStageFlightPreview(
       } catch (error) {
         separatedBodyWarnings.push(
           `${event.id} coupled separation impulse allocation unavailable: ${error instanceof Error ? error.message : "unknown error"}`,
+        );
+      }
+    }
+    if (input.coupledMultiBodyIncludeRetainedBody && detachedStageMassEntries.length > 0) {
+      if (retainedBodyCoupledSeed === null) {
+        const retainedEnvelopeRadiusM = input.separationEnvelopeRadiiM?.["retained-vehicle"];
+        retainedBodyCoupledSeed = {
+          id: "retained-vehicle",
+          label: "Retained vehicle (trace replay)",
+          massKg: retainedMassPropertiesAfterSeparation.massKg,
+          releaseTimeS: event.timeS,
+          releasePositionWorldM: event.stateAfter.positionWorldM,
+          releaseVelocityWorldMps: event.stateAfter.velocityWorldMps,
+          ...(retainedEnvelopeRadiusM !== undefined && retainedEnvelopeRadiusM !== null
+            ? { envelopeRadiusM: retainedEnvelopeRadiusM }
+            : {}),
+          rigidBody: {
+            orientationBodyToWorld: event.stateAfter.orientationBodyToWorld,
+            angularVelocityBodyRadS: event.stateAfter.angularVelocityBodyRadS,
+            inertiaBodyKgM2: retainedMassPropertiesAfterSeparation.inertiaAtCenterKgM2,
+            ...(retainedLoadTrace.length > 0
+              ? {
+                  loads: (state: RigidBodyState): RigidBodyLoads => ({
+                    forceWorldN: interpolateStageTraceNonGravityForceWorldN(
+                      retainedLoadTrace,
+                      state.timeS,
+                    ),
+                  }),
+                }
+              : {}),
+          },
+        };
+        if (retainedLoadTrace.length > 0) {
+          retainedCoupledTrackAssumptions.push(
+            "The retained vehicle in the shared coupled track is seeded at the first separation event and replays interpolated thrust, aerodynamic, and recovery translation loads from the authoritative staged trace; coupled gravity, mutual gravity, and envelope contact remain evaluated by the shared solver.",
+            "The retained replay track is a translation-load diagnostic, not an independent retained-stage 6DOF rerun: retained-stage propellant flow, fresh aerodynamic evaluation, aerodynamic moments, and later mass-property changes are not re-solved.",
+          );
+        } else {
+          separatedBodyWarnings.push(
+            "Retained-vehicle coupled replay was requested, but the authoritative staged trace was empty; the retained seed has no replayed non-gravity loads.",
+          );
+          retainedCoupledTrackAssumptions.push(
+            "The retained coupled seed has no replayed translation loads because the authoritative staged trace was empty; only the shared solver's configured gravity and contact terms remain active.",
+          );
+        }
+      } else if (!retainedBodyLaterSeparationAssumptionAdded) {
+        retainedBodyLaterSeparationAssumptionAdded = true;
+        retainedCoupledTrackAssumptions.push(
+          "The retained replay seed is frozen at the first separation event; later staging events continue to affect detached branches but are not re-applied to the retained shared-track mass, inertia, or replay-load source.",
         );
       }
     }
@@ -1507,7 +1614,9 @@ export function simulateStageFlightPreview(
   if (coupledBodySeeds.length > 0) {
     try {
       coupledMultiBodyFlight = simulateCoupledMultiBodyFlight({
-        bodies: coupledBodySeeds,
+        bodies: retainedBodyCoupledSeed
+          ? [retainedBodyCoupledSeed, ...coupledBodySeeds]
+          : coupledBodySeeds,
         durationS: input.durationS,
         timeStepS: input.timeStepS,
         launchAltitudeM: input.launchAltitudeM,
@@ -1600,14 +1709,16 @@ export function simulateStageFlightPreview(
       }),
     );
     const detachedContactBodies = coupledMultiBodyFlight
-      ? coupledMultiBodyFlight.trajectories.map((trajectory) => ({
+      ? coupledMultiBodyFlight.trajectories
+          .filter((trajectory) => trajectory.id !== "retained-vehicle")
+          .map((trajectory) => ({
           id: trajectory.id,
           label: trajectory.label,
           releaseTimeS: trajectory.releaseTimeS,
           envelopeRadiusM: trajectory.envelopeRadiusM ?? null,
           massKg: trajectory.massKg,
           trace: trajectory.trace,
-        }))
+          }))
       : separatedBodies.map((body, index) => ({
           id: `${body.stageId}/${body.instanceId ?? `logical-${index + 1}`}`,
           label: body.instanceId ? `${body.stageName} / ${body.instanceId}` : body.stageName,
@@ -1651,10 +1762,21 @@ export function simulateStageFlightPreview(
       );
     }
   }
+  if (
+    input.coupledMultiBodyIncludeRetainedBody &&
+    coupledBodySeeds.length > 0 &&
+    retainedBodyCoupledSeed === null
+  ) {
+    separatedBodyWarnings.push(
+      "Retained-vehicle coupled replay was requested, but no retained seed could be created from the staged separation events.",
+    );
+  }
   let relativeAeroInteraction: RelativeAeroInteractionResult | null = null;
   if (retainedBodyTrace.length > 0 && separatedBodies.length > 0) {
     const detachedInteractionBodies = coupledMultiBodyFlight
-      ? coupledMultiBodyFlight.trajectories.map((trajectory) => ({
+      ? coupledMultiBodyFlight.trajectories
+          .filter((trajectory) => trajectory.id !== "retained-vehicle")
+          .map((trajectory) => ({
           id: trajectory.id,
           label: trajectory.label,
           releaseTimeS: trajectory.releaseTimeS,
@@ -1665,7 +1787,7 @@ export function simulateStageFlightPreview(
             positionWorldM: point.positionWorldM,
             velocityWorldMps: point.velocityWorldMps,
           })),
-        }))
+          }))
       : separatedBodies.map((body, index) => ({
           id: `${body.stageId}/${body.instanceId ?? `logical-${index + 1}`}`,
           label: body.instanceId ? `${body.stageName} / ${body.instanceId}` : body.stageName,
@@ -1765,9 +1887,16 @@ export function simulateStageFlightPreview(
     ...(coupledMultiBodyFlight
       ? [
           "The shared-grid detached-body track applies event-level velocity corrections only when the associated impulse allocator is balanced; the independent detached 6DOF branches remain on their baseline release states.",
+          ...retainedCoupledTrackAssumptions,
           ...(coupledMultiBodyFlight.contact.enabled
             ? [
-                "The shared-grid contact branch applies bounded equal-and-opposite spherical-envelope normal forces only between active released bodies with positive radii; retained-vehicle contact, friction, off-centre moments, deformation, plume interaction, and aerodynamic interference remain outside this preview.",
+                ...(retainedBodyCoupledSeed
+                  ? [
+                      "The shared-grid contact branch applies bounded equal-and-opposite spherical-envelope normal forces between active released bodies with positive radii, including the optional retained replay seed; friction, off-centre moments, deformation, plume interaction, and aerodynamic interference remain outside this preview.",
+                    ]
+                  : [
+                      "The shared-grid contact branch applies bounded equal-and-opposite spherical-envelope normal forces only between active detached bodies with positive radii; retained-vehicle contact, friction, off-centre moments, deformation, plume interaction, and aerodynamic interference remain outside this preview.",
+                    ]),
               ]
             : []),
         ]

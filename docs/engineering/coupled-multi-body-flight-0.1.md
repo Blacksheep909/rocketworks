@@ -34,6 +34,25 @@ Accepted/rejected internal steps, accepted-step range, and the maximum scaled
 truncation estimate are returned in `result.integration`. Fixed RK4 remains the
 default for compatibility.
 
+## Retained-vehicle replay seed
+
+The staged adapter exposes an additive `coupledMultiBodyIncludeRetainedBody`
+option. When enabled, the first separation event adds a `retained-vehicle`
+rigid-body trajectory to the shared grid alongside the detached bodies. Its
+release position, velocity, attitude, angular rate, mass, and inertia are
+copied from the staged event handoff. A load callback then interpolates the
+authoritative staged trace's thrust, aerodynamic, and recovery world-force
+vectors at the coupled state time; gravity, optional mutual gravity, and
+optional envelope contact still come from this solver.
+
+This is deliberately a translation-load replay diagnostic, not an independent
+retained-stage simulation. It does not re-solve retained-stage propellant flow,
+fresh aerodynamics, aerodynamic moments, separation mechanism dynamics, or later
+mass-property changes after the first event. The browser labels the trajectory
+and assumptions accordingly. The default remains detached bodies only, so
+existing projects and comparisons retain their previous behavior unless the
+option is explicitly enabled.
+
 ## Equations and numerical method
 
 The translational state is integrated with explicit fourth-order Runge–Kutta:

@@ -1070,6 +1070,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Projected-area \+ static aero loads \(preview\)/);
   assert.match(page, /Validated coefficient-table loads/);
   assert.match(page, /Include mutual point-mass gravity/);
+  assert.match(page, /retained-body-coupled-track/);
+  assert.match(page, /Include retained replay track/);
   assert.match(page, /coupledGravitySofteningRadiusM/);
   assert.match(page, /released-body-contact-mode/);
   assert.match(page, /released-body-contact-stiffness/);
@@ -1279,6 +1281,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stagePreview, /separated bodies/);
   assert.match(stagePreview, /bindMeasuredSeparationImpulseEvent/);
   assert.match(stagePreview, /coupledMultiBodyGravity/);
+  assert.match(stagePreview, /coupledMultiBodyIncludeRetainedBody/);
+  assert.match(stagePreview, /interpolateStageTraceNonGravityForceWorldN/);
   assert.match(stagePreview, /attitudeDependentDrag/);
   assert.match(stagePreview, /missionSerialStageIds/);
   assert.match(stagePreview, /computeMissionMassRatio/);

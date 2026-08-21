@@ -184,6 +184,12 @@ research, standards, and original code.
   dedicated CSV export; retained-vehicle contact, friction, off-centre moments,
   deformation, plume/aero interference, and flight safety remain outside the
   contract;
+- an opt-in retained-vehicle replay track in the shared released-body solver
+  that seeds the retained rigid state at first separation and replays
+  interpolated thrust, aerodynamic, and recovery translation loads from the
+  authoritative staged trace for contact/mutual-gravity diagnostics; retained
+  propellant flow, fresh aerodynamics, moments, and later mass-property changes
+  are intentionally not re-solved as an independent retained-stage model;
 - an opt-in projected-area attitude-drag mode for released rigid bodies that
   blends caller-supplied axial and broadside CdA pairs, retains incidence and
   effective-area diagnostics on the shared trace;
@@ -402,7 +408,10 @@ new opt-in released-body rigid-state branch toward contact and relative-load
 validation, including evidence-backed calibration of the now-configurable
 relative-flow wake proxy, validated stage-interface/load-transfer and
 mission-level mass-ratio loss models, and validated structural/aeroelastic benchmarks beyond the
-preliminary fin flutter screen. Angular and direct force/moment coefficient
+preliminary fin flutter screen. The optional retained replay track now provides
+an explicit shared-grid diagnostic; a true independent retained-stage force,
+propellant, moment, relative-body database, and momentum-exchange solver
+remains future work. Angular and direct force/moment coefficient
 volumes are now supported as explicit
 interpolation sources, and seeded event-factor dispersion now covers timing,
 separation impulse, and launch alignment; benchmarked data packages,

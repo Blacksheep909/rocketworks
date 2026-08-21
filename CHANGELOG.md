@@ -6,6 +6,15 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an explicit retained-vehicle replay option to the staged shared-grid
+  track. When enabled, the first separation event seeds a retained rigid body
+  and replays authoritative staged thrust, aerodynamic, and recovery
+  translation loads so configured mutual gravity and envelope contact can be
+  inspected alongside detached bodies. The default remains detached-only; the
+  replay is documented as an analytical translation diagnostic rather than an
+  independent retained-stage propulsion, aerodynamics, moment, or later-mass
+  solution.
+
 - Add independent aerodynamic uncertainty channels to staged dispersion. Drag,
   normal-force-slope, and center-of-pressure table cells can now be sampled
   with separate bounded signed-sigma factors and correlated through the

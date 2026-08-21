@@ -1557,6 +1557,7 @@ function createStageFlightPreviewInputs({
   coupledContactStiffnessNPerM,
   coupledContactDampingNsPerM,
   coupledContactMaximumNormalForceN,
+  coupledMultiBodyIncludeRetainedBody,
   releasedBodyDragModel,
   relativeAeroInteractionEnabled,
   relativeAeroWakeHalfAngleDeg,
@@ -1606,6 +1607,7 @@ function createStageFlightPreviewInputs({
   coupledContactStiffnessNPerM: number;
   coupledContactDampingNsPerM: number;
   coupledContactMaximumNormalForceN: number;
+  coupledMultiBodyIncludeRetainedBody: boolean;
   releasedBodyDragModel: ReleasedBodyDragModel;
   relativeAeroInteractionEnabled: boolean;
   relativeAeroWakeHalfAngleDeg: number;
@@ -2063,6 +2065,7 @@ function createStageFlightPreviewInputs({
           maximumNormalForceN: coupledContactMaximumNormalForceN,
         }
       : ({ enabled: false } satisfies CoupledMultiBodyContactOptions),
+    coupledMultiBodyIncludeRetainedBody,
     releasedBodyDragModel,
     relativeAeroInteraction,
     separationContactLoad: {
@@ -4165,6 +4168,7 @@ export default function Home() {
   const [coupledContactStiffnessNPerM, setCoupledContactStiffnessNPerM] = useState(50_000);
   const [coupledContactDampingNsPerM, setCoupledContactDampingNsPerM] = useState(100);
   const [coupledContactMaximumNormalForceN, setCoupledContactMaximumNormalForceN] = useState(1_000_000);
+  const [coupledMultiBodyIncludeRetainedBody, setCoupledMultiBodyIncludeRetainedBody] = useState(false);
   const [releasedBodyDragModel, setReleasedBodyDragModel] = useState<ReleasedBodyDragModel>("isotropic-point");
   const [relativeAeroInteractionEnabled, setRelativeAeroInteractionEnabled] = useState(true);
   const [relativeAeroWakeHalfAngleDeg, setRelativeAeroWakeHalfAngleDeg] = useState(8);
@@ -4432,6 +4436,7 @@ export default function Home() {
       coupledContactStiffnessNPerM,
       coupledContactDampingNsPerM,
       coupledContactMaximumNormalForceN,
+      coupledMultiBodyIncludeRetainedBody,
       releasedBodyDragModel,
       relativeAeroInteractionEnabled,
       relativeAeroWakeHalfAngleDeg,
@@ -4444,7 +4449,7 @@ export default function Home() {
       verticalIntegrationTimeStepS,
       coupledIntegrationTimeStepS,
     }),
-    [burnTime, coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledIntegrationTimeStepS, coupledMutualGravityEnabled, customMaterial, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, inducedDragFactor, inducedDragModel, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalForceModel, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, releasedBodyDragModel, relativeAeroInteractionEnabled, relativeAeroMaximumVelocityDeficitFraction, relativeAeroPeakVelocityDeficitFraction, relativeAeroWakeHalfAngleDeg, relativeAeroWakeRecoveryDistanceBodyDiameters, relativeHumidityPercent, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, verticalIntegrationTimeStepS, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
+    [burnTime, coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledIntegrationTimeStepS, coupledMultiBodyIncludeRetainedBody, coupledMutualGravityEnabled, customMaterial, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, inducedDragFactor, inducedDragModel, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalForceModel, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, releasedBodyDragModel, relativeAeroInteractionEnabled, relativeAeroMaximumVelocityDeficitFraction, relativeAeroPeakVelocityDeficitFraction, relativeAeroWakeHalfAngleDeg, relativeAeroWakeRecoveryDistanceBodyDiameters, relativeHumidityPercent, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, verticalIntegrationTimeStepS, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const currentHistoryFingerprint = namedProjectFingerprint(
@@ -4659,6 +4664,7 @@ export default function Home() {
             dampingNsPerM: coupledContactDampingNsPerM,
             maximumNormalForceN: coupledContactMaximumNormalForceN,
           },
+          coupledMultiBodyIncludeRetainedBody,
           releasedBodyDragModel,
           separationContactLoad: {
             stoppingDistanceM: separationContactStoppingDistanceM,
@@ -4671,7 +4677,7 @@ export default function Home() {
           },
         },
       }),
-    [coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledIntegrationTimeStepS, coupledMutualGravityEnabled, editableInputs, previewMotor, releasedBodyDragModel, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, vehicleTopology, verticalIntegrationTimeStepS],
+    [coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledIntegrationTimeStepS, coupledMultiBodyIncludeRetainedBody, coupledMutualGravityEnabled, editableInputs, previewMotor, releasedBodyDragModel, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, vehicleTopology, verticalIntegrationTimeStepS],
   );
   const previewEnvironment = useMemo(
     () => createPreviewEnvironment(launchAltitude, windSpeed, { siteName: launchSiteName, latitudeDeg: launchLatitudeDeg, longitudeDeg: launchLongitudeDeg, windAzimuthDeg, windProfileLayers, turbulenceScale, earthRotationEnabled, normalGravityEnabled, seed: weatherSeed, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
@@ -5447,6 +5453,7 @@ export default function Home() {
         setCoupledContactStiffnessNPerM(inputs.coupledContactStiffnessNPerM ?? 50_000);
         setCoupledContactDampingNsPerM(inputs.coupledContactDampingNsPerM ?? 100);
         setCoupledContactMaximumNormalForceN(inputs.coupledContactMaximumNormalForceN ?? 1_000_000);
+        setCoupledMultiBodyIncludeRetainedBody(inputs.coupledMultiBodyIncludeRetainedBody ?? false);
         setReleasedBodyDragModel(inputs.releasedBodyDragModel ?? "isotropic-point");
         setRelativeAeroInteractionEnabled(inputs.relativeAeroInteractionEnabled ?? true);
         setRelativeAeroWakeHalfAngleDeg(inputs.relativeAeroWakeHalfAngleDeg ?? 8);
@@ -5672,6 +5679,7 @@ export default function Home() {
         setCoupledContactStiffnessNPerM(inputs.coupledContactStiffnessNPerM ?? 50_000);
         setCoupledContactDampingNsPerM(inputs.coupledContactDampingNsPerM ?? 100);
         setCoupledContactMaximumNormalForceN(inputs.coupledContactMaximumNormalForceN ?? 1_000_000);
+        setCoupledMultiBodyIncludeRetainedBody(inputs.coupledMultiBodyIncludeRetainedBody ?? false);
         setReleasedBodyDragModel(inputs.releasedBodyDragModel ?? "isotropic-point");
         setRelativeAeroInteractionEnabled(inputs.relativeAeroInteractionEnabled ?? true);
         setRelativeAeroWakeHalfAngleDeg(inputs.relativeAeroWakeHalfAngleDeg ?? 8);
@@ -6468,6 +6476,7 @@ export default function Home() {
     setCoupledContactStiffnessNPerM(inputs.coupledContactStiffnessNPerM ?? 50_000);
     setCoupledContactDampingNsPerM(inputs.coupledContactDampingNsPerM ?? 100);
     setCoupledContactMaximumNormalForceN(inputs.coupledContactMaximumNormalForceN ?? 1_000_000);
+    setCoupledMultiBodyIncludeRetainedBody(inputs.coupledMultiBodyIncludeRetainedBody ?? false);
     setReleasedBodyDragModel(inputs.releasedBodyDragModel ?? "isotropic-point");
     setRelativeAeroInteractionEnabled(inputs.relativeAeroInteractionEnabled ?? true);
     setRelativeAeroWakeHalfAngleDeg(inputs.relativeAeroWakeHalfAngleDeg ?? 8);
@@ -8134,6 +8143,7 @@ export default function Home() {
             coupledContactStiffnessNPerM,
             coupledContactDampingNsPerM,
             coupledContactMaximumNormalForceN,
+            coupledMultiBodyIncludeRetainedBody,
             releasedBodyDragModel,
             relativeAeroInteractionEnabled,
             relativeAeroWakeHalfAngleDeg,
@@ -8209,6 +8219,7 @@ export default function Home() {
           coupledContactStiffnessNPerM,
           coupledContactDampingNsPerM,
           coupledContactMaximumNormalForceN,
+          coupledMultiBodyIncludeRetainedBody,
           releasedBodyDragModel,
           relativeAeroInteractionEnabled,
           relativeAeroWakeHalfAngleDeg,
@@ -9093,6 +9104,21 @@ export default function Home() {
                     </select>
                   </div>
                   <div className="field-group">
+                    <label htmlFor="retained-body-coupled-track">Retained vehicle in coupled track</label>
+                    <select
+                      id="retained-body-coupled-track"
+                      value={coupledMultiBodyIncludeRetainedBody ? "included" : "detached-only"}
+                      onChange={(event) => {
+                        setCoupledMultiBodyIncludeRetainedBody(event.target.value === "included");
+                        markChanged();
+                      }}
+                    >
+                      <option value="detached-only">Detached bodies only (baseline)</option>
+                      <option value="included">Include retained replay track</option>
+                    </select>
+                    <small>Adds the retained vehicle at first separation using replayed staged translation loads, enabling shared contact and mutual-gravity diagnostics. It is not an independent retained-stage 6DOF solution.</small>
+                  </div>
+                  <div className="field-group">
                     <label htmlFor="released-body-drag-model">Released-body aerodynamics</label>
                     <select
                       id="released-body-drag-model"
@@ -9695,8 +9721,8 @@ export default function Home() {
                             <div className="stage-coupled-multi-body-flight-heading">
                               <div>
                                 <span className="eyebrow">Shared-grid propagation</span>
-                                <h5>Coupled detached-body flight</h5>
-                                  <p>Runs every released body together on one mission-time grid with shared gravity, atmosphere, and wind queries. Bodies may opt into an explicit quaternion/inertia state and bounded spherical-envelope contact; retained-vehicle contact, plume, and aerodynamic interference remain out of scope.</p>
+                                <h5>{stageFlightResult.coupledMultiBodyFlight.trajectories.some((trajectory) => trajectory.id === "retained-vehicle") ? "Coupled retained + detached flight" : "Coupled detached-body flight"}</h5>
+                                  <p>{stageFlightResult.coupledMultiBodyFlight.trajectories.some((trajectory) => trajectory.id === "retained-vehicle") ? "Runs the retained vehicle and released bodies together on one mission-time grid. The retained body replays authoritative staged translation loads while shared gravity, atmosphere, wind, mutual gravity, and bounded envelope contact are evaluated here; independent retained-stage aerodynamics and propellant flow remain out of scope." : "Runs every released body together on one mission-time grid with shared gravity, atmosphere, and wind queries. Bodies may opt into an explicit quaternion/inertia state and bounded spherical-envelope contact; retained-vehicle contact, plume, and aerodynamic interference remain out of scope."}</p>
                               </div>
                               <span className={`stage-coupled-multi-body-flight-status stage-coupled-multi-body-flight-status-${stageFlightResult.coupledMultiBodyFlight.status}`}>
                                 {stageFlightResult.coupledMultiBodyFlight.status}
@@ -9704,6 +9730,7 @@ export default function Home() {
                             </div>
                             <div className="stage-coupled-multi-body-flight-grid">
                               <div><span>Propagated bodies</span><strong>{stageFlightResult.coupledMultiBodyFlight.trajectories.length}</strong><small>shared mission track</small></div>
+                              <div><span>Track composition</span><strong>{stageFlightResult.coupledMultiBodyFlight.trajectories.some((trajectory) => trajectory.id === "retained-vehicle") ? "Retained + detached" : "Detached only"}</strong><small>{stageFlightResult.coupledMultiBodyFlight.trajectories.some((trajectory) => trajectory.id === "retained-vehicle") ? "retained translation replay" : "backwards-compatible baseline"}</small></div>
                               <div><span>Integration steps</span><strong>{stageFlightResult.coupledMultiBodyFlight.stepCount}</strong><small>{stageFlightResult.coupledMultiBodyFlight.timeStepS.toFixed(3)} s effective step</small></div>
                                <div><span>Minimum COM separation</span><strong>{stageFlightResult.coupledMultiBodyFlight.minimumDistanceM === null ? "Not assessed" : `${stageFlightResult.coupledMultiBodyFlight.minimumDistanceM.toFixed(2)} m`}</strong><small>{stageFlightResult.coupledMultiBodyFlight.closestPair ? `closest at ${stageFlightResult.coupledMultiBodyFlight.closestPair.timeS.toFixed(2)} s` : "no pairwise overlap"}</small></div>
                                <div><span>Rigid-body states</span><strong>{stageFlightResult.coupledMultiBodyFlight.rigidBodyCount}</strong><small>{stageFlightResult.coupledMultiBodyFlight.rigidBodyCount > 0 ? "attitude + angular-rate traces" : "point-mass translation"}</small></div>

@@ -280,11 +280,16 @@ preview input.
 
 Measured mass-flow histories, deterministic motor-local gimbal schedules, and
 optional measured retained-body separation impulses now drive staged
-evaluations when supplied. Next add a time-propagated coupled multi-body branch
-that resolves discarded stages,
-relative-body aerodynamic databases, and momentum exchange. The current
-event-level minimum-norm impulse allocator is diagnostic telemetry only and
-does not replace that propagated branch.
+evaluations when supplied. The shared-grid branch can also opt into a
+replay-backed retained-vehicle rigid seed at first separation, using
+authoritative staged translation loads for contact and mutual-gravity
+diagnostics. That seed is intentionally not an independent retained-stage
+propellant/aerodynamic/moment solution, and later mass-property changes are not
+re-applied. Next work remains a force-coupled multi-body branch that resolves
+discarded stages, retained-stage dynamics, relative-body aerodynamic
+databases, and momentum exchange. The current event-level minimum-norm impulse
+allocator and replay seed are diagnostic telemetry only and do not replace that
+validated propagated branch.
 Monte Carlo event uncertainty
 should then vary
 ignition delay, failure, separation impulse, thrust, mass, and alignment while
