@@ -104,6 +104,16 @@ export type AerodynamicCoefficientUncertainty = Readonly<{
   dampingDerivativeBody: Vector3 | null;
 }>;
 
+/** Independent signed-sigma channels for declared coefficient-table cells. */
+export type AerodynamicCoefficientUncertaintyScales = Readonly<{
+  dragCoefficient?: number;
+  normalForceSlopePerRad?: number;
+  centerOfPressureXM?: number;
+  forceCoefficientBody?: number;
+  momentCoefficientBody?: number;
+  dampingDerivativeBody?: number;
+}>;
+
 export type AerodynamicCoefficientEvaluation = Readonly<{
   modelVersion: string;
   validationStatus: AerodynamicDataProvenance["validationStatus"];

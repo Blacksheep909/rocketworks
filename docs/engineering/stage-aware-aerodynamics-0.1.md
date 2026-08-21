@@ -147,7 +147,9 @@ validation.
 ## Next work
 
 Mach/Reynolds tables, interpolation provenance, uncertainty fields, diagonal
-body-rate damping, angular volumes, and optional direct force/moment databases
-are now available. Next add covariance metadata and a multi-body separation
-solver that queries relative-body aerodynamic databases rather than using this
-single retained-body warning.
+body-rate damping, angular volumes, optional direct force/moment databases, and
+independent signed-sigma channels for drag, normal-force slope, and center of
+pressure are now available. Matching channel factors may be correlated through
+the caller-authored Gaussian-copula editor. Next add measured covariance
+metadata and a multi-body separation solver that queries relative-body
+aerodynamic databases rather than using this single retained-body warning.

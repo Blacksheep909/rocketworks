@@ -1089,6 +1089,12 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /directMomentCoefficientScale/);
   assert.match(page, /coefficientUncertaintyScale/);
   assert.match(page, /Aero table uncertainty/);
+  assert.match(page, /coefficientUncertaintyDragScale/);
+  assert.match(page, /coefficientUncertaintyNormalScale/);
+  assert.match(page, /coefficientUncertaintyCpScale/);
+  assert.match(page, /Aero drag-table uncertainty/);
+  assert.match(page, /Aero normal-force uncertainty/);
+  assert.match(page, /Aero CP uncertainty/);
   assert.match(page, /ignitionDelayOffsetS/);
   assert.match(page, /separationImpulseScale/);
   assert.match(page, /contactStoppingDistanceScale/);

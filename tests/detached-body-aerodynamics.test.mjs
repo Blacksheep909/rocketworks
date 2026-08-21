@@ -52,6 +52,28 @@ function directTable() {
   });
 }
 
+function scalarUncertaintyTable() {
+  return createAerodynamicCoefficientTable({
+    id: "detached-scalar-uncertainty",
+    name: "Detached scalar uncertainty regression table",
+    machPoints: [0, 1],
+    reynoldsPoints: [1e5, 1e7],
+    dragCoefficient: {
+      values: [[0.6, 0.6], [0.6, 0.6]],
+      absoluteUncertainty: [[0.1, 0.1], [0.1, 0.1]],
+    },
+    normalForceSlopePerRad: {
+      values: [[3, 3], [3, 3]],
+      absoluteUncertainty: [[0.5, 0.5], [0.5, 0.5]],
+    },
+    centerOfPressureXM: {
+      values: [[0.7, 0.7], [0.7, 0.7]],
+      absoluteUncertainty: [[0.02, 0.02], [0.02, 0.02]],
+    },
+    provenance,
+  });
+}
+
 test("detached-body relation path applies normal force, CP moment, and damping", () => {
   const result = evaluateDetachedBodyAerodynamics({
     basis: {
@@ -161,6 +183,33 @@ test("detached-body force/moment tables apply direct resultants with Reynolds pr
   assert.ok(result.dragN > 0);
   assert.ok(result.aerodynamicStaticMomentBodyNm.y < 0);
   assert.ok(result.warnings.some((warning) => warning.includes("Direct body-axis force")));
+});
+
+test("detached-body scalar uncertainty channels override the common fallback", () => {
+  const result = evaluateDetachedBodyAerodynamics({
+    basis: {
+      referenceAreaM2: 0.02,
+      dragCoefficient: 0.6,
+      coefficientTable: scalarUncertaintyTable(),
+      referenceLengthM: 1,
+      centerOfMassXM: 0.3,
+      coefficientUncertaintyScale: 1.25,
+      coefficientUncertaintyScales: {
+        dragCoefficient: 1,
+        normalForceSlopePerRad: 0,
+        centerOfPressureXM: -1,
+      },
+    },
+    densityKgM3: 1.2,
+    speedOfSoundMps: 340,
+    dynamicViscosityPaS: 1.8e-5,
+    relativeAirVelocityWorldMps: { x: -50, y: 5, z: 0 },
+    orientationBodyToWorld: identity,
+  });
+
+  assert.equal(result.effectiveDragCoefficient, 0.7);
+  assert.equal(result.normalForceApplied, true);
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("Independent signed-sigma uncertainty channels")));
 });
 
 test("detached-body basis rejects a normal-force slope without a CP lever arm", () => {

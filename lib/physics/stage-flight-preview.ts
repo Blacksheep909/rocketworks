@@ -5,7 +5,10 @@ import {
   type MultiStageMotor,
   type RocketStage,
 } from "./multi-stage.ts";
-import type { StageAerodynamicRegime } from "./stage-aware-aerodynamics.ts";
+import type {
+  AerodynamicCoefficientUncertaintyScales,
+  StageAerodynamicRegime,
+} from "./stage-aware-aerodynamics.ts";
 import { createStageAwareAerodynamicsModel } from "./stage-aware-aerodynamics.ts";
 import {
   createPreliminaryRocketLoadModel,
@@ -158,6 +161,8 @@ export type StageFlightPreviewInput = Readonly<{
   directMomentCoefficientScale?: number;
   /** Signed common-sigma multiplier applied to declared absolute aero-table uncertainties. */
   coefficientUncertaintyScale?: number;
+  /** Optional per-channel signed-sigma multipliers; omitted channels use the common value. */
+  coefficientUncertaintyScales?: AerodynamicCoefficientUncertaintyScales;
   alwaysActiveGeometryStageIds?: readonly string[];
   separationTransitionWindowS?: number;
   initialState?: Partial<Pick<
@@ -476,6 +481,7 @@ function detachedStageAerodynamicBasis(
   stageId: string,
   centerOfMassXM: number,
   coefficientUncertaintyScale?: number,
+  coefficientUncertaintyScales?: AerodynamicCoefficientUncertaintyScales,
 ): DetachedStageAerodynamicBasis | null {
   const regime = regimes.find(
     (candidate) =>
@@ -580,6 +586,9 @@ function detachedStageAerodynamicBasis(
                 : {}),
               ...(coefficientUncertaintyScale !== undefined
                 ? { coefficientUncertaintyScale }
+                : {}),
+              ...(coefficientUncertaintyScales !== undefined
+                ? { coefficientUncertaintyScales }
                 : {}),
             }
           : {}),
@@ -906,6 +915,7 @@ export function simulateStageFlightPreview(
     directForceCoefficientScale: input.directForceCoefficientScale,
     directMomentCoefficientScale: input.directMomentCoefficientScale,
     coefficientUncertaintyScale: input.coefficientUncertaintyScale,
+    coefficientUncertaintyScales: input.coefficientUncertaintyScales,
   });
   const normalForceModels = [
     ...new Set(input.regimes.map((regime) => regime.normalForceModel ?? "low-speed")),
@@ -1357,6 +1367,7 @@ export function simulateStageFlightPreview(
         stageId,
         massProperties.centerOfMassM.x,
         input.coefficientUncertaintyScale,
+        input.coefficientUncertaintyScales,
       );
       const projectedAreaMode = input.releasedBodyDragModel === "attitude-projected-area";
       const coefficientTableMode = input.releasedBodyDragModel === "coefficient-table";

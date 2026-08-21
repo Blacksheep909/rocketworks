@@ -29,6 +29,7 @@ import type {
   AerodynamicCoefficientApplicabilityIssue,
   AerodynamicCoefficientTableModel,
   AerodynamicDataProvenance,
+  AerodynamicCoefficientUncertaintyScales,
 } from "./aerodynamic-coefficients.ts";
 
 /**
@@ -40,7 +41,7 @@ import type {
  * the constant CdA term when the caller has supplied an oriented body profile.
  */
 export const DETACHED_BODY_AERODYNAMICS_MODEL_VERSION =
-  "rocketworks-detached-body-aerodynamics-0.2.0";
+  "rocketworks-detached-body-aerodynamics-0.3.0";
 export const DETACHED_BODY_AERODYNAMICS_STATUS =
   "analytical-component-checks-only" as const;
 
@@ -69,6 +70,8 @@ export type DetachedBodyAerodynamicBasis = Readonly<{
   momentReferenceLengthBodyM?: Vector3;
   /** Signed common-sigma perturbation for declared table uncertainty cells. */
   coefficientUncertaintyScale?: number;
+  /** Optional per-channel signed-sigma multipliers; omitted channels use the common value. */
+  coefficientUncertaintyScales?: AerodynamicCoefficientUncertaintyScales;
   attitudeDependentDrag?: AttitudeDependentDragGeometry;
 }>;
 
@@ -217,6 +220,11 @@ export function validateDetachedBodyAerodynamicBasis(
     if (basis.coefficientUncertaintyScale !== undefined) {
       assertFinite(basis.coefficientUncertaintyScale, "detached-body coefficient uncertainty scale");
     }
+    if (basis.coefficientUncertaintyScales) {
+      Object.entries(basis.coefficientUncertaintyScales).forEach(([channel, value]) => {
+        assertFinite(value, `detached-body coefficient uncertainty ${channel} scale`);
+      });
+    }
     if (basis.momentReferenceLengthBodyM) {
       assertFiniteVector(basis.momentReferenceLengthBodyM, "detached-body moment reference lengths");
       if (![basis.momentReferenceLengthBodyM.x, basis.momentReferenceLengthBodyM.y, basis.momentReferenceLengthBodyM.z].every((value) => value > 0)) {
@@ -293,42 +301,50 @@ export function evaluateDetachedBodyAerodynamics(
       sideslipRad,
     });
     const sigma = input.basis.coefficientUncertaintyScale ?? 0;
+    const uncertaintyScales = {
+      dragCoefficient: input.basis.coefficientUncertaintyScales?.dragCoefficient ?? sigma,
+      normalForceSlopePerRad: input.basis.coefficientUncertaintyScales?.normalForceSlopePerRad ?? sigma,
+      centerOfPressureXM: input.basis.coefficientUncertaintyScales?.centerOfPressureXM ?? sigma,
+      forceCoefficientBody: input.basis.coefficientUncertaintyScales?.forceCoefficientBody ?? sigma,
+      momentCoefficientBody: input.basis.coefficientUncertaintyScales?.momentCoefficientBody ?? sigma,
+      dampingDerivativeBody: input.basis.coefficientUncertaintyScales?.dampingDerivativeBody ?? sigma,
+    };
     dragCoefficient = applyUncertainty(
       evaluation.dragCoefficient,
       evaluation.uncertainty.dragCoefficient,
-      sigma,
+      uncertaintyScales.dragCoefficient,
       "detached-body drag coefficient",
       true,
     );
     normalForceSlopePerRad = applyUncertainty(
       evaluation.normalForceSlopePerRad,
       evaluation.uncertainty.normalForceSlopePerRad,
-      sigma,
+      uncertaintyScales.normalForceSlopePerRad,
       "detached-body normal-force slope",
       true,
     );
     centerOfPressureMinusCenterOfMassM = applyUncertainty(
       evaluation.centerOfPressureXM,
       evaluation.uncertainty.centerOfPressureXM,
-      sigma,
+      uncertaintyScales.centerOfPressureXM,
       "detached-body table center of pressure",
     ) - input.basis.centerOfMassXM!;
     directForceCoefficientBody = perturbVector(
       evaluation.forceCoefficientBody,
       evaluation.uncertainty.forceCoefficientBody,
-      sigma,
+      uncertaintyScales.forceCoefficientBody,
       "detached-body direct force coefficient",
     );
     directMomentCoefficientBody = perturbVector(
       evaluation.momentCoefficientBody,
       evaluation.uncertainty.momentCoefficientBody,
-      sigma,
+      uncertaintyScales.momentCoefficientBody,
       "detached-body direct moment coefficient",
     );
     dampingDerivativeBody = perturbVector(
       evaluation.dampingDerivativeBody,
       evaluation.uncertainty.dampingDerivativeBody,
-      sigma,
+      uncertaintyScales.dampingDerivativeBody,
       "detached-body damping derivative",
     ) ?? input.basis.dampingDerivativeBody;
     coefficientProvenance = evaluation.provenance;
@@ -490,6 +506,11 @@ export function evaluateDetachedBodyAerodynamics(
     ...(coefficientTable
       ? ["Table queries use dynamic viscosity and the supplied reference length for Reynolds number; no coefficient is extrapolated outside the table's declared policy."]
       : []),
+    ...(coefficientTable && input.basis.coefficientUncertaintyScales
+      ? ["Independent signed-sigma uncertainty channels override the common table-cell fallback for the declared channels; table-node covariance and time correlation are not modeled."]
+      : coefficientTable && input.basis.coefficientUncertaintyScale !== undefined
+        ? ["A common signed-sigma perturbation is applied to declared table-cell uncertainty; table-node covariance and time correlation are not modeled."]
+        : []),
     ...(input.basis.dampingDerivativeBody ? ["Optional rotational damping uses the supplied body-rate derivative and reference lengths; it is not inferred from geometry."] : []),
     ...(input.basis.attitudeDependentDrag ? ["Projected drag and relation normal force are superposed; no crossflow lift or aerodynamic database interpolation is inferred."] : []),
   ];

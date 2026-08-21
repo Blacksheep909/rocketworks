@@ -445,6 +445,9 @@ const UNCERTAINTY_CORRELATION_DEFINITIONS: readonly UncertaintyCorrelationDefini
   { key: "propellantMassScale", label: "Propellant mass", scope: "coupled" },
   { key: "dragCoefficientScale", label: "Drag coefficient", scope: "vertical + coupled" },
   { key: "coefficientUncertaintyScale", label: "Aero table uncertainty", scope: "coupled" },
+  { key: "coefficientUncertaintyDragScale", label: "Aero drag uncertainty", scope: "coupled" },
+  { key: "coefficientUncertaintyNormalScale", label: "Aero normal-force uncertainty", scope: "coupled" },
+  { key: "coefficientUncertaintyCpScale", label: "Aero CP uncertainty", scope: "coupled" },
   { key: "directForceCoefficientScale", label: "Direct force coefficients", scope: "coupled" },
   { key: "directMomentCoefficientScale", label: "Direct moment coefficients", scope: "coupled" },
   { key: "thrustScale", label: "Delivered thrust", scope: "vertical + coupled" },
@@ -8279,7 +8282,22 @@ export default function Home() {
             ? [
                 {
                   key: "coefficientUncertaintyScale" as const,
-                  label: "Aero table uncertainty (common sigma)",
+                  label: "Aero vector/damping uncertainty (common sigma)",
+                  distribution: { kind: "normal" as const, mean: 0, standardDeviation: 1, minimum: -2, maximum: 2 },
+                },
+                {
+                  key: "coefficientUncertaintyDragScale" as const,
+                  label: "Aero drag-table uncertainty",
+                  distribution: { kind: "normal" as const, mean: 0, standardDeviation: 1, minimum: -2, maximum: 2 },
+                },
+                {
+                  key: "coefficientUncertaintyNormalScale" as const,
+                  label: "Aero normal-force uncertainty",
+                  distribution: { kind: "normal" as const, mean: 0, standardDeviation: 1, minimum: -2, maximum: 2 },
+                },
+                {
+                  key: "coefficientUncertaintyCpScale" as const,
+                  label: "Aero CP uncertainty",
                   distribution: { kind: "normal" as const, mean: 0, standardDeviation: 1, minimum: -2, maximum: 2 },
                 },
               ]

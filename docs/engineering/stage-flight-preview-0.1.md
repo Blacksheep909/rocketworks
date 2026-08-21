@@ -157,15 +157,18 @@ distributions through this complete adapter. The browser Flight workspace uses
 16 bounded samples for dry mass, propellant mass, delivered thrust, drag, and
 wind, then reports percentile bands, sensitivity, failed samples, and
 split-sample convergence. The variant builder does not mutate the source
-topology or environment. Drag uncertainty is an explicit drag-only scale after
-the selected constant or Mach--Reynolds source. When a direct force/moment
-database is selected, separate direct-force and direct-moment scales feed the
-same load diagnostics; relation fallback, damping, and centre-of-pressure
-terms remain nominal. If a selected table declares absolute uncertainty cells,
-the wrapper also adds a bounded common signed-sigma factor for the interpolated
-drag, normal-force, CP, direct force/moment, and damping cells; empirical
-coefficient covariance and time correlation remain outside this adapter. See
-`stage-flight-uncertainty-0.1.md` for the full contract and limitations.
+ topology or environment. Drag uncertainty is an explicit drag-only scale after
+ the selected constant or Mach--Reynolds source. When a direct force/moment
+ database is selected, separate direct-force and direct-moment scales feed the
+ same load diagnostics; relation fallback, damping, and centre-of-pressure
+ terms remain nominal. If a selected table declares absolute uncertainty cells,
+ the wrapper adds the legacy common signed-sigma factor plus optional
+ independent drag, normal-force-slope, and centre-of-pressure channels. The
+ channel factors are available to the Gaussian-copula dependence editor when
+ matching pairs are declared; direct force/moment and damping cells still fall
+ back to the common factor. Empirical table-node covariance and time
+ correlation remain outside this adapter. See
+ `stage-flight-uncertainty-0.1.md` for the full contract and limitations.
 
 ## Stage mass-ratio diagnostic
 
@@ -451,7 +454,8 @@ explicitly approximate; it is not a substitute for retained CAD geometry.
 This is intentionally a narrow composition layer. Keeping the existing models
 independently versioned makes it possible to improve propulsion, aerodynamics,
 environment, or event mechanics without hiding a new monolithic simulator
-  behind the browser UI. Future work can add correlated/model-form uncertainty,
+  behind the browser UI. Future work can add measured table covariance and
+  correlated/model-form uncertainty,
   relative-body aerodynamic databases, attitude-aware envelope geometry, and a
   force-coupled multi-body separation solver with contact, relative
   aerodynamics, and attitude while preserving this provenance boundary.

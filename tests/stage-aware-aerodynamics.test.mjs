@@ -390,6 +390,43 @@ test("common signed sigma propagates declared coefficient-table uncertainty", ()
   );
 });
 
+test("independent aerodynamic uncertainty channels isolate scalar coefficients", () => {
+  const table = directCoefficientTable("channel-table", true);
+  const model = aeroModel({
+    coefficientUncertaintyScales: {
+      dragCoefficient: 1,
+      normalForceSlopePerRad: 0,
+      centerOfPressureXM: -1,
+      forceCoefficientBody: 0,
+      momentCoefficientBody: 0,
+      dampingDerivativeBody: 0,
+    },
+    regimes: [
+      {
+        id: "full-stack",
+        label: "Full launch stack",
+        activeStageIds: ["booster", "upper"],
+        coefficientTable: table,
+        coefficientTableDesignPoint: { mach: 0.5, reynoldsNumber: 3e5 },
+      },
+      {
+        id: "upper-only",
+        label: "Upper stage",
+        activeStageIds: ["upper"],
+        coefficientTable: table,
+        coefficientTableDesignPoint: { mach: 0.5, reynoldsNumber: 3e5 },
+      },
+    ],
+  });
+  const result = model.evaluate(fullStackState());
+  close(result.dragCoefficient, 0.6, 1e-12, "channel drag");
+  close(result.normalForceSlopePerRad, 4, 1e-12, "channel normal-force slope");
+  close(result.centerOfPressureXM, 0.48, 1e-12, "channel CP");
+  assert.deepEqual(result.forceCoefficientBody, { x: 1, y: -0.2, z: 0.1 });
+  assert.deepEqual(result.momentCoefficientBody, { x: 0.01, y: -0.02, z: 0.03 });
+  assert.match(model.assumptions.join(" "), /Independent signed-sigma coefficient channels/);
+});
+
 test("separation neighborhood is explicitly outside topology-model applicability", () => {
   const aerodynamics = aeroModel();
   const atSeparation = aerodynamics.evaluate(

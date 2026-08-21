@@ -110,6 +110,10 @@ research, standards, and original code.
   thrust scales plus direct body-axis force and static-moment coefficient
   databases when those sources are present, with selected factors and nominal
   fallbacks disclosed;
+- declared aerodynamic-table absolute uncertainty can use independent drag,
+  normal-force-slope, and center-of-pressure channels in staged dispersion,
+  with optional Gaussian-copula dependence pairs and an explicit common-sigma
+  fallback for direct force/moment and damping cells;
 - user-configurable recovery triggers (apogee, descending AGL altitude, or
   mission time) and reefing schedules shared by the vertical preview, landing
   descent, 6DOF recovery loads, trace telemetry, and portable inputs;
@@ -202,8 +206,8 @@ research, standards, and original code.
   handoff, plus sampled ignition-delay, separation-impulse, and
   launch-alignment factors; contact-load scenarios can additionally sample
   stopping-distance and restitution scales with post-trace percentile impulse
-  and force-scale telemetry, all with an explicit common-sigma correlation
-  boundary;
+  and force-scale telemetry, with channel-specific aerodynamic uncertainty
+  factors and an explicit measured-covariance boundary;
 - optional Gaussian-copula correlation pairs for uncertainty propagation,
   validated as positive-definite while preserving each declared marginal;
 - a persisted Dependence model editor that carries correlation assumptions

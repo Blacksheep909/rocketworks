@@ -9,6 +9,7 @@ import {
 } from "./atmosphere.ts";
 import type {
   AerodynamicCoefficientEvaluation,
+  AerodynamicCoefficientUncertaintyScales,
   AerodynamicCoefficientTableModel,
 } from "./aerodynamic-coefficients.ts";
 import {
@@ -35,7 +36,15 @@ import {
 } from "./induced-drag.ts";
 
 export const STAGE_AWARE_AERODYNAMICS_MODEL_VERSION =
-  "kestrel-stage-aware-aero-0.3.0";
+  "kestrel-stage-aware-aero-0.4.0";
+
+/**
+ * Independent signed-sigma channels for declared aerodynamic-table
+ * uncertainty cells. Omitted channels retain the legacy common-sigma value;
+ * this keeps older callers deterministic while allowing dispersion analyses
+ * to model correlated drag, normal-force, and CP assumptions separately.
+ */
+export type { AerodynamicCoefficientUncertaintyScales } from "./aerodynamic-coefficients.ts";
 
 export type StageAerodynamicRegime = Readonly<{
   id: string;
@@ -220,6 +229,8 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
   directMomentCoefficientScale?: number;
   /** Signed common-sigma multiplier applied to declared absolute table uncertainties. */
   coefficientUncertaintyScale?: number;
+  /** Optional per-channel signed-sigma multipliers; omitted channels use the common value. */
+  coefficientUncertaintyScales?: AerodynamicCoefficientUncertaintyScales;
 }>): StageAwareAerodynamicsModel {
   if (input.components.length === 0) {
     throw new Error("stage-aware aerodynamics requires vehicle components");
@@ -279,6 +290,19 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
   if (!Number.isFinite(coefficientUncertaintyScale)) {
     throw new Error("coefficient uncertainty scale must be finite");
   }
+  const coefficientUncertaintyScales: Required<AerodynamicCoefficientUncertaintyScales> = {
+    dragCoefficient: input.coefficientUncertaintyScales?.dragCoefficient ?? coefficientUncertaintyScale,
+    normalForceSlopePerRad: input.coefficientUncertaintyScales?.normalForceSlopePerRad ?? coefficientUncertaintyScale,
+    centerOfPressureXM: input.coefficientUncertaintyScales?.centerOfPressureXM ?? coefficientUncertaintyScale,
+    forceCoefficientBody: input.coefficientUncertaintyScales?.forceCoefficientBody ?? coefficientUncertaintyScale,
+    momentCoefficientBody: input.coefficientUncertaintyScales?.momentCoefficientBody ?? coefficientUncertaintyScale,
+    dampingDerivativeBody: input.coefficientUncertaintyScales?.dampingDerivativeBody ?? coefficientUncertaintyScale,
+  };
+  Object.entries(coefficientUncertaintyScales).forEach(([channel, value]) => {
+    if (!Number.isFinite(value)) {
+      throw new Error(`coefficient uncertainty ${channel} scale must be finite`);
+    }
+  });
 
   const regimes = input.regimes.map((regime) => {
     validateIdentifier(regime.id, "aerodynamic regime");
@@ -400,6 +424,11 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
   const anyCoefficientUncertaintyAvailable = regimes.some((regime) =>
     Boolean(regime.coefficientTable?.uncertaintyAvailable),
   );
+  const hasIndependentCoefficientUncertaintyScales =
+    Object.keys(input.coefficientUncertaintyScales ?? {}).length > 0;
+  const coefficientUncertaintyScalesActive = Object.values(
+    coefficientUncertaintyScales,
+  ).some((value) => value !== 0);
   const regimeByTopology = new Map<string, (typeof regimes)[number]>();
   for (const regime of regimes) {
     const key = topologyKey(regime.activeStageIds);
@@ -474,7 +503,7 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       ? applyCoefficientUncertainty(
           nominalDragCoefficient,
           coefficientUncertainty.dragCoefficient,
-          coefficientUncertaintyScale,
+          coefficientUncertaintyScales.dragCoefficient,
           "drag coefficient",
           true,
         )
@@ -486,7 +515,7 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       ? applyCoefficientUncertainty(
           nominalNormalForceSlopePerRad,
           coefficientUncertainty.normalForceSlopePerRad,
-          coefficientUncertaintyScale,
+          coefficientUncertaintyScales.normalForceSlopePerRad,
           "normal-force slope",
           true,
         )
@@ -498,7 +527,7 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       ? applyCoefficientUncertainty(
           nominalCenterOfPressureXM,
           coefficientUncertainty.centerOfPressureXM,
-          coefficientUncertaintyScale,
+          coefficientUncertaintyScales.centerOfPressureXM,
           "center of pressure",
           false,
         )
@@ -506,8 +535,8 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
     const dragCoefficient = tableDragCoefficient * dragCoefficientScale;
     const perturbedForceCoefficientBody = perturbCoefficientVector(
       coefficientEvaluation?.forceCoefficientBody ?? null,
-        coefficientUncertainty.forceCoefficientBody,
-      coefficientUncertaintyScale,
+      coefficientUncertainty.forceCoefficientBody,
+      coefficientUncertaintyScales.forceCoefficientBody,
       "direct force coefficient",
     );
     const forceCoefficientBody = perturbedForceCoefficientBody
@@ -516,7 +545,7 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
     const perturbedMomentCoefficientBody = perturbCoefficientVector(
       coefficientEvaluation?.momentCoefficientBody ?? null,
       coefficientUncertainty.momentCoefficientBody,
-      coefficientUncertaintyScale,
+      coefficientUncertaintyScales.momentCoefficientBody,
       "direct moment coefficient",
     );
     const momentCoefficientBody = perturbedMomentCoefficientBody
@@ -525,7 +554,7 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
     const dampingDerivativeBody = perturbCoefficientVector(
       coefficientEvaluation?.dampingDerivativeBody ?? null,
       coefficientUncertainty.dampingDerivativeBody,
-      coefficientUncertaintyScale,
+      coefficientUncertaintyScales.dampingDerivativeBody,
       "damping derivative",
     );
     const staticMarginCalibers =
@@ -680,6 +709,14 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
         : [
             `A common signed coefficient-uncertainty sigma of ${coefficientUncertaintyScale} is applied to declared absolute table cells; empirical per-coefficient covariance and time correlation are not modeled.`,
           ]),
+      ...(hasIndependentCoefficientUncertaintyScales
+        ? [
+            `Independent signed-sigma coefficient channels are applied for ${Object.entries(coefficientUncertaintyScales)
+              .filter(([, value]) => value !== 0)
+              .map(([channel, value]) => `${channel}=${value}`)
+              .join(", ") || "no active channels"}; table-cell covariance and time correlation remain outside this adapter.`,
+          ]
+        : []),
     ],
     warnings: [
       "This topology adapter has analytical component checks only and is not flight-safety validated.",
@@ -689,7 +726,7 @@ export function createStageAwareAerodynamicsModel(input: Readonly<{
       "The optional quadratic normal-force drag polar applies only to the relation path; direct force coefficient tables remain authoritative and the caller-authored factor is not inferred from fin geometry.",
       "Lateral booster interference, asymmetric crossflow, and radial fin-to-fin flow are not modeled.",
       "Proximity flow, plume interaction, and multi-body aerodynamics are explicitly unsupported around separation.",
-      ...(coefficientUncertaintyScale !== 0 && !anyCoefficientUncertaintyAvailable
+      ...(coefficientUncertaintyScalesActive && !anyCoefficientUncertaintyAvailable
         ? [
             "A coefficient-uncertainty sigma was supplied, but no selected aerodynamic table declares absolute uncertainty cells; the factor has no effect.",
           ]

@@ -89,13 +89,15 @@ Each nominal coefficient surface may provide an absolute non-negative
 uncertainty surface. Interpolated uncertainty is exposed beside the nominal
 result and marked with `COEFFICIENT_UNCERTAINTY_PRESENT`.
 
-The staged uncertainty adapter can now apply one caller-supplied signed sigma
-to every declared absolute uncertainty cell. The perturbation is common across
-the selected drag, normal-force, CP, direct force/moment, and damping cells, so
-it is an explicit shared-factor scenario rather than a fitted covariance model.
-Positive-only drag and normal-force coefficients are rejected when a sample
-would make them non-physical. Correlation between individual coefficients,
-table nodes, flight conditions, and time remains unrepresented.
+The staged uncertainty adapter retains a caller-supplied common signed sigma
+fallback for every declared absolute uncertainty cell and can additionally
+sample independent drag, normal-force-slope, and center-of-pressure channels.
+Direct force/moment and damping cells still use the common fallback. These are
+explicit shared-factor or channel-factor scenarios rather than fitted
+covariance models. Positive-only drag and normal-force coefficients are
+rejected when a sample would make them non-physical. The Gaussian-copula
+editor can correlate matching sampled channels when the caller declares the
+pair; table-node, flight-condition, and time covariance remain unrepresented.
 
 ## Rotational damping moments
 
@@ -153,8 +155,9 @@ any real vehicle.
 - Normal force remains linear in bounded angle of attack after table lookup.
 - Damping derivatives are uncoupled diagonal body-axis terms. Cross derivatives
   and unsteady aerodynamic states are absent.
-- Absolute uncertainty is uncorrelated metadata until the Monte Carlo model is
-  implemented.
+- Absolute uncertainty is still caller-authored factor metadata; channel
+  correlations are optional Gaussian-copula assumptions, not measured
+  covariance or time-series error.
 - Source reference area, length, axes, signs, units, and moment origin must be
   checked before importing data.
 
@@ -181,8 +184,8 @@ any real vehicle.
 
 ## Next work
 
-Add monotone/high-gradient interpolation options, covariance and correlation
-metadata, deterministic seeded dispersion, and importer validation for user
+Add measured covariance metadata, time-correlated error processes,
+monotone/high-gradient interpolation options, and importer validation for user
 CSV/JSON coefficient packages. Experimental benchmarks must compare complete
 force and moment histories, not only interpolation mechanics or angular-volume
 round trips.

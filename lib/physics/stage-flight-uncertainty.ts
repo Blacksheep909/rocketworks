@@ -37,7 +37,7 @@ import {
 } from "./stage-flight-preview.ts";
 
 export const STAGE_FLIGHT_UNCERTAINTY_ADAPTER_VERSION =
-  "kestrel-stage-flight-uncertainty-1.1.0";
+  "kestrel-stage-flight-uncertainty-1.2.0";
 
 /** Prefix used for independent thrust multipliers keyed by motor identifier. */
 export const MOTOR_THRUST_SCALE_FACTOR_PREFIX = "motorThrustScale:";
@@ -58,6 +58,9 @@ export type StageFlightUncertaintyFactorKey =
   | "directForceCoefficientScale"
   | "directMomentCoefficientScale"
   | "coefficientUncertaintyScale"
+  | "coefficientUncertaintyDragScale"
+  | "coefficientUncertaintyNormalScale"
+  | "coefficientUncertaintyCpScale"
   | "recoveryAreaScale"
   | "recoveryInflationTimeScale"
   | "recoveryDeploymentSuccess"
@@ -391,6 +394,18 @@ export function createStageFlightVariant(
     values.coefficientUncertaintyScale ?? 0,
     "coefficient uncertainty scale",
   );
+  const coefficientUncertaintyDragScale = finiteOffset(
+    values.coefficientUncertaintyDragScale ?? coefficientUncertaintyScale,
+    "drag coefficient uncertainty scale",
+  );
+  const coefficientUncertaintyNormalScale = finiteOffset(
+    values.coefficientUncertaintyNormalScale ?? coefficientUncertaintyScale,
+    "normal-force coefficient uncertainty scale",
+  );
+  const coefficientUncertaintyCpScale = finiteOffset(
+    values.coefficientUncertaintyCpScale ?? coefficientUncertaintyScale,
+    "center-of-pressure coefficient uncertainty scale",
+  );
   const recoveryAreaScale = positiveScale(
     values.recoveryAreaScale ?? 1,
     "recovery area scale",
@@ -456,6 +471,10 @@ export function createStageFlightVariant(
     values,
     "coefficientUncertaintyScale",
   );
+  const hasCoefficientUncertaintyChannelFactors =
+    Object.prototype.hasOwnProperty.call(values, "coefficientUncertaintyDragScale") ||
+    Object.prototype.hasOwnProperty.call(values, "coefficientUncertaintyNormalScale") ||
+    Object.prototype.hasOwnProperty.call(values, "coefficientUncertaintyCpScale");
   const initialTimeS = 0;
   const failureEvents = recoveryDeploymentSuccess === 0
     ? (base.recoveryDevices ?? []).map((device) => ({
@@ -547,7 +566,16 @@ export function createStageFlightVariant(
     ...(hasCoefficientUncertaintyFactor
       ? { coefficientUncertaintyScale }
       : {}),
-    ...(hasEventFactors || hasMotorFactors || hasCoefficientUncertaintyFactor || hasContactFactors
+    ...(hasCoefficientUncertaintyChannelFactors
+      ? {
+          coefficientUncertaintyScales: {
+            dragCoefficient: coefficientUncertaintyDragScale,
+            normalForceSlopePerRad: coefficientUncertaintyNormalScale,
+            centerOfPressureXM: coefficientUncertaintyCpScale,
+          },
+        }
+      : {}),
+    ...(hasEventFactors || hasMotorFactors || hasCoefficientUncertaintyFactor || hasCoefficientUncertaintyChannelFactors || hasContactFactors
       ? {
           additionalWarnings: [
             ...(base.additionalWarnings ?? []),
@@ -596,6 +624,11 @@ export function createStageFlightVariant(
                   "Sampled aerodynamic coefficient uncertainty applies one common signed sigma to declared absolute table cells; empirical per-coefficient covariance and time correlation are not modeled.",
                 ]
               : []),
+            ...(hasCoefficientUncertaintyChannelFactors
+              ? [
+                  "Sampled aerodynamic coefficient uncertainty uses independent drag, normal-force-slope, and center-of-pressure signed-sigma channels; correlations are only applied when the caller declares matching Gaussian-copula pairs, and time correlation is not modeled.",
+                ]
+              : []),
           ],
           additionalAssumptions: [
             ...(base.additionalAssumptions ?? []),
@@ -617,6 +650,11 @@ export function createStageFlightVariant(
             ...(hasCoefficientUncertaintyFactor
               ? [
                   "The coefficient uncertainty factor is a caller-supplied signed sigma, not a measured distribution or certification evidence; samples that make positive-only coefficients non-physical fail explicitly.",
+                ]
+              : []),
+            ...(hasCoefficientUncertaintyChannelFactors
+              ? [
+                  "The aerodynamic uncertainty channels are caller-supplied signed sigmas, not measured covariance estimates or certification evidence; samples that make positive-only coefficients non-physical fail explicitly.",
                 ]
               : []),
             ...(recoveryInflationTimeScale !== 1

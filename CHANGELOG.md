@@ -6,6 +6,13 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add independent aerodynamic uncertainty channels to staged dispersion. Drag,
+  normal-force-slope, and center-of-pressure table cells can now be sampled
+  with separate bounded signed-sigma factors and correlated through the
+  existing Gaussian-copula editor when pairs are declared; the legacy common
+  factor remains the fallback for direct force/moment and damping cells. Table
+  covariance and time correlation remain outside the engineering preview.
+
 - Add session-safe local checkpoint navigation. The topbar and command palette
   now expose Undo/Redo controls plus `⌘/Ctrl+Z` shortcuts; they move the active
   browser snapshot without deleting the chronological history, revert unsaved
