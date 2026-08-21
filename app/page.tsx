@@ -176,6 +176,18 @@ import {
   type CustomMaterialProfile,
 } from "../lib/project/material-profile.ts";
 import {
+  LOCAL_PROJECT_REGISTRY_STORAGE_KEY,
+  createEmptyProjectRegistry,
+  createLocalProjectRecord,
+  createProjectId,
+  parseLocalProjectRegistry,
+  serializeLocalProjectRegistry,
+  setActiveLocalProject,
+  upsertLocalProjectRecord,
+  type LocalProjectRecord,
+  type LocalProjectRegistry,
+} from "../lib/project/project-registry.ts";
+import {
   EXPERIENCE_MODE_STORAGE_KEY,
   PROJECT_TEMPLATES,
   type ExperienceMode,
@@ -3971,6 +3983,7 @@ export default function Home() {
   const [selected, setSelected] = useState<ComponentKey>("body");
   const [selectedTopologyComponentId, setSelectedTopologyComponentId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState(DEFAULT_PROJECT_NAME);
+  const [activeProjectId, setActiveProjectId] = useState("arc54");
   const [view, setView] = useState<ViewKey>("design");
   const [designView, setDesignView] = useState<DesignViewKey>(() => createDefaultUiPreferences().designView);
   const [designAzimuthDeg, setDesignAzimuthDeg] = useState(() => createDefaultUiPreferences().designAzimuthDeg);
@@ -4106,6 +4119,10 @@ export default function Home() {
   const [guideOpen, setGuideOpen] = useState(false);
   const [projectConsoleOpen, setProjectConsoleOpen] = useState(false);
   const projectConsoleCloseRef = useRef<HTMLButtonElement>(null);
+  const [projectRegistry, setProjectRegistry] = useState<LocalProjectRegistry>(() => createEmptyProjectRegistry("arc54"));
+  const projectRegistryRef = useRef(projectRegistry);
+  const [projectDraftName, setProjectDraftName] = useState("");
+  const [projectRegistryError, setProjectRegistryError] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyCloseRef = useRef<HTMLButtonElement>(null);
   const [projectHistory, setProjectHistory] = useState<LocalProjectHistory>(() =>
@@ -4972,6 +4989,7 @@ export default function Home() {
       let restoredSnapshot: LocalProjectSnapshot | null = null;
       let restoredTopology: LocalVehicleTopology | null = null;
       let restoredHistory = createEmptyProjectHistory("arc54");
+      let restoredRegistry = createEmptyProjectRegistry("arc54");
       let restoredMotorRecords: MotorDataRecord[] = [];
       let restoredAerodynamicTables: AerodynamicCoefficientTableDefinition[] = [];
       let restoredMotorSelection = "synthetic";
@@ -4979,6 +4997,12 @@ export default function Home() {
       let restoredUiPreferences = createDefaultUiPreferences();
       const problems: string[] = [];
       const selectionWarnings: string[] = [];
+      try {
+        const serialized = window.localStorage.getItem(LOCAL_PROJECT_REGISTRY_STORAGE_KEY);
+        if (serialized) restoredRegistry = parseLocalProjectRegistry(serialized);
+      } catch {
+        problems.push("the local project workspace");
+      }
       try {
         const serialized = window.localStorage.getItem(LOCAL_PROJECT_STORAGE_KEY);
         if (serialized) restoredSnapshot = parseLocalProjectSnapshot(serialized);
@@ -4990,6 +5014,40 @@ export default function Home() {
         if (serialized) restoredHistory = parseLocalProjectHistory(serialized);
       } catch {
         problems.push("the checkpoint history");
+      }
+      const activeRecord = restoredRegistry.projects.find(
+        (record) => record.projectId === restoredRegistry.activeProjectId,
+      );
+      const currentSnapshotIsNewer = Boolean(
+        restoredSnapshot &&
+        activeRecord &&
+        restoredSnapshot.projectId === activeRecord.projectId &&
+        Date.parse(restoredSnapshot.savedAtIso) > Date.parse(activeRecord.updatedAtIso),
+      );
+      if (activeRecord && !currentSnapshotIsNewer) {
+        restoredSnapshot = activeRecord.snapshot;
+        restoredHistory = activeRecord.history;
+      }
+      if (restoredSnapshot && (!activeRecord || currentSnapshotIsNewer)) {
+        try {
+          restoredRegistry = upsertLocalProjectRecord(
+            restoredRegistry,
+            createLocalProjectRecord(restoredSnapshot, restoredHistory),
+          );
+        } catch {
+          problems.push("the local project workspace index");
+        }
+      }
+      projectRegistryRef.current = restoredRegistry;
+      setProjectRegistry(restoredRegistry);
+      setActiveProjectId(restoredRegistry.activeProjectId);
+      try {
+        window.localStorage.setItem(
+          LOCAL_PROJECT_REGISTRY_STORAGE_KEY,
+          serializeLocalProjectRegistry(restoredRegistry),
+        );
+      } catch {
+        problems.push("the local project workspace");
       }
       try {
         const serialized = window.localStorage.getItem(LOCAL_MOTOR_LIBRARY_STORAGE_KEY);
@@ -5076,7 +5134,7 @@ export default function Home() {
       } catch {
         selectionWarnings.push("source selections could not be refreshed in local storage");
       }
-      if (restoredSnapshot?.projectId === "arc54") {
+      if (restoredSnapshot) {
         const inputs = restoredSnapshot.inputs;
         setProjectName(restoredSnapshot.projectName);
         setLength(inputs.lengthMm);
@@ -5377,7 +5435,7 @@ export default function Home() {
         const lastTimestamp = historyRef.current.entries.at(-1)?.snapshot.savedAtIso;
         const savedAtIso = nextLocalSaveTime(lastTimestamp);
         const snapshot = createLocalProjectSnapshot({
-          projectId: "arc54",
+          projectId: activeProjectId,
           projectName,
           revision: revisionRef.current + 1,
           savedAtIso,
@@ -5401,6 +5459,7 @@ export default function Home() {
         const nextHistory = appendProjectHistory(historyRef.current, snapshot, label);
         window.localStorage.setItem(LOCAL_PROJECT_STORAGE_KEY, serializeLocalProjectSnapshot(snapshot));
         window.localStorage.setItem(LOCAL_PROJECT_HISTORY_STORAGE_KEY, serializeLocalProjectHistory(nextHistory));
+        persistProjectRegistryRecord(snapshot, nextHistory);
         revisionRef.current = snapshot.revision;
         historyRef.current = nextHistory;
         setProjectHistory(nextHistory);
@@ -5414,7 +5473,7 @@ export default function Home() {
       }
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [editableInputs, projectName, selectedAerodynamicTableId, selectedMotorId, storageReady, vehicleTopology]);
+  }, [activeProjectId, editableInputs, projectName, selectedAerodynamicTableId, selectedMotorId, storageReady, vehicleTopology]);
 
   useEffect(() => {
     if (!exportOpen) return;
@@ -5823,6 +5882,23 @@ export default function Home() {
     setSeparationContactCoefficientOfRestitution(inputs.separationContactCoefficientOfRestitution ?? 0);
     setSixDofIntegrationMethod(inputs.sixDofIntegrationMethod ?? "fixed-rk4");
   };
+  function persistProjectRegistryRecord(
+    snapshot: LocalProjectSnapshot,
+    history: LocalProjectHistory,
+  ) {
+    const existing = projectRegistryRef.current.projects.find(
+      (record) => record.projectId === snapshot.projectId,
+    );
+    const record = createLocalProjectRecord(snapshot, history, existing?.createdAtIso);
+    const nextRegistry = upsertLocalProjectRecord(projectRegistryRef.current, record);
+    projectRegistryRef.current = nextRegistry;
+    setProjectRegistry(nextRegistry);
+    setActiveProjectId(nextRegistry.activeProjectId);
+    window.localStorage.setItem(
+      LOCAL_PROJECT_REGISTRY_STORAGE_KEY,
+      serializeLocalProjectRegistry(nextRegistry),
+    );
+  }
   const persistCheckpoint = (
     inputs: EditableProjectInputs,
     label: string,
@@ -5833,7 +5909,7 @@ export default function Home() {
   ) => {
     const lastTimestamp = historyRef.current.entries.at(-1)?.snapshot.savedAtIso;
     const snapshot = createLocalProjectSnapshot({
-      projectId: "arc54",
+      projectId: activeProjectId,
       projectName: projectNameOverride,
       revision: revisionRef.current + 1,
       savedAtIso: nextLocalSaveTime(lastTimestamp),
@@ -5844,6 +5920,7 @@ export default function Home() {
     const nextHistory = appendProjectHistory(historyRef.current, snapshot, label, { allowDuplicate });
     window.localStorage.setItem(LOCAL_PROJECT_STORAGE_KEY, serializeLocalProjectSnapshot(snapshot));
     window.localStorage.setItem(LOCAL_PROJECT_HISTORY_STORAGE_KEY, serializeLocalProjectHistory(nextHistory));
+    persistProjectRegistryRecord(snapshot, nextHistory);
     revisionRef.current = snapshot.revision;
     historyRef.current = nextHistory;
     setProjectHistory(nextHistory);
@@ -5858,6 +5935,116 @@ export default function Home() {
     setSaveError("");
     setSaved(true);
     return snapshot;
+  };
+  const switchLocalProject = (record: LocalProjectRecord) => {
+    if (record.projectId === activeProjectId) {
+      setProjectConsoleOpen(false);
+      return;
+    }
+    try {
+      if (storageReady) {
+        persistCheckpoint(editableInputs, `Saved before opening ${record.projectName}`);
+      }
+      const topology = record.snapshot.topology ?? createDefaultVehicleTopology();
+      const sourceMotorSelection = record.snapshot.selectedMotorId ?? "synthetic";
+      const sourceAerodynamicSelection = record.snapshot.selectedAerodynamicTableId ?? "constant";
+      const motorAvailable = sourceMotorSelection === "synthetic" || userMotorRecords.some((item) => item.id === sourceMotorSelection);
+      const aerodynamicAvailable = sourceAerodynamicSelection === "constant" || aerodynamicTableDefinitions.some((item) => item.id === sourceAerodynamicSelection);
+      const effectiveMotorSelection = motorAvailable ? sourceMotorSelection : "synthetic";
+      const effectiveAerodynamicSelection = aerodynamicAvailable ? sourceAerodynamicSelection : "constant";
+      const nextRegistry = setActiveLocalProject(projectRegistryRef.current, record.projectId);
+      projectRegistryRef.current = nextRegistry;
+      setProjectRegistry(nextRegistry);
+      setActiveProjectId(record.projectId);
+      setProjectName(record.projectName);
+      applyEditableInputs(record.snapshot.inputs);
+      topologyRef.current = topology;
+      setVehicleTopology(topology);
+      window.localStorage.setItem(LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY, serializeVehicleTopology(topology));
+      setSelectedMotorId(effectiveMotorSelection);
+      setSelectedAerodynamicTableId(effectiveAerodynamicSelection);
+      window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, effectiveMotorSelection);
+      window.localStorage.setItem(LOCAL_AERODYNAMIC_SELECTION_STORAGE_KEY, effectiveAerodynamicSelection);
+      window.localStorage.setItem(LOCAL_PROJECT_STORAGE_KEY, serializeLocalProjectSnapshot(record.snapshot));
+      window.localStorage.setItem(LOCAL_PROJECT_HISTORY_STORAGE_KEY, serializeLocalProjectHistory(record.history));
+      window.localStorage.setItem(LOCAL_PROJECT_REGISTRY_STORAGE_KEY, serializeLocalProjectRegistry(nextRegistry));
+      revisionRef.current = record.snapshot.revision;
+      historyRef.current = record.history;
+      setProjectHistory(record.history);
+      lastSavedInputsRef.current = record.snapshot.inputs;
+      lastSavedFingerprintRef.current = namedProjectFingerprint(
+        record.snapshot.inputs,
+        topology,
+        effectiveMotorSelection,
+        effectiveAerodynamicSelection,
+        record.projectName,
+      );
+      setStageFlightResult(null);
+      setStageFlightError("");
+      setSweepResult(null);
+      setSweepError("");
+      setSaveError(
+        [
+          !motorAvailable && sourceMotorSelection !== "synthetic" ? `Referenced motor ${sourceMotorSelection} is not available on this device; synthetic preview selected.` : "",
+          !aerodynamicAvailable && sourceAerodynamicSelection !== "constant" ? `Referenced aerodynamic table ${sourceAerodynamicSelection} is not available on this device; constant drag selected.` : "",
+        ].filter(Boolean).join(" "),
+      );
+      setSaved(motorAvailable && aerodynamicAvailable);
+      setProjectRegistryError("");
+      setProjectConsoleOpen(false);
+      setView("design");
+      setSelected("body");
+      notify(`Opened ${record.projectName}`);
+    } catch (error) {
+      setProjectRegistryError(error instanceof Error ? error.message : "Unable to open the local project.");
+    }
+  };
+  const duplicateLocalProject = () => {
+    const nextName = projectDraftName.trim() || `${projectName} copy`;
+    try {
+      const currentSnapshot = persistCheckpoint(editableInputs, `Checkpoint before duplicating ${projectName}`);
+      const nextId = createProjectId(nextName, projectRegistryRef.current.projects.map((record) => record.projectId));
+      const duplicateSnapshot = createLocalProjectSnapshot({
+        projectId: nextId,
+        projectName: nextName,
+        revision: 1,
+        savedAtIso: nextLocalSaveTime(currentSnapshot.savedAtIso),
+        inputs: editableInputs,
+        topology: vehicleTopology,
+        selectedMotorId,
+        selectedAerodynamicTableId,
+      });
+      const duplicateHistory = appendProjectHistory(
+        createEmptyProjectHistory(nextId),
+        duplicateSnapshot,
+        `Duplicated from ${projectName}`,
+      );
+      persistProjectRegistryRecord(duplicateSnapshot, duplicateHistory);
+      window.localStorage.setItem(LOCAL_PROJECT_STORAGE_KEY, serializeLocalProjectSnapshot(duplicateSnapshot));
+      window.localStorage.setItem(LOCAL_PROJECT_HISTORY_STORAGE_KEY, serializeLocalProjectHistory(duplicateHistory));
+      revisionRef.current = duplicateSnapshot.revision;
+      historyRef.current = duplicateHistory;
+      setProjectHistory(duplicateHistory);
+      setProjectName(nextName);
+      setActiveProjectId(nextId);
+      lastSavedInputsRef.current = duplicateSnapshot.inputs;
+      lastSavedFingerprintRef.current = namedProjectFingerprint(
+        duplicateSnapshot.inputs,
+        vehicleTopology,
+        selectedMotorId,
+        selectedAerodynamicTableId,
+        nextName,
+      );
+      setProjectDraftName("");
+      setProjectRegistryError("");
+      setSaved(true);
+      setProjectConsoleOpen(false);
+      setView("design");
+      setSelected("body");
+      notify(`${nextName} created locally`);
+    } catch (error) {
+      setProjectRegistryError(error instanceof Error ? error.message : "Unable to duplicate the local project.");
+    }
   };
   const createManualCheckpoint = () => {
     try {
@@ -10507,7 +10694,7 @@ export default function Home() {
             <div className="project-console-overview" aria-label="Current project status">
               <div>
                 <span>WORKSPACE</span>
-                <strong>Vehicle 01</strong>
+                <strong>{activeProjectId}</strong>
                 <small>Mission RKW-01 · {activeStageCount} active stage{activeStageCount === 1 ? "" : "s"}</small>
               </div>
               <div>
@@ -10521,6 +10708,40 @@ export default function Home() {
                 <small>{projectHistory.entries.at(-1) ? new Date(projectHistory.entries.at(-1)!.snapshot.savedAtIso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "No checkpoint yet"}</small>
               </div>
             </div>
+            <section className="project-console-projects" aria-labelledby="local-projects-title">
+              <div className="project-console-section-heading">
+                <div>
+                  <span className="eyebrow">This browser</span>
+                  <h3 id="local-projects-title">Local projects</h3>
+                </div>
+                <small>{projectRegistry.projects.length} / 24 workspaces</small>
+              </div>
+              {projectRegistry.projects.length === 0 ? (
+                <p className="project-console-empty">Your first workspace will appear here after the initial local save.</p>
+              ) : (
+                <div className="project-console-project-list" role="list" aria-label="Local project workspaces">
+                  {projectRegistry.projects
+                    .slice()
+                    .sort((left, right) => Date.parse(right.updatedAtIso) - Date.parse(left.updatedAtIso))
+                    .map((record) => (
+                      <article className={record.projectId === activeProjectId ? "project-console-project active" : "project-console-project"} role="listitem" key={record.projectId}>
+                        <div>
+                          <strong>{record.projectName}</strong>
+                          <small>{record.projectId} · R{String(record.snapshot.revision).padStart(2, "0")} · {new Date(record.updatedAtIso).toLocaleDateString([], { month: "short", day: "numeric" })}</small>
+                        </div>
+                        {record.projectId === activeProjectId ? <span className="project-console-project-status">OPEN</span> : <button className="secondary-button" type="button" onClick={() => switchLocalProject(record)}>Open project</button>}
+                      </article>
+                    ))}
+                </div>
+              )}
+              <div className="project-console-duplicate">
+                <label htmlFor="project-duplicate-name">Duplicate current project as
+                  <input id="project-duplicate-name" value={projectDraftName} onChange={(event) => { setProjectDraftName(event.target.value); setProjectRegistryError(""); }} placeholder={`${projectName} copy`} maxLength={120} />
+                </label>
+                <button className="secondary-button" type="button" onClick={duplicateLocalProject} disabled={!storageReady || projectRegistry.projects.length >= 24}>Duplicate current project</button>
+              </div>
+              {projectRegistryError && <p className="project-console-error" role="alert">{projectRegistryError}</p>}
+            </section>
             <div className="project-console-actions" aria-label="Project handoff actions">
               <button className="project-console-action project-console-action-primary" onClick={() => { setProjectConsoleOpen(false); setExportOpen(true); }}>
                 <span className="export-extension">JSON</span>

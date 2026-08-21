@@ -756,6 +756,10 @@ test("ships validated device-local autosave and recoverable project history", as
   const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(page, /LOCAL_PROJECT_STORAGE_KEY/);
   assert.match(page, /LOCAL_PROJECT_HISTORY_STORAGE_KEY/);
+  assert.match(page, /LOCAL_PROJECT_REGISTRY_STORAGE_KEY/);
+  assert.match(page, /Local projects/);
+  assert.match(page, /Duplicate current project/);
+  assert.match(page, /Open project/);
   assert.match(page, /window\.localStorage\.setItem/);
   assert.match(page, /parseLocalProjectSnapshot/);
   assert.match(page, /projectConfigurationFingerprint/);

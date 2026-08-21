@@ -274,8 +274,10 @@ research, standards, and original code.
   share links;
 - a functional project console behind the workspace header with local save
   status, revision handoff, history, template, import, export, checkpoint, and
-  share actions; cloud sync and multi-user collaboration remain explicitly
-  out of scope for this browser-only surface;
+  share actions; the console now indexes up to 24 validated browser-local
+  workspaces and can open or duplicate a design without implying cloud sync;
+  multi-user collaboration remains explicitly out of scope for this
+  browser-only surface;
 - coupled-flight contract settings are carried through validated autosave,
   project JSON, and share links, including released-body aerodynamic mode,
   mutual-gravity softening, contact-screen assumptions, and 6DOF integration

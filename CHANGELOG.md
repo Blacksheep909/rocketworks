@@ -6,6 +6,14 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a strict device-local project registry behind the project console. The
+  workspace now indexes up to 24 validated project snapshots and histories,
+  supports opening another local design, and can duplicate the active design
+  with a readable unique identifier. Hydration seeds legacy current-project
+  records, autosave/checkpoint writes keep the index current, and missing local
+  motor/aerodynamic sources remain explicit fallbacks. This is a local browser
+  index only; cloud sync, accounts, and collaboration remain out of scope.
+
 - Make the workspace project navigation functional with a local project
   console. The header action now exposes save/revision status and direct
   handoff actions for history, templates, import, project JSON export,
