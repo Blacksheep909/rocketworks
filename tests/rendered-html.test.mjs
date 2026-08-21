@@ -1282,6 +1282,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stagePreview, /bindMeasuredSeparationImpulseEvent/);
   assert.match(stagePreview, /coupledMultiBodyGravity/);
   assert.match(stagePreview, /coupledMultiBodyIncludeRetainedBody/);
+  assert.match(stagePreview, /relativeAeroForceFeedback/);
   assert.match(stagePreview, /interpolateStageTraceNonGravityForceWorldN/);
   assert.match(stagePreview, /attitudeDependentDrag/);
   assert.match(stagePreview, /missionSerialStageIds/);
@@ -1328,6 +1329,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Released-body aerodynamic interaction screen/);
   assert.match(page, /Released-body wake interaction/);
   assert.match(page, /released-body-relative-flow-mode/);
+  assert.match(page, /released-body-wake-feedback-mode/);
+  assert.match(page, /Feed wake proxy into coupled forces/);
   assert.match(page, /released-body-wake-angle/);
   assert.match(page, /Wake recovery distance/);
   assert.match(page, /Peak velocity deficit/);

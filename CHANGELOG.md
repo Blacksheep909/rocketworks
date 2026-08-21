@@ -6,6 +6,14 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an opt-in coupled wake-feedback sensitivity branch. The shared-grid
+  solver now applies the strongest overlapping finite-cone velocity-deficit
+  proxy to eligible point-drag/projected-area/detached-aero loads, retains
+  per-sample source/deficit telemetry, persists the user choice, and carries
+  model/configuration provenance into CSV and engineering reports. The default
+  remains post-trace-only; wake roll-up, plume interaction, validation data,
+  and flight-safety use remain explicitly out of scope.
+
 - Add an explicit retained-vehicle replay option to the staged shared-grid
   track. When enabled, the first separation event seeds a retained rigid body
   and replays authoritative staged thrust, aerodynamic, and recovery

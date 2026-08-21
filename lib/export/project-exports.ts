@@ -805,8 +805,8 @@ export function createSeparatedBodyTraceCsv(
 
 /**
  * Serialize the shared-grid released-body track, including optional contact
- * force diagnostics. This is separate from the independent detached branch
- * export because the shared solver may apply equal-and-opposite forces.
+ * and wake-feedback diagnostics. This is separate from the independent
+ * detached branch export because the shared solver may apply coupled forces.
  */
 export function createCoupledMultiBodyTraceCsv(
   result: CoupledMultiBodyFlightResult,
@@ -814,6 +814,18 @@ export function createCoupledMultiBodyTraceCsv(
   if (!result || result.trajectories.length === 0 || result.trajectories.some((trajectory) => trajectory.trace.length === 0)) {
     throw new Error("coupled multi-body trajectories cannot be empty");
   }
+  const relativeAeroForceFeedback = result.relativeAeroForceFeedback ?? {
+    modelVersion: "legacy-relative-aero-feedback",
+    validationStatus: "legacy-result",
+    enabled: false,
+    wakeHalfAngleDeg: null,
+    wakeRecoveryDistanceBodyDiameters: null,
+    peakVelocityDeficitFraction: null,
+    maximumVelocityDeficitFraction: null,
+    maximumObservedVelocityDeficitFraction: null,
+    exposedSampleCount: 0,
+    affectedBodyCount: 0,
+  };
   const metadata = [
     ["# rocketworks_export", KESTREL_EXPORT_MODEL_VERSION],
     ["# model_version", result.modelVersion],
@@ -829,6 +841,12 @@ export function createCoupledMultiBodyTraceCsv(
     ["# contact_sample_count", result.contact.contactSampleCount],
     ["# contact_maximum_penetration_m", result.contact.maximumPenetrationM],
     ["# contact_maximum_normal_force_observed_n", result.contact.maximumNormalForceNObserved],
+    ["# relative_aero_feedback_model_version", relativeAeroForceFeedback.modelVersion],
+    ["# relative_aero_feedback_validation_status", relativeAeroForceFeedback.validationStatus],
+    ["# relative_aero_feedback_enabled", relativeAeroForceFeedback.enabled],
+    ["# relative_aero_feedback_maximum_observed_deficit_fraction", relativeAeroForceFeedback.maximumObservedVelocityDeficitFraction],
+    ["# relative_aero_feedback_exposed_sample_count", relativeAeroForceFeedback.exposedSampleCount],
+    ["# relative_aero_feedback_affected_body_count", relativeAeroForceFeedback.affectedBodyCount],
     ...result.assumptions.map((assumption) => ["# assumption", assumption]),
     ...result.warnings.map((warning) => ["# warning", warning]),
   ].map(([key, value]) => `${key},${csvCell(value)}`);
@@ -850,6 +868,8 @@ export function createCoupledMultiBodyTraceCsv(
     "acceleration_world_y_mps2",
     "acceleration_world_z_mps2",
     "relative_air_speed_mps",
+    "relative_wake_deficit_fraction",
+    "relative_wake_source_count",
     "dynamic_pressure_pa",
     "aerodynamic_drag_n",
     "contact_force_world_x_n",
@@ -878,6 +898,8 @@ export function createCoupledMultiBodyTraceCsv(
       point.accelerationWorldMps2.y,
       point.accelerationWorldMps2.z,
       point.relativeAirSpeedMps,
+      point.relativeWakeDeficitFraction,
+      point.relativeWakeSourceCount,
       point.dynamicPressurePa,
       point.aerodynamicDragN,
       point.contactForceWorldN?.x,
@@ -2794,6 +2816,12 @@ export function createEngineeringReportMarkdown(
                 `| Effective time step | ${formatNumber(input.stageFlight.coupledMultiBodyFlight.timeStepS, 4)} s |`,
                 `| Released-body force model | ${input.stageFlight.coupledMultiBodyFlight.mutualGravity?.enabled ? `mutual point-mass gravity (softening ${formatNumber(input.stageFlight.coupledMultiBodyFlight.mutualGravity.softeningRadiusM, 6)} m)` : "shared environment only"} |`,
                 `| Envelope contact response | ${input.stageFlight.coupledMultiBodyFlight.contact?.enabled ? `enabled (${input.stageFlight.coupledMultiBodyFlight.contact.contactPairCount} pair(s), ${input.stageFlight.coupledMultiBodyFlight.contact.contactSampleCount} samples)` : "disabled / diagnostic screen only"} |`,
+                `| Coupled wake force feedback | ${input.stageFlight.coupledMultiBodyFlight.relativeAeroForceFeedback?.enabled ? `enabled (${input.stageFlight.coupledMultiBodyFlight.relativeAeroForceFeedback.exposedSampleCount} exposed samples, ${input.stageFlight.coupledMultiBodyFlight.relativeAeroForceFeedback.maximumObservedVelocityDeficitFraction === null ? "no observed overlap" : `${formatNumber(input.stageFlight.coupledMultiBodyFlight.relativeAeroForceFeedback.maximumObservedVelocityDeficitFraction * 100, 2)}% max deficit`})` : "disabled / post-trace only"} |`,
+                ...(input.stageFlight.coupledMultiBodyFlight.relativeAeroForceFeedback?.enabled
+                  ? [
+                      `| Wake feedback model | \`${markdownText(input.stageFlight.coupledMultiBodyFlight.relativeAeroForceFeedback.modelVersion)}\` (${markdownText(input.stageFlight.coupledMultiBodyFlight.relativeAeroForceFeedback.validationStatus)}) |`,
+                    ]
+                  : []),
                 ...(input.stageFlight.coupledMultiBodyFlight.contact?.enabled
                   ? [
                       `| Contact stiffness / damping | ${formatNumber(input.stageFlight.coupledMultiBodyFlight.contact.stiffnessNPerM, 3)} N/m / ${formatNumber(input.stageFlight.coupledMultiBodyFlight.contact.dampingNsPerM, 3)} N/(m/s) |`,
@@ -2815,7 +2843,7 @@ export function createEngineeringReportMarkdown(
                 ...input.stageFlight.coupledMultiBodyFlight.warnings.map((warning) => `- **Shared-grid warning:** ${markdownText(warning)}`),
                 "",
                 `| Shared coefficient-table samples | ${coupledCoefficientTableSampleCount} |`,
-                "> This shared-grid track propagates released bodies together against common environment queries. Rigid-body states add quaternion attitude and Euler angular momentum from supplied inertia/loads; static normal force, induced drag, CP moments, projected-area CdA, supplied coefficient-table resultants, and the optional spherical-envelope contact branch remain bounded analytical previews. The contact branch acts only on active released bodies with positive radii and does not model retained-vehicle contact, friction, off-centre moments, collision geometry, plume interaction, aerodynamic interference, or flight safety.",
+                "> This shared-grid track propagates released bodies together against common environment queries. Rigid-body states add quaternion attitude and Euler angular momentum from supplied inertia/loads; static normal force, induced drag, CP moments, projected-area CdA, supplied coefficient-table resultants, the optional spherical-envelope contact branch, and the optional wake-feedback branch remain bounded analytical previews. Wake feedback uses only the strongest overlapping source-wake proxy and does not model CFD, wake roll-up, turbulence, plume interaction, validated proximity-load data, collision geometry, or flight safety.",
               ]
             : []),
           ...((input.stageFlight.separationDynamics ?? []).length > 0

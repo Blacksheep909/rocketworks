@@ -20,6 +20,9 @@ The schema accepts the following additive fields:
   loads, or live coefficient-table loads for released bodies;
 - `coupledMultiBodyIncludeRetainedBody` opts the staged adapter into a
   replay-backed retained-vehicle rigid seed in the shared coupled track;
+- `coupledRelativeAeroForceFeedbackEnabled` opts the shared track into the
+  bounded strongest-source wake-deficit sensitivity branch; its geometry and
+  deficit controls reuse the persisted relative-flow settings;
 - `separationContactStoppingDistanceM` and
   `separationContactCoefficientOfRestitution` configure the separate
   non-trajectory contact-load screen;
@@ -28,8 +31,9 @@ The schema accepts the following additive fields:
 All values are validated at the project boundary with the same finite bounds
 used by the browser controls. Existing schema-v1 documents omit these additive
 keys and intentionally restore to the compatibility defaults: shared
-environment only, 0.02 m softening, detached bodies only, isotropic point drag, 0.01 m stopping
-distance, zero restitution, and fixed RK4. This is a migration default, not a
+environment only, 0.02 m softening, detached bodies only, wake feedback
+disabled, isotropic point drag, 0.01 m stopping distance, zero restitution, and
+fixed RK4. This is a migration default, not a
 claim that the legacy document used those settings explicitly.
 
 The fields are configuration provenance, not validation evidence. The coupled

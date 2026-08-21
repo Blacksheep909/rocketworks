@@ -337,6 +337,18 @@ The result status is
 report retain the warning so an impact time cannot be mistaken for a range or
 flight-safety prediction.
 
+The shared-grid track also exposes an independent opt-in
+`relativeAeroForceFeedback` sensitivity branch. When enabled, each eligible
+target's point-drag, projected-area, or detached-aero evaluation receives the
+strongest overlapping finite source-wake velocity deficit at each coupled RK4
+substep. The adjusted relative-flow vector and source count remain on the
+trace, while the result carries the model version, observed maximum deficit,
+exposed samples, and affected-body count. It is disabled by default, does not
+alter the independent detached branches, and is not a calibrated proximity-
+force model: wake roll-up, turbulence, plume effects, crossflow databases,
+unsteady loads, CFD, wind-tunnel correlation, and flight safety remain outside
+the contract.
+
 ### Detached-stage recovery triggers
 
 Each detachable stage may carry a recovery canopy with the same three command
@@ -408,7 +420,8 @@ full rigid-body multi-body solver. The optional point-mass gravity mode
 exchanges only the modeled Newtonian body force; the track does not model
 contact forces, momentum transfer after impact, attitude, lift, plume
  interaction, stage-to-stage aerodynamic interference beyond the separate
- relative-flow screen, structural compliance, or collision response. A coarsened time step is labeled `partial` when the
+ relative-flow screen and its explicitly enabled bounded sensitivity branch,
+ structural compliance, or collision response. A coarsened time step is labeled `partial` when the
 requested step would exceed the explicit maximum-step budget. It remains an
 engineering preview and must not be used for range-safety or flight approval.
 

@@ -1,4 +1,4 @@
-# Shared-grid coupled multi-body flight 0.7
+# Shared-grid coupled multi-body flight 0.8
 
 Status: implemented analytical component check; mathematical regression tests
 only. This model is not flight-safety, range-safety, contact, or collision
@@ -181,6 +181,41 @@ retained vehicle is propagated in its own primary track, so this branch only
 couples released bodies that enter the shared detached track. Positive
 envelopes are conservative geometry bounds, not measured stiffness data.
 
+## Optional relative-flow wake feedback
+
+`relativeAeroForceFeedback.enabled` promotes the same finite-cone geometry used
+by the post-trace relative-flow review into a narrowly bounded sensitivity path
+for the shared coupled track. It is disabled by default and never changes the
+independent detached 6DOF branches. A target participates only when it has an
+explicit point-drag, projected-area, or detached aerodynamic basis. Each active
+source contributes a candidate wake from its environment-relative velocity
+`v_air,j`; the downstream axis is `u_j = v_air,j / |v_air,j|`:
+
+```text
+x = (r_target - r_source) · u_source
+L = D_source N_recovery
+r_wake(x) = R_source + tan(theta) x
+d_j = min(d_max, d_peak * exposure * (1 - x/L))
+v_air,target,eff = (v_target - w_target) - d_j |v_air,j| u_j
+```
+
+Candidates are limited to `0 < x <= L` and a target-envelope overlap with the
+expanding cone. When multiple source wakes overlap, only the strongest deficit
+vector is applied; this prevents the branch from stacking an unbounded sum of
+uncalibrated deficits. The adjusted flow is then passed to the target's existing
+point-drag, projected-area, or detached-aero evaluator. Trace points retain the
+effective relative airspeed, strongest deficit fraction, and source count. The
+result records the normalized configuration, maximum observed deficit, exposed
+sample count, and affected-body count under
+`rocketworks-coupled-multi-body-relative-aero-0.1.0`.
+
+The branch is an analytical sensitivity check only. It does not model wake
+roll-up, turbulence, viscous shielding, crossflow/attitude databases, plume
+interaction, shock interaction, unsteady derivatives, or measured proximity
+forces and moments. CFD, wind-tunnel data, calibrated relative-body tables, and
+measured-flight comparison are required before using it for design release,
+operations, or flight/range-safety decisions.
+
 For bodies with the rigid-body option, the state additionally follows
 
 ```text
@@ -211,9 +246,10 @@ It is not a full contact or structural multi-body solver. Unless the explicit
 `contact.enabled` branch is selected, it does not infer body-to-body contact
 forces. Even when selected, it does not infer fin interference, unsteady flow,
 collision meshes, joint or spring compliance, plume interaction,
-wake/interference, structural flexibility, separation mechanism dynamics, or
-range-safety margins. Pairwise COM distance and spherical envelopes remain
-diagnostics, not clearance approval.
+wake/interference beyond the explicit bounded feedback sensitivity branch,
+structural flexibility, separation mechanism dynamics, or range-safety margins.
+Pairwise COM distance and spherical envelopes remain diagnostics, not clearance
+approval.
 
 The stage-flight adapter applies a solved minimum-norm release correction only
 when the event-level separation allocator reports a balanced result. The

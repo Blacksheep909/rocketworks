@@ -230,6 +230,58 @@ test("contact options reject unsafe stiffness, damping, and force caps", () => {
   );
 });
 
+test("opt-in wake feedback reduces eligible target flow and retains bounded provenance", () => {
+  const makeWakeBody = (id, x) => body({
+    id,
+    label: id,
+    releaseTimeS: 0,
+    releasePositionWorldM: { x, y: 0, z: 120 },
+    releaseVelocityWorldMps: { x: 50, y: 0, z: 0 },
+    referenceAreaM2: 0.02,
+    dragCoefficient: 0.6,
+  });
+  const baseline = simulateCoupledMultiBodyFlight({
+    bodies: [makeWakeBody("wake-source", 0), makeWakeBody("wake-target", 0.4)],
+    durationS: 0.2,
+    timeStepS: 0.05,
+  });
+  const feedback = simulateCoupledMultiBodyFlight({
+    bodies: [makeWakeBody("wake-source", 0), makeWakeBody("wake-target", 0.4)],
+    durationS: 0.2,
+    timeStepS: 0.05,
+    relativeAeroForceFeedback: { enabled: true },
+  });
+  assert.equal(baseline.relativeAeroForceFeedback.enabled, false);
+  assert.equal(feedback.relativeAeroForceFeedback.enabled, true);
+  assert.equal(feedback.relativeAeroForceFeedback.modelVersion, "rocketworks-coupled-multi-body-relative-aero-0.1.0");
+  assert.ok(feedback.relativeAeroForceFeedback.exposedSampleCount > 0);
+  assert.ok(feedback.relativeAeroForceFeedback.affectedBodyCount >= 1);
+  assert.ok(feedback.relativeAeroForceFeedback.maximumObservedVelocityDeficitFraction > 0);
+  const targetInitial = feedback.trajectories[1].trace[0];
+  assert.equal(targetInitial.relativeWakeSourceCount, 1);
+  assert.ok(targetInitial.relativeWakeDeficitFraction > 0);
+  assert.ok(targetInitial.relativeAirSpeedMps < 50);
+  assert.equal(baseline.trajectories[1].trace[0].relativeAirSpeedMps, undefined);
+  assert.ok(feedback.warnings.some((warning) => warning.includes("analytical sensitivity")));
+  assert.ok(feedback.assumptions.some((assumption) => assumption.includes("strongest") && assumption.includes("wake")));
+});
+
+test("wake feedback rejects unbounded geometry and deficit controls", () => {
+  const input = {
+    bodies: [body({ releaseTimeS: 0 })],
+    durationS: 1,
+    timeStepS: 0.1,
+  };
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({ ...input, relativeAeroForceFeedback: { enabled: true, wakeHalfAngleDeg: 46 } }),
+    /wake half-angle/,
+  );
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({ ...input, relativeAeroForceFeedback: { enabled: true, peakVelocityDeficitFraction: 0.8, maximumVelocityDeficitFraction: 0.7 } }),
+    /peak deficit/,
+  );
+});
+
 test("coupled point-mass propagation consumes optional environment rotation acceleration", () => {
   const result = simulateCoupledMultiBodyFlight({
     bodies: [body({ releaseTimeS: 0, releasePositionWorldM: { x: 0, y: 0, z: 100 } })],

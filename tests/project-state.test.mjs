@@ -266,6 +266,7 @@ test("project snapshots preserve coupled-flight contract settings and legacy def
     coupledContactDampingNsPerM: 125,
     coupledContactMaximumNormalForceN: 250_000,
     coupledMultiBodyIncludeRetainedBody: true,
+    coupledRelativeAeroForceFeedbackEnabled: true,
     releasedBodyDragModel: "coefficient-table",
     relativeAeroInteractionEnabled: false,
     relativeAeroWakeHalfAngleDeg: 12,
@@ -284,6 +285,7 @@ test("project snapshots preserve coupled-flight contract settings and legacy def
   assert.equal(parsed.inputs.coupledContactDampingNsPerM, 125);
   assert.equal(parsed.inputs.coupledContactMaximumNormalForceN, 250_000);
   assert.equal(parsed.inputs.coupledMultiBodyIncludeRetainedBody, true);
+  assert.equal(parsed.inputs.coupledRelativeAeroForceFeedbackEnabled, true);
   assert.equal(parsed.inputs.releasedBodyDragModel, "coefficient-table");
   assert.equal(parsed.inputs.relativeAeroInteractionEnabled, false);
   assert.equal(parsed.inputs.relativeAeroWakeHalfAngleDeg, 12);
@@ -303,6 +305,7 @@ test("project snapshots preserve coupled-flight contract settings and legacy def
   assert.equal(tuned.inputs.coupledIntegrationTimeStepS, 0.08);
   assert.equal(snapshot(2).inputs.coupledMutualGravityEnabled, undefined);
   assert.equal(snapshot(2).inputs.coupledMultiBodyIncludeRetainedBody, undefined);
+  assert.equal(snapshot(2).inputs.coupledRelativeAeroForceFeedbackEnabled, undefined);
   assert.equal(snapshot(2).inputs.releasedBodyDragModel, undefined);
 });
 
@@ -318,6 +321,10 @@ test("project snapshots reject invalid coupled-flight contract settings", () => 
   assert.throws(
     () => snapshot(1, { coupledMultiBodyIncludeRetainedBody: "yes" }),
     /coupledMultiBodyIncludeRetainedBody must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { coupledRelativeAeroForceFeedbackEnabled: "yes" }),
+    /coupledRelativeAeroForceFeedbackEnabled must be/,
   );
   assert.throws(
     () => snapshot(1, { coupledContactStiffnessNPerM: 0 }),

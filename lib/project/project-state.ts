@@ -148,6 +148,8 @@ export type EditableProjectInputs = Readonly<{
   coupledContactMaximumNormalForceN?: number;
   /** Includes a replay-backed retained vehicle in the shared coupled track. */
   coupledMultiBodyIncludeRetainedBody?: boolean;
+  /** Enables the bounded wake-deficit sensitivity branch in the shared coupled track. */
+  coupledRelativeAeroForceFeedbackEnabled?: boolean;
   /** Aerodynamic contract used for released-body tracks in the coupled preview. */
   releasedBodyDragModel?: ReleasedBodyDragModel;
   /** Enables the post-trace released-body wake/relative-flow diagnostic. */
@@ -206,7 +208,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "customMaterial" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "coupledContactEnabled" | "coupledContactStiffnessNPerM" | "coupledContactDampingNsPerM" | "coupledContactMaximumNormalForceN" | "coupledMultiBodyIncludeRetainedBody" | "releasedBodyDragModel" | "relativeAeroInteractionEnabled" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod" | "verticalIntegrationTimeStepS" | "coupledIntegrationTimeStepS">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "customMaterial" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "coupledContactEnabled" | "coupledContactStiffnessNPerM" | "coupledContactDampingNsPerM" | "coupledContactMaximumNormalForceN" | "coupledMultiBodyIncludeRetainedBody" | "coupledRelativeAeroForceFeedbackEnabled" | "releasedBodyDragModel" | "relativeAeroInteractionEnabled" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod" | "verticalIntegrationTimeStepS" | "coupledIntegrationTimeStepS">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -512,6 +514,13 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   ) {
     throw new Error("coupledMultiBodyIncludeRetainedBody must be boolean.");
   }
+  const coupledRelativeAeroForceFeedbackEnabled = input.coupledRelativeAeroForceFeedbackEnabled;
+  if (
+    coupledRelativeAeroForceFeedbackEnabled !== undefined &&
+    typeof coupledRelativeAeroForceFeedbackEnabled !== "boolean"
+  ) {
+    throw new Error("coupledRelativeAeroForceFeedbackEnabled must be boolean.");
+  }
   const coupledContactStiffnessNPerM = input.coupledContactStiffnessNPerM;
   if (
     coupledContactStiffnessNPerM !== undefined &&
@@ -646,6 +655,7 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     ...(coupledContactDampingNsPerM === undefined ? {} : { coupledContactDampingNsPerM }),
     ...(coupledContactMaximumNormalForceN === undefined ? {} : { coupledContactMaximumNormalForceN }),
     ...(coupledMultiBodyIncludeRetainedBody === undefined ? {} : { coupledMultiBodyIncludeRetainedBody }),
+    ...(coupledRelativeAeroForceFeedbackEnabled === undefined ? {} : { coupledRelativeAeroForceFeedbackEnabled }),
     ...(releasedBodyDragModel === undefined ? {} : { releasedBodyDragModel }),
     relativeAeroInteractionEnabled,
     relativeAeroWakeHalfAngleDeg: validated.relativeAeroWakeHalfAngleDeg,
@@ -832,6 +842,7 @@ export const PROJECT_INPUT_LABELS: Readonly<Record<keyof EditableProjectInputs, 
   coupledContactDampingNsPerM: "contact closing-speed damping",
   coupledContactMaximumNormalForceN: "contact normal-force cap",
   coupledMultiBodyIncludeRetainedBody: "retained vehicle coupled replay track",
+  coupledRelativeAeroForceFeedbackEnabled: "coupled wake force-feedback sensitivity",
   releasedBodyDragModel: "released-body aerodynamic mode",
   relativeAeroInteractionEnabled: "released-body wake interaction screen",
   relativeAeroWakeHalfAngleDeg: "wake half-angle",

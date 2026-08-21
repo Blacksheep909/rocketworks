@@ -100,6 +100,7 @@ import {
   type CoupledMultiBodyFlightBodyInput,
   type CoupledMultiBodyContactOptions,
   type CoupledMultiBodyGravityOptions,
+  type CoupledMultiBodyRelativeAeroOptions,
   type CoupledMultiBodyFlightResult,
 } from "./coupled-multi-body-flight.ts";
 import type { AttitudeDependentDragGeometry } from "./attitude-dependent-drag.ts";
@@ -187,6 +188,8 @@ export type StageFlightPreviewInput = Readonly<{
   releasedBodyDragModel?: ReleasedBodyDragModel;
   /** Optional post-trace wake/relative-flow screen; it never feeds forces back into flight. */
   relativeAeroInteraction?: RelativeAeroInteractionOptions;
+  /** Optional bounded wake-deficit feedback for the shared coupled track. */
+  relativeAeroForceFeedback?: CoupledMultiBodyRelativeAeroOptions;
   launchRail?: LaunchRailConfig;
   launchRailMaximumSteps?: number;
   additionalWarnings?: readonly string[];
@@ -1623,6 +1626,7 @@ export function simulateStageFlightPreview(
         environmentAt: input.environmentAt,
         mutualGravity: input.coupledMultiBodyGravity,
         contact: input.coupledMultiBodyContact,
+        relativeAeroForceFeedback: input.relativeAeroForceFeedback,
         integration: input.integration,
       });
     } catch (error) {

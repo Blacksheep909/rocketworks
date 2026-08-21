@@ -165,6 +165,11 @@ research, standards, and original code.
   proxies when an environment provider is available, mirrors the result into
   engineering reports, and keeps the explicit no-force-feedback /
   no-validation boundary;
+- an opt-in coupled wake-feedback sensitivity branch that feeds the strongest
+  overlapping source-wake velocity deficit into the shared-grid drag/aero
+  evaluation, with persisted controls, per-sample provenance, CSV/report
+  export, and explicit analytical-only / no-CFD limits; the default force path
+  remains unchanged;
 - an instantaneous separation impulse audit that checks mass-ratio linear
   momentum balance and exposes unmodeled first-order angular impulse before
   detached-body propagation;
@@ -406,7 +411,8 @@ tests/                Deterministic physics, UI, export, and integration checks
 Near-term work is stronger experimental/benchmark validation, extension of the
 new opt-in released-body rigid-state branch toward contact and relative-load
 validation, including evidence-backed calibration of the now-configurable
-relative-flow wake proxy, validated stage-interface/load-transfer and
+relative-flow wake proxy and its bounded force-feedback sensitivity branch,
+validated stage-interface/load-transfer and
 mission-level mass-ratio loss models, and validated structural/aeroelastic benchmarks beyond the
 preliminary fin flutter screen. The optional retained replay track now provides
 an explicit shared-grid diagnostic; a true independent retained-stage force,

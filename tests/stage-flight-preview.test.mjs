@@ -461,6 +461,13 @@ test("stage-flight adapter optionally includes a replay-backed retained vehicle 
       dampingNsPerM: 125,
       maximumNormalForceN: 250_000,
     },
+    relativeAeroForceFeedback: {
+      enabled: true,
+      wakeHalfAngleDeg: 10,
+      wakeRecoveryDistanceBodyDiameters: 24,
+      peakVelocityDeficitFraction: 0.35,
+      maximumVelocityDeficitFraction: 0.6,
+    },
   });
 
   assert.equal(detachedOnly.coupledMultiBodyFlight?.trajectories.length, 1);
@@ -477,6 +484,9 @@ test("stage-flight adapter optionally includes a replay-backed retained vehicle 
   assert.ok(retained.trace[0].timeS >= 1);
   assert.ok(retained.trace.some((point) => Math.hypot(point.accelerationWorldMps2.x, point.accelerationWorldMps2.y, point.accelerationWorldMps2.z) > 0));
   assert.equal(replayed.separationContact?.bodies.length, 2);
+  assert.equal(replayed.coupledMultiBodyFlight.relativeAeroForceFeedback.enabled, true);
+  assert.equal(replayed.coupledMultiBodyFlight.relativeAeroForceFeedback.wakeHalfAngleDeg, 10);
+  assert.ok(replayed.assumptions.some((assumption) => assumption.includes("Wake feedback uses a finite expanding cone")));
   assert.ok(replayed.assumptions.some((assumption) => assumption.includes("replays interpolated thrust")));
   assert.ok(replayed.assumptions.some((assumption) => assumption.includes("not an independent retained-stage 6DOF rerun")));
   assert.equal(replayed.warnings.some((warning) => warning.includes("retained-vehicle coupled replay")), false);

@@ -56,7 +56,7 @@ import {
  * aerodynamic interference remain outside the model.
  */
 export const COUPLED_MULTI_BODY_FLIGHT_MODEL_VERSION =
-  "rocketworks-coupled-multi-body-flight-0.7.0";
+  "rocketworks-coupled-multi-body-flight-0.8.0";
 export const COUPLED_MULTI_BODY_FLIGHT_STATUS =
   "analytical-component-checks-only" as const;
 export const STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2 = 6.67430e-11;
@@ -65,6 +65,11 @@ export const COUPLED_MULTI_BODY_CONTACT_MODEL_VERSION =
   "rocketworks-coupled-multi-body-contact-0.1.0";
 export const COUPLED_MULTI_BODY_CONTACT_STATUS =
   "analytical-compliance-solver" as const;
+
+export const COUPLED_MULTI_BODY_RELATIVE_AERO_MODEL_VERSION =
+  "rocketworks-coupled-multi-body-relative-aero-0.1.0";
+export const COUPLED_MULTI_BODY_RELATIVE_AERO_STATUS =
+  "analytical-component-checks-only" as const;
 
 export type CoupledMultiBodyGravityOptions = Readonly<{
   /** Enables direct pairwise point-mass gravity between released bodies. */
@@ -87,6 +92,20 @@ export type CoupledMultiBodyContactOptions = Readonly<{
   dampingNsPerM?: number;
   /** Safety cap on each pair's normal force. */
   maximumNormalForceN?: number;
+}>;
+
+/**
+ * Optional bounded wake-deficit feedback for the shared multi-body track.
+ * Disabled by default; when enabled, the strongest overlapping source wake
+ * reduces the target's environment-relative flow before its existing drag or
+ * aerodynamic basis is evaluated.
+ */
+export type CoupledMultiBodyRelativeAeroOptions = Readonly<{
+  enabled?: boolean;
+  wakeHalfAngleDeg?: number;
+  wakeRecoveryDistanceBodyDiameters?: number;
+  peakVelocityDeficitFraction?: number;
+  maximumVelocityDeficitFraction?: number;
 }>;
 
 export type CoupledMultiBodyIntegrationOptions = Readonly<{
@@ -146,6 +165,10 @@ export type CoupledMultiBodyTracePoint = Readonly<{
   velocityWorldMps: Vector3;
   accelerationWorldMps2: Vector3;
   relativeAirSpeedMps?: number;
+  /** Optional strongest source-wake velocity deficit used by force feedback. */
+  relativeWakeDeficitFraction?: number;
+  /** Number of source wakes overlapping the body at this sample. */
+  relativeWakeSourceCount?: number;
   dynamicPressurePa?: number;
   attitudeIncidenceRad?: number;
   effectiveReferenceAreaM2?: number;
@@ -211,6 +234,8 @@ export type CoupledMultiBodyFlightInput = Readonly<{
   mutualGravity?: CoupledMultiBodyGravityOptions;
   /** Optional equal-and-opposite spherical-envelope contact force model. */
   contact?: CoupledMultiBodyContactOptions;
+  /** Optional post-trace wake model promoted to bounded force feedback. */
+  relativeAeroForceFeedback?: CoupledMultiBodyRelativeAeroOptions;
   launchAltitudeM?: number;
   environmentAt?: LaunchEnvironmentProvider;
   maximumSteps?: number;
@@ -240,6 +265,18 @@ export type CoupledMultiBodyFlightResult = Readonly<{
     maximumNormalForceNObserved: number | null;
     contactPairCount: number;
     contactSampleCount: number;
+  }>;
+  relativeAeroForceFeedback: Readonly<{
+    modelVersion: typeof COUPLED_MULTI_BODY_RELATIVE_AERO_MODEL_VERSION;
+    validationStatus: typeof COUPLED_MULTI_BODY_RELATIVE_AERO_STATUS;
+    enabled: boolean;
+    wakeHalfAngleDeg: number;
+    wakeRecoveryDistanceBodyDiameters: number;
+    peakVelocityDeficitFraction: number;
+    maximumVelocityDeficitFraction: number;
+    maximumObservedVelocityDeficitFraction: number | null;
+    exposedSampleCount: number;
+    affectedBodyCount: number;
   }>;
   rigidBodyCount: number;
   aerodynamicBodyCount: number;
@@ -294,6 +331,9 @@ type CoupledGroupDerivative = Readonly<{
   contactPairCounts: readonly number[];
   orientationRates: readonly (Quaternion | null)[];
   angularVelocityRatesBodyRadS2: readonly (Vector3 | null)[];
+  relativeAirVelocityWorldMps: readonly (Vector3 | null)[];
+  relativeWakeDeficitFractions: readonly (number | null)[];
+  relativeWakeSourceCounts: readonly number[];
 }>;
 
 const ZERO_VECTOR: Vector3 = { x: 0, y: 0, z: 0 };
@@ -326,6 +366,26 @@ type CoupledAdaptiveStepResult = Readonly<{
   minimumAcceptedStepS: number;
   maximumAcceptedStepS: number;
 }>;
+
+type NormalizedRelativeAeroForceFeedbackOptions = Readonly<{
+  enabled: boolean;
+  wakeHalfAngleDeg: number;
+  wakeRecoveryDistanceBodyDiameters: number;
+  peakVelocityDeficitFraction: number;
+  maximumVelocityDeficitFraction: number;
+}>;
+
+type RelativeAeroForceFeedbackEvaluation = Readonly<{
+  relativeAirVelocityWorldMps: Vector3;
+  maximumVelocityDeficitFraction: number;
+  sourceCount: number;
+}>;
+
+const DEFAULT_RELATIVE_AERO_WAKE_HALF_ANGLE_DEG = 8;
+const DEFAULT_RELATIVE_AERO_WAKE_RECOVERY_DISTANCE_BODY_DIAMETERS = 30;
+const DEFAULT_RELATIVE_AERO_PEAK_VELOCITY_DEFICIT_FRACTION = 0.5;
+const DEFAULT_RELATIVE_AERO_MAXIMUM_VELOCITY_DEFICIT_FRACTION = 0.7;
+const RELATIVE_AERO_FLOW_SPEED_EPSILON_MPS = 1e-8;
 
 function assertFiniteVector(value: Vector3, label: string): void {
   if (![value.x, value.y, value.z].every(Number.isFinite)) {
@@ -433,6 +493,50 @@ function normalizeContactOptions(
     throw new Error("coupled multi-body contact maximum force cannot exceed 1e10 N");
   }
   return { enabled, stiffnessNPerM, dampingNsPerM, maximumNormalForceN };
+}
+
+function normalizeRelativeAeroForceFeedbackOptions(
+  options: CoupledMultiBodyRelativeAeroOptions | undefined,
+): NormalizedRelativeAeroForceFeedbackOptions {
+  const enabled = options?.enabled ?? false;
+  if (typeof enabled !== "boolean") {
+    throw new Error("coupled multi-body relative-aero feedback enabled flag must be boolean");
+  }
+  const wakeHalfAngleDeg = options?.wakeHalfAngleDeg ?? DEFAULT_RELATIVE_AERO_WAKE_HALF_ANGLE_DEG;
+  const wakeRecoveryDistanceBodyDiameters =
+    options?.wakeRecoveryDistanceBodyDiameters ?? DEFAULT_RELATIVE_AERO_WAKE_RECOVERY_DISTANCE_BODY_DIAMETERS;
+  const peakVelocityDeficitFraction =
+    options?.peakVelocityDeficitFraction ?? DEFAULT_RELATIVE_AERO_PEAK_VELOCITY_DEFICIT_FRACTION;
+  const maximumVelocityDeficitFraction =
+    options?.maximumVelocityDeficitFraction ?? DEFAULT_RELATIVE_AERO_MAXIMUM_VELOCITY_DEFICIT_FRACTION;
+  if (!Number.isFinite(wakeHalfAngleDeg) || wakeHalfAngleDeg < 0 || wakeHalfAngleDeg > 45) {
+    throw new Error("coupled multi-body relative-aero wake half-angle must be between 0 and 45 degrees");
+  }
+  assertPositiveFinite(
+    wakeRecoveryDistanceBodyDiameters,
+    "coupled multi-body relative-aero wake recovery distance",
+  );
+  if (wakeRecoveryDistanceBodyDiameters > 1_000) {
+    throw new Error("coupled multi-body relative-aero wake recovery distance cannot exceed 1000 body diameters");
+  }
+  for (const [label, value] of [
+    ["coupled multi-body relative-aero peak velocity deficit", peakVelocityDeficitFraction],
+    ["coupled multi-body relative-aero maximum velocity deficit", maximumVelocityDeficitFraction],
+  ] as const) {
+    if (!Number.isFinite(value) || value < 0 || value >= 1) {
+      throw new Error(`${label} must be from 0 through less than 1`);
+    }
+  }
+  if (peakVelocityDeficitFraction > maximumVelocityDeficitFraction) {
+    throw new Error("coupled multi-body relative-aero peak deficit cannot exceed its maximum");
+  }
+  return {
+    enabled,
+    wakeHalfAngleDeg,
+    wakeRecoveryDistanceBodyDiameters,
+    peakVelocityDeficitFraction,
+    maximumVelocityDeficitFraction,
+  };
 }
 
 function interpolateVector(a: Vector3, b: Vector3, fraction: number): Vector3 {
@@ -543,6 +647,121 @@ function environmentAt(
   });
 }
 
+function bodyWakeDiameterM(body: CoupledMultiBodyFlightBodyInput): number | null {
+  const referenceAreaM2 = body.aerodynamicBasis?.referenceAreaM2
+    ?? (body.attitudeDependentDrag
+      ? Math.max(
+          body.attitudeDependentDrag.axialReferenceAreaM2,
+          body.attitudeDependentDrag.crossflowReferenceAreaM2,
+        )
+      : body.referenceAreaM2);
+  if (referenceAreaM2 !== undefined && referenceAreaM2 > 0) {
+    return Math.sqrt((4 * referenceAreaM2) / Math.PI);
+  }
+  return body.envelopeRadiusM !== undefined && body.envelopeRadiusM > 0
+    ? 2 * body.envelopeRadiusM
+    : null;
+}
+
+function bodyWakeRadiusM(body: CoupledMultiBodyFlightBodyInput): number {
+  if (body.envelopeRadiusM !== undefined && body.envelopeRadiusM > 0) {
+    return body.envelopeRadiusM;
+  }
+  const diameterM = bodyWakeDiameterM(body);
+  return diameterM === null ? 0 : diameterM / 2;
+}
+
+function hasAerodynamicLoadContract(body: CoupledMultiBodyFlightBodyInput): boolean {
+  return Boolean(
+    body.referenceAreaM2 !== undefined ||
+    body.attitudeDependentDrag ||
+    body.aerodynamicBasis,
+  );
+}
+
+function evaluateRelativeAeroForceFeedbackForBody(
+  targetIndex: number,
+  bodies: readonly CoupledMultiBodyFlightBodyInput[],
+  input: CoupledMultiBodyFlightInput,
+  state: CoupledGroupState,
+  options: NormalizedRelativeAeroForceFeedbackOptions,
+): RelativeAeroForceFeedbackEvaluation | null {
+  if (!options.enabled || !state.active[targetIndex] || !hasAerodynamicLoadContract(bodies[targetIndex]!)) {
+    return null;
+  }
+  const targetBody = bodies[targetIndex]!;
+  const targetPosition = state.positionsWorldM[targetIndex]!;
+  const targetVelocity = state.velocitiesWorldMps[targetIndex]!;
+  const targetEnvironment = environmentAt(input, state.timeS, targetPosition, targetVelocity);
+  const targetAirVelocity = subtractVectors(
+    targetVelocity,
+    targetEnvironment?.windWorldMps ?? ZERO_VECTOR,
+  );
+  const targetRadiusM = bodyWakeRadiusM(targetBody);
+  let strongestDeficitVelocityWorldMps = ZERO_VECTOR;
+  let strongestDeficitVelocityMps = 0;
+  let maximumVelocityDeficitFraction = 0;
+  let sourceCount = 0;
+  const wakeHalfAngleRad = (options.wakeHalfAngleDeg * Math.PI) / 180;
+  for (let sourceIndex = 0; sourceIndex < bodies.length; sourceIndex += 1) {
+    if (sourceIndex === targetIndex || !state.active[sourceIndex]) continue;
+    const sourceBody = bodies[sourceIndex]!;
+    const sourceDiameterM = bodyWakeDiameterM(sourceBody);
+    if (sourceDiameterM === null) continue;
+    const sourcePosition = state.positionsWorldM[sourceIndex]!;
+    const sourceVelocity = state.velocitiesWorldMps[sourceIndex]!;
+    const sourceEnvironment = environmentAt(input, state.timeS, sourcePosition, sourceVelocity);
+    const sourceAirVelocity = subtractVectors(
+      sourceVelocity,
+      sourceEnvironment?.windWorldMps ?? ZERO_VECTOR,
+    );
+    const sourceAirSpeedMps = magnitude(sourceAirVelocity);
+    if (sourceAirSpeedMps <= RELATIVE_AERO_FLOW_SPEED_EPSILON_MPS) continue;
+    const wakeAxis = scaleVector(sourceAirVelocity, 1 / sourceAirSpeedMps);
+    const separation = subtractVectors(targetPosition, sourcePosition);
+    const downstreamDistanceM = dot(separation, wakeAxis);
+    const wakeLengthM = sourceDiameterM * options.wakeRecoveryDistanceBodyDiameters;
+    if (!(downstreamDistanceM > 0) || downstreamDistanceM > wakeLengthM) continue;
+    const lateralDistanceSquaredM2 = Math.max(
+      0,
+      dot(separation, separation) - downstreamDistanceM ** 2,
+    );
+    const lateralDistanceM = Math.sqrt(lateralDistanceSquaredM2);
+    const interactionRadiusM =
+      bodyWakeRadiusM(sourceBody) + Math.tan(wakeHalfAngleRad) * downstreamDistanceM + targetRadiusM;
+    if (lateralDistanceM > interactionRadiusM) continue;
+    const exposureFraction = Math.min(
+      1,
+      Math.max(0, 1 - lateralDistanceM / Math.max(interactionRadiusM, RELATIVE_AERO_FLOW_SPEED_EPSILON_MPS)),
+    );
+    const recoveryFraction = Math.min(1, Math.max(0, 1 - downstreamDistanceM / wakeLengthM));
+    const deficitFraction = Math.min(
+      options.maximumVelocityDeficitFraction,
+      options.peakVelocityDeficitFraction * exposureFraction * recoveryFraction,
+    );
+    if (!(deficitFraction > 0)) continue;
+    sourceCount += 1;
+    maximumVelocityDeficitFraction = Math.max(maximumVelocityDeficitFraction, deficitFraction);
+    const deficitVelocityWorldMps = scaleVector(
+      wakeAxis,
+      sourceAirSpeedMps * deficitFraction,
+    );
+    const deficitVelocityMps = magnitude(deficitVelocityWorldMps);
+    if (deficitVelocityMps > strongestDeficitVelocityMps) {
+      strongestDeficitVelocityMps = deficitVelocityMps;
+      strongestDeficitVelocityWorldMps = deficitVelocityWorldMps;
+    }
+  }
+  return {
+    relativeAirVelocityWorldMps: subtractVectors(
+      targetAirVelocity,
+      strongestDeficitVelocityWorldMps,
+    ),
+    maximumVelocityDeficitFraction,
+    sourceCount,
+  };
+}
+
 type CoupledBodyAerodynamicEvaluation = Readonly<{
   modelVersion: string;
   forceWorldN: Vector3;
@@ -574,13 +793,14 @@ function evaluateCoupledBodyAerodynamics(
   velocityWorldMps: Vector3,
   orientationBodyToWorld: Quaternion | undefined,
   angularVelocityBodyRadS: Vector3 = ZERO_VECTOR,
+  relativeAirVelocityWorldMps?: Vector3,
 ): CoupledBodyAerodynamicEvaluation | null {
   if (!orientationBodyToWorld || (!body.aerodynamicBasis && !body.attitudeDependentDrag)) return null;
   const environment = environmentAt(input, timeS, positionWorldM, velocityWorldMps);
   const altitudeAslM =
     environment?.altitudeAslM ?? (input.launchAltitudeM ?? 0) + positionWorldM.z;
   const atmosphere = environment?.atmosphere ?? standardAtmosphere(altitudeAslM);
-  const relativeAirVelocityWorldMps = subtractVectors(
+  const effectiveRelativeAirVelocityWorldMps = relativeAirVelocityWorldMps ?? subtractVectors(
     velocityWorldMps,
     environment?.windWorldMps ?? ZERO_VECTOR,
   );
@@ -590,7 +810,7 @@ function evaluateCoupledBodyAerodynamics(
       densityKgM3: atmosphere.densityKgM3,
       speedOfSoundMps: atmosphere.speedOfSoundMps,
       dynamicViscosityPaS: atmosphere.dynamicViscosityPaS,
-      relativeAirVelocityWorldMps,
+      relativeAirVelocityWorldMps: effectiveRelativeAirVelocityWorldMps,
       orientationBodyToWorld,
       angularVelocityBodyRadS,
     });
@@ -620,7 +840,7 @@ function evaluateCoupledBodyAerodynamics(
   const result = evaluateAttitudeDependentDrag({
     geometry: body.attitudeDependentDrag!,
     densityKgM3: atmosphere.densityKgM3,
-    relativeAirVelocityWorldMps,
+    relativeAirVelocityWorldMps: effectiveRelativeAirVelocityWorldMps,
     bodyAxisWorldM: rotateBodyToWorld(
       orientationBodyToWorld,
       ATTITUDE_DEPENDENT_DRAG_BODY_AXIS,
@@ -657,6 +877,7 @@ function accelerationAt(
   positionWorldM: Vector3,
   velocityWorldMps: Vector3,
   orientationBodyToWorld?: Quaternion,
+  relativeAirVelocityWorldMps?: Vector3,
 ): Vector3 {
   const environment = environmentAt(input, timeS, positionWorldM, velocityWorldMps);
   const altitudeAslM =
@@ -681,7 +902,7 @@ function accelerationAt(
     // external moment; keeping it out here prevents a force double-count.
     return gravityAccelerationWorldMps2;
   }
-  const relativeAirVelocityMps = subtractVectors(
+  const relativeAirVelocityMps = relativeAirVelocityWorldMps ?? subtractVectors(
     velocityWorldMps,
     environment?.windWorldMps ?? ZERO_VECTOR,
   );
@@ -909,6 +1130,7 @@ function coupledGroupDerivativeAt(
   state: CoupledGroupState,
   mutualGravity: Required<CoupledMultiBodyGravityOptions>,
   contact: NormalizedContactOptions,
+  relativeAero: NormalizedRelativeAeroForceFeedbackOptions,
 ): CoupledGroupDerivative {
   const positionRatesWorldMps: Vector3[] = [];
   const velocityRatesWorldMps2: Vector3[] = [];
@@ -918,6 +1140,9 @@ function coupledGroupDerivativeAt(
   const contactPairCounts: number[] = [];
   const orientationRates: (Quaternion | null)[] = [];
   const angularVelocityRatesBodyRadS2: (Vector3 | null)[] = [];
+  const relativeAirVelocityWorldMps: (Vector3 | null)[] = [];
+  const relativeWakeDeficitFractions: (number | null)[] = [];
+  const relativeWakeSourceCounts: number[] = [];
   const contactEvaluation = evaluateCoupledContact(bodies, state, contact);
   for (let index = 0; index < bodies.length; index += 1) {
     if (!state.active[index]) {
@@ -929,9 +1154,19 @@ function coupledGroupDerivativeAt(
       contactPairCounts.push(0);
       orientationRates.push(null);
       angularVelocityRatesBodyRadS2.push(null);
+      relativeAirVelocityWorldMps.push(null);
+      relativeWakeDeficitFractions.push(null);
+      relativeWakeSourceCounts.push(0);
       continue;
     }
     const body = bodies[index]!;
+    const relativeAeroEvaluation = evaluateRelativeAeroForceFeedbackForBody(
+      index,
+      bodies,
+      input,
+      state,
+      relativeAero,
+    );
     const rigidState = body.rigidBody
       ? rigidBodyStateAt(body, state, index)
       : null;
@@ -943,6 +1178,7 @@ function coupledGroupDerivativeAt(
       state.velocitiesWorldMps[index]!,
       state.orientationsBodyToWorld[index] ?? undefined,
       state.angularVelocitiesBodyRadS[index] ?? ZERO_VECTOR,
+      relativeAeroEvaluation?.relativeAirVelocityWorldMps,
     );
     const baseAcceleration = addVectors(
       addVectors(
@@ -954,6 +1190,7 @@ function coupledGroupDerivativeAt(
             state.positionsWorldM[index]!,
             state.velocitiesWorldMps[index]!,
             state.orientationsBodyToWorld[index] ?? undefined,
+            relativeAeroEvaluation?.relativeAirVelocityWorldMps,
           ),
           aerodynamic && body.aerodynamicBasis
             ? scaleVector(aerodynamic.forceWorldN, 1 / body.massKg)
@@ -1026,6 +1263,13 @@ function coupledGroupDerivativeAt(
     contactPairCounts.push(contactEvaluation.pairCounts[index]!);
     orientationRates.push(orientationRate);
     angularVelocityRatesBodyRadS2.push(angularVelocityRate);
+    relativeAirVelocityWorldMps.push(relativeAeroEvaluation?.relativeAirVelocityWorldMps ?? null);
+    relativeWakeDeficitFractions.push(
+      relativeAeroEvaluation && relativeAeroEvaluation.sourceCount > 0
+        ? relativeAeroEvaluation.maximumVelocityDeficitFraction
+        : null,
+    );
+    relativeWakeSourceCounts.push(relativeAeroEvaluation?.sourceCount ?? 0);
   }
   return {
     positionRatesWorldMps,
@@ -1036,6 +1280,9 @@ function coupledGroupDerivativeAt(
     contactPairCounts,
     orientationRates,
     angularVelocityRatesBodyRadS2,
+    relativeAirVelocityWorldMps,
+    relativeWakeDeficitFractions,
+    relativeWakeSourceCounts,
   };
 }
 
@@ -1046,6 +1293,7 @@ function integrateCoupledGroupRungeKutta4(
   stepS: number,
   mutualGravity: Required<CoupledMultiBodyGravityOptions>,
   contact: NormalizedContactOptions,
+  relativeAero: NormalizedRelativeAeroForceFeedbackOptions,
 ): CoupledGroupState {
   const addScaledQuaternion = (
     value: Quaternion,
@@ -1057,7 +1305,7 @@ function integrateCoupledGroupRungeKutta4(
     y: value.y + derivative.y * scale,
     z: value.z + derivative.z * scale,
   });
-  const k1 = coupledGroupDerivativeAt(bodies, input, state, mutualGravity, contact);
+  const k1 = coupledGroupDerivativeAt(bodies, input, state, mutualGravity, contact, relativeAero);
   const halfState = (
     base: CoupledGroupState,
     derivative: CoupledGroupDerivative,
@@ -1091,6 +1339,7 @@ function integrateCoupledGroupRungeKutta4(
     halfState(state, k1, stepS / 2, state.timeS + stepS / 2),
     mutualGravity,
     contact,
+    relativeAero,
   );
   const k3 = coupledGroupDerivativeAt(
     bodies,
@@ -1098,6 +1347,7 @@ function integrateCoupledGroupRungeKutta4(
     halfState(state, k2, stepS / 2, state.timeS + stepS / 2),
     mutualGravity,
     contact,
+    relativeAero,
   );
   const k4 = coupledGroupDerivativeAt(
     bodies,
@@ -1105,6 +1355,7 @@ function integrateCoupledGroupRungeKutta4(
     halfState(state, k3, stepS, state.timeS + stepS),
     mutualGravity,
     contact,
+    relativeAero,
   );
   const weighted = (
     index: number,
@@ -1305,6 +1556,7 @@ function integrateCoupledGroupAdaptive(
   durationS: number,
   mutualGravity: Required<CoupledMultiBodyGravityOptions>,
   contact: NormalizedContactOptions,
+  relativeAero: NormalizedRelativeAeroForceFeedbackOptions,
   options: Required<AdaptiveRigidBodyIntegrationOptions>,
 ): CoupledAdaptiveStepResult {
   if (!Number.isFinite(durationS) || durationS <= 0) {
@@ -1339,6 +1591,7 @@ function integrateCoupledGroupAdaptive(
       candidateStepS,
       mutualGravity,
       contact,
+      relativeAero,
     );
     const halfStep = integrateCoupledGroupRungeKutta4(
       bodies,
@@ -1347,6 +1600,7 @@ function integrateCoupledGroupAdaptive(
       candidateStepS / 2,
       mutualGravity,
       contact,
+      relativeAero,
     );
     const refinedStep = integrateCoupledGroupRungeKutta4(
       bodies,
@@ -1355,6 +1609,7 @@ function integrateCoupledGroupAdaptive(
       candidateStepS / 2,
       mutualGravity,
       contact,
+      relativeAero,
     );
     const normalizedError = adaptiveCoupledStateErrorNorm(
       fullStep,
@@ -1437,6 +1692,7 @@ function integrateCoupledGroupInterval(
   durationS: number,
   mutualGravity: Required<CoupledMultiBodyGravityOptions>,
   contact: NormalizedContactOptions,
+  relativeAero: NormalizedRelativeAeroForceFeedbackOptions,
   integration: CoupledIntegrationConfig,
   diagnostics: MutableCoupledIntegrationDiagnostics,
 ): CoupledGroupState {
@@ -1449,6 +1705,7 @@ function integrateCoupledGroupInterval(
       durationS,
       mutualGravity,
       contact,
+      relativeAero,
     );
     recordCoupledAcceptedSteps(
       diagnostics,
@@ -1467,6 +1724,7 @@ function integrateCoupledGroupInterval(
     durationS,
     mutualGravity,
     contact,
+    relativeAero,
     integration.adaptive!,
   );
   recordCoupledAcceptedSteps(
@@ -1575,6 +1833,11 @@ function tracePointWithAcceleration(
     penetrationM: number;
     pairCount: number;
   }>,
+  relativeAeroDiagnostics?: Readonly<{
+    relativeAirVelocityWorldMps: Vector3;
+    deficitFraction: number | null;
+    sourceCount: number;
+  }>,
 ): CoupledMultiBodyTracePoint {
   const aerodynamic = evaluateCoupledBodyAerodynamics(
     body,
@@ -1584,6 +1847,7 @@ function tracePointWithAcceleration(
     state.velocityWorldMps,
     orientationBodyToWorld,
     angularVelocityBodyRadS ?? ZERO_VECTOR,
+    relativeAeroDiagnostics?.relativeAirVelocityWorldMps,
   );
   const aerodynamicTelemetry = aerodynamic
     ? {
@@ -1627,6 +1891,15 @@ function tracePointWithAcceleration(
     velocityWorldMps: state.velocityWorldMps,
     accelerationWorldMps2,
     ...aerodynamicTelemetry,
+    ...(relativeAeroDiagnostics
+      ? {
+          relativeAirSpeedMps: magnitude(relativeAeroDiagnostics.relativeAirVelocityWorldMps),
+          ...(relativeAeroDiagnostics.deficitFraction !== null
+            ? { relativeWakeDeficitFraction: relativeAeroDiagnostics.deficitFraction }
+            : {}),
+          relativeWakeSourceCount: relativeAeroDiagnostics.sourceCount,
+        }
+      : {}),
     ...(contactDiagnostics
       ? {
           contactForceWorldN: contactDiagnostics.forceWorldN,
@@ -1784,6 +2057,7 @@ function propagateCoupledBodies(
   integrationStepS: number,
   mutualGravity: Required<CoupledMultiBodyGravityOptions>,
   contact: NormalizedContactOptions,
+  relativeAero: NormalizedRelativeAeroForceFeedbackOptions,
   integration: CoupledIntegrationConfig,
   diagnostics: MutableCoupledIntegrationDiagnostics,
 ): CoupledMultiBodyFlightTrajectory[] {
@@ -1845,6 +2119,7 @@ function propagateCoupledBodies(
         state,
         mutualGravity,
         contact,
+        relativeAero,
       );
       appendTrace(index, tracePointWithAcceleration(
         bodies[index],
@@ -1862,6 +2137,13 @@ function propagateCoupledBodies(
               forceWorldN: initialDerivative.contactForceWorldNs[index]!,
               penetrationM: initialDerivative.contactPenetrationsM[index]!,
               pairCount: initialDerivative.contactPairCounts[index]!,
+            }
+          : undefined,
+        relativeAero.enabled && initialDerivative.relativeAirVelocityWorldMps[index]
+          ? {
+              relativeAirVelocityWorldMps: initialDerivative.relativeAirVelocityWorldMps[index]!,
+              deficitFraction: initialDerivative.relativeWakeDeficitFractions[index]!,
+              sourceCount: initialDerivative.relativeWakeSourceCounts[index]!,
             }
           : undefined,
       ));
@@ -1887,6 +2169,7 @@ function propagateCoupledBodies(
         stepS,
         mutualGravity,
         contact,
+        relativeAero,
         integration,
         diagnostics,
       );
@@ -1956,6 +2239,7 @@ function propagateCoupledBodies(
             impactGroupState,
             mutualGravity,
             contact,
+            relativeAero,
           );
           appendTrace(
             index,
@@ -1971,6 +2255,13 @@ function propagateCoupledBodies(
                     forceWorldN: impactDerivative.contactForceWorldNs[index]!,
                     penetrationM: impactDerivative.contactPenetrationsM[index]!,
                     pairCount: impactDerivative.contactPairCounts[index]!,
+                  }
+                : undefined,
+              relativeAero.enabled && impactDerivative.relativeAirVelocityWorldMps[index]
+                ? {
+                    relativeAirVelocityWorldMps: impactDerivative.relativeAirVelocityWorldMps[index]!,
+                    deficitFraction: impactDerivative.relativeWakeDeficitFractions[index]!,
+                    sourceCount: impactDerivative.relativeWakeSourceCounts[index]!,
                   }
                 : undefined,
             ),
@@ -1998,6 +2289,7 @@ function propagateCoupledBodies(
           state,
           mutualGravity,
           contact,
+          relativeAero,
         );
         appendTrace(index, tracePointWithAcceleration(
           bodies[index],
@@ -2015,6 +2307,13 @@ function propagateCoupledBodies(
                 forceWorldN: derivative.contactForceWorldNs[index]!,
                 penetrationM: derivative.contactPenetrationsM[index]!,
                 pairCount: derivative.contactPairCounts[index]!,
+              }
+            : undefined,
+          relativeAero.enabled && derivative.relativeAirVelocityWorldMps[index]
+            ? {
+                relativeAirVelocityWorldMps: derivative.relativeAirVelocityWorldMps[index]!,
+                deficitFraction: derivative.relativeWakeDeficitFractions[index]!,
+                sourceCount: derivative.relativeWakeSourceCounts[index]!,
               }
             : undefined,
         ));
@@ -2072,6 +2371,7 @@ export function simulateCoupledMultiBodyFlight(
   };
   const mutualGravity = normalizeMutualGravityOptions(input.mutualGravity);
   const contact = normalizeContactOptions(input.contact);
+  const relativeAero = normalizeRelativeAeroForceFeedbackOptions(input.relativeAeroForceFeedback);
   const ids = new Set<string>();
   input.bodies.forEach((body) => {
     validateBody(body);
@@ -2098,6 +2398,7 @@ export function simulateCoupledMultiBodyFlight(
   if (
     mutualGravity.enabled ||
     contact.enabled ||
+    relativeAero.enabled ||
     rigidBodyCount > 0 ||
     integrationMethod === "adaptive-rk4-step-doubling"
   ) {
@@ -2132,6 +2433,7 @@ export function simulateCoupledMultiBodyFlight(
   const usesCoupledGroup =
     mutualGravity.enabled ||
     contact.enabled ||
+    relativeAero.enabled ||
     rigidBodyCount > 0 ||
     integrationMethod === "adaptive-rk4-step-doubling";
   const trajectories = usesCoupledGroup
@@ -2142,6 +2444,7 @@ export function simulateCoupledMultiBodyFlight(
         effectiveTimeStepS,
         mutualGravity,
         contact,
+        relativeAero,
         integration,
         integrationDiagnostics,
       )
@@ -2184,13 +2487,24 @@ export function simulateCoupledMultiBodyFlight(
   const contactPairCount = contactTraceSamples.length > 0
     ? Math.max(...contactTraceSamples.map((point) => point.contactPairCount ?? 0))
     : 0;
+  const relativeAeroTraceSamples = trajectories.flatMap((trajectory) =>
+    trajectory.trace.filter((point) => (point.relativeWakeSourceCount ?? 0) > 0),
+  );
+  const relativeAeroMaximumObservedVelocityDeficitFraction = relativeAeroTraceSamples.length > 0
+    ? Math.max(...relativeAeroTraceSamples.map((point) => point.relativeWakeDeficitFraction ?? 0))
+    : null;
+  const relativeAeroAffectedBodyCount = trajectories.filter((trajectory) =>
+    trajectory.trace.some((point) => (point.relativeWakeSourceCount ?? 0) > 0),
+  ).length;
   const warnings = [
     "All released bodies were propagated simultaneously on a shared mission-time grid with a common environment provider.",
-    contact.enabled
-      ? "The opt-in spherical-envelope contact solver applies equal-and-opposite normal penalty forces between active released bodies with positive envelope radii; retained-vehicle contact, friction, rotation from off-centre contact, plume interaction, and aerodynamic interference remain outside the shared track."
-      : mutualGravity.enabled
-        ? "Mutual point-mass gravity was included between active released bodies; contact forces, collision response, plume interaction, and aerodynamic interference remain outside the model."
-        : "The shared-grid coupling evaluates relative motion together but does not synthesize contact forces, collision response, plume interaction, or aerodynamic interference.",
+    relativeAero.enabled
+      ? "The opt-in wake feedback path adjusts each eligible target's environment-relative flow using a bounded source-wake proxy; contact, collision response, plume interaction, unsteady interference, and validated proximity-load data remain outside the shared track."
+      : contact.enabled
+        ? "The opt-in spherical-envelope contact solver applies equal-and-opposite normal penalty forces between active released bodies with positive envelope radii; retained-vehicle contact, friction, rotation from off-centre contact, plume interaction, and aerodynamic interference remain outside the shared track."
+        : mutualGravity.enabled
+          ? "Mutual point-mass gravity was included between active released bodies; contact forces, collision response, plume interaction, and aerodynamic interference remain outside the model."
+          : "The shared-grid coupling evaluates relative motion together but does not synthesize contact forces, collision response, plume interaction, or aerodynamic interference.",
     ...(rigidBodyCount > 0
       ? [`${rigidBodyCount} released bod${rigidBodyCount === 1 ? "y" : "ies"} used the opt-in rigid-body attitude state; supplied external loads were evaluated in the body/world frames.`]
       : []),
@@ -2199,6 +2513,14 @@ export function simulateCoupledMultiBodyFlight(
       : []),
     ...(aerodynamicBodyCount > 0
       ? [`${aerodynamicBodyCount} released bod${aerodynamicBodyCount === 1 ? "y" : "ies"} used the opt-in detached-body static aerodynamic load basis; normal-force, CP-moment, and rate-damping diagnostics remain traceable.`]
+      : []),
+    ...(relativeAero.enabled
+      ? [
+          `The opt-in ${COUPLED_MULTI_BODY_RELATIVE_AERO_MODEL_VERSION} wake feedback path applied the strongest overlapping source-wake velocity deficit to ${relativeAeroAffectedBodyCount} body${relativeAeroAffectedBodyCount === 1 ? "" : "ies"}; this remains an analytical sensitivity model, not validated interference data.`,
+          ...(relativeAeroAffectedBodyCount === 0
+            ? ["Wake feedback was enabled but no source/target overlap with usable aerodynamic geometry was sampled; no wake force adjustment was applied."]
+            : []),
+        ]
       : []),
     "An optional earthRotationAccelerationWorldMps2 field from the environment provider is added to each body's shared acceleration; the provider remains responsible for its provenance and validation status.",
     ...(mutualGravity.enabled && mutualGravity.softeningRadiusM > 0
@@ -2253,7 +2575,9 @@ export function simulateCoupledMultiBodyFlight(
     ...(rigidBodyCount > 0
       ? [
           "Rigid-body attitude uses quaternion kinematics and Euler angular momentum with the supplied constant inertia tensor; flexible-body, contact, plume, and unprovided aerodynamic moment models remain outside the solver.",
-          "Rigid-body loads are caller-supplied additions to the shared gravity/drag force basis; omitted moments are zero and no contact or aerodynamic-interference force is inferred.",
+          relativeAero.enabled
+            ? "Rigid-body loads are caller-supplied additions to the shared gravity/drag force basis; the opt-in wake proxy is the only inferred pairwise aerodynamic force, omitted moments are zero, and no validated interference force is inferred."
+            : "Rigid-body loads are caller-supplied additions to the shared gravity/drag force basis; omitted moments are zero and no contact or aerodynamic-interference force is inferred.",
         ]
       : []),
     ...(attitudeDependentDragBodyCount > 0
@@ -2264,6 +2588,12 @@ export function simulateCoupledMultiBodyFlight(
     ...(aerodynamicBodyCount > 0
       ? [
           `Detached-body aerodynamic loads use ${DETACHED_BODY_AERODYNAMICS_MODEL_VERSION}: static normal force is bounded by the supplied forward-flow/angle/compressibility envelope, the CP-to-CG lever arm supplies r x F moment, and optional rate derivatives supply damping; this remains an analytical component check.`,
+        ]
+      : []),
+    ...(relativeAero.enabled
+      ? [
+          `Wake feedback uses a finite expanding cone with half-angle ${relativeAero.wakeHalfAngleDeg.toFixed(3)}°, recovery length ${relativeAero.wakeRecoveryDistanceBodyDiameters.toFixed(3)} source diameters, peak deficit ${relativeAero.peakVelocityDeficitFraction.toFixed(3)}, and maximum deficit ${relativeAero.maximumVelocityDeficitFraction.toFixed(3)}.`,
+          "When several source wakes overlap, only the strongest candidate velocity-deficit vector is applied to keep the feedback bounded; the target's existing aerodynamic or point-drag model then evaluates the adjusted relative flow. Wake roll-up, turbulence, plume effects, crossflow database calibration, and unsteady derivatives are not modeled.",
         ]
       : []),
     ...(integrationMethod === "adaptive-rk4-step-doubling"
@@ -2301,6 +2631,18 @@ export function simulateCoupledMultiBodyFlight(
       maximumNormalForceNObserved: contactMaximumNormalForceN,
       contactPairCount,
       contactSampleCount: contactTraceSamples.length,
+    },
+    relativeAeroForceFeedback: {
+      modelVersion: COUPLED_MULTI_BODY_RELATIVE_AERO_MODEL_VERSION,
+      validationStatus: COUPLED_MULTI_BODY_RELATIVE_AERO_STATUS,
+      enabled: relativeAero.enabled,
+      wakeHalfAngleDeg: relativeAero.wakeHalfAngleDeg,
+      wakeRecoveryDistanceBodyDiameters: relativeAero.wakeRecoveryDistanceBodyDiameters,
+      peakVelocityDeficitFraction: relativeAero.peakVelocityDeficitFraction,
+      maximumVelocityDeficitFraction: relativeAero.maximumVelocityDeficitFraction,
+      maximumObservedVelocityDeficitFraction: relativeAeroMaximumObservedVelocityDeficitFraction,
+      exposedSampleCount: relativeAeroTraceSamples.length,
+      affectedBodyCount: relativeAeroAffectedBodyCount,
     },
     rigidBodyCount,
     aerodynamicBodyCount,
