@@ -16,6 +16,7 @@ import {
   createRocketOpenScad,
   createRocketProfileDxf,
   createRocketStl,
+  createRocketManufacturingManifestCsv,
 } from "../lib/export/project-exports.ts";
 import { analyzeAttachedAeroInterference, analyzeLandingFootprint, computeStageFlightForceBudget, computeStructuralScreen, createAttachedAeroInterferenceBody, createEngineeringDesignReview, createStageFlightComparison, createStageInterfaceLoadReview, createStageStructuralReview, runPhysicsBenchmarkSuite, runUncertaintyAnalysis, simulateCoupledMultiBodyFlight } from "../lib/physics/index.ts";
 
@@ -322,8 +323,8 @@ test("released-body CSV preserves release provenance and aerodynamic diagnostics
     assumptions: [],
   }]);
   const rows = csv.trim().split("\r\n");
-  assert.match(rows[0], /^# rocketworks_export,kestrel-export-0\.11\.0$/);
-  assert.match(rows[0], /kestrel-export-0\.11\.0/);
+  assert.match(rows[0], /^# rocketworks_export,kestrel-export-0\.12\.0$/);
+  assert.match(rows[0], /kestrel-export-0\.12\.0/);
   const headerIndex = rows.findIndex((row) => row.startsWith("body_id,"));
   assert.ok(headerIndex > 0);
   assert.equal(rows[headerIndex + 1].split(",").length, 33);
@@ -564,6 +565,101 @@ test("OpenSCAD export emits uniquely named translated stage modules", () => {
   assert.match(scad, /translate\(\[-890,120,40\]\)/);
   assert.match(scad, /stage_upper_instance_1_1_fin_set/);
   assert.doesNotMatch(scad, /NaN|Infinity/);
+});
+
+test("manufacturing manifest exports deterministic part rows and stage offsets", () => {
+  const manifest = createRocketManufacturingManifestCsv({
+    geometry: {
+      ...geometry,
+      stageParts: [
+        {
+          id: "core",
+          name: "Core",
+          axialOffsetM: 0,
+          radialOffsetYM: 0,
+          radialOffsetZM: 0,
+          noseLengthM: geometry.noseLengthM,
+          bodyLengthM: geometry.bodyLengthM,
+          diameterM: geometry.diameterM,
+          finCount: geometry.finCount,
+          finRootChordM: geometry.finRootChordM,
+          finTipChordM: geometry.finTipChordM,
+          finSweepM: geometry.finSweepM,
+          finSpanM: geometry.finSpanM,
+          finThicknessM: geometry.finThicknessM,
+        },
+        {
+          id: "booster-instance-2",
+          name: "Booster 2",
+          axialOffsetM: -0.89,
+          radialOffsetYM: 0.12,
+          radialOffsetZM: -0.12,
+          noseLengthM: 0.12,
+          bodyLengthM: 0.42,
+          diameterM: 0.038,
+          finCount: 4,
+          finRootChordM: 0.08,
+          finTipChordM: 0.03,
+          finSweepM: 0.02,
+          finSpanM: 0.05,
+          finThicknessM: 0.002,
+        },
+      ],
+    },
+    generatedAtIso: "2026-01-02T03:04:05.000Z",
+    materialLabel: "Kraft phenolic",
+    materialValidationStatus: "representative-preview-unvalidated",
+  });
+  assert.equal(manifest, createRocketManufacturingManifestCsv({
+    geometry: {
+      ...geometry,
+      stageParts: [
+        {
+          id: "core",
+          name: "Core",
+          axialOffsetM: 0,
+          radialOffsetYM: 0,
+          radialOffsetZM: 0,
+          noseLengthM: geometry.noseLengthM,
+          bodyLengthM: geometry.bodyLengthM,
+          diameterM: geometry.diameterM,
+          finCount: geometry.finCount,
+          finRootChordM: geometry.finRootChordM,
+          finTipChordM: geometry.finTipChordM,
+          finSweepM: geometry.finSweepM,
+          finSpanM: geometry.finSpanM,
+          finThicknessM: geometry.finThicknessM,
+        },
+        {
+          id: "booster-instance-2",
+          name: "Booster 2",
+          axialOffsetM: -0.89,
+          radialOffsetYM: 0.12,
+          radialOffsetZM: -0.12,
+          noseLengthM: 0.12,
+          bodyLengthM: 0.42,
+          diameterM: 0.038,
+          finCount: 4,
+          finRootChordM: 0.08,
+          finTipChordM: 0.03,
+          finSweepM: 0.02,
+          finSpanM: 0.05,
+          finThicknessM: 0.002,
+        },
+      ],
+    },
+    generatedAtIso: "2026-01-02T03:04:05.000Z",
+    materialLabel: "Kraft phenolic",
+    materialValidationStatus: "representative-preview-unvalidated",
+  }));
+  assert.match(manifest, /# rocketworks_manufacturing_manifest,1/);
+  assert.match(manifest, /# units,millimetres/);
+  assert.match(manifest, /part_id,part_kind,stage_id/);
+  assert.match(manifest, /core-nose,nose-cone,core,Core,1,1,0,0,0,890/);
+  assert.match(manifest, /booster-nose,nose-cone,booster,Booster 2,2,1,-890,120,-120,540/);
+  assert.match(manifest, /booster-fin-set,fin-set,booster,Booster 2,2,1/);
+  assert.match(manifest, /Reference geometry manifest only/);
+  assert.doesNotMatch(manifest, /NaN|Infinity/);
 });
 
 test("CAD reference exports preserve the selected nose profile", () => {
@@ -1382,5 +1478,17 @@ test("invalid project, trace, CAD, and report inputs fail explicitly", () => {
   assert.throws(
     () => createRocketOpenScad({ ...geometry, finSweepM: 0.1, finTipChordM: 0.1 }),
     /axial envelope/,
+  );
+  assert.throws(
+    () => createRocketManufacturingManifestCsv({ geometry, generatedAtIso: "not-a-date" }),
+    /timestamp/,
+  );
+  assert.throws(
+    () => createRocketManufacturingManifestCsv({
+      geometry,
+      generatedAtIso: "2026-01-02T03:04:05.000Z",
+      materialLabel: " ",
+    }),
+    /material label/,
   );
 });

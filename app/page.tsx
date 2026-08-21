@@ -23,6 +23,7 @@ import {
   createRocketOpenScad,
   createRocketProfileDxf,
   createRocketStl,
+  createRocketManufacturingManifestCsv,
   type JsonValue,
   type RocketCadGeometry,
   type RocketCadStageGeometry,
@@ -273,7 +274,7 @@ type ViewKey = "design" | "flight";
 type DesignViewKey = UiDesignView;
 type MaterialKey = "kraft" | "fiberglass" | "carbon" | "custom";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
-type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "stage-flight-comparison-csv" | "separated-body-csv" | "coupled-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "benchmark-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad";
+type ExportFormat = "project" | "flight-csv" | "stage-flight-csv" | "stage-flight-comparison-csv" | "separated-body-csv" | "coupled-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "benchmark-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad" | "manufacturing-manifest";
 type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
@@ -7261,6 +7262,16 @@ export default function Home() {
         filename = `${fileStem}-side-profile.dxf`;
         mediaType = "application/dxf;charset=utf-8";
         content = createRocketProfileDxf(cadGeometry);
+      } else if (format === "manufacturing-manifest") {
+        filename = `${fileStem}-manufacturing-manifest.csv`;
+        mediaType = "text/csv;charset=utf-8";
+        const materialModel = resolveBrowserMaterialModel(material, customMaterial);
+        content = createRocketManufacturingManifestCsv({
+          geometry: cadGeometry,
+          generatedAtIso,
+          materialLabel: materialModel.label,
+          materialValidationStatus: materialModel.validationStatus,
+        });
       } else if (format === "stl") {
         filename = `${fileStem}-reference-mesh.stl`;
         mediaType = "model/stl;charset=utf-8";
@@ -11075,6 +11086,11 @@ export default function Home() {
                 <span><strong>CAD side profile</strong><small>R12 millimetre airframe and fin outlines with centerline, CG, and CP layers.</small></span>
                 <em>↓</em>
               </button>
+              <button onClick={() => exportArtifact("manufacturing-manifest")}>
+                <span className="export-extension">BOM</span>
+                <span><strong>Manufacturing manifest</strong><small>CSV part list with stage-instance offsets, nominal dimensions, material provenance, and explicit review notes.</small></span>
+                <em>↓</em>
+              </button>
               <button onClick={() => exportArtifact("stl")}>
                 <span className="export-extension">STL</span>
                 <span><strong>Reference mesh</strong><small>Triangulated millimetre nose, airframe, nozzle, and radial-fin mesh for CAD inspection and fit studies.</small></span>
@@ -11089,7 +11105,7 @@ export default function Home() {
             <div className="export-warning">
               <span>ENGINEERING PREVIEW</span>
               <p>STL is a triangulated reference mesh in millimetres for inspection and fit studies; it is not a toleranced solid, slicer toolpath, structural evidence, or manufacturing approval.</p>
-              <p>DXF and OpenSCAD outputs are reference geometry—not drawings, toleranced solids, structural evidence, certified parts, STL toolpaths, or manufacturing approval. Verify dimensions, fits, materials, wall thicknesses, and loads independently.</p>
+              <p>DXF, the manufacturing manifest, and OpenSCAD outputs are reference geometry—not drawings, toleranced solids, structural evidence, certified parts, STL toolpaths, or manufacturing approval. Verify dimensions, fits, materials, wall thicknesses, quantities, and loads independently.</p>
             </div>
           </section>
         </div>

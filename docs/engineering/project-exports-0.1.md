@@ -1,4 +1,4 @@
-# Project, analysis, report, and CAD exports 0.11
+# Project, analysis, report, and CAD exports 0.12
 
 Status: `engineering-preview-unvalidated`
 
@@ -30,10 +30,22 @@ plus a validated project-import path:
 8. Preliminary engineering report in Markdown
 9. R11/R12-compatible ASCII DXF side profile
 10. Parametric OpenSCAD reference geometry
+11. Topology-aware manufacturing manifest CSV
 
 Every engineering or CAD surface presents manufacturing and validation limits
-before download. The DXF, SCAD, project, and report files also embed status or
-warning text internally.
+before download. The DXF, SCAD, manifest, project, and report files also embed
+status or warning text internally.
+
+The manufacturing manifest is a deterministic part-level CSV derived from the
+same bounded `RocketCadGeometry` inputs as the CAD references. It emits four
+rows per physical stage instance (nose cone, airframe, fin set, and nozzle),
+preserving stage identifiers, instance numbers, axial/radial offsets, nominal
+dimensions, nose profile, fin geometry, material label, and material validation
+status. Blank or repeated fields are intentional: the manifest is an audit
+index for rebuilding reference geometry, not a toleranced bill of materials.
+It does not define joints, fillets, fasteners, wall thickness, tolerances,
+thermal protection, motor internals, process steps, or certified material
+allowables.
 
 The Markdown report records the selected motor and aerodynamic source IDs,
 the motor's selected propellant depletion source, and, when supplied, the
@@ -66,7 +78,7 @@ The root document declares:
 ```text
 schema: org.kestrel-lab.project
 schemaVersion: 1
-exportModelVersion: kestrel-export-0.11.0
+exportModelVersion: kestrel-export-0.12.0
 validationStatus: engineering-preview-unvalidated
 ```
 

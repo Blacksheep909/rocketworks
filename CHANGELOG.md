@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a deterministic topology-aware manufacturing manifest CSV beside the
+  DXF, STL, and OpenSCAD reference artifacts. It lists nose, airframe, fin-set,
+  and nozzle reference rows for every physical stage instance, preserves axial
+  and radial offsets plus material provenance, and keeps the explicit
+  engineering-preview/no-tolerance/no-manufacturing-approval boundary visible.
+
 - Extend the deterministic physics benchmark suite to 21 regression anchors,
   including serial stage-interface axial demand/factor-of-safety arithmetic and
   serial mission mass-ratio/ideal-delta-v composition. The new cases retain the

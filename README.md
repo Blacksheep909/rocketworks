@@ -249,7 +249,8 @@ research, standards, and original code.
   with explicit quantile and scenario-failure metrics;
 - accessible event timelines, trace charts, comparisons, engineering reports,
   flight/stage/sweep/uncertainty CSV, topology-aware DXF, multi-stage
-  triangulated STL reference meshes, OpenSCAD, portable RocketWorks project
+  triangulated STL reference meshes, OpenSCAD, and a part-level manufacturing
+  manifest, portable RocketWorks project
   JSON, and a WGS84 GeoJSON flight-path export with retained/released tracks,
   sample-time arrays, optional attitude/rate telemetry, and event markers for
   GIS review;
@@ -363,7 +364,7 @@ requirements, test workflow, and UI conventions. Security reports belong in
 app/                  Browser workbench, dialogs, charts, and visual system
 lib/physics/          Independent aerospace models and simulation kernels
 lib/project/          Validated local state, topology, templates, and libraries
-lib/export/           Portable JSON, CSV, report, DXF, and OpenSCAD artifacts
+lib/export/           Portable JSON, CSV, report, DXF, OpenSCAD, and manufacturing artifacts
 docs/engineering/     Versioned equations, assumptions, decisions, and limits
 tests/                Deterministic physics, UI, export, and integration checks
 ```
