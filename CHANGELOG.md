@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a portable local workspace-backup artifact. The project console, artifact
+  center, and command palette can now checkpoint the active design and download
+  a strict versioned envelope containing every browser-local project snapshot
+  and history. The backup discloses that external motor/aerodynamic/component
+  libraries remain separate and that cloud sync/collaboration are not implied.
+
 - Add a strict device-local project registry behind the project console. The
   workspace now indexes up to 24 validated project snapshots and histories,
   supports opening another local design, and can duplicate the active design

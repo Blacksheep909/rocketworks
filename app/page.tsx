@@ -188,6 +188,11 @@ import {
   type LocalProjectRegistry,
 } from "../lib/project/project-registry.ts";
 import {
+  LOCAL_WORKSPACE_BACKUP_MEDIA_TYPE,
+  createLocalWorkspaceBackup,
+  serializeLocalWorkspaceBackup,
+} from "../lib/project/workspace-backup.ts";
+import {
   EXPERIENCE_MODE_STORAGE_KEY,
   PROJECT_TEMPLATES,
   type ExperienceMode,
@@ -6736,6 +6741,24 @@ export default function Home() {
   const openProjectImport = () => {
     projectImportInputRef.current?.click();
   };
+  const exportLocalWorkspaceBackup = () => {
+    try {
+      if (!storageReady) throw new Error("The browser workspace is still loading; try the backup again in a moment.");
+      persistCheckpoint(editableInputs, "Workspace backup checkpoint");
+      const backup = createLocalWorkspaceBackup(projectRegistryRef.current);
+      const dateToken = backup.exportedAtIso.slice(0, 10);
+      downloadTextArtifact(
+        `rocketworks-workspace-${dateToken}.json`,
+        LOCAL_WORKSPACE_BACKUP_MEDIA_TYPE,
+        serializeLocalWorkspaceBackup(backup),
+      );
+      setProjectConsoleOpen(false);
+      notify("Local workspace backup downloaded");
+    } catch (error) {
+      setProjectRegistryError(error instanceof Error ? error.message : "Unable to export the local workspace backup.");
+      notify("Workspace backup could not be created");
+    }
+  };
   const copyProjectShare = async () => {
     try {
       const hash = encodeProjectShare({
@@ -7709,6 +7732,7 @@ export default function Home() {
     { id: "open-project-console", label: "Open project console", description: "Review local save status and hand off this design", run: () => setProjectConsoleOpen(true) },
     { id: "open-history", label: "Open local project history", description: "Restore a validated device-local checkpoint", run: () => setHistoryOpen(true) },
     { id: "open-export", label: "Open artifact center", description: "Export project JSON, traces, reports, and CAD references", run: () => setExportOpen(true) },
+    { id: "export-workspace-backup", label: "Backup local workspace", description: "Download every validated browser-local project snapshot and history", run: exportLocalWorkspaceBackup },
     { id: "share-design", label: "Copy design share link", description: "Share validated inputs and stage topology without embedding local library data", run: () => { void copyProjectShare(); } },
     { id: "import-project", label: "Import RocketWorks project", description: "Restore a portable project document and its validated user libraries", run: () => setProjectImportRequested(true) },
     { id: "open-accessibility", label: uiCopy.openAccessibility, description: "Adjust motion and contrast without changing engineering inputs", run: () => setAccessibilityOpen(true) },
@@ -10773,10 +10797,15 @@ export default function Home() {
                 <span><strong>Create checkpoint</strong><small>Record a named revision in the device-local timeline before a handoff.</small></span>
                 <em>＋</em>
               </button>
+              <button className="project-console-action" onClick={exportLocalWorkspaceBackup} disabled={!storageReady}>
+                <span className="export-extension">BACK</span>
+                <span><strong>Export workspace backup</strong><small>Download every local project snapshot and history in one inspectable JSON envelope.</small></span>
+                <em>↓</em>
+              </button>
             </div>
             <div className="history-notice">
               <span>LOCAL ONLY</span>
-              <p>RocketWorks does not claim cloud sync or multi-user collaboration yet. Use a project JSON file for durable handoff, or a share link when the recipient has the referenced local data sources.</p>
+              <p>RocketWorks does not claim cloud sync or multi-user collaboration yet. Use a workspace backup for the local project index, a project JSON file for complete single-project handoff, or a share link when the recipient has the referenced local data sources.</p>
             </div>
           </section>
         </div>
@@ -10880,6 +10909,11 @@ export default function Home() {
                 <span className="export-extension">OPEN</span>
                 <span><strong>Import RocketWorks project</strong><small>Restore editable inputs, stage topology, user motors, and aerodynamic tables from a portable JSON document.</small></span>
                 <em>↑</em>
+              </button>
+              <button className="export-import-option" onClick={exportLocalWorkspaceBackup} disabled={!storageReady}>
+                <span className="export-extension">BACK</span>
+                <span><strong>Backup local workspace</strong><small>Download all validated browser-local project snapshots and histories; external libraries remain separate.</small></span>
+                <em>↓</em>
               </button>
               <button onClick={() => exportArtifact("project")}>
                 <span className="export-extension">JSON</span>

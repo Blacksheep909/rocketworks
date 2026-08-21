@@ -760,6 +760,8 @@ test("ships validated device-local autosave and recoverable project history", as
   assert.match(page, /Local projects/);
   assert.match(page, /Duplicate current project/);
   assert.match(page, /Open project/);
+  assert.match(page, /Backup local workspace/);
+  assert.match(page, /LOCAL_WORKSPACE_BACKUP_MEDIA_TYPE/);
   assert.match(page, /window\.localStorage\.setItem/);
   assert.match(page, /parseLocalProjectSnapshot/);
   assert.match(page, /projectConfigurationFingerprint/);
