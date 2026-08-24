@@ -323,6 +323,12 @@ research, standards, and original code.
   normalization, optional positive one-sigma measurement uncertainty with
   normalized residual statistics, deterministic residual CSV export,
   browser-local persistence, and explicit validation boundaries;
+- a bounded staged telemetry calibration study that compares imported altitude,
+  velocity, and reconstructed acceleration against the coupled preview,
+  preserves coverage/convergence/simulation-failure metrics, and exposes only
+  caller-declared thrust and drag factors through a deterministic mapped
+  recommendation; this is residual minimization for engineering diagnosis,
+  never a validation or flight-safety claim;
 - on-demand deterministic physics benchmarks for atmosphere, gravity,
   thrust-curve impulse, static aerodynamics, rigid-body 6DOF, bounded gimbal
   control-authority, stage-interface shear, connector, and eccentric-group

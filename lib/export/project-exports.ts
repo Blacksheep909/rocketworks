@@ -14,6 +14,7 @@ import type { PhysicsBenchmarkSuiteResult } from "../physics/benchmark-suite.ts"
 import type { StageFlightUncertaintyResult } from "../physics/stage-flight-uncertainty.ts";
 import type { StageFlightSweepResult } from "../physics/stage-flight-sweep.ts";
 import type { StageFlightOptimizationResult } from "../physics/stage-flight-optimization.ts";
+import type { StageFlightCalibrationResult } from "../physics/stage-flight-calibration.ts";
 import type {
   ParameterSweepResult,
   UncertaintyAnalysisResult,
@@ -208,6 +209,7 @@ export type EngineeringReportInput = Readonly<{
   stageUncertainty?: StageFlightUncertaintyResult | null;
   stageSweep?: StageFlightSweepResult | null;
   stageOptimization?: StageFlightOptimizationResult | null;
+  stageCalibration?: StageFlightCalibrationResult | null;
   uncertainty?: UncertaintyAnalysisResult | null;
   landing?: LandingDispersionResult | null;
   structural?: StructuralScreenResult | null;
@@ -3088,6 +3090,36 @@ export function createEngineeringReportMarkdown(
           ...input.stageOptimization.warnings.map((warning) => `- **Optimization warning:** ${markdownText(warning)}`),
           "",
           "> Staged optimization is a bounded analytical search. It does not prove a global optimum, validate the model, qualify hardware, or establish a flight-safety limit.",
+          "",
+        ]
+      : []),
+    ...(input.stageCalibration
+      ? [
+          "## Staged telemetry calibration",
+          "",
+          `- Adapter: \`${markdownText(input.stageCalibration.adapterVersion)}\``,
+          `- Model: \`${markdownText(input.stageCalibration.modelVersion)}\``,
+          `- Validation status: \`${markdownText(input.stageCalibration.validationStatus)}\``,
+          `- Source: ${markdownText(input.stageCalibration.sourceName)}`,
+          `- Fixed measured time offset: ${formatNumber(input.stageCalibration.timeOffsetS, 2)} s`,
+          `- Seed: \`${markdownText(input.stageCalibration.result.seed)}\``,
+          `- Evaluations: ${input.stageCalibration.result.evaluationCount}`,
+          `- Pareto candidates: ${input.stageCalibration.result.paretoFront.length}`,
+          `- Recommended candidate: ${input.stageCalibration.result.recommendedCandidateId === null ? "not available" : `\`${markdownText(input.stageCalibration.result.recommendedCandidateId)}\``}`,
+          "",
+          "| Candidate | Feasible | Variables | Weighted residual | Altitude RMSE | Velocity RMSE | Coverage |",
+          "|---|---:|---|---:|---:|---:|---:|",
+          ...input.stageCalibration.result.paretoFront.slice(0, 8).map((candidate) => {
+            const variables = Object.entries(candidate.variables)
+              .map(([key, value]) => `${key}=${formatNumber(value, 4)}`)
+              .join(", ");
+            return `| ${markdownText(candidate.id)} | ${candidate.feasible ? "yes" : "no"} | ${markdownText(variables)} | ${formatNumber(candidate.metrics.weightedResidualRmse, 4)} | ${formatNumber(candidate.metrics.altitudeRmseM, 2)} m | ${formatNumber(candidate.metrics.velocityRmseMps, 2)} m/s | ${formatNumber(candidate.metrics.matchedSampleFraction * 100, 1)}% |`;
+          }),
+          "",
+          ...input.stageCalibration.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+          ...input.stageCalibration.warnings.map((warning) => `- **Calibration warning:** ${markdownText(warning)}`),
+          "",
+          "> Telemetry calibration is residual minimization against one supplied log. It does not establish sensor accuracy, model validity, causal parameter truth, certification, or flight-safety evidence.",
           "",
         ]
       : []),

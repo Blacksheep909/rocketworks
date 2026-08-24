@@ -1453,6 +1453,21 @@ test("ships a staged nominal and robust optimization workflow", async () => {
   assert.match(stylesheet, /\.optimization-card/);
 });
 
+test("ships a bounded staged telemetry calibration workflow", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const calibration = await readFile(new URL("../lib/physics/stage-flight-calibration.ts", import.meta.url), "utf8");
+  const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(page, /Telemetry calibration study/);
+  assert.match(page, /calibrateStageFlightToData/);
+  assert.match(page, /stageCalibrationIsCurrent/);
+  assert.match(page, /Apply mapped inputs/);
+  assert.match(page, /UNVALIDATED CALIBRATION/);
+  assert.match(calibration, /STAGE_FLIGHT_CALIBRATION_ADAPTER_VERSION/);
+  assert.match(calibration, /simulationFailure/);
+  assert.match(calibration, /model validity/);
+  assert.match(stylesheet, /\.optimization-card/);
+});
+
 test("ships a local flight-run comparison workflow with stale-result guardrails", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const referenceStore = await readFile(new URL("../lib/project/simulation-reference.ts", import.meta.url), "utf8");

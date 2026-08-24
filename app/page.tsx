@@ -77,6 +77,7 @@ import {
   makeConstantThrustCurve,
   optimizeVerticalFlightDesign,
   optimizeStageFlightDesign,
+  calibrateStageFlightToData,
   sweepVerticalFlight,
   sweepStageFlight,
   STAGE_FLIGHT_SWEEP_PARAMETER_DEFINITIONS,
@@ -138,6 +139,10 @@ import {
   type StageFlightOptimizationVariable,
   type StageFlightOptimizationObjective,
   type StageFlightOptimizationConstraint,
+  type StageFlightCalibrationResult,
+  type StageFlightCalibrationVariable,
+  type StageFlightCalibrationObjective,
+  type StageFlightCalibrationConstraint,
   type RocketStage,
   type StageAerodynamicRegime,
   type LaunchEnvironmentProvider,
@@ -357,6 +362,10 @@ type StageFlightOptimizationPreview = Readonly<{
   mode: "nominal" | "robust";
 }>;
 
+type StageFlightCalibrationPreview = Readonly<{
+  result: StageFlightCalibrationResult;
+}>;
+
 type CommandAction = Readonly<{
   id: string;
   label: string;
@@ -532,6 +541,21 @@ const DEFAULT_STAGE_OPTIMIZATION_OBJECTIVES: readonly StageFlightOptimizationObj
 
 const DEFAULT_STAGE_OPTIMIZATION_CONSTRAINTS: readonly StageFlightOptimizationConstraint[] = [
   { metricKey: "converged", label: "Numerical convergence", relation: "greater-than-or-equal", limit: 0 },
+];
+
+const DEFAULT_STAGE_CALIBRATION_VARIABLES: readonly StageFlightCalibrationVariable[] = [
+  { key: "thrustScale", label: "Delivered thrust", minimum: 0.85, maximum: 1.15, initial: 1 },
+  { key: "dragCoefficientScale", label: "Drag coefficient", minimum: 0.9, maximum: 1.1, initial: 1 },
+];
+
+const DEFAULT_STAGE_CALIBRATION_OBJECTIVES: readonly StageFlightCalibrationObjective[] = [
+  { metricKey: "weightedResidualRmse", label: "Weighted residual RMSE", direction: "minimize" },
+  { metricKey: "altitudeRmseM", label: "Altitude RMSE", direction: "minimize" },
+];
+
+const DEFAULT_STAGE_CALIBRATION_CONSTRAINTS: readonly StageFlightCalibrationConstraint[] = [
+  { metricKey: "matchedSampleFraction", label: "Measured coverage", relation: "greater-than-or-equal", limit: 0.8 },
+  { metricKey: "simulationFailure", label: "Simulation failures", relation: "less-than-or-equal", limit: 0 },
 ];
 
 const DEFAULT_STAGE_ROBUSTNESS_FACTORS = [
@@ -4893,6 +4917,10 @@ export default function Home() {
   const [flightDataPersistenceState, setFlightDataPersistenceState] = useState<FlightDataPersistenceState>("none");
   const [flightDataTimeOffsetS, setFlightDataTimeOffsetS] = useState(0);
   const [flightDataTraceSource, setFlightDataTraceSource] = useState<FlightDataTraceSource>("vertical-1d");
+  const [stageCalibrating, setStageCalibrating] = useState(false);
+  const [stageCalibration, setStageCalibration] = useState<StageFlightCalibrationPreview | null>(null);
+  const [stageCalibrationFingerprint, setStageCalibrationFingerprint] = useState<string | null>(null);
+  const [stageCalibrationError, setStageCalibrationError] = useState("");
   const [stageFlightResult, setStageFlightResult] =
     useState<StageFlightPreviewResult | null>(null);
   const [stageFlightFingerprint, setStageFlightFingerprint] = useState<string | null>(
@@ -5015,6 +5043,18 @@ export default function Home() {
     stageOptimization !== null &&
     stageFlightIsCurrent &&
     isSimulationFingerprintCurrent(stageOptimizationFingerprint, simulationFingerprint);
+  const stageCalibrationInputFingerprint = useMemo(
+    () => flightDataSeries
+      ? JSON.stringify([simulationFingerprint, flightDataTimeOffsetS, flightDataTraceSource, flightDataSeries])
+      : null,
+    [flightDataSeries, flightDataTimeOffsetS, flightDataTraceSource, simulationFingerprint],
+  );
+  const stageCalibrationIsCurrent =
+    stageCalibration !== null &&
+    stageFlightIsCurrent &&
+    flightDataTraceSource === "coupled-6dof" &&
+    stageCalibrationInputFingerprint !== null &&
+    stageCalibrationFingerprint === stageCalibrationInputFingerprint;
   const activeStageSweepDefinition = stageSweepParameterDefinition(stageSweepParameter);
   const stageRecoveryCommandEvent = stageFlightResult?.events.find(
     (event) => event.id.includes("recovery") || event.label.toLowerCase().includes("recovery"),
@@ -6459,6 +6499,11 @@ export default function Home() {
     }
     setSimulationReviewImportError("");
   };
+  const invalidateStageCalibration = () => {
+    setStageCalibration(null);
+    setStageCalibrationFingerprint(null);
+    setStageCalibrationError("");
+  };
   const importFlightData = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = "";
@@ -6474,6 +6519,7 @@ export default function Home() {
         persistenceState = "session-only";
       }
       setFlightDataSeries(series);
+      invalidateStageCalibration();
       setFlightDataError("");
       setFlightDataPersistenceState(persistenceState);
       notify(persistenceState === "saved"
@@ -6485,6 +6531,7 @@ export default function Home() {
   };
   const clearFlightData = () => {
     setFlightDataSeries(null);
+    invalidateStageCalibration();
     setFlightDataError("");
     setFlightDataPersistenceState("none");
     setFlightDataTimeOffsetS(0);
@@ -6518,6 +6565,9 @@ export default function Home() {
   const markChanged = () => {
     setSaved(false);
     setStageFlightResult(null);
+    setStageCalibration(null);
+    setStageCalibrationFingerprint(null);
+    setStageCalibrationError("");
     setSelectedFlightEventTimeS(null);
     setSelectedStageEventTimeS(null);
     setStageFlightError("");
@@ -7998,6 +8048,28 @@ export default function Home() {
                   ),
                 }
               : null,
+            stageCalibration: stageCalibration
+              ? {
+                  adapterVersion: stageCalibration.result.adapterVersion,
+                  modelVersion: stageCalibration.result.modelVersion,
+                  validationStatus: stageCalibration.result.validationStatus,
+                  sourceName: stageCalibration.result.sourceName,
+                  timeOffsetS: stageCalibration.result.timeOffsetS,
+                  current: stageCalibrationIsCurrent,
+                  seed: stageCalibration.result.result.seed,
+                  evaluationCount: stageCalibration.result.result.evaluationCount,
+                  recommendedCandidateId: stageCalibration.result.result.recommendedCandidateId,
+                  paretoFront: stageCalibration.result.result.paretoFront.map(
+                    (candidate) => ({
+                      id: candidate.id,
+                      variables: candidate.variables,
+                      metrics: candidate.metrics,
+                      constraints: candidate.constraints,
+                      tradeoffScore: candidate.tradeoffScore,
+                    }),
+                  ),
+                }
+              : null,
             landing: landingPrediction
               ? {
                   modelVersion: landingPrediction.modelVersion,
@@ -8247,6 +8319,7 @@ export default function Home() {
           stageUncertainty: stageUncertaintyIsCurrent ? stageUncertainty : null,
           stageSweep: stageSweepIsCurrent ? stageSweepResult : null,
           stageOptimization: stageOptimizationIsCurrent ? stageOptimization.result : null,
+          stageCalibration: stageCalibrationIsCurrent ? stageCalibration.result : null,
           uncertainty,
           landing: landingPrediction,
           structural: structuralScreen,
@@ -8382,6 +8455,9 @@ export default function Home() {
     setStageOptimization(null);
     setStageOptimizationFingerprint(null);
     setStageOptimizationError("");
+    setStageCalibration(null);
+    setStageCalibrationFingerprint(null);
+    setStageCalibrationError("");
     setStageUncertainty(null);
     setStageUncertaintyFingerprint(null);
     setStageUncertaintyError("");
@@ -8943,6 +9019,129 @@ export default function Home() {
         setStageOptimizing(false);
       }
     }, 30);
+  };
+  const runStageCalibration = () => {
+    if (!stageFlightResult || !stageFlightIsCurrent) {
+      notify("Run the current coupled preview before calibrating against measured data");
+      return;
+    }
+    if (!flightDataSeries) {
+      notify("Import a measured flight CSV before running staged telemetry calibration");
+      return;
+    }
+    if (flightDataTraceSource !== "coupled-6dof") {
+      setFlightDataTraceSource("coupled-6dof");
+      notify("Select the coupled 6DOF trace before calibrating measured data");
+      return;
+    }
+    setStageCalibrating(true);
+    setStageCalibrationError("");
+    setView("flight");
+    const inputFingerprint = stageCalibrationInputFingerprint;
+    window.setTimeout(() => {
+      try {
+        if (!inputFingerprint) throw new Error("Measured flight data is not ready for calibration");
+        const baseInput = createStageFlightPreviewInputs({
+          topology: vehicleTopology,
+          assembly,
+          stageComponents: stageFlightComponents,
+          lengthM: length / 1000,
+          noseLengthM: noseLength / 1000,
+          diameterM: diameter / 1000,
+          motor: previewMotor,
+          userMotorRecords,
+          dragCoefficient,
+          environmentAt: previewEnvironment.at,
+          launchRailEnabled,
+          launchRailLengthM,
+          launchRailInclinationDeg,
+          launchRailAzimuthDeg,
+          launchRailFrictionAccelerationMps2,
+          launchRailTipOffPitchRateDegS,
+          launchRailTipOffYawRateDegS,
+          coupledMutualGravityEnabled,
+          coupledGravitySofteningRadiusM,
+          coupledContactEnabled,
+          coupledContactStiffnessNPerM,
+          coupledContactDampingNsPerM,
+          coupledContactMaximumNormalForceN,
+          coupledMultiBodyIncludeRetainedBody,
+          coupledMultiBodyRetainedBodyMode,
+          coupledSeparationPulseEnabled,
+          coupledSeparationPulseDeltaVMps,
+          coupledSeparationPulseStartOffsetS,
+          coupledSeparationPulseDurationS,
+          coupledSeparationPulseProfile,
+          coupledSeparationPulseAngularEnabled,
+          coupledSeparationPulseAngularDeltaRadS,
+          coupledRelativeAeroForceFeedbackEnabled,
+          releasedBodyDragModel,
+          relativeAeroInteractionEnabled,
+          relativeAeroWakeHalfAngleDeg,
+          relativeAeroWakeRecoveryDistanceBodyDiameters,
+          relativeAeroPeakVelocityDeficitFraction,
+          relativeAeroMaximumVelocityDeficitFraction,
+          separationContactStoppingDistanceM,
+          separationContactCoefficientOfRestitution,
+          normalForceModel,
+          inducedDragModel,
+          inducedDragFactor,
+          recoveryEnabled,
+          recoveryDelay,
+          recoveryInflationTime,
+          recoveryDeploymentTrigger,
+          recoveryDeploymentAltitudeM,
+          recoveryDeploymentTimeS,
+          recoveryDiameter,
+          recoveryReefingEnabled,
+          recoveryReefingDurationS,
+          recoveryReefingStartAreaFraction,
+          sixDofIntegrationMethod,
+          coupledIntegrationTimeStepS,
+          aerodynamicTable: selectedAerodynamicTable,
+          aerodynamicTableModels,
+        });
+        const nextResult = calibrateStageFlightToData({
+          baseInput,
+          series: flightDataSeries,
+          timeOffsetS: flightDataTimeOffsetS,
+          seed: "rocketworks-stage-calibration-v1",
+          populationSize: 8,
+          generations: 1,
+          variables: DEFAULT_STAGE_CALIBRATION_VARIABLES,
+          objectives: DEFAULT_STAGE_CALIBRATION_OBJECTIVES,
+          constraints: DEFAULT_STAGE_CALIBRATION_CONSTRAINTS,
+        });
+        setStageCalibration({ result: nextResult });
+        setStageCalibrationFingerprint(inputFingerprint);
+        notify("Staged telemetry calibration complete");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to calibrate staged telemetry";
+        setStageCalibrationError(message);
+        notify(message);
+      } finally {
+        setStageCalibrating(false);
+      }
+    }, 30);
+  };
+  const applyStageCalibrationRecommendation = () => {
+    if (!stageCalibration || !stageCalibrationIsCurrent) {
+      notify("Run the current staged calibration before applying a recommendation");
+      return;
+    }
+    const candidate = stageCalibration.result.result.paretoFront.find(
+      (item) => item.id === stageCalibration.result.result.recommendedCandidateId,
+    );
+    if (!candidate) {
+      notify("No feasible staged calibration recommendation is available");
+      return;
+    }
+    if (candidate.variables.thrustScale !== undefined) setThrust(thrust * candidate.variables.thrustScale);
+    if (candidate.variables.dragCoefficientScale !== undefined) setDragCoefficient(dragCoefficient * candidate.variables.dragCoefficientScale);
+    setStageCalibration(null);
+    setStageCalibrationFingerprint(null);
+    markChanged();
+    notify("Mapped telemetry calibration applied; rerun the coupled preview to review it");
   };
   const applyStageOptimizationRecommendation = () => {
     if (!stageOptimization || !stageOptimizationIsCurrent) {
@@ -10849,12 +11048,23 @@ export default function Home() {
               resultIsCurrent={resultIsCurrent}
               traceSource={flightDataTraceSource}
               coupledTraceAvailable={stageFlightResult !== null && stageFlightIsCurrent}
-              onTraceSourceChange={setFlightDataTraceSource}
+              onTraceSourceChange={(value) => { setFlightDataTraceSource(value); invalidateStageCalibration(); }}
               timeOffsetS={flightDataTimeOffsetS}
-              onTimeOffsetChange={(value) => { setFlightDataTimeOffsetS(Number.isFinite(value) ? value : 0); }}
+              onTimeOffsetChange={(value) => { setFlightDataTimeOffsetS(Number.isFinite(value) ? value : 0); invalidateStageCalibration(); }}
               onExport={exportFlightDataComparison}
               onImport={importFlightData}
               onClear={clearFlightData}
+            />
+            <StageFlightCalibrationCard
+              result={stageCalibration}
+              running={stageCalibrating}
+              error={stageCalibrationError}
+              current={stageFlightIsCurrent}
+              resultCurrent={stageCalibrationIsCurrent}
+              series={flightDataSeries}
+              traceSource={flightDataTraceSource}
+              onRun={runStageCalibration}
+              onApply={applyStageCalibrationRecommendation}
             />
             <PhysicsBenchmarkCard
               result={benchmarkResult}
@@ -13643,6 +13853,89 @@ function StageFlightOptimizationCard({
         <span>UNVALIDATED SEARCH</span>
         <p>{result?.result.robustness ? "Eight seeded uncertainty scenarios per candidate; finite-sample quantiles are a screening aid, not reliability qualification." : "The seeded constrained search cannot prove a global optimum and may exploit model error."} Mapped apply controls update global thrust, drag, and recovery inputs only; rerun the coupled preview after applying. Independently validate before manufacturing or flight.</p>
       </div>
+    </section>
+  );
+}
+
+function StageFlightCalibrationCard({
+  result,
+  running,
+  error,
+  current,
+  resultCurrent,
+  series,
+  traceSource,
+  onRun,
+  onApply,
+}: {
+  result: StageFlightCalibrationPreview | null;
+  running: boolean;
+  error: string;
+  current: boolean;
+  resultCurrent: boolean;
+  series: FlightDataSeries | null;
+  traceSource: FlightDataTraceSource;
+  onRun: () => void;
+  onApply: () => void;
+}) {
+  const optimization = result?.result.result ?? null;
+  const recommendation = optimization?.paretoFront.find(
+    (candidate) => candidate.id === optimization.recommendedCandidateId,
+  ) ?? null;
+  const format = (value: number | undefined, decimals = 2) =>
+    typeof value === "number" && Number.isFinite(value) ? value.toFixed(decimals) : "—";
+  const formatVariables = () => recommendation
+    ? Object.entries(recommendation.variables)
+        .map(([key, value]) => `${STAGE_FLIGHT_SWEEP_PARAMETER_DEFINITIONS.find((definition) => definition.key === key)?.label ?? key} ${value.toFixed(3)}×`)
+        .join(" · ")
+    : "";
+  return (
+    <section className="optimization-card stage-flight-calibration-card" aria-labelledby="stage-flight-calibration-title">
+      <div className="event-card-heading">
+        <div>
+          <strong id="stage-flight-calibration-title">Telemetry calibration study</strong>
+          <span>Bounded residual fit against an imported staged flight log</span>
+        </div>
+        <span>{optimization ? `${optimization.paretoFront.length} candidates · ${result?.result.sourceName}` : "Engineering preview"}</span>
+      </div>
+      {!series ? (
+        <div className="optimization-empty"><strong>Import measured data first</strong><p>Load an SI CSV above, choose the coupled 6DOF trace, then fit only the declared thrust and drag factors.</p></div>
+      ) : !current ? (
+        <div className="optimization-empty"><strong>Run the current coupled preview first</strong><p>Calibration reuses the complete staged input graph and never fits against an older trace.</p></div>
+      ) : traceSource !== "coupled-6dof" ? (
+        <div className="optimization-empty"><strong>Choose the coupled 6DOF trace</strong><p>Select “Coupled 6DOF trace” in the measured-data card before starting this study.</p></div>
+      ) : result && !resultCurrent ? (
+        <div className="stale-result-banner stage-stale-result-banner" role="status"><span>RERUN REQUIRED</span><div><strong>This calibration is from an earlier log or configuration</strong><p>Rerun calibration after changing the measured source, time offset, or coupled design.</p></div></div>
+      ) : running ? (
+        <div className="optimization-loading" aria-live="polite"><Skeleton height={92} borderRadius={5} /><span>Evaluating bounded telemetry candidates…</span></div>
+      ) : optimization && resultCurrent && recommendation ? (
+        <>
+          <div className="optimization-summary">
+            <div><span>Weighted residual</span><strong>{format(recommendation.metrics.weightedResidualRmse, 3)} σ</strong></div>
+            <div><span>Altitude RMSE</span><strong>{format(recommendation.metrics.altitudeRmseM)} m</strong></div>
+            <div><span>Velocity RMSE</span><strong>{format(recommendation.metrics.velocityRmseMps)} m/s</strong></div>
+            <div><span>Measured coverage</span><strong>{format((recommendation.metrics.matchedSampleFraction ?? 0) * 100, 0)}%</strong></div>
+          </div>
+          <div className="optimization-candidates" aria-label="Leading telemetry calibration candidates">
+            {optimization.paretoFront.slice(0, 3).map((candidate, index) => (
+              <div className={index === 0 ? "optimization-candidate recommended" : "optimization-candidate"} key={candidate.id}>
+                <span>{index === 0 ? "Recommendation" : `Tradeoff ${index + 1}`}</span>
+                <strong>{format(candidate.metrics.weightedResidualRmse, 3)} σ residual</strong>
+                <small>{Object.entries(candidate.variables).map(([key, value]) => `${key} ${value.toFixed(3)}×`).join(" · ")} · {format((candidate.metrics.matchedSampleFraction ?? 0) * 100, 0)}% coverage</small>
+              </div>
+            ))}
+          </div>
+          <div className="optimization-actions">
+            <button type="button" onClick={onApply}>Apply mapped inputs</button>
+            <button type="button" onClick={onRun}>Run again</button>
+          </div>
+          <p className="flight-data-note">Mapped recommendation: {formatVariables()}. Residual minimization is diagnostic only; it does not prove sensor accuracy, model validity, or flight safety.</p>
+        </>
+      ) : (
+        <div className="optimization-empty"><strong>Fit declared factors to this log</strong><p>Eight seeded candidates across one generation keep the browser study bounded. Only delivered thrust and drag coefficient scales are varied.</p><button type="button" onClick={onRun}>Run calibration</button></div>
+      )}
+      {error && <p className="sweep-error" role="alert">{error}</p>}
+      <div className="optimization-disclaimer"><span>UNVALIDATED CALIBRATION</span><p>{result?.result.warnings[0] ?? "Imported telemetry, model assumptions, and coverage determine the residual; agreement is not validation."}</p></div>
     </section>
   );
 }

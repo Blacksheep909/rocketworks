@@ -1350,6 +1350,51 @@ test("engineering report leads with status and preserves calculations and limita
         warnings: [],
       },
     },
+    stageCalibration: {
+      adapterVersion: "rocketworks-stage-flight-calibration-0.1.0",
+      modelVersion: "rocketworks-stage-flight-preview-0.46.0",
+      validationStatus: "engineering-preview-unvalidated",
+      sourceName: "telemetry-fixture.csv",
+      timeOffsetS: 0.25,
+      warnings: ["Calibration fixture warning."],
+      assumptions: ["Calibration fixture assumption."],
+      result: {
+        modelVersion: "kestrel-design-optimization-0.1.0",
+        validationStatus: "engineering-preview-unvalidated",
+        algorithm: "seeded-constrained-nondominated-evolution",
+        seed: "calibration-report-seed",
+        populationSize: 8,
+        generations: 1,
+        evaluationCount: 16,
+        variables: [{ key: "thrustScale", label: "Delivered thrust", minimum: 0.85, maximum: 1.15 }],
+        objectives: [{ metricKey: "weightedResidualRmse", label: "Weighted residual RMSE", direction: "minimize" }],
+        constraints: [],
+        candidates: [],
+        recommendedCandidateId: "candidate-000002",
+        paretoFront: [{
+          id: "candidate-000002",
+          evaluationIndex: 2,
+          variables: { thrustScale: 1.02, dragCoefficientScale: 0.98 },
+          metrics: {
+            weightedResidualRmse: 0.42,
+            altitudeRmseM: 3.1,
+            velocityRmseMps: 0.8,
+            accelerationRmseMps2: 1.4,
+            matchedSampleFraction: 0.96,
+            converged: 1,
+            simulationFailure: 0,
+          },
+          constraints: [],
+          feasible: true,
+          normalizedConstraintViolation: 0,
+          paretoRank: 0,
+          crowdingDistance: Number.POSITIVE_INFINITY,
+          tradeoffScore: 1,
+        }],
+        assumptions: [],
+        warnings: [],
+      },
+    },
     uncertainty,
     structural,
     stageStructural,
@@ -1416,6 +1461,10 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /\| Material model \| `rocketworks-custom-material-profile-0\.1\.0` \|/);
   assert.match(report, /\| Material status \| `user-supplied-unvalidated` \|/);
   assert.match(report, /## Recovery landing footprint/);
+  assert.match(report, /## Staged telemetry calibration/);
+  assert.match(report, /telemetry-fixture\.csv/);
+  assert.match(report, /Weighted residual/);
+  assert.match(report, /does not establish sensor accuracy/);
   assert.match(report, /### Serial-stack mass-ratio preview/);
   assert.match(report, /Excluded topology stages \| booster/);
   assert.match(report, /## Preliminary structural screen/);
