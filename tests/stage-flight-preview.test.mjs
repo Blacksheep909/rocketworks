@@ -327,7 +327,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.40.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.41.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);
@@ -560,6 +560,65 @@ test("independent retained mode evaluates fresh active-stage aero and recovery l
   assert.ok(Math.abs(recoveredTrace.at(-1).speedMps - baselineTrace.at(-1).speedMps) > 1e-4);
   assert.ok(recovered.assumptions.some((assumption) => assumption.includes("recovery callbacks")));
   assert.ok(recovered.assumptions.some((assumption) => assumption.includes("duplicate world-gravity term")));
+});
+
+test("independent retained mode carries later staging handoffs and impulses", () => {
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages,
+    regimes: [
+      ...regimes,
+      {
+        id: "retained-only",
+        label: "Retained payload",
+        activeStageIds: [],
+        dragCoefficient: 0.2,
+      },
+    ],
+    alwaysActiveGeometryStageIds: ["upper"],
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 2.5,
+    timeStepS: 0.05,
+    launchAltitudeM: 1000,
+    initialState: {
+      positionWorldM: { x: 0, y: 0, z: 1000 },
+      velocityWorldMps: { x: 0, y: 0, z: 20 },
+    },
+    events: [
+      createScheduledStageSeparationEvent({
+        stageId: "booster",
+        timeS: 1,
+        separationDeltaVBodyMps: { x: 0.1, y: 0, z: 0 },
+      }),
+      createScheduledStageSeparationEvent({
+        stageId: "upper",
+        timeS: 2,
+        separationDeltaVBodyMps: { x: 0.2, y: 0, z: 0 },
+      }),
+    ],
+    coupledMultiBodyIncludeRetainedBody: true,
+    coupledMultiBodyRetainedBodyMode: "independent-mass-propulsion",
+  });
+  const coupled = result.coupledMultiBodyFlight;
+  assert.ok(coupled);
+  assert.deepEqual(
+    coupled.trajectories.map((trajectory) => trajectory.id),
+    ["retained-vehicle", "booster/booster", "upper/upper"],
+  );
+  assert.equal(coupled.appliedVelocityImpulseEvents.length, 1);
+  assert.equal(coupled.appliedVelocityImpulseEvents[0].timeS, 2);
+  assert.equal(coupled.appliedVelocityImpulseEvents[0].sourceEventId, "staging-upper-separation");
+  const retained = coupled.trajectories.find((trajectory) => trajectory.id === "retained-vehicle");
+  assert.ok(retained);
+  const sampleAt = (timeS) => retained.trace.find((point) => Math.abs(point.timeS - timeS) < 1e-8);
+  const beforeSecondSeparation = sampleAt(1.95);
+  const afterSecondSeparation = sampleAt(2);
+  assert.ok(beforeSecondSeparation);
+  assert.ok(afterSecondSeparation);
+  assert.ok(afterSecondSeparation.massKg < beforeSecondSeparation.massKg);
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("Later authoritative staging state handoffs")));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("exact shared-grid boundaries")));
 });
 
 test("stage-flight adapter forwards projected-area drag to the detached shared track", () => {

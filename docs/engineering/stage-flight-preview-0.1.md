@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.40.0`.
+`kestrel-stage-flight-preview-0.41.0`.
 
 Relation-based aerodynamics retain both the selected normal-force trend and
 the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions
@@ -65,10 +65,11 @@ retained body to the shared grid at the first separation and evaluates changing
 staging mass/inertia, propulsion, active-topology aerodynamic force/moment
 loads, and retained recovery force/moment loads at each substep. Gravity is
 supplied by the shared solver, so the preliminary load model's duplicate world
-gravity term is omitted from this callback. Later staging velocity impulses,
-separation mechanism dynamics, plume interaction, and validated stage-to-stage
-interference remain outside the branch; the result keeps those assumptions
-visible and remains an engineering preview.
+gravity term is omitted from this callback. Later authoritative staging state
+handoffs and body-frame velocity impulses are applied at exact shared-grid
+boundaries; finite-duration separation mechanisms, plume interaction, and
+validated stage-to-stage interference remain outside the branch. The result
+keeps those assumptions visible and remains an engineering preview.
 
 ## Event and state policy
 
@@ -454,9 +455,11 @@ then calls the clean-room multi-stage `body` provider and a fresh load callback
 at every shared-grid substep, so propellant-dependent mass/inertia,
 caller-supplied thrust, active-topology aerodynamic force/moment loads, and
 retained recovery force/moment loads are not frozen at separation. Gravity is
-supplied by the shared solver and is not duplicated in the callback. This mode
-still does not claim a full retained-stage rerun: later staging velocity
-impulses, separation mechanics, plume/contact interaction, and validated
+supplied by the shared solver and is not duplicated in the callback. Later
+authoritative staging state handoffs and retained-body body-frame velocity
+impulses are applied at exact shared-grid boundaries using the current retained
+attitude. This mode still does not claim a full retained-stage rerun:
+finite-duration separation mechanics, plume/contact interaction, and validated
 stage-to-stage interference remain outside the branch. `"trace-replay"`
 remains the compatibility default.
 

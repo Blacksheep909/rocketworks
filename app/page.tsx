@@ -9191,7 +9191,7 @@ export default function Home() {
                       <option value="independent-mass-propulsion">Independent mass + fresh aero/recovery (preview)</option>
                     </select>
                     <small>{coupledMultiBodyRetainedBodyMode === "independent-mass-propulsion" && coupledMultiBodyIncludeRetainedBody
-                      ? "Hands the retained vehicle to the shared track at first separation, then evaluates changing staging mass/inertia, caller-supplied thrust, active-topology aerodynamics, and recovery loads. Later staging impulses, plume/contact interaction, and validated interference remain outside this engineering preview."
+                      ? "Hands the retained vehicle to the shared track at first separation, then evaluates changing staging mass/inertia, caller-supplied thrust, active-topology aerodynamics, recovery loads, and later authoritative staging velocity impulses. Separation mechanisms, plume/contact interaction, and validated interference remain outside this engineering preview."
                       : "Adds the retained vehicle at first separation using replayed staged translation loads, enabling shared contact and mutual-gravity diagnostics. It is not an independent retained-stage 6DOF solution."}</small>
                   </div>
                   <div className="field-group">
@@ -9815,7 +9815,7 @@ export default function Home() {
                                 <h5>{stageFlightResult.coupledMultiBodyFlight.trajectories.some((trajectory) => trajectory.id === "retained-vehicle") ? "Coupled retained + detached flight" : "Coupled detached-body flight"}</h5>
                                   <p>{stageFlightResult.coupledMultiBodyFlight.trajectories.some((trajectory) => trajectory.id === "retained-vehicle")
                                     ? coupledMultiBodyRetainedBodyMode === "independent-mass-propulsion"
-                                    ? "Runs the retained vehicle and released bodies together on one mission-time grid. The retained handoff evaluates changing staging mass/inertia, caller-supplied propulsion, active-topology aerodynamics, and recovery loads after first separation; later staging impulses, plume/contact interaction, and validated interference remain out of scope."
+                                    ? "Runs the retained vehicle and released bodies together on one mission-time grid. The retained handoff evaluates changing staging mass/inertia, caller-supplied propulsion, active-topology aerodynamics, recovery loads, and later authoritative staging velocity impulses; finite-duration separation mechanisms, plume/contact interaction, and validated interference remain out of scope."
                                       : "Runs the retained vehicle and released bodies together on one mission-time grid. The retained body replays authoritative staged translation loads while shared gravity, atmosphere, wind, mutual gravity, bounded envelope contact, and any explicitly enabled wake-feedback sensitivity are evaluated here; independent retained-stage aerodynamics and propellant flow remain out of scope."
                                     : "Runs every released body together on one mission-time grid with shared gravity, atmosphere, and wind queries. Bodies may opt into an explicit quaternion/inertia state, bounded spherical-envelope contact, and the analytical wake-feedback sensitivity; retained-vehicle contact, plume, and validated aerodynamic interference remain out of scope."}</p>
                               </div>

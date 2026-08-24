@@ -101,6 +101,7 @@ import {
   type CoupledMultiBodyContactOptions,
   type CoupledMultiBodyGravityOptions,
   type CoupledMultiBodyRelativeAeroOptions,
+  type CoupledMultiBodyVelocityImpulseEvent,
   type CoupledMultiBodyFlightResult,
 } from "./coupled-multi-body-flight.ts";
 import type { AttitudeDependentDragGeometry } from "./attitude-dependent-drag.ts";
@@ -129,7 +130,7 @@ import {
 } from "./mission-delta-v-bridge.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.40.0";
+  "kestrel-stage-flight-preview-0.41.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -1377,6 +1378,8 @@ export function simulateStageFlightPreview(
   const separationImpulseSolutions: CoupledSeparationImpulseResult[] = [];
   const coupledBodySeeds: CoupledMultiBodyFlightBodyInput[] = [];
   let retainedBodyCoupledSeed: CoupledMultiBodyFlightBodyInput | null = null;
+  let retainedBodyStagingHandoffs: RigidBodyState[] = [];
+  const retainedBodyVelocityImpulseEvents: CoupledMultiBodyVelocityImpulseEvent[] = [];
   let retainedBodyLaterSeparationAssumptionAdded = false;
   const retainedCoupledTrackAssumptions: string[] = [];
   const separatedBodyWarnings: string[] = [];
@@ -1451,13 +1454,51 @@ export function simulateStageFlightPreview(
         );
       }
     }
+    if (
+      input.coupledMultiBodyIncludeRetainedBody &&
+      retainedBodyCoupledSeed !== null &&
+      retainedBodyMode === "independent-mass-propulsion"
+    ) {
+      // Keep every later discrete staging handoff available to the dynamic
+      // retained callbacks. The coupled solver owns position/velocity, while
+      // this authoritative event state supplies active-stage topology.
+      retainedBodyStagingHandoffs.push(event.stateAfter);
+      if (detachedStageMassEntries.length > 0) {
+        const retainedDeltaVBodyMps = event.separationDeltaVBodyMps ?? rotateWorldToBody(
+          event.stateBefore.orientationBodyToWorld,
+          subtractVectors(
+            event.stateAfter.velocityWorldMps,
+            event.stateBefore.velocityWorldMps,
+          ),
+        );
+        if (magnitude(retainedDeltaVBodyMps) > 1e-12) {
+          retainedBodyVelocityImpulseEvents.push({
+            id: `retained-${event.id}`,
+            bodyId: "retained-vehicle",
+            timeS: event.timeS,
+            deltaVBodyMps: retainedDeltaVBodyMps,
+            sourceEventId: event.id,
+          });
+        }
+      }
+    }
     if (input.coupledMultiBodyIncludeRetainedBody && detachedStageMassEntries.length > 0) {
       if (retainedBodyCoupledSeed === null) {
         const retainedEnvelopeRadiusM = input.separationEnvelopeRadiiM?.["retained-vehicle"];
-        const retainedStateAt = (state: RigidBodyState): RigidBodyState => ({
-          ...event.stateAfter,
-          ...state,
-        });
+        retainedBodyStagingHandoffs = [event.stateAfter];
+        const retainedStateAt = (state: RigidBodyState): RigidBodyState => {
+          let latestHandoff = retainedBodyStagingHandoffs[0]!;
+          for (const handoff of retainedBodyStagingHandoffs) {
+            if (handoff.timeS <= state.timeS + 1e-9) latestHandoff = handoff;
+          }
+          return {
+            ...latestHandoff,
+            ...state,
+            ...(latestHandoff.discreteState !== undefined
+              ? { discreteState: latestHandoff.discreteState }
+              : {}),
+          };
+        };
         retainedBodyCoupledSeed = {
           id: "retained-vehicle",
           label: retainedBodyMode === "independent-mass-propulsion"
@@ -1495,7 +1536,7 @@ export function simulateStageFlightPreview(
           retainedCoupledTrackAssumptions.push(
             "The retained vehicle in the shared coupled track uses the first separation event as a state handoff, then evaluates clean-room staging mass/inertia plus propulsion, active-topology aerodynamics, and recovery callbacks at every shared-grid substep.",
             "The coupled solver supplies gravity and optional mutual/contact terms; the retained callback omits the preliminary model's duplicate world-gravity term while preserving body-frame propulsion/aero loads and recovery force/moment loads.",
-            "Later staging velocity impulses and separation-mechanism dynamics, plume interaction, and validated stage interference remain outside this bounded branch.",
+            "Later authoritative staging state handoffs and retained-body velocity impulses are applied at exact shared-grid boundaries; separation-mechanism dynamics, plume interaction, and validated stage interference remain outside this bounded branch.",
           );
         } else if (retainedLoadTrace.length > 0) {
           retainedCoupledTrackAssumptions.push(
@@ -1510,7 +1551,10 @@ export function simulateStageFlightPreview(
             "The retained coupled seed has no replayed translation loads because the authoritative staged trace was empty; only the shared solver's configured gravity and contact terms remain active.",
           );
         }
-      } else if (!retainedBodyLaterSeparationAssumptionAdded) {
+      } else if (
+        retainedBodyMode === "trace-replay" &&
+        !retainedBodyLaterSeparationAssumptionAdded
+      ) {
         retainedBodyLaterSeparationAssumptionAdded = true;
         retainedCoupledTrackAssumptions.push(
           "The retained replay seed is frozen at the first separation event; later staging events continue to affect detached branches but are not re-applied to the retained shared-track mass, inertia, or replay-load source.",
@@ -1677,6 +1721,9 @@ export function simulateStageFlightPreview(
         mutualGravity: input.coupledMultiBodyGravity,
         contact: input.coupledMultiBodyContact,
         relativeAeroForceFeedback: input.relativeAeroForceFeedback,
+        ...(retainedBodyVelocityImpulseEvents.length > 0
+          ? { velocityImpulseEvents: retainedBodyVelocityImpulseEvents }
+          : {}),
         integration: input.integration,
       });
     } catch (error) {

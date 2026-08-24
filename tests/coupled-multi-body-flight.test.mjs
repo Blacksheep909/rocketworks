@@ -57,6 +57,86 @@ test("shared-grid multi-body propagation aligns releases and reports pairwise mo
   assert.ok(result.assumptions.some((assumption) => assumption.includes("fourth-order Runge")));
 });
 
+test("shared-grid applies exact-time world and body-frame velocity impulses", () => {
+  const worldFrame = simulateCoupledMultiBodyFlight({
+    bodies: [body({
+      releaseTimeS: 0,
+      releasePositionWorldM: { x: 0, y: 0, z: 100 },
+      releaseVelocityWorldMps: { x: 0, y: 0, z: 0 },
+    })],
+    durationS: 1,
+    timeStepS: 0.1,
+    velocityImpulseEvents: [{
+      id: "world-kick",
+      bodyId: "booster-1",
+      timeS: 0.5,
+      deltaVWorldMps: { x: 4, y: 0, z: 0 },
+      sourceEventId: "separation-world",
+    }],
+  });
+  const worldBoundary = worldFrame.trajectories[0].trace.find((point) => point.timeS === 0.5);
+  assert.ok(worldBoundary);
+  assert.ok(Math.abs(worldBoundary.velocityWorldMps.x - 4) < 1e-10);
+  assert.equal(worldFrame.appliedVelocityImpulseEvents.length, 1);
+  assert.deepEqual(worldFrame.appliedVelocityImpulseEvents[0].deltaVWorldMps, { x: 4, y: 0, z: 0 });
+  assert.ok(worldFrame.assumptions.some((assumption) => assumption.includes("exact shared-grid boundaries")));
+
+  const quarterTurn = Math.SQRT1_2;
+  const bodyFrame = simulateCoupledMultiBodyFlight({
+    bodies: [body({
+      releaseTimeS: 0,
+      releasePositionWorldM: { x: 0, y: 0, z: 100 },
+      releaseVelocityWorldMps: { x: 0, y: 0, z: 0 },
+      rigidBody: {
+        orientationBodyToWorld: { w: quarterTurn, x: 0, y: 0, z: quarterTurn },
+        inertiaBodyKgM2: [
+          [0.02, 0, 0],
+          [0, 0.02, 0],
+          [0, 0, 0.02],
+        ],
+      },
+    })],
+    durationS: 1,
+    timeStepS: 0.1,
+    velocityImpulseEvents: [{
+      id: "body-kick",
+      bodyId: "booster-1",
+      timeS: 0.5,
+      deltaVBodyMps: { x: 4, y: 0, z: 0 },
+    }],
+  });
+  const bodyBoundary = bodyFrame.trajectories[0].trace.find((point) => point.timeS === 0.5);
+  assert.ok(bodyBoundary);
+  assert.ok(Math.abs(bodyBoundary.velocityWorldMps.x) < 1e-10);
+  assert.ok(Math.abs(bodyBoundary.velocityWorldMps.y - 4) < 1e-10);
+  assert.ok(Math.abs(bodyFrame.appliedVelocityImpulseEvents[0].deltaVWorldMps.y - 4) < 1e-10);
+});
+
+test("velocity impulse events reject ambiguous frames and invalid timing", () => {
+  const input = { bodies: [body({ releaseTimeS: 0.25 })], durationS: 1, timeStepS: 0.1 };
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({
+      ...input,
+      velocityImpulseEvents: [{ bodyId: "booster-1", timeS: 0.5 }],
+    }),
+    /exactly one frame/,
+  );
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({
+      ...input,
+      velocityImpulseEvents: [{ bodyId: "booster-1", timeS: 0.1, deltaVWorldMps: { x: 1, y: 0, z: 0 } }],
+    }),
+    /before body release/,
+  );
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({
+      ...input,
+      velocityImpulseEvents: [{ bodyId: "booster-1", timeS: 0.5, deltaVBodyMps: { x: 1, y: 0, z: 0 } }],
+    }),
+    /requires a rigid-body state/,
+  );
+});
+
 test("shared-grid propagator applies isotropic drag and terminates at ground impact", () => {
   const ballistic = simulateCoupledMultiBodyFlight({
     bodies: [body({ releaseTimeS: 0, releasePositionWorldM: { x: 0, y: 0, z: 0 }, releaseVelocityWorldMps: { x: 0, y: 0, z: -5 } })],

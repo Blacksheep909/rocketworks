@@ -48,8 +48,9 @@ its simulation fingerprint cannot silently switch retained-body semantics.
 `"trace-replay"` remains the safe compatibility default. The independent mode
 is still an engineering-preview override: it evaluates staged mass/inertia,
 propulsion, active-topology aerodynamic, and recovery callbacks after the first
-separation event, but does not claim later-staging impulses, separation
-mechanics, plume/contact interaction, or validated interference coverage.
+separation event, and persists later authoritative staging state/velocity
+impulses. It does not claim finite-duration separation mechanics, plume/contact
+interaction, or validated interference coverage.
 
 ## Clean-room boundary
 

@@ -57,7 +57,7 @@ import {
  * aerodynamic interference remain outside the model.
  */
 export const COUPLED_MULTI_BODY_FLIGHT_MODEL_VERSION =
-  "rocketworks-coupled-multi-body-flight-0.9.0";
+  "rocketworks-coupled-multi-body-flight-0.10.0";
 export const COUPLED_MULTI_BODY_FLIGHT_STATUS =
   "analytical-component-checks-only" as const;
 export const STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2 = 6.67430e-11;
@@ -117,6 +117,29 @@ export type CoupledMultiBodyIntegrationOptions = Readonly<{
 }>;
 
 export type CoupledMultiBodyVelocityAdjustment = Readonly<{
+  deltaVWorldMps: Vector3;
+  sourceEventId?: string;
+}>;
+
+/**
+ * An instantaneous velocity impulse applied at an exact shared-grid boundary.
+ * Exactly one frame is required. Body-frame impulses need a rigid-body state
+ * and are rotated using that body's current attitude at the event time.
+ */
+export type CoupledMultiBodyVelocityImpulseEvent = Readonly<{
+  id?: string;
+  bodyId: string;
+  timeS: number;
+  deltaVWorldMps?: Vector3;
+  deltaVBodyMps?: Vector3;
+  sourceEventId?: string;
+}>;
+
+/** Canonical provenance for an impulse that was applied by the shared solver. */
+export type CoupledMultiBodyAppliedVelocityImpulseEvent = Readonly<{
+  id?: string;
+  bodyId: string;
+  timeS: number;
   deltaVWorldMps: Vector3;
   sourceEventId?: string;
 }>;
@@ -253,6 +276,8 @@ export type CoupledMultiBodyFlightInput = Readonly<{
   contact?: CoupledMultiBodyContactOptions;
   /** Optional post-trace wake model promoted to bounded force feedback. */
   relativeAeroForceFeedback?: CoupledMultiBodyRelativeAeroOptions;
+  /** Optional exact-time velocity impulses; declaration order is preserved at equal times. */
+  velocityImpulseEvents?: readonly CoupledMultiBodyVelocityImpulseEvent[];
   launchAltitudeM?: number;
   environmentAt?: LaunchEnvironmentProvider;
   maximumSteps?: number;
@@ -295,6 +320,8 @@ export type CoupledMultiBodyFlightResult = Readonly<{
     exposedSampleCount: number;
     affectedBodyCount: number;
   }>;
+  /** Canonical world-frame vectors for the impulses applied during propagation. */
+  appliedVelocityImpulseEvents: readonly CoupledMultiBodyAppliedVelocityImpulseEvent[];
   rigidBodyCount: number;
   dynamicMassBodyCount: number;
   aerodynamicBodyCount: number;
@@ -383,6 +410,12 @@ type CoupledAdaptiveStepResult = Readonly<{
   maximumNormalizedError: number;
   minimumAcceptedStepS: number;
   maximumAcceptedStepS: number;
+}>;
+
+type CoupledPropagationResult = Readonly<{
+  trajectories: readonly CoupledMultiBodyFlightTrajectory[];
+  appliedVelocityImpulseEvents: readonly CoupledMultiBodyAppliedVelocityImpulseEvent[];
+  skippedVelocityImpulseEvents: readonly string[];
 }>;
 
 type NormalizedRelativeAeroForceFeedbackOptions = Readonly<{
@@ -662,6 +695,72 @@ function validateBody(body: CoupledMultiBodyFlightBodyInput): void {
       throw new Error(`coupled-flight body ${body.id} rigid-body loads must be a function`);
     }
   }
+}
+
+function validateVelocityImpulseEvents(
+  events: readonly CoupledMultiBodyVelocityImpulseEvent[],
+  bodies: readonly CoupledMultiBodyFlightBodyInput[],
+  durationS: number,
+): readonly CoupledMultiBodyVelocityImpulseEvent[] {
+  const bodiesById = new Map(bodies.map((body) => [body.id, body]));
+  const eventIds = new Set<string>();
+  for (const event of events) {
+    if (!event.bodyId.trim()) {
+      throw new Error("coupled-flight velocity impulse body id cannot be empty");
+    }
+    const body = bodiesById.get(event.bodyId);
+    if (!body) {
+      throw new Error(`coupled-flight velocity impulse references unknown body ${event.bodyId}`);
+    }
+    assertNonNegativeFinite(event.timeS, `coupled-flight velocity impulse ${event.bodyId} time`);
+    if (event.timeS > durationS + TIME_TOLERANCE_S) {
+      throw new Error(`coupled-flight velocity impulse ${event.bodyId} occurs after mission end`);
+    }
+    if (event.timeS < body.releaseTimeS - TIME_TOLERANCE_S) {
+      throw new Error(`coupled-flight velocity impulse ${event.bodyId} occurs before body release`);
+    }
+    const hasWorldFrame = event.deltaVWorldMps !== undefined;
+    const hasBodyFrame = event.deltaVBodyMps !== undefined;
+    if (hasWorldFrame === hasBodyFrame) {
+      throw new Error(`coupled-flight velocity impulse ${event.bodyId} must provide exactly one frame`);
+    }
+    if (hasWorldFrame) {
+      assertFiniteVector(event.deltaVWorldMps!, `coupled-flight velocity impulse ${event.bodyId} world delta-v`);
+    }
+    if (hasBodyFrame) {
+      if (!body.rigidBody) {
+        throw new Error(`coupled-flight velocity impulse ${event.bodyId} body-frame delta-v requires a rigid-body state`);
+      }
+      assertFiniteVector(event.deltaVBodyMps!, `coupled-flight velocity impulse ${event.bodyId} body delta-v`);
+    }
+    if (event.id !== undefined) {
+      if (!event.id.trim()) {
+        throw new Error(`coupled-flight velocity impulse ${event.bodyId} id cannot be empty`);
+      }
+      if (eventIds.has(event.id)) {
+        throw new Error(`coupled-flight velocity impulse id ${event.id} is duplicated`);
+      }
+      eventIds.add(event.id);
+    }
+    if (event.sourceEventId !== undefined && !event.sourceEventId.trim()) {
+      throw new Error(`coupled-flight velocity impulse ${event.bodyId} source cannot be empty`);
+    }
+  }
+  return [...events].sort((left, right) => left.timeS - right.timeS);
+}
+
+function resolveVelocityImpulseWorldMps(
+  event: CoupledMultiBodyVelocityImpulseEvent,
+  body: CoupledMultiBodyFlightBodyInput,
+  state: CoupledGroupState,
+  bodyIndex: number,
+): Vector3 {
+  if (event.deltaVWorldMps) return event.deltaVWorldMps;
+  const orientation = state.orientationsBodyToWorld[bodyIndex];
+  if (!orientation || !event.deltaVBodyMps) {
+    throw new Error(`coupled-flight velocity impulse ${body.id} has no active rigid-body attitude`);
+  }
+  return rotateBodyToWorld(orientation, event.deltaVBodyMps);
 }
 
 function environmentAt(
@@ -2133,11 +2232,16 @@ function propagateCoupledBodies(
   mutualGravity: Required<CoupledMultiBodyGravityOptions>,
   contact: NormalizedContactOptions,
   relativeAero: NormalizedRelativeAeroForceFeedbackOptions,
+  velocityImpulseEvents: readonly CoupledMultiBodyVelocityImpulseEvent[],
   integration: CoupledIntegrationConfig,
   diagnostics: MutableCoupledIntegrationDiagnostics,
-): CoupledMultiBodyFlightTrajectory[] {
+): CoupledPropagationResult {
   const traces: CoupledMultiBodyTracePoint[][] = bodies.map(() => []);
   const impactTimes: (number | null)[] = bodies.map(() => null);
+  const appliedVelocityImpulseEvents: CoupledMultiBodyAppliedVelocityImpulseEvent[] = [];
+  const skippedVelocityImpulseEvents: string[] = [];
+  const bodyIndexes = new Map(bodies.map((body, index) => [body.id, index]));
+  let nextVelocityImpulseEventIndex = 0;
   const released = bodies.map(() => false);
   const active = bodies.map(() => false);
   const positionsWorldM = bodies.map((body) => body.releasePositionWorldM);
@@ -2230,6 +2334,44 @@ function propagateCoupledBodies(
         state.active[index] = false;
         impactTimes[index] = state.timeS;
       }
+    }
+  };
+
+  const applyVelocityImpulseEventsAtCurrentTime = (): void => {
+    while (
+      nextVelocityImpulseEventIndex < velocityImpulseEvents.length &&
+      velocityImpulseEvents[nextVelocityImpulseEventIndex]!.timeS <= state.timeS + TIME_TOLERANCE_S
+    ) {
+      const event = velocityImpulseEvents[nextVelocityImpulseEventIndex]!;
+      nextVelocityImpulseEventIndex += 1;
+      if (event.timeS < state.timeS - TIME_TOLERANCE_S) {
+        throw new Error(
+          `coupled-flight velocity impulse ${event.id ?? event.sourceEventId ?? event.bodyId} missed its exact event boundary`,
+        );
+      }
+      const bodyIndex = bodyIndexes.get(event.bodyId);
+      if (bodyIndex === undefined) {
+        throw new Error(`coupled-flight velocity impulse references unknown body ${event.bodyId}`);
+      }
+      if (!state.active[bodyIndex]) {
+        skippedVelocityImpulseEvents.push(
+          `${event.id ?? event.sourceEventId ?? event.bodyId} at ${event.timeS.toFixed(6)} s targeted an inactive body and was not applied`,
+        );
+        continue;
+      }
+      const body = bodies[bodyIndex]!;
+      const deltaVWorldMps = resolveVelocityImpulseWorldMps(event, body, state, bodyIndex);
+      state.velocitiesWorldMps[bodyIndex] = addVectors(
+        state.velocitiesWorldMps[bodyIndex]!,
+        deltaVWorldMps,
+      );
+      appliedVelocityImpulseEvents.push({
+        ...(event.id ? { id: event.id } : {}),
+        bodyId: event.bodyId,
+        timeS: state.timeS,
+        deltaVWorldMps,
+        ...(event.sourceEventId ? { sourceEventId: event.sourceEventId } : {}),
+      });
     }
   };
 
@@ -2358,6 +2500,7 @@ function propagateCoupledBodies(
         active: nextActive,
       };
     }
+    applyVelocityImpulseEventsAtCurrentTime();
     for (let index = 0; index < bodies.length; index += 1) {
       if (state.active[index]) {
         const derivative = coupledGroupDerivativeAt(
@@ -2398,11 +2541,15 @@ function propagateCoupledBodies(
       }
     }
   }
-  return bodies.map((body, index) => trajectoryFromTrace(
-    body,
-    traces[index],
-    impactTimes[index],
-  ));
+  return {
+    trajectories: bodies.map((body, index) => trajectoryFromTrace(
+      body,
+      traces[index],
+      impactTimes[index],
+    )),
+    appliedVelocityImpulseEvents,
+    skippedVelocityImpulseEvents,
+  };
 }
 
 /**
@@ -2459,6 +2606,11 @@ export function simulateCoupledMultiBodyFlight(
       throw new Error(`coupled-flight body ${body.id} releases after mission end`);
     }
   });
+  const velocityImpulseEvents = validateVelocityImpulseEvents(
+    input.velocityImpulseEvents ?? [],
+    input.bodies,
+    input.durationS,
+  );
   const rigidBodyCount = input.bodies.filter((body) => body.rigidBody !== undefined).length;
   const dynamicMassBodyCount = input.bodies.filter(
     (body) => body.rigidBody?.propertiesAt !== undefined,
@@ -2480,6 +2632,7 @@ export function simulateCoupledMultiBodyFlight(
     mutualGravity.enabled ||
     contact.enabled ||
     relativeAero.enabled ||
+    velocityImpulseEvents.length > 0 ||
     rigidBodyCount > 0 ||
     integrationMethod === "adaptive-rk4-step-doubling"
   ) {
@@ -2487,7 +2640,10 @@ export function simulateCoupledMultiBodyFlight(
       startTimeS,
       input.durationS,
       input.timeStepS,
-      input.bodies.map((body) => body.releaseTimeS),
+      [
+        ...input.bodies.map((body) => body.releaseTimeS),
+        ...velocityImpulseEvents.map((event) => event.timeS),
+      ],
     );
     if (requestedGrid.length - 1 > maximumSteps - 1) {
       throw new Error(
@@ -2515,9 +2671,10 @@ export function simulateCoupledMultiBodyFlight(
     mutualGravity.enabled ||
     contact.enabled ||
     relativeAero.enabled ||
+    velocityImpulseEvents.length > 0 ||
     rigidBodyCount > 0 ||
     integrationMethod === "adaptive-rk4-step-doubling";
-  const trajectories = usesCoupledGroup
+  const propagation = usesCoupledGroup
     ? propagateCoupledBodies(
         input.bodies,
         input,
@@ -2526,12 +2683,18 @@ export function simulateCoupledMultiBodyFlight(
         mutualGravity,
         contact,
         relativeAero,
+        velocityImpulseEvents,
         integration,
         integrationDiagnostics,
       )
-    : input.bodies.map((body) =>
-        propagateBody(body, input, grid, effectiveTimeStepS),
-      );
+    : {
+        trajectories: input.bodies.map((body) =>
+          propagateBody(body, input, grid, effectiveTimeStepS),
+        ),
+        appliedVelocityImpulseEvents: [],
+        skippedVelocityImpulseEvents: [],
+      };
+  const trajectories = propagation.trajectories;
   if (!usesCoupledGroup) {
     recordCoupledAcceptedSteps(
       integrationDiagnostics,
@@ -2579,6 +2742,12 @@ export function simulateCoupledMultiBodyFlight(
   ).length;
   const warnings = [
     "All released bodies were propagated simultaneously on a shared mission-time grid with a common environment provider.",
+    ...(velocityImpulseEvents.length > 0
+      ? [
+          `The shared-grid solver received ${velocityImpulseEvents.length} exact-time velocity impulse event${velocityImpulseEvents.length === 1 ? "" : "s"}; ${propagation.appliedVelocityImpulseEvents.length} were applied and ${propagation.skippedVelocityImpulseEvents.length} were skipped.`,
+          ...propagation.skippedVelocityImpulseEvents,
+        ]
+      : []),
     relativeAero.enabled
       ? "The opt-in wake feedback path adjusts each eligible target's environment-relative flow using a bounded source-wake proxy; contact, collision response, plume interaction, unsteady interference, and validated proximity-load data remain outside the shared track."
       : contact.enabled
@@ -2644,6 +2813,12 @@ export function simulateCoupledMultiBodyFlight(
   const assumptions = [
     "Each detached body is represented as a point mass for translation with its supplied release position and velocity; bodies with an opt-in rigid-body record additionally propagate attitude and angular velocity.",
     "The integrator is explicit fourth-order Runge-Kutta over a shared mission-time grid; release times are inserted as exact initial points and partial steps are used to align with the grid.",
+    ...(velocityImpulseEvents.length > 0
+      ? [
+          "Velocity impulse events are applied at exact shared-grid boundaries in declaration order for equal timestamps; world-frame vectors are applied directly and body-frame vectors rotate with the target rigid body's current attitude.",
+          "Impulse duration, joint compliance, plume momentum exchange, and angular impulse are not inferred; these events are instantaneous translational state corrections with retained source provenance.",
+        ]
+      : []),
     "Gravity is evaluated from altitude using the RocketWorks atmosphere/gravity implementation; drag is a constant-Cd, constant-reference-area isotropic approximation when configured.",
     "The environment provider is queried separately for each body at each Runge-Kutta substep, so wind and atmosphere may vary with time and position but bodies do not alter the environment.",
     "Environment-supplied Earth rotation acceleration is interpreted in the same local ENU frame and uses ground-relative velocity when the provider computes Coriolis effects.",
@@ -2736,6 +2911,7 @@ export function simulateCoupledMultiBodyFlight(
       exposedSampleCount: relativeAeroTraceSamples.length,
       affectedBodyCount: relativeAeroAffectedBodyCount,
     },
+    appliedVelocityImpulseEvents: propagation.appliedVelocityImpulseEvents,
     rigidBodyCount,
     dynamicMassBodyCount,
     aerodynamicBodyCount,

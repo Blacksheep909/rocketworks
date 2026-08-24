@@ -1207,7 +1207,7 @@ test("engineering report leads with status and preserves calculations and limita
         assumptions: ["Relative-flow fixture assumption."],
       },
       coupledMultiBodyFlight: {
-        modelVersion: "rocketworks-coupled-multi-body-flight-0.9.0",
+        modelVersion: "rocketworks-coupled-multi-body-flight-0.10.0",
         validationStatus: "analytical-component-checks-only",
         startTimeS: 4.2,
         endTimeS: 8,

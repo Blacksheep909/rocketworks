@@ -197,9 +197,9 @@ research, standards, and original code.
   interpolated thrust, aerodynamic, and recovery translation loads from the
   authoritative staged trace for contact/mutual-gravity diagnostics; an
   explicit independent mode instead evaluates changing retained mass/inertia,
-  propulsion, active-topology aerodynamics, and recovery loads on the shared
-  grid while keeping later staging impulses and validated interference out of
-  scope;
+  propulsion, active-topology aerodynamics, recovery loads, and later
+  authoritative staging state/velocity-impulse events on the shared grid while
+  keeping finite-duration mechanisms and validated interference out of scope;
 - an opt-in projected-area attitude-drag mode for released rigid bodies that
   blends caller-supplied axial and broadside CdA pairs, retains incidence and
   effective-area diagnostics on the shared trace;
@@ -423,9 +423,10 @@ mission-level mass-ratio loss models, and validated structural/aeroelastic bench
 preliminary fin flutter screen. The optional retained replay track now provides
 an explicit shared-grid diagnostic, and the staged adapter now has an explicit
 API-only independent retained handoff that evaluates changing mass/inertia,
-caller-supplied thrust, active-topology aerodynamics, and recovery loads after
-the first separation. Later staging impulses, separation mechanisms, relative-
-body databases, and a full momentum-exchange solver remain future work.
+caller-supplied thrust, active-topology aerodynamics, recovery loads, and later
+authoritative staging state/velocity-impulse events after the first separation.
+Separation mechanisms, relative-body databases, and a full momentum-exchange
+solver remain future work.
 Angular and direct force/moment coefficient
 volumes are now supported as explicit
 interpolation sources, and seeded event-factor dispersion now covers timing,

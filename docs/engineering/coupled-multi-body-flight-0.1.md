@@ -1,4 +1,4 @@
-# Shared-grid coupled multi-body flight 0.9
+# Shared-grid coupled multi-body flight 0.10
 
 Status: implemented analytical component check; mathematical regression tests
 only. This model is not flight-safety, range-safety, contact, or collision
@@ -66,10 +66,22 @@ force/moment loads into the shared track without replaying the authoritative
 force trace. The preliminary model's world-gravity term is omitted from that
 callback because the shared solver supplies gravity (and optional mutual/contact
 terms) itself; body-frame propulsion/aero loads and recovery world/body loads
-remain additive. It is intentionally bounded: later staging velocity impulses,
-separation mechanism dynamics, plume interaction, and validated stage-to-stage
-interference are not re-solved. `"trace-replay"` remains the default and
-existing projects are unchanged.
+remain additive. Later authoritative state handoffs and body-frame velocity
+impulses are inserted at exact shared-grid boundaries. It is intentionally
+bounded: finite-duration separation mechanism dynamics, plume interaction, and
+validated stage-to-stage interference are not re-solved. `"trace-replay"`
+remains the default and existing projects are unchanged.
+
+The generic solver exposes `velocityImpulseEvents` for caller-owned discrete
+translation changes. Each event names a released body and exact mission time,
+then supplies either `deltaVWorldMps` or `deltaVBodyMps` (never both). Events
+are inserted into the shared grid, applied in declaration order for equal
+timestamps, and retain optional `id`/`sourceEventId` provenance. Body-frame
+vectors use the target's current quaternion at the event boundary. The result
+returns canonical `appliedVelocityImpulseEvents`; an event targeting a body
+after ground impact is skipped with an explicit warning. This is an
+instantaneous state correction, not a finite-duration separation-mechanism or
+angular-impulse solver.
 
 ## Equations and numerical method
 
