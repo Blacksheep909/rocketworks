@@ -1,4 +1,4 @@
-# Deterministic physics benchmark suite 0.6
+# Deterministic physics benchmark suite 0.7
 
 Status: `mathematical-regression-tests-only`.
 
@@ -33,14 +33,17 @@ enough to run in CI.
 - a bounded ±15° gimbal control-authority envelope anchor covering vector
   force, thrust-vector moment, rigid-body angular acceleration, and the
   control-to-aerodynamic-moment ratio.
+- a serial stage-interface body-transverse demand and shell-section shear
+  factor-of-safety anchor with explicit trace acceleration and parent/child
+  allowable-shear evidence.
 
 Each case reports the observed value, public-reference expected value, absolute
 and relative error, and a declared tolerance. The suite currently contains
-twenty-five cases because the atmosphere fixture checks pressure and density as
+twenty-seven cases because the atmosphere fixture checks pressure and density as
 separate metrics, the 6DOF conservation checks are reported independently,
-and the structural/aeroelastic, stage-interface, serial mass-ratio, and gimbal
-control-authority equations are checked against independent closed-form
-recomputations.
+and the structural/aeroelastic, stage-interface, serial mass-ratio, gimbal
+control-authority, and transverse-shear equations are checked against
+independent closed-form recomputations.
 
 ## Interpretation
 
@@ -53,7 +56,7 @@ visible.
 The fixtures deliberately use no OpenRocket code, data, assets, backend, or
 simulation engine. They exercise the independent atmosphere, thrust-curve,
 gravity, static-aerodynamics, rigid-body 6DOF, gimbal-control-authority,
-structural-screen, and fin-flutter modules directly. The conservation,
-structural, aeroelastic, and actuator-envelope cases are regression anchors,
-not experimental validation of a vehicle, motor, aerodynamic database,
-material, actuator, or operational profile.
+stage-interface-loads, structural-screen, and fin-flutter modules directly.
+The conservation, structural, aeroelastic, actuator-envelope, and shear-capacity
+cases are regression anchors, not experimental validation of a vehicle, motor,
+aerodynamic database, material, actuator, connector, or operational profile.

@@ -1,4 +1,4 @@
-# Stage-interface load path 0.4
+# Stage-interface load path 0.5
 
 RocketWorks includes a bounded stage-interface review for enabled topology edges. The adapter is original clean-room code and is intentionally narrower than a connector, contact, or structural finite-element solver.
 
@@ -20,6 +20,15 @@ RocketWorks includes a bounded stage-interface review for enabled topology edges
    force envelope: `F_transverse = m_downstream · a_transverse · loadFactor`.
    The optional resultant `sqrt(F_axial² + F_transverse²)` is telemetry only;
    it does not change the axial shell-section capacity or factor of safety.
+9. When both parent and child rows provide positive allowable shear evidence,
+   compare the transverse demand against a separate shell-section proxy,
+   `V_capacity = min(A_parent, A_child) · min(τ_parent, τ_child)`. The result
+   is reported as a transverse shear factor of safety and never merged into
+   the axial compression status.
+10. For repeated parallel stages, add the per-instance canted-thrust radial
+    force to the optional body-transverse demand as a conservative local radial
+    demand, then compare it with the same explicitly separate shell-section
+    shear proxy when the evidence exists.
 
 The default load factor is 1.0. It is an explicit screening multiplier and is not a measured transient or certification factor. When a current staged-flight trace is supplied, the review filters each interface to samples where both stages remain attached and compares the largest body-axis acceleration with the peak-thrust baseline; the larger value is used for the demand.
 
@@ -32,21 +41,28 @@ The default load factor is 1.0. It is an explicit screening multiplier and is no
   for a parallel interface remains unavailable because it is not a connector
   solver.
 
+The transverse/radial capacity status is reported separately as
+`pass`/`review`/`unavailable`. Missing shear evidence or missing transverse
+demand leaves that channel unavailable without changing a serial axial pass.
+The result-level `shearStatus` aggregates only positive transverse/radial
+demand channels, so an axial `assessed` result can still carry a separate
+shear `review` or `not-assessed` status.
+
 Parallel force-scale rows use `screened`/`unavailable` status. `screened` means
 the equal-share arithmetic had the required topology and acceleration inputs;
-it does not mean that radial joint transfer has been assessed.
+the separate radial-capacity channel may still be unavailable or in review.
 
 The aggregate is `assessed` only when every interface passes. Any review or unavailable row yields `review`; no interface yields `not-assessed`.
 
 ## Deliberate limits
 
-The trace projection uses the unconstrained net force divided by instantaneous stack mass, projected onto the vehicle nose direction. The transverse channel is the magnitude of the same acceleration in body +Y/+Z, so it is only available for traces that carry the body attitude and full force vector. These are kinematic envelopes, not rail-reaction or joint-load reconstructions. The parallel audit assumes equal mass/thrust sharing across repeated instances and uses `F_r = T_i sin(theta)` and `M_e = F_r r` as local force/moment scales. It does not model connector geometry, fasteners, threads, latches, bonded joints, local shell buckling, bending capacity, eccentricity beyond the simple moment scale, drag, rail contact/reaction, transient amplification, staging impulse, plume interaction, separation dynamics, or radial/parallel joint capacity. The section and allowable fields are proxies taken from the current component screen, not connector qualification data.
+The trace projection uses the unconstrained net force divided by instantaneous stack mass, projected onto the vehicle nose direction. The transverse channel is the magnitude of the same acceleration in body +Y/+Z, so it is only available for traces that carry the body attitude and full force vector. These are kinematic envelopes, not rail-reaction or joint-load reconstructions. The parallel audit assumes equal mass/thrust sharing across repeated instances and uses `F_r = T_i sin(theta)` and `M_e = F_r r` as local force/moment scales. The optional shear proxy uses the shell-section area and material allowable shear from both parent and child rows; it does not model connector geometry, fasteners, threads, latches, bonded joints, local shell buckling, bending capacity, eccentricity beyond the simple moment scale, drag, rail contact/reaction, transient amplification, staging impulse, plume interaction, separation dynamics, or connector/radial joint capacity. The section and allowable fields are proxies taken from the current component screen, not connector qualification data.
 
 The result is an engineering triage surface. It is not structural certification, manufacturing release, range-safety evidence, flight-safety evidence, or experimental validation.
 
 ## Provenance
 
 - Implementation: `lib/physics/stage-interface-loads.ts`
-- Model version: `rocketworks-stage-interface-loads-0.4.0`
-- Validation status: `analytical-axial-transverse-load-path-proxy`
+- Model version: `rocketworks-stage-interface-loads-0.5.0`
+- Validation status: `analytical-axial-transverse-radial-load-path-proxy`
 - Related public basis: Newton's second law (`F = m a`) and the project structural-screen section/allowable inputs. Public equations and standards are reference material only; no OpenRocket source, UI, assets, database, or simulation engine is used.

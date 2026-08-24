@@ -23,7 +23,7 @@ import { computeMissionMassRatio } from "./stage-mass-ratio.ts";
 import { analyzeGimbalControlAuthority } from "./gimbal-control-authority.ts";
 
 export const BENCHMARK_SUITE_MODEL_VERSION =
-  "kestrel-physics-benchmark-suite-0.6.0";
+  "kestrel-physics-benchmark-suite-0.7.0";
 export const BENCHMARK_SUITE_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -162,6 +162,44 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
   const benchmarkInterface = stageInterfaceLoads.interfaces[0];
   if (!benchmarkInterface || benchmarkInterface.axialDemandN === null || benchmarkInterface.factorOfSafety === null) {
     throw new Error("stage-interface benchmark fixture did not produce a serial demand");
+  }
+  const benchmarkShearInterfaceReview = createStageInterfaceLoadReview({
+    retainedMassKg: 0.5,
+    trace: [
+      {
+        timeS: 0,
+        axialAccelerationMps2: 30,
+        transverseAccelerationMps2: 4,
+        attachedStageIds: ["benchmark-shear-core", "benchmark-shear-upper"],
+      },
+    ],
+    stages: [
+      {
+        id: "benchmark-shear-core",
+        label: "Benchmark shear core",
+        attachment: "serial",
+        stageMassKg: 2,
+        peakThrustN: 100,
+        sectionAreaM2: 0.01,
+        allowableCompressionPa: 1e6,
+        allowableShearPa: 2e3,
+      },
+      {
+        id: "benchmark-shear-upper",
+        label: "Benchmark shear upper",
+        parentStageId: "benchmark-shear-core",
+        attachment: "serial",
+        stageMassKg: 1,
+        peakThrustN: 0,
+        sectionAreaM2: 0.02,
+        allowableCompressionPa: 1e6,
+        allowableShearPa: 4e3,
+      },
+    ],
+  });
+  const benchmarkShearInterface = benchmarkShearInterfaceReview.interfaces[0];
+  if (!benchmarkShearInterface || benchmarkShearInterface.transverseDemandN === null || benchmarkShearInterface.shearCapacityN === null || benchmarkShearInterface.transverseFactorOfSafety === null) {
+    throw new Error("stage-interface shear benchmark fixture did not produce transverse reserve");
   }
   const coneStability = computeStaticStability({
     centerOfMassXM: 0.2,
@@ -483,6 +521,26 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
       expected: (0.01 * 1e6) / (1.5 * (100 / 3.5)),
       tolerance: 1e-12,
       method: "section-area times compression allowable divided by the axial demand anchor",
+    }),
+    compareCase({
+      id: "stage-interface-transverse-shear-demand",
+      label: "Serial interface body-transverse shear demand",
+      metric: "transverse demand",
+      unit: "N",
+      observed: benchmarkShearInterface.transverseDemandN,
+      expected: 1.5 * 4,
+      tolerance: 1e-12,
+      method: "downstream mass times attached body-transverse acceleration from the trace fixture",
+    }),
+    compareCase({
+      id: "stage-interface-transverse-shear-factor-of-safety",
+      label: "Serial interface transverse shear factor of safety",
+      metric: "transverse factor of safety",
+      unit: "1",
+      observed: benchmarkShearInterface.transverseFactorOfSafety,
+      expected: (0.01 * 2e3) / (1.5 * 4),
+      tolerance: 1e-12,
+      method: "weaker parent/child shell-section shear capacity divided by the transverse demand anchor",
     }),
     compareCase({
       id: "mission-mass-ratio-booster",

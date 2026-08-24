@@ -5168,6 +5168,7 @@ export default function Home() {
             : stageMotor.metrics.peakThrustN * motorMountCount,
           sectionAreaM2: screen?.geometry.minimumSectionAreaM2 ?? null,
           allowableCompressionPa: screen?.material.allowableCompressionPa ?? null,
+          allowableShearPa: screen?.material.allowableShearPa ?? null,
           requiredFactorOfSafety: screen?.loads.requiredFactorOfSafety ?? 1.5,
         };
       });
@@ -10983,6 +10984,7 @@ export default function Home() {
                   <span>{stageInterfaceLoadReview.accelerationBasis === "trace-peak-with-baseline" ? `Trace peak ${stageInterfaceLoadReview.tracePeakAxialAccelerationMps2?.toFixed(2) ?? "—"} m/s²` : "Peak-thrust baseline"}</span>
                   <span>Axial {stageInterfaceLoadReview.effectiveAxialAccelerationMps2 === null ? "—" : `${stageInterfaceLoadReview.effectiveAxialAccelerationMps2.toFixed(2)} m/s²`}</span>
                   <span>Transverse {stageInterfaceLoadReview.tracePeakTransverseAccelerationMps2 === null ? "—" : `${stageInterfaceLoadReview.tracePeakTransverseAccelerationMps2.toFixed(2)} m/s²`}</span>
+                  <span>Shear {stageInterfaceLoadReview.shearStatus === "assessed" ? "assessed" : stageInterfaceLoadReview.shearStatus === "review" ? "review" : "not assessed"}</span>
                 </div>
                 <div className="stage-interface-load-list">
                   {stageInterfaceLoadReview.interfaces.map((interfaceLoad) => (
@@ -10990,7 +10992,7 @@ export default function Home() {
                       <span>{interfaceLoad.status === "pass" ? "✓" : interfaceLoad.status === "review" ? "!" : "—"}</span>
                       <div>
                         <strong>{interfaceLoad.parentLabel ?? "Missing parent"} → {interfaceLoad.childLabel}</strong>
-                        <small>{interfaceLoad.attachment} · {interfaceLoad.axialDemandN === null ? "axial demand unavailable" : `axial ${interfaceLoad.axialDemandN.toFixed(1)} N`} · {interfaceLoad.transverseDemandN === null ? "transverse not assessed" : `transverse ${interfaceLoad.transverseDemandN.toFixed(1)} N`} · {interfaceLoad.resultantDemandN === null ? "resultant not assessed" : `resultant ${interfaceLoad.resultantDemandN.toFixed(1)} N`} · {interfaceLoad.detail}</small>
+                        <small>{interfaceLoad.attachment} · {interfaceLoad.axialDemandN === null ? "axial demand unavailable" : `axial ${interfaceLoad.axialDemandN.toFixed(1)} N`} · {interfaceLoad.transverseDemandN === null ? "transverse not assessed" : `transverse ${interfaceLoad.transverseDemandN.toFixed(1)} N`} · {interfaceLoad.resultantDemandN === null ? "resultant not assessed" : `resultant ${interfaceLoad.resultantDemandN.toFixed(1)} N`} · {interfaceLoad.transverseFactorOfSafety === null ? "transverse shear FoS unavailable" : `transverse shear FoS ${interfaceLoad.transverseFactorOfSafety.toFixed(2)}×`} · {interfaceLoad.detail}</small>
                       </div>
                       <em>{interfaceLoad.factorOfSafety === null ? "Unavailable" : `FoS ${interfaceLoad.factorOfSafety.toFixed(2)}×`}</em>
                     </div>
@@ -11012,17 +11014,17 @@ export default function Home() {
                           <div>
                             <strong>{audit.parentLabel ?? "Missing parent"} → {audit.childLabel}</strong>
                             <small>
-                              {audit.instanceCount} instance{audit.instanceCount === 1 ? "" : "s"} · share {audit.loadShareFraction === null ? "—" : `${(audit.loadShareFraction * 100).toFixed(1)}%`} · axial {audit.perInstanceAxialDemandN === null ? "—" : `${audit.perInstanceAxialDemandN.toFixed(1)} N / instance`} · transverse {audit.perInstanceTransverseDemandN === null ? "—" : `${audit.perInstanceTransverseDemandN.toFixed(1)} N / instance`} · radial thrust {audit.perInstanceRadialThrustN === null ? "—" : `${audit.perInstanceRadialThrustN.toFixed(1)} N`} · eccentric moment {audit.perInstanceEccentricMomentNm === null ? "—" : `${audit.perInstanceEccentricMomentNm.toFixed(2)} N·m`}
+                              {audit.instanceCount} instance{audit.instanceCount === 1 ? "" : "s"} · share {audit.loadShareFraction === null ? "—" : `${(audit.loadShareFraction * 100).toFixed(1)}%`} · axial {audit.perInstanceAxialDemandN === null ? "—" : `${audit.perInstanceAxialDemandN.toFixed(1)} N / instance`} · transverse {audit.perInstanceTransverseDemandN === null ? "—" : `${audit.perInstanceTransverseDemandN.toFixed(1)} N / instance`} · radial thrust {audit.perInstanceRadialThrustN === null ? "—" : `${audit.perInstanceRadialThrustN.toFixed(1)} N`} · radial demand {audit.radialDemandN === null ? "—" : `${audit.radialDemandN.toFixed(1)} N`} · eccentric moment {audit.perInstanceEccentricMomentNm === null ? "—" : `${audit.perInstanceEccentricMomentNm.toFixed(2)} N·m`} · shear FoS {audit.radialFactorOfSafety === null ? "unavailable" : `${audit.radialFactorOfSafety.toFixed(2)}×`}
                             </small>
                           </div>
                           <em>{audit.status === "screened" ? `Resultant ${audit.symmetricResultantRadialThrustN?.toFixed(2) ?? "—"} N` : "Unavailable"}</em>
                         </div>
                       ))}
                     </div>
-                    <p className="stage-parallel-load-note">Equal-share radial placement is a force-scale audit only. Symmetric resultant cancellation does not remove per-instance joint loads; radial capacity, bending, fasteners, local eccentricity, and transient response remain unmodeled.</p>
+                    <p className="stage-parallel-load-note">Equal-share radial placement is a force-scale audit. When parent/child shear evidence is available, the per-instance radial demand receives a shell-section shear proxy; symmetric resultant cancellation does not remove local joint loads, bending, fasteners, local eccentricity, or transient response.</p>
                   </div>
                 )}
-                <p className="stage-interface-load-note">{stageInterfaceLoadReview.accelerationBasis === "trace-peak-with-baseline" ? "Current staged trace informs the axial acceleration envelope; the peak-thrust baseline is retained when larger. " : "Bounded common-acceleration screen only. "}{stageInterfaceLoadReview.transverseAccelerationBasis === "trace-body-transverse" ? "Body-transverse force telemetry is shown as a separate resultant envelope; capacity and factor of safety remain axial-compression-only. " : "Body-transverse trace telemetry is unavailable. "}Connector geometry, fasteners, bending, transient loads, radial joints, staging impulse, and local failure modes are not modeled.</p>
+                <p className="stage-interface-load-note">{stageInterfaceLoadReview.accelerationBasis === "trace-peak-with-baseline" ? "Current staged trace informs the axial acceleration envelope; the peak-thrust baseline is retained when larger. " : "Bounded common-acceleration screen only. "}{stageInterfaceLoadReview.transverseAccelerationBasis === "trace-body-transverse" ? "Body-transverse force telemetry is shown separately and receives a shear proxy only when both stage materials provide allowable shear evidence. " : "Body-transverse trace telemetry is unavailable. "}Connector geometry, fasteners, bending, transient loads, local eccentricity, and local failure modes are not modeled.</p>
               </div>
             )}
             <div className={`attached-aero-card attached-aero-${attachedAeroInterference.overallStatus}`}>

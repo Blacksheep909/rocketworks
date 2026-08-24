@@ -1,5 +1,6 @@
 /**
- * First-order axial load-path review with optional body-transverse telemetry.
+ * First-order axial load-path review with optional body-transverse telemetry
+ * and explicitly separate shell-section shear capacity proxies.
  *
  * This is deliberately a bounded proxy, not a connector/contact solver. It
  * uses the supplied stage masses, peak thrusts, and shell-section allowables
@@ -8,14 +9,16 @@
  * acceleration envelopes, while the peak-thrust baseline remains as a
  * conservative lower bound for axial demand. A parallel edge keeps its
  * serial-capacity row unavailable, but also receives a separate equal-share
- * force-scale audit so radial and eccentric effects stay visible without
- * pretending to solve the local joint.
+ * force-scale audit so radial and eccentric effects stay visible. When both
+ * parent and child shear evidence is supplied, the audit also compares the
+ * local radial demand with a shell-section shear proxy; it never pretends to
+ * solve the local connector or joint.
  */
 
 export const STAGE_INTERFACE_LOADS_MODEL_VERSION =
-  "rocketworks-stage-interface-loads-0.4.0";
+  "rocketworks-stage-interface-loads-0.5.0";
 export const STAGE_INTERFACE_LOADS_VALIDATION_STATUS =
-  "analytical-axial-transverse-load-path-proxy" as const;
+  "analytical-axial-transverse-radial-load-path-proxy" as const;
 
 export type StageInterfaceLoadAttachment = "serial" | "parallel";
 export type StageInterfaceLoadStatus = "pass" | "review" | "unavailable";
@@ -37,6 +40,8 @@ export type StageInterfaceLoadTracePoint = Readonly<{
 }>;
 
 export type StageParallelLoadAuditStatus = "screened" | "unavailable";
+export type StageInterfaceShearCapacityStatus = "pass" | "review" | "unavailable";
+export type StageInterfaceShearReviewStatus = "assessed" | "review" | "not-assessed";
 
 /**
  * A bounded equal-share load audit for a repeated radial stage. The values
@@ -61,6 +66,10 @@ export type StageParallelLoadAudit = Readonly<{
   totalDownstreamTransverseDemandN: number | null;
   perInstanceTransverseDemandN: number | null;
   perInstanceResultantDemandN: number | null;
+  radialDemandN: number | null;
+  shearCapacityN: number | null;
+  radialFactorOfSafety: number | null;
+  radialCapacityStatus: StageInterfaceShearCapacityStatus;
   perInstancePeakThrustN: number | null;
   perInstanceRadialThrustN: number | null;
   perInstanceEccentricMomentNm: number | null;
@@ -97,6 +106,8 @@ export type StageInterfaceLoadStageInput = Readonly<{
   sectionAreaM2?: number | null;
   /** Compression allowable used as a connector-section proxy. */
   allowableCompressionPa?: number | null;
+  /** Shear allowable used as a clearly labelled shell-section capacity proxy. */
+  allowableShearPa?: number | null;
   requiredFactorOfSafety?: number;
 }>;
 
@@ -123,6 +134,9 @@ export type StageInterfaceLoadInterface = Readonly<{
   axialDemandN: number | null;
   transverseDemandN: number | null;
   resultantDemandN: number | null;
+  shearCapacityN: number | null;
+  transverseFactorOfSafety: number | null;
+  transverseCapacityStatus: StageInterfaceShearCapacityStatus;
   sectionAreaM2: number | null;
   allowableCompressionPa: number | null;
   capacityN: number | null;
@@ -136,6 +150,7 @@ export type StageInterfaceLoadResult = Readonly<{
   modelVersion: typeof STAGE_INTERFACE_LOADS_MODEL_VERSION;
   validationStatus: typeof STAGE_INTERFACE_LOADS_VALIDATION_STATUS;
   overallStatus: "assessed" | "review" | "not-assessed";
+  shearStatus: StageInterfaceShearReviewStatus;
   counts: Readonly<{
     pass: number;
     review: number;
@@ -285,10 +300,14 @@ function statusRank(status: StageInterfaceLoadStatus): number {
  * The baseline effective acceleration is `max(g, T/M)`, then each serial
  * interface demand is `downstream mass * effective acceleration * load factor`.
  * When a trace is supplied, the largest attached-sample body-axis acceleration
- * is compared with that baseline. Capacity is the weaker of the parent/child
- * section proxies when both are supplied. This intentionally ignores drag,
- * rail contact/reaction, thrust cant, transients, bending, fasteners, joints,
- * local buckling, and separation dynamics.
+ * is compared with that baseline. Axial capacity is the weaker of the
+ * parent/child section proxies when both are supplied. A separate
+ * `A · allowableShear` proxy is reported for body-transverse or per-instance
+ * radial demand when positive shear evidence exists; it never changes the
+ * axial compression status. This intentionally ignores drag, rail
+ * contact/reaction, thrust cant beyond the parallel force-scale term,
+ * transients, bending, fasteners, joints, local buckling, and separation
+ * dynamics.
  */
 export function createStageInterfaceLoadReview(
   input: Readonly<{
@@ -330,6 +349,10 @@ export function createStageInterfaceLoadReview(
       stage.allowableCompressionPa,
       `stage ${stage.id} compression allowable`,
     );
+    const allowableShearPa = normalizeOptionalPositive(
+      stage.allowableShearPa,
+      `stage ${stage.id} shear allowable`,
+    );
     const requiredFactorOfSafety = normalizePositive(
       stage.requiredFactorOfSafety,
       DEFAULT_REQUIRED_FACTOR_OF_SAFETY,
@@ -365,6 +388,7 @@ export function createStageInterfaceLoadReview(
       peakThrustN: stage.peakThrustN,
       sectionAreaM2,
       allowableCompressionPa,
+      allowableShearPa,
       requiredFactorOfSafety,
       repeatCount,
       repeatRadiusM,
@@ -497,6 +521,9 @@ export function createStageInterfaceLoadReview(
           sectionAreaM2: null,
           allowableCompressionPa: null,
           capacityN: null,
+          shearCapacityN: null,
+          transverseFactorOfSafety: null,
+          transverseCapacityStatus: "unavailable",
           factorOfSafety: null,
           detail: "Axial demand is not available because the active stack has no positive mass.",
           reason: "No positive active stack mass was supplied.",
@@ -513,6 +540,9 @@ export function createStageInterfaceLoadReview(
           sectionAreaM2: null,
           allowableCompressionPa: null,
           capacityN: null,
+          shearCapacityN: null,
+          transverseFactorOfSafety: null,
+          transverseCapacityStatus: "unavailable",
           factorOfSafety: null,
           detail: "The parent stage is not present in the supplied topology.",
           reason: `Parent stage ${parentId ?? "(none)"} is missing.`,
@@ -529,6 +559,9 @@ export function createStageInterfaceLoadReview(
           sectionAreaM2: null,
           allowableCompressionPa: null,
           capacityN: null,
+          shearCapacityN: null,
+          transverseFactorOfSafety: null,
+          transverseCapacityStatus: "unavailable",
           factorOfSafety: null,
           detail: "The parent stage is disabled, so the active axial load path is incomplete.",
           reason: `Parent stage ${parent.label} is disabled or inactive.`,
@@ -554,6 +587,9 @@ export function createStageInterfaceLoadReview(
           sectionAreaM2: null,
           allowableCompressionPa: null,
           capacityN: null,
+          shearCapacityN: null,
+          transverseFactorOfSafety: null,
+          transverseCapacityStatus: "unavailable",
           factorOfSafety: null,
           detail: "Parallel attachment is identified, but radial joint load transfer is not modeled.",
           reason: "Parallel/radial interface solver is outside this axial serial proxy.",
@@ -566,12 +602,28 @@ export function createStageInterfaceLoadReview(
       const allowableCompressionPa = child.allowableCompressionPa !== null && parent.allowableCompressionPa !== null
         ? Math.min(child.allowableCompressionPa, parent.allowableCompressionPa)
         : null;
+      const allowableShearPa = child.allowableShearPa !== null && parent.allowableShearPa !== null
+        ? Math.min(child.allowableShearPa, parent.allowableShearPa)
+        : null;
       const capacityN = sectionAreaM2 !== null && allowableCompressionPa !== null
         ? sectionAreaM2 * allowableCompressionPa
+        : null;
+      const shearCapacityN = sectionAreaM2 !== null && allowableShearPa !== null
+        ? sectionAreaM2 * allowableShearPa
         : null;
       const factorOfSafety = capacityN !== null && axialDemandN > 0
         ? capacityN / axialDemandN
         : null;
+      const transverseFactorOfSafety = shearCapacityN !== null && transverseDemandN !== null && transverseDemandN > 0
+        ? shearCapacityN / transverseDemandN
+        : null;
+      const transverseCapacityStatus: StageInterfaceShearCapacityStatus = transverseDemandN === null || shearCapacityN === null
+        ? "unavailable"
+        : transverseFactorOfSafety === null
+          ? "unavailable"
+          : transverseFactorOfSafety >= requiredFactorOfSafety
+            ? "pass"
+            : "review";
       const missingEvidence = [
         sectionAreaM2 === null ? "parent/child section area" : null,
         allowableCompressionPa === null ? "parent/child compression allowable" : null,
@@ -596,6 +648,9 @@ export function createStageInterfaceLoadReview(
         sectionAreaM2,
         allowableCompressionPa,
         capacityN,
+        shearCapacityN,
+        transverseFactorOfSafety,
+        transverseCapacityStatus,
         factorOfSafety,
         detail: status === "pass"
           ? "Serial interface passes the supplied axial compression proxy with the declared reserve."
@@ -662,6 +717,29 @@ export function createStageInterfaceLoadReview(
       const perInstanceResultantDemandN = perInstanceAxialDemandN === null || perInstanceTransverseDemandN === null
         ? null
         : Math.hypot(perInstanceAxialDemandN, perInstanceTransverseDemandN);
+      const radialDemandMagnitudeN = missingReason !== null || (perInstanceTransverseDemandN === null && perInstanceRadialThrustN === null)
+        ? 0
+        : Math.abs(perInstanceTransverseDemandN ?? 0) + Math.abs(perInstanceRadialThrustN ?? 0);
+      const radialDemandN = radialDemandMagnitudeN > 0 ? radialDemandMagnitudeN : null;
+      const shearSectionAreaM2 = missingReason === null && parent?.sectionAreaM2 !== null && child.sectionAreaM2 !== null
+        ? Math.min(parent!.sectionAreaM2, child.sectionAreaM2)
+        : null;
+      const allowableShearPa = missingReason === null && parent?.allowableShearPa !== null && child.allowableShearPa !== null
+        ? Math.min(parent!.allowableShearPa, child.allowableShearPa)
+        : null;
+      const shearCapacityN = shearSectionAreaM2 !== null && allowableShearPa !== null
+        ? shearSectionAreaM2 * allowableShearPa
+        : null;
+      const radialFactorOfSafety = shearCapacityN !== null && radialDemandN !== null && radialDemandN > 0
+        ? shearCapacityN / radialDemandN
+        : null;
+      const radialCapacityStatus: StageInterfaceShearCapacityStatus = radialDemandN === null || shearCapacityN === null
+        ? "unavailable"
+        : radialFactorOfSafety === null
+          ? "unavailable"
+          : radialFactorOfSafety >= child.requiredFactorOfSafety
+            ? "pass"
+            : "review";
       return {
         id,
         parentStageId: parentId,
@@ -681,6 +759,10 @@ export function createStageInterfaceLoadReview(
         totalDownstreamTransverseDemandN,
         perInstanceTransverseDemandN,
         perInstanceResultantDemandN,
+        radialDemandN,
+        shearCapacityN,
+        radialFactorOfSafety,
+        radialCapacityStatus,
         perInstancePeakThrustN: missingReason === null ? perInstancePeakThrustN : null,
         perInstanceRadialThrustN: missingReason === null ? perInstanceRadialThrustN : null,
         perInstanceEccentricMomentNm: missingReason === null
@@ -697,11 +779,24 @@ export function createStageInterfaceLoadReview(
         tracePeakTransverseTimeS: interfaceTracePeakTransverse?.timeS ?? null,
         loadFactor,
         detail: missingReason === null
-          ? "Equal-share parallel load scale computed; radial joint transfer and moment capacity remain outside this review."
+          ? "Equal-share parallel load scale computed; shell-section shear capacity is shown only when parent/child shear evidence is supplied; connector geometry and moment capacity remain outside this review."
           : missingReason,
       };
     });
 
+  const shearStatuses = [
+    ...interfaces
+      .filter((item) => item.transverseDemandN !== null && item.transverseDemandN > 0)
+      .map((item) => item.transverseCapacityStatus),
+    ...parallelAudits
+      .filter((audit) => audit.radialDemandN !== null && audit.radialDemandN > 0)
+      .map((audit) => audit.radialCapacityStatus),
+  ];
+  const shearStatus: StageInterfaceShearReviewStatus = shearStatuses.length === 0
+    ? "not-assessed"
+    : shearStatuses.some((status) => status === "review" || status === "unavailable")
+      ? "review"
+      : "assessed";
   const counts = {
     pass: interfaces.filter((item) => item.status === "pass").length,
     review: interfaces.filter((item) => item.status === "review").length,
@@ -726,7 +821,7 @@ export function createStageInterfaceLoadReview(
       ? "review"
       : "assessed";
   const warnings = [
-    "This proxy uses a common or trace-backed axial acceleration and a weaker parent/child shell-section capacity; it does not model connector geometry, fasteners, joints, bending, local buckling, or transient loads.",
+    "This proxy uses a common or trace-backed acceleration and weaker parent/child shell-section compression and shear proxies; it does not model connector geometry, fasteners, joints, bending, local buckling, or transient loads.",
     "Thrust is summed by configured peak value and thrust cant, drag, rail contact, staging impulse, and off-axis imbalance are not represented.",
     ...(trace.length > 0
       ? [
@@ -735,18 +830,27 @@ export function createStageInterfaceLoadReview(
       : []),
     ...(tracePeakTransverse !== null
       ? [
-          `The trace also provides a ${tracePeakTransverse.accelerationMps2.toFixed(3)} m/s² body-transverse acceleration envelope at ${tracePeakTransverse.timeS.toFixed(3)} s; transverse force is diagnostic telemetry and does not change the axial compression factor of safety.`,
+          `The trace also provides a ${tracePeakTransverse.accelerationMps2.toFixed(3)} m/s² body-transverse acceleration envelope at ${tracePeakTransverse.timeS.toFixed(3)} s; transverse demand is kept separate from the axial compression factor of safety and is compared with the optional shell-section shear proxy when evidence is supplied.`,
         ]
       : trace.length > 0
         ? ["The supplied trace has no body-transverse acceleration channel, so transverse interface demand remains unavailable."]
         : []),
     ...(interfaces.some((item) => item.attachment === "parallel")
       ? [
-          "Parallel interfaces receive an equal-share force-scale audit, but radial joint transfer, bending capacity, fasteners, and local failure modes remain outside this review.",
+          "Parallel interfaces receive an equal-share force-scale audit. When parent/child shear evidence exists, a per-instance radial shear proxy is compared against it; connector geometry, bending capacity, fasteners, and local failure modes remain outside this review.",
           ...parallelAudits
             .filter((audit) => audit.status === "screened")
-            .map((audit) => `${audit.childLabel}: ${audit.instanceCount} equal-share instance load scale(s) retained; canted thrust is shown as per-instance radial force and eccentric moment only.`),
+            .map((audit) => `${audit.childLabel}: ${audit.instanceCount} equal-share instance load scale(s) retained; canted thrust is shown as per-instance radial force and eccentric moment, with radial shear capacity status ${audit.radialCapacityStatus}.`),
         ]
+      : []),
+    ...(interfaces.some((item) => item.transverseCapacityStatus === "review")
+      ? ["One or more serial interfaces has a transverse shear proxy below its required factor of safety; review the joint design independently."]
+      : []),
+    ...(interfaces.some((item) => item.transverseDemandN !== null && item.transverseCapacityStatus === "unavailable")
+      ? ["Body-transverse demand is present for at least one serial interface, but parent/child shear evidence is incomplete, so transverse capacity remains unavailable."]
+      : []),
+    ...(parallelAudits.some((audit) => audit.radialCapacityStatus === "review")
+      ? ["One or more parallel instances has a radial shear proxy below its required factor of safety; connector and bending qualification remain separate work."]
       : []),
     ...(interfaces.length === 0
       ? ["No enabled child stage with a parent relationship was supplied, so stage-interface load review is not assessed."]
@@ -757,6 +861,7 @@ export function createStageInterfaceLoadReview(
     modelVersion: STAGE_INTERFACE_LOADS_MODEL_VERSION,
     validationStatus: STAGE_INTERFACE_LOADS_VALIDATION_STATUS,
     overallStatus,
+    shearStatus,
     counts,
     totalStackMassKg,
     retainedMassKg,
@@ -782,11 +887,12 @@ export function createStageInterfaceLoadReview(
             "When available, body-transverse acceleration is the magnitude of the net-force acceleration in body +Y/+Z; it produces a separate force envelope and is not combined with the axial shell-section capacity.",
           ]
         : []),
-      "Interface capacity uses the minimum supplied parent/child shell-section area multiplied by the minimum supplied compression allowable.",
+      "Axial interface capacity uses the minimum supplied parent/child shell-section area multiplied by the minimum supplied compression allowable.",
+      "When both parent and child supply positive shear allowables, the same weaker shell-section area is multiplied by the weaker shear allowable to provide a clearly labelled transverse/radial shear proxy; it is not connector qualification.",
       ...(parallelAudits.length > 0
         ? [
             "Parallel repeated stages are split by equal instance count for a force-scale audit; canted thrust uses the authored angle and radial placement radius to report per-instance radial force and eccentric moment.",
-            "Symmetric radial resultant is a vector-sum diagnostic only. It does not remove local per-instance joint demand or establish radial capacity.",
+            "Symmetric radial resultant is a vector-sum diagnostic only. It does not remove local per-instance joint demand; the optional radial shear proxy is evaluated per instance and does not establish connector capacity.",
           ]
         : []),
       "The load factor defaults to 1.0 and is an explicit screening multiplier, not a measured transient or certification factor.",

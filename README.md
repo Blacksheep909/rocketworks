@@ -267,7 +267,9 @@ research, standards, and original code.
   peak-thrust baseline, and carries an optional body-transverse trace envelope
   plus equal-share parallel/radial force-scale audit for per-instance axial
   and transverse demand, canted-thrust radial force, eccentric moment, and
-  symmetric resultant without claiming joint capacity;
+  symmetric resultant; when parent/child shear evidence exists, it adds a
+  separate shell-section transverse/radial shear proxy without claiming
+  connector capacity;
 - a trace-level force impulse budget that integrates recorded thrust,
   aerodynamic drag, recovery drag, and force/mass velocity-equivalent signals
   by stage without mislabeling scalar accounting as vector delta-v;
@@ -317,8 +319,8 @@ research, standards, and original code.
   browser-local persistence, and explicit validation boundaries;
 - on-demand deterministic physics benchmarks for atmosphere, gravity,
   thrust-curve impulse, static aerodynamics, rigid-body 6DOF, bounded gimbal
-  control-authority, structural, and preliminary aeroelastic regression
-  fixtures;
+  control-authority, stage-interface shear reserve, structural, and
+  preliminary aeroelastic regression fixtures;
 - benchmark evidence CSV and matching engineering-report section with model
   identity, fixture tolerances, assumptions, and explicit regression-only
   interpretation;
@@ -450,7 +452,8 @@ separation impulse, and launch alignment; benchmarked data packages,
 relative-body separation databases, unsteady models, and validated
 stage-to-stage interference data remain future work. The stage-interface
 screen now carries a body-transverse trace envelope alongside its axial
-compression proxy, while connector/radial capacity validation remains future
+compression proxy and an explicitly separate shell-section shear proxy when
+material evidence exists; connector/radial capacity validation remains future
 work. The new attached-flow screen is intentionally a conservative,
 non-propagating geometry diagnostic,
 not an aerodynamic correction.

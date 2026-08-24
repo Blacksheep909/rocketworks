@@ -6,7 +6,15 @@ flight-readiness claims.
 
 ## [Unreleased]
 
-- Extend the deterministic benchmark suite to 25 regression anchors with an
+- Extend stage-interface review to model an explicitly separate shell-section
+  shear proxy when parent and child materials provide allowable-shear evidence.
+  Serial rows expose transverse demand and shear factor of safety without
+  changing axial status; parallel rows expose per-instance radial demand,
+  radial shear status, and reserve. Connector geometry, fasteners, bending,
+  transient response, and flight-safety claims remain outside scope. The
+  model is versioned as `rocketworks-stage-interface-loads-0.5.0`.
+
+- Extend the deterministic benchmark suite to 27 regression anchors with an
   independent ±15° gimbal force, moment, angular-acceleration, and
   control-to-aerodynamic-moment fixture. The benchmark lane remains
   mathematical regression evidence only and does not validate an actuator,
@@ -23,9 +31,10 @@ flight-readiness claims.
 - Extend the stage-interface review with an optional body-transverse load
   envelope derived from the authoritative 6-DOF net-force trace. Serial and
   parallel rows now retain transverse and resultant demand telemetry while
-  keeping the declared shell-section capacity and factor of safety axial-only;
-  old traces without the channel remain explicitly unavailable. The staged
-  preview model is versioned as `kestrel-stage-flight-preview-0.46.0`.
+  keeping the declared compression capacity and factor of safety axial while
+  exposing a separate shear channel; old traces without the channel remain
+  explicitly unavailable. The staged preview model is versioned as
+  `kestrel-stage-flight-preview-0.46.0`.
 
 - Add an optional bounded angular separation pulse to the shared released-body
   solver and first-separation UI. A relative angular Δω target is converted
