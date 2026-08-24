@@ -11168,18 +11168,21 @@ export default function Home() {
                               <div>
                                 <span className="eyebrow">Relative flow / wake review</span>
                                 <h5>Released-body aerodynamic interaction screen</h5>
-                                <p>Checks directed finite wake-cone overlap on the released-body traces and estimates a bounded velocity-deficit / dynamic-pressure proxy. It is post-processing only and never changes the flight path.</p>
+                                <p>Checks directed finite wake-cone overlap and optional source-declared relative-body aerodynamic tables on the released-body traces. Every result is post-processing only and never changes the flight path.</p>
                               </div>
                               <span className="stage-relative-aero-interaction-status">{stageFlightResult.relativeAeroInteraction.status}</span>
                             </div>
-                            <div className="stage-relative-aero-interaction-grid">
+                              <div className="stage-relative-aero-interaction-grid">
                               <div><span>Directed pairs assessed</span><strong>{stageFlightResult.relativeAeroInteraction.assessedPairCount} / {stageFlightResult.relativeAeroInteraction.pairs.length}</strong><small>source → target directions</small></div>
                               <div><span>Wake overlaps</span><strong>{stageFlightResult.relativeAeroInteraction.exposedPairCount}</strong><small>geometry-qualified directions</small></div>
                               <div><span>Peak proxy deficit</span><strong>{stageFlightResult.relativeAeroInteraction.maximumVelocityDeficitFraction === null ? "Not assessed" : `${(stageFlightResult.relativeAeroInteraction.maximumVelocityDeficitFraction * 100).toFixed(1)}%`}</strong><small>bounded diagnostic</small></div>
                               <div><span>Max q reduction proxy</span><strong>{stageFlightResult.relativeAeroInteraction.maximumEstimatedDynamicPressureDeltaPa === null ? "Not available" : `${stageFlightResult.relativeAeroInteraction.maximumEstimatedDynamicPressureDeltaPa.toFixed(0)} Pa`}</strong><small>environment provider required</small></div>
                               <div><span>Wake geometry</span><strong>{stageFlightResult.relativeAeroInteraction.configuration.wakeHalfAngleDeg.toFixed(1)}° · {stageFlightResult.relativeAeroInteraction.configuration.wakeRecoveryDistanceBodyDiameters.toFixed(0)} body Ø</strong><small>saved proxy settings</small></div>
-                              <div><span>Deficit bounds</span><strong>{(stageFlightResult.relativeAeroInteraction.configuration.peakVelocityDeficitFraction * 100).toFixed(0)}–{(stageFlightResult.relativeAeroInteraction.configuration.maximumVelocityDeficitFraction * 100).toFixed(0)}%</strong><small>peak → hard cap</small></div>
-                            </div>
+                                <div><span>Deficit bounds</span><strong>{(stageFlightResult.relativeAeroInteraction.configuration.peakVelocityDeficitFraction * 100).toFixed(0)}–{(stageFlightResult.relativeAeroInteraction.configuration.maximumVelocityDeficitFraction * 100).toFixed(0)}%</strong><small>peak → hard cap</small></div>
+                                {stageFlightResult.relativeAeroInteraction.databasePairCount > 0 && <div><span>Relative aero tables</span><strong>{stageFlightResult.relativeAeroInteraction.databasePairCount} pair{stageFlightResult.relativeAeroInteraction.databasePairCount === 1 ? "" : "s"}</strong><small>{stageFlightResult.relativeAeroInteraction.databaseSampleCount} diagnostic samples</small></div>}
+                                {stageFlightResult.relativeAeroInteraction.databasePairCount > 0 && <div><span>Max database force delta</span><strong>{stageFlightResult.relativeAeroInteraction.maximumDatabaseForceDeltaN === null ? "Not scaled" : `${stageFlightResult.relativeAeroInteraction.maximumDatabaseForceDeltaN.toFixed(1)} N`}</strong><small>source-declared coefficient delta</small></div>}
+                                {stageFlightResult.relativeAeroInteraction.databasePairCount > 0 && <div><span>Max database moment delta</span><strong>{stageFlightResult.relativeAeroInteraction.maximumDatabaseMomentDeltaNm === null ? "Not scaled" : `${stageFlightResult.relativeAeroInteraction.maximumDatabaseMomentDeltaNm.toFixed(2)} N·m`}</strong><small>reference length required</small></div>}
+                              </div>
                             {stageFlightResult.relativeAeroInteraction.pairs.some((pair) => pair.exposedSampleCount > 0) && (
                               <div className="stage-relative-aero-interaction-list">
                                 {stageFlightResult.relativeAeroInteraction.pairs
@@ -11190,6 +11193,20 @@ export default function Home() {
                                     <div key={`${pair.sourceBodyId}-${pair.targetBodyId}`}>
                                       <strong>{pair.sourceBodyLabel} → {pair.targetBodyLabel}</strong>
                                       <span>{(pair.exposureCoverageFraction * 100).toFixed(0)}% samples exposed · peak {(pair.peakVelocityDeficitFraction! * 100).toFixed(1)}% · min clearance {pair.minimumWakeClearanceM === null ? "—" : `${pair.minimumWakeClearanceM.toFixed(2)} m`}</span>
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                            {stageFlightResult.relativeAeroInteraction.pairs.some((pair) => pair.databaseId !== null) && (
+                              <div className="stage-relative-aero-interaction-list stage-relative-aero-database-list">
+                                {stageFlightResult.relativeAeroInteraction.pairs
+                                  .filter((pair) => pair.databaseId !== null)
+                                  .sort((left, right) => (right.maximumDatabaseForceDeltaN ?? 0) - (left.maximumDatabaseForceDeltaN ?? 0))
+                                  .slice(0, 3)
+                                  .map((pair) => (
+                                    <div key={`${pair.sourceBodyId}-${pair.targetBodyId}-database`}>
+                                      <strong>{pair.sourceBodyLabel} → {pair.targetBodyLabel}</strong>
+                                      <span>{pair.databaseId} · {pair.databaseSampleCount} samples · {pair.maximumDatabaseForceDeltaN === null ? "force scale unavailable" : `${pair.maximumDatabaseForceDeltaN.toFixed(1)} N force Δ`} · {pair.maximumDatabaseMomentDeltaNm === null ? "moment scale unavailable" : `${pair.maximumDatabaseMomentDeltaNm.toFixed(2)} N·m moment Δ`}</span>
                                     </div>
                                   ))}
                               </div>

@@ -150,6 +150,8 @@ Mach/Reynolds tables, interpolation provenance, uncertainty fields, diagonal
 body-rate damping, angular volumes, optional direct force/moment databases, and
 independent signed-sigma channels for drag, normal-force slope, and center of
 pressure are now available. Matching channel factors may be correlated through
-the caller-authored Gaussian-copula editor. Next add measured covariance
-metadata and a multi-body separation solver that queries relative-body
-aerodynamic databases rather than using this single retained-body warning.
+the caller-authored Gaussian-copula editor. A directed relative-body database
+contract now supports post-trace trilinear queries and dimensional force/moment
+diagnostics; the next step is a force-coupled multi-body separation solver that
+resolves retained/discarded states instead of using a post-trace database
+screen.

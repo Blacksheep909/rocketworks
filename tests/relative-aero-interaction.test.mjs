@@ -7,7 +7,7 @@ import {
 
 const environmentAt = () => ({
   windWorldMps: { x: 0, y: 0, z: 0 },
-  atmosphere: { densityKgM3: 1.2 },
+  atmosphere: { densityKgM3: 1.2, speedOfSoundMps: 340 },
 });
 
 function body(id, trace, overrides = {}) {
@@ -134,4 +134,65 @@ test("relative-flow interaction validates bounds and preserves the no-provider b
   assert.equal(result.configuration.maximumVelocityDeficitFraction, 0.65);
   assert.equal(pair?.maximumEstimatedDynamicPressureDeltaPa, null);
   assert.ok(result.warnings.some((warning) => warning.includes("dynamic-pressure deltas remain unavailable")));
+});
+
+test("relative-flow interaction queries directed relative-body database diagnostics without changing the trace", () => {
+  const database = {
+    id: "separation-fixture",
+    name: "Separation fixture",
+    machPoints: [0, 1],
+    axialSeparationPointsBodyDiameters: [0, 30],
+    lateralSeparationPointsBodyDiameters: [0, 2],
+    axialForceCoefficientDelta: {
+      values: [
+        [[0.1, 0.1], [0.1, 0.1]],
+        [[0.1, 0.1], [0.1, 0.1]],
+      ],
+    },
+    normalForceCoefficientDelta: {
+      values: [
+        [[0.02, 0.02], [0.02, 0.02]],
+        [[0.02, 0.02], [0.02, 0.02]],
+      ],
+    },
+    pitchMomentCoefficientDelta: {
+      values: [
+        [[0.01, 0.01], [0.01, 0.01]],
+        [[0.01, 0.01], [0.01, 0.01]],
+      ],
+    },
+    momentReferenceLengthM: 1,
+    provenance: {
+      sourceName: "Synthetic separation fixture",
+      sourceKind: "user-supplied",
+      dataVersion: "fixture-1",
+      licenseIdentifier: "CC0-1.0",
+      validationStatus: "user-supplied-unvalidated",
+    },
+  };
+  const sourceBefore = structuredClone(sourceTrace);
+  const result = analyzeRelativeAeroInteraction({
+    environmentAt,
+    options: {
+      databaseBindings: [{ sourceBodyId: "source", targetBodyId: "target", database }],
+    },
+    bodies: [
+      body("source", sourceTrace),
+      body("target", sourceTrace.map((point) => ({
+        ...point,
+        positionWorldM: { ...point.positionWorldM, x: point.positionWorldM.x + 5 },
+      }))),
+    ],
+  });
+  const pair = result.pairs.find((candidate) => candidate.sourceBodyId === "source" && candidate.targetBodyId === "target");
+  assert.equal(result.databasePairCount, 1);
+  assert.equal(result.databaseSampleCount, 2);
+  assert.equal(result.databaseBindings[0]?.databaseId, "separation-fixture");
+  assert.equal(pair?.databaseId, "separation-fixture");
+  assert.equal(pair?.databaseSampleCount, 2);
+  assert.equal(pair?.databaseCoverageFraction, 1);
+  assert.ok((pair?.maximumDatabaseForceDeltaN ?? 0) > 0);
+  assert.ok((pair?.maximumDatabaseMomentDeltaNm ?? 0) > 0);
+  assert.ok(result.warnings.some((warning) => warning.includes("source-declared diagnostic deltas")));
+  assert.deepEqual(sourceTrace, sourceBefore);
 });

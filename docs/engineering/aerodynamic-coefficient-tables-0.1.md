@@ -164,6 +164,9 @@ any real vehicle.
   `aerodynamic-angle-tables-0.1.md`; control deflection, surface condition,
   motor plume state, and relative separated-body position remain outside both
   table forms.
+- Configuration-specific separated-body data uses the separate relative-body
+  database contract documented in `relative-aero-database-0.1.md`; it is not
+  silently mixed into these isolated-body tables.
 - Normal force remains linear in bounded angle of attack after table lookup.
 - Damping derivatives are uncoupled diagonal body-axis terms. Cross derivatives
   and unsteady aerodynamic states are absent.

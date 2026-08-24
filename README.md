@@ -179,6 +179,10 @@ research, standards, and original code.
   proxies when an environment provider is available, mirrors the result into
   engineering reports, and keeps the explicit no-force-feedback /
   no-validation boundary;
+- an optional directed relative-body aerodynamic database contract that
+  interpolates source-declared separation/Mach coefficient deltas, reports
+  applicability, uncertainty, coverage, and dimensional force/moment scales in
+  the Flight inspector and engineering report, and remains post-trace only;
 - an opt-in coupled wake-feedback sensitivity branch that feeds the strongest
   overlapping source-wake velocity deficit into the shared-grid drag/aero
   evaluation, with persisted controls, per-sample provenance, CSV/report

@@ -2884,6 +2884,10 @@ export function createEngineeringReportMarkdown(
                 `| Pairs with wake overlap | ${input.stageFlight.relativeAeroInteraction.exposedPairCount} |`,
                 `| Peak proxy velocity deficit | ${input.stageFlight.relativeAeroInteraction.maximumVelocityDeficitFraction === null ? "not assessed" : `${formatNumber(input.stageFlight.relativeAeroInteraction.maximumVelocityDeficitFraction * 100, 2)}%`} |`,
                 `| Maximum estimated dynamic-pressure reduction | ${input.stageFlight.relativeAeroInteraction.maximumEstimatedDynamicPressureDeltaPa === null ? "not available" : `${formatNumber(input.stageFlight.relativeAeroInteraction.maximumEstimatedDynamicPressureDeltaPa, 2)} Pa`} |`,
+                `| Relative-body database pairs | ${input.stageFlight.relativeAeroInteraction.databasePairCount ?? 0} |`,
+                `| Relative-body database samples | ${input.stageFlight.relativeAeroInteraction.databaseSampleCount ?? 0} |`,
+                `| Maximum database force delta | ${input.stageFlight.relativeAeroInteraction.maximumDatabaseForceDeltaN === null || input.stageFlight.relativeAeroInteraction.maximumDatabaseForceDeltaN === undefined ? "not scaled" : `${formatNumber(input.stageFlight.relativeAeroInteraction.maximumDatabaseForceDeltaN, 2)} N`} |`,
+                `| Maximum database moment delta | ${input.stageFlight.relativeAeroInteraction.maximumDatabaseMomentDeltaNm === null || input.stageFlight.relativeAeroInteraction.maximumDatabaseMomentDeltaNm === undefined ? "not scaled" : `${formatNumber(input.stageFlight.relativeAeroInteraction.maximumDatabaseMomentDeltaNm, 2)} N·m`} |`,
                 `| Wake half-angle | ${formatNumber(input.stageFlight.relativeAeroInteraction.configuration.wakeHalfAngleDeg, 2)}° |`,
                 `| Wake recovery distance | ${formatNumber(input.stageFlight.relativeAeroInteraction.configuration.wakeRecoveryDistanceBodyDiameters, 2)} source body diameters |`,
                 `| Deficit bounds | ${formatNumber(input.stageFlight.relativeAeroInteraction.configuration.peakVelocityDeficitFraction * 100, 2)}–${formatNumber(input.stageFlight.relativeAeroInteraction.configuration.maximumVelocityDeficitFraction * 100, 2)}% |`,
@@ -2902,6 +2906,20 @@ export function createEngineeringReportMarkdown(
                 ...(input.stageFlight.relativeAeroInteraction.pairs.some((pair) => pair.exposedSampleCount > 0)
                   ? []
                   : ["| No exposed directed pairs | - | - | - | - | - | - |"]),
+                ...(input.stageFlight.relativeAeroInteraction.pairs.some((pair) => pair.databaseId !== null && pair.databaseId !== undefined)
+                  ? [
+                      "",
+                      "| Source | Target | Database | Samples | Coverage | Max force Δ | Max moment Δ | Query failures |",
+                      "|---|---|---|---:|---:|---:|---:|---:|",
+                      ...input.stageFlight.relativeAeroInteraction.pairs
+                        .filter((pair) => pair.databaseId !== null && pair.databaseId !== undefined)
+                        .slice(0, 12)
+                        .map(
+                          (pair) =>
+                            `| ${markdownText(pair.sourceBodyLabel)} | ${markdownText(pair.targetBodyLabel)} | ${markdownText(pair.databaseId ?? "-")} | ${pair.databaseSampleCount ?? 0} | ${formatNumber((pair.databaseCoverageFraction ?? 0) * 100, 1)}% | ${pair.maximumDatabaseForceDeltaN === null || pair.maximumDatabaseForceDeltaN === undefined ? "not scaled" : `${formatNumber(pair.maximumDatabaseForceDeltaN, 2)} N`} | ${pair.maximumDatabaseMomentDeltaNm === null || pair.maximumDatabaseMomentDeltaNm === undefined ? "not scaled" : `${formatNumber(pair.maximumDatabaseMomentDeltaNm, 2)} N·m`} | ${pair.databaseQueryFailureCount ?? 0} |`,
+                        ),
+                    ]
+                  : []),
                 "",
                 ...input.stageFlight.relativeAeroInteraction.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
                 ...input.stageFlight.relativeAeroInteraction.warnings.map((warning) => `- **Relative-flow warning:** ${markdownText(warning)}`),

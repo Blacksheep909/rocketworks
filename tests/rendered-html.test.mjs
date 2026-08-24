@@ -1532,6 +1532,26 @@ test("ships a pair-level relative-flow evidence calibration workflow", async () 
   assert.match(stylesheet, /\.optimization-card/);
 });
 
+test("ships a provenance-labeled relative-body aerodynamic database diagnostic", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const database = await readFile(new URL("../lib/physics/relative-aero-database.ts", import.meta.url), "utf8");
+  const interaction = await readFile(new URL("../lib/physics/relative-aero-interaction.ts", import.meta.url), "utf8");
+  const report = await readFile(new URL("../lib/export/project-exports.ts", import.meta.url), "utf8");
+  const docs = await readFile(new URL("../docs/engineering/relative-aero-database-0.1.md", import.meta.url), "utf8");
+  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.match(page, /optional source-declared relative-body aerodynamic tables/);
+  assert.match(page, /Max database force delta/);
+  assert.match(page, /Max database moment delta/);
+  assert.match(database, /RELATIVE_AERO_DATABASE_MODEL_VERSION/);
+  assert.match(database, /trilinear/);
+  assert.match(interaction, /databaseBindings/);
+  assert.match(interaction, /source-declared diagnostic deltas/);
+  assert.match(report, /Relative-body database pairs/);
+  assert.match(report, /Query failures/);
+  assert.match(docs, /force-coupled separation solver/);
+  assert.match(packageJson.scripts?.test ?? "", /tests\/relative-aero-database\.test\.mjs/);
+});
+
 test("ships a local flight-run comparison workflow with stale-result guardrails", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const referenceStore = await readFile(new URL("../lib/project/simulation-reference.ts", import.meta.url), "utf8");

@@ -5,6 +5,11 @@ import {
   subtractVectors,
   type Vector3,
 } from "./linear-algebra.ts";
+import {
+  createRelativeAeroDatabase,
+  type RelativeAeroDatabaseDefinition,
+  type RelativeAeroDatabaseModel,
+} from "./relative-aero-database.ts";
 
 /**
  * A bounded relative-flow screen for released-body trajectories.
@@ -37,6 +42,13 @@ export type RelativeAeroInteractionBody = Readonly<{
   envelopeRadiusM?: number | null;
 }>;
 
+/** A directed source/target binding for a configuration-specific aero table. */
+export type RelativeAeroInteractionDatabaseBinding = Readonly<{
+  sourceBodyId: string;
+  targetBodyId: string;
+  database: RelativeAeroDatabaseDefinition;
+}>;
+
 export type RelativeAeroInteractionOptions = Readonly<{
   /** Disable this post-processing screen without changing the flight trace. */
   enabled?: boolean;
@@ -48,6 +60,8 @@ export type RelativeAeroInteractionOptions = Readonly<{
   peakVelocityDeficitFraction?: number;
   /** Hard upper bound on the reported proxy deficit. */
   maximumVelocityDeficitFraction?: number;
+  /** Optional directed relative-body databases used for post-trace diagnostics. */
+  databaseBindings?: readonly RelativeAeroInteractionDatabaseBinding[];
 }>;
 
 export type RelativeAeroInteractionPair = Readonly<{
@@ -68,6 +82,15 @@ export type RelativeAeroInteractionPair = Readonly<{
   peakVelocityDeficitTimeS: number | null;
   maximumEstimatedDynamicPressureDeltaPa: number | null;
   maximumEstimatedDynamicPressureDeltaTimeS: number | null;
+  databaseId: string | null;
+  databaseValidationStatus: RelativeAeroDatabaseModel["validationStatus"] | null;
+  databaseSampleCount: number;
+  databaseCoverageFraction: number;
+  databaseApplicabilityCount: number;
+  databaseQueryFailureCount: number;
+  maximumDatabaseForceDeltaN: number | null;
+  maximumDatabaseMomentDeltaNm: number | null;
+  maximumDatabaseLoadTimeS: number | null;
 }>;
 
 export type RelativeAeroInteractionConfiguration = Readonly<{
@@ -94,6 +117,17 @@ export type RelativeAeroInteractionResult = Readonly<{
   exposedPairCount: number;
   maximumVelocityDeficitFraction: number | null;
   maximumEstimatedDynamicPressureDeltaPa: number | null;
+  databaseBindings: readonly Readonly<{
+    sourceBodyId: string;
+    targetBodyId: string;
+    databaseId: string;
+    modelVersion: string;
+    validationStatus: RelativeAeroDatabaseModel["validationStatus"];
+  }>[];
+  databasePairCount: number;
+  databaseSampleCount: number;
+  maximumDatabaseForceDeltaN: number | null;
+  maximumDatabaseMomentDeltaNm: number | null;
   configuration: RelativeAeroInteractionConfiguration;
   status: "assessed" | "partial" | "not-assessed";
   warnings: readonly string[];
@@ -113,6 +147,12 @@ type NormalizedBody = RelativeAeroInteractionBody & Readonly<{
   envelopeRadiusM: number | null;
   equivalentDiameterM: number | null;
   trace: readonly RelativeAeroInteractionTracePoint[];
+}>;
+
+type NormalizedDatabaseBinding = Readonly<{
+  sourceBodyId: string;
+  targetBodyId: string;
+  model: RelativeAeroDatabaseModel;
 }>;
 
 type InterpolatedPoint = Readonly<{
@@ -319,6 +359,7 @@ function evaluateDirection(
   target: NormalizedBody,
   options: NormalizedOptions,
   environmentAt: LaunchEnvironmentProvider | undefined,
+  database: RelativeAeroDatabaseModel | null,
 ): RelativeAeroInteractionPair {
   const sourceRadiusM = source.envelopeRadiusM ?? (source.equivalentDiameterM ?? 0) / 2;
   const targetRadiusM = target.envelopeRadiusM ?? (target.equivalentDiameterM ?? 0) / 2;
@@ -329,7 +370,11 @@ function evaluateDirection(
     : sourceDiameterM * options.wakeRecoveryDistanceBodyDiameters;
   const overlapStartS = Math.max(source.releaseTimeS, target.releaseTimeS, source.trace[0]!.timeS, target.trace[0]!.timeS);
   const overlapEndS = Math.min(source.trace.at(-1)!.timeS, target.trace.at(-1)!.timeS);
-  if (sourceDiameterM === null || targetDiameterM === null || overlapStartS > overlapEndS + TIME_TOLERANCE_S) {
+  if (
+    sourceDiameterM === null ||
+    (targetDiameterM === null && database === null) ||
+    overlapStartS > overlapEndS + TIME_TOLERANCE_S
+  ) {
     return {
       sourceBodyId: source.id,
       sourceBodyLabel: source.label,
@@ -348,6 +393,15 @@ function evaluateDirection(
       peakVelocityDeficitTimeS: null,
       maximumEstimatedDynamicPressureDeltaPa: null,
       maximumEstimatedDynamicPressureDeltaTimeS: null,
+      databaseId: database?.id ?? null,
+      databaseValidationStatus: database?.validationStatus ?? null,
+      databaseSampleCount: 0,
+      databaseCoverageFraction: 0,
+      databaseApplicabilityCount: 0,
+      databaseQueryFailureCount: 0,
+      maximumDatabaseForceDeltaN: null,
+      maximumDatabaseMomentDeltaNm: null,
+      maximumDatabaseLoadTimeS: null,
     };
   }
 
@@ -360,6 +414,12 @@ function evaluateDirection(
   let peakVelocityDeficitTimeS: number | null = null;
   let maximumEstimatedDynamicPressureDeltaPa: number | null = null;
   let maximumEstimatedDynamicPressureDeltaTimeS: number | null = null;
+  let databaseSampleCount = 0;
+  let databaseApplicabilityCount = 0;
+  let databaseQueryFailureCount = 0;
+  let maximumDatabaseForceDeltaN: number | null = null;
+  let maximumDatabaseMomentDeltaNm: number | null = null;
+  let maximumDatabaseLoadTimeS: number | null = null;
   const wakeHalfAngleRad = (options.wakeHalfAngleDeg * Math.PI) / 180;
 
   for (const timeS of times) {
@@ -387,46 +447,103 @@ function evaluateDirection(
     };
     const separation = subtractVectors(targetPoint.positionWorldM, sourcePoint.positionWorldM);
     const downstreamDistanceM = dot(separation, wakeAxis);
-    if (!(downstreamDistanceM > 0) || downstreamDistanceM > wakeLengthM) continue;
     const separationSquaredM2 = dot(separation, separation);
     const lateralDistanceM = Math.sqrt(Math.max(0, separationSquaredM2 - downstreamDistanceM ** 2));
-    const wakeRadiusM = sourceRadiusM + Math.tan(wakeHalfAngleRad) * downstreamDistanceM;
-    const interactionRadiusM = wakeRadiusM + targetRadiusM;
-    const wakeClearanceM = lateralDistanceM - interactionRadiusM;
-    minimumWakeClearanceM = minimumWakeClearanceM === null
-      ? wakeClearanceM
-      : Math.min(minimumWakeClearanceM, wakeClearanceM);
-    if (wakeClearanceM > 0) continue;
-    exposedSampleCount += 1;
-    const exposureFraction = clamp(1 - lateralDistanceM / Math.max(interactionRadiusM, FLOW_SPEED_EPSILON_MPS), 0, 1);
-    const recoveryFraction = clamp(1 - downstreamDistanceM / wakeLengthM, 0, 1);
-    const deficitFraction = Math.min(
-      options.maximumVelocityDeficitFraction,
-      options.peakVelocityDeficitFraction * exposureFraction * recoveryFraction,
-    );
-    if (peakVelocityDeficitFraction === null || deficitFraction > peakVelocityDeficitFraction) {
-      peakVelocityDeficitFraction = deficitFraction;
-      peakVelocityDeficitTimeS = timeS;
+
+    if (targetDiameterM !== null && wakeLengthM !== null) {
+      const wakeRadiusM = sourceRadiusM + Math.tan(wakeHalfAngleRad) * downstreamDistanceM;
+      const interactionRadiusM = wakeRadiusM + targetRadiusM;
+      const wakeClearanceM = lateralDistanceM - interactionRadiusM;
+      minimumWakeClearanceM = minimumWakeClearanceM === null
+        ? wakeClearanceM
+        : Math.min(minimumWakeClearanceM, wakeClearanceM);
+      if (downstreamDistanceM > 0 && downstreamDistanceM <= wakeLengthM && wakeClearanceM <= 0) {
+        exposedSampleCount += 1;
+        const exposureFraction = clamp(1 - lateralDistanceM / Math.max(interactionRadiusM, FLOW_SPEED_EPSILON_MPS), 0, 1);
+        const recoveryFraction = clamp(1 - downstreamDistanceM / wakeLengthM, 0, 1);
+        const deficitFraction = Math.min(
+          options.maximumVelocityDeficitFraction,
+          options.peakVelocityDeficitFraction * exposureFraction * recoveryFraction,
+        );
+        if (peakVelocityDeficitFraction === null || deficitFraction > peakVelocityDeficitFraction) {
+          peakVelocityDeficitFraction = deficitFraction;
+          peakVelocityDeficitTimeS = timeS;
+        }
+        if (environmentAt && targetPoint.velocityWorldMps) {
+          const targetEnvironment = environmentAt({
+            timeS,
+            positionWorldM: targetPoint.positionWorldM,
+            velocityWorldMps: targetPoint.velocityWorldMps,
+          });
+          const targetAirVelocity = subtractVectors(
+            targetPoint.velocityWorldMps,
+            targetEnvironment.windWorldMps,
+          );
+          const dynamicPressurePa =
+            0.5 * targetEnvironment.atmosphere.densityKgM3 * magnitude(targetAirVelocity) ** 2;
+          const dynamicPressureDeltaPa = dynamicPressurePa * (2 * deficitFraction - deficitFraction ** 2);
+          if (
+            maximumEstimatedDynamicPressureDeltaPa === null ||
+            dynamicPressureDeltaPa > maximumEstimatedDynamicPressureDeltaPa
+          ) {
+            maximumEstimatedDynamicPressureDeltaPa = dynamicPressureDeltaPa;
+            maximumEstimatedDynamicPressureDeltaTimeS = timeS;
+          }
+        }
+      }
     }
-    if (environmentAt && targetPoint.velocityWorldMps) {
+
+    if (database && environmentAt && targetPoint.velocityWorldMps && sourceDiameterM > 0) {
       const targetEnvironment = environmentAt({
         timeS,
         positionWorldM: targetPoint.positionWorldM,
         velocityWorldMps: targetPoint.velocityWorldMps,
       });
-      const targetAirVelocity = subtractVectors(
-        targetPoint.velocityWorldMps,
-        targetEnvironment.windWorldMps,
-      );
-      const dynamicPressurePa =
-        0.5 * targetEnvironment.atmosphere.densityKgM3 * magnitude(targetAirVelocity) ** 2;
-      const dynamicPressureDeltaPa = dynamicPressurePa * (2 * deficitFraction - deficitFraction ** 2);
-      if (
-        maximumEstimatedDynamicPressureDeltaPa === null ||
-        dynamicPressureDeltaPa > maximumEstimatedDynamicPressureDeltaPa
-      ) {
-        maximumEstimatedDynamicPressureDeltaPa = dynamicPressureDeltaPa;
-        maximumEstimatedDynamicPressureDeltaTimeS = timeS;
+      const targetAirVelocity = subtractVectors(targetPoint.velocityWorldMps, targetEnvironment.windWorldMps);
+      const targetAirSpeedMps = magnitude(targetAirVelocity);
+      const speedOfSoundMps = targetEnvironment.atmosphere.speedOfSoundMps;
+      if (targetAirSpeedMps > FLOW_SPEED_EPSILON_MPS && speedOfSoundMps > FLOW_SPEED_EPSILON_MPS) {
+        try {
+          const evaluation = database.evaluate({
+            mach: targetAirSpeedMps / speedOfSoundMps,
+            axialSeparationBodyDiameters: downstreamDistanceM / sourceDiameterM,
+            lateralSeparationBodyDiameters: lateralDistanceM / sourceDiameterM,
+          });
+          databaseSampleCount += 1;
+          databaseApplicabilityCount += evaluation.applicability.length;
+          const referenceAreaM2 = target.referenceAreaM2 ?? database.referenceAreaM2;
+          const dynamicPressurePa = 0.5 * targetEnvironment.atmosphere.densityKgM3 * targetAirSpeedMps ** 2;
+          const forceScaleN = referenceAreaM2 === null ? null : dynamicPressurePa * referenceAreaM2;
+          const momentReferenceLengthM = database.momentReferenceLengthM;
+          const momentScaleNm = forceScaleN === null || momentReferenceLengthM === null
+            ? null
+            : forceScaleN * momentReferenceLengthM;
+          const coefficients = evaluation.coefficients;
+          const forceDeltaN = forceScaleN === null
+            ? null
+            : Math.hypot(
+                forceScaleN * coefficients.axialForceCoefficientDelta,
+                forceScaleN * (coefficients.normalForceCoefficientDelta ?? 0),
+                forceScaleN * (coefficients.sideForceCoefficientDelta ?? 0),
+              );
+          const momentDeltaNm = momentScaleNm === null
+            ? null
+            : Math.hypot(
+                momentScaleNm * (coefficients.rollMomentCoefficientDelta ?? 0),
+                momentScaleNm * (coefficients.pitchMomentCoefficientDelta ?? 0),
+                momentScaleNm * (coefficients.yawMomentCoefficientDelta ?? 0),
+              );
+          if (forceDeltaN !== null && (maximumDatabaseForceDeltaN === null || forceDeltaN > maximumDatabaseForceDeltaN)) {
+            maximumDatabaseForceDeltaN = forceDeltaN;
+            maximumDatabaseLoadTimeS = timeS;
+          }
+          if (momentDeltaNm !== null && (maximumDatabaseMomentDeltaNm === null || momentDeltaNm > maximumDatabaseMomentDeltaNm)) {
+            maximumDatabaseMomentDeltaNm = momentDeltaNm;
+            maximumDatabaseLoadTimeS = timeS;
+          }
+        } catch {
+          databaseQueryFailureCount += 1;
+        }
       }
     }
   }
@@ -449,7 +566,50 @@ function evaluateDirection(
     peakVelocityDeficitTimeS,
     maximumEstimatedDynamicPressureDeltaPa,
     maximumEstimatedDynamicPressureDeltaTimeS,
+    databaseId: database?.id ?? null,
+    databaseValidationStatus: database?.validationStatus ?? null,
+    databaseSampleCount,
+    databaseCoverageFraction: flowSampleCount > 0 ? databaseSampleCount / flowSampleCount : 0,
+    databaseApplicabilityCount,
+    databaseQueryFailureCount,
+    maximumDatabaseForceDeltaN,
+    maximumDatabaseMomentDeltaNm,
+    maximumDatabaseLoadTimeS,
   };
+}
+
+function normalizeDatabaseBindings(
+  bindings: readonly RelativeAeroInteractionDatabaseBinding[] | undefined,
+  bodyIds: ReadonlySet<string>,
+): NormalizedDatabaseBinding[] {
+  const normalized: NormalizedDatabaseBinding[] = [];
+  const keys = new Set<string>();
+  for (const [index, binding] of (bindings ?? []).entries()) {
+    if (!binding.sourceBodyId.trim() || !binding.targetBodyId.trim()) {
+      throw new Error(`relative-flow database binding ${index + 1} body ids cannot be empty`);
+    }
+    if (binding.sourceBodyId === binding.targetBodyId) {
+      throw new Error(`relative-flow database binding ${index + 1} must target a different body`);
+    }
+    if (!bodyIds.has(binding.sourceBodyId) || !bodyIds.has(binding.targetBodyId)) {
+      throw new Error(
+        `relative-flow database binding ${index + 1} references an unknown source or target body`,
+      );
+    }
+    const key = `${binding.sourceBodyId}\u0000${binding.targetBodyId}`;
+    if (keys.has(key)) {
+      throw new Error(
+        `relative-flow database bindings must be unique for ${binding.sourceBodyId} -> ${binding.targetBodyId}`,
+      );
+    }
+    keys.add(key);
+    normalized.push({
+      sourceBodyId: binding.sourceBodyId,
+      targetBodyId: binding.targetBodyId,
+      model: createRelativeAeroDatabase(binding.database),
+    });
+  }
+  return normalized;
 }
 
 /**
@@ -476,6 +636,20 @@ export function analyzeRelativeAeroInteraction(input: Readonly<{
     ids.add(normalized.id);
     return normalized;
   });
+  const databaseBindings = normalizeDatabaseBindings(input.options?.databaseBindings, ids);
+  const databaseBindingMap = new Map(
+    databaseBindings.map((binding) => [
+      `${binding.sourceBodyId}\u0000${binding.targetBodyId}`,
+      binding.model,
+    ]),
+  );
+  const databaseBindingSummary = databaseBindings.map((binding) => ({
+    sourceBodyId: binding.sourceBodyId,
+    targetBodyId: binding.targetBodyId,
+    databaseId: binding.model.id,
+    modelVersion: binding.model.modelVersion,
+    validationStatus: binding.model.validationStatus,
+  }));
   if (input.options?.enabled === false || bodies.length < 2) {
     return {
       modelVersion: RELATIVE_AERO_INTERACTION_MODEL_VERSION,
@@ -493,11 +667,19 @@ export function analyzeRelativeAeroInteraction(input: Readonly<{
       exposedPairCount: 0,
       maximumVelocityDeficitFraction: null,
       maximumEstimatedDynamicPressureDeltaPa: null,
+      databaseBindings: databaseBindingSummary,
+      databasePairCount: 0,
+      databaseSampleCount: 0,
+      maximumDatabaseForceDeltaN: null,
+      maximumDatabaseMomentDeltaNm: null,
       configuration,
       status: "not-assessed",
       warnings: [input.options?.enabled === false ? "Relative-flow interaction screen is disabled." : "At least two released-body traces are required for pairwise interaction analysis."],
       assumptions: [
         "This screen is post-processing only; it never changes retained or detached flight trajectories.",
+        ...(databaseBindings.length > 0
+          ? ["Relative-body database bindings are retained for diagnostics only and are not applied to the flight trajectory."]
+          : []),
       ],
     };
   }
@@ -505,13 +687,25 @@ export function analyzeRelativeAeroInteraction(input: Readonly<{
   for (const source of bodies) {
     for (const target of bodies) {
       if (source.id === target.id) continue;
-      pairs.push(evaluateDirection(source, target, normalizedOptions, input.environmentAt));
+      pairs.push(
+        evaluateDirection(
+          source,
+          target,
+          normalizedOptions,
+          input.environmentAt,
+          databaseBindingMap.get(`${source.id}\u0000${target.id}`) ?? null,
+        ),
+      );
     }
   }
   const assessedPairCount = pairs.filter((pair) => pair.status === "assessed").length;
   const exposedPairCount = pairs.filter((pair) => pair.exposedSampleCount > 0).length;
   const finiteDeficits = pairs.flatMap((pair) => pair.peakVelocityDeficitFraction === null ? [] : [pair.peakVelocityDeficitFraction]);
   const finiteDynamicPressureDeltas = pairs.flatMap((pair) => pair.maximumEstimatedDynamicPressureDeltaPa === null ? [] : [pair.maximumEstimatedDynamicPressureDeltaPa]);
+  const databasePairs = pairs.filter((pair) => pair.databaseId !== null);
+  const databaseSampleCount = databasePairs.reduce((sum, pair) => sum + pair.databaseSampleCount, 0);
+  const finiteDatabaseForceDeltas = databasePairs.flatMap((pair) => pair.maximumDatabaseForceDeltaN === null ? [] : [pair.maximumDatabaseForceDeltaN]);
+  const finiteDatabaseMomentDeltas = databasePairs.flatMap((pair) => pair.maximumDatabaseMomentDeltaNm === null ? [] : [pair.maximumDatabaseMomentDeltaNm]);
   const warnings = [
     ...(input.environmentAt ? [] : ["No environment provider was supplied; the wake axis uses ground-relative body velocity and dynamic-pressure deltas remain unavailable."]),
     ...(bodies.some((body) => body.equivalentDiameterM === null)
@@ -519,6 +713,14 @@ export function analyzeRelativeAeroInteraction(input: Readonly<{
       : []),
     ...(exposedPairCount > 0
       ? ["One or more directed wake cones overlap a target envelope; this is a relative-flow review flag, not a force, moment, contact, or flight-safety result."]
+      : []),
+    ...(databaseBindings.length > 0
+      ? [
+          `Applied ${databaseBindings.length} directed relative-body aerodynamic database binding${databaseBindings.length === 1 ? "" : "s"} to post-trace queries; results remain source-declared diagnostic deltas, not propagated forces or moments.`,
+          ...(databasePairs.some((pair) => pair.databaseQueryFailureCount > 0)
+            ? ["One or more relative-body database queries were outside a reject-policy domain and were skipped; inspect pair applicability and failure counts before interpretation."]
+            : []),
+        ]
       : []),
     "Wake overlap uses a finite expanding-cone and bounded velocity-deficit proxy; stage-separation interference requires wind-tunnel, CFD, or measured flight evidence.",
   ];
@@ -543,6 +745,11 @@ export function analyzeRelativeAeroInteraction(input: Readonly<{
     exposedPairCount,
     maximumVelocityDeficitFraction: finiteDeficits.length > 0 ? Math.max(...finiteDeficits) : null,
     maximumEstimatedDynamicPressureDeltaPa: finiteDynamicPressureDeltas.length > 0 ? Math.max(...finiteDynamicPressureDeltas) : null,
+    databaseBindings: databaseBindingSummary,
+    databasePairCount: databasePairs.length,
+    databaseSampleCount,
+    maximumDatabaseForceDeltaN: finiteDatabaseForceDeltas.length > 0 ? Math.max(...finiteDatabaseForceDeltas) : null,
+    maximumDatabaseMomentDeltaNm: finiteDatabaseMomentDeltas.length > 0 ? Math.max(...finiteDatabaseMomentDeltas) : null,
     configuration,
     status,
     warnings,
@@ -553,6 +760,13 @@ export function analyzeRelativeAeroInteraction(input: Readonly<{
       "Proxy velocity deficit is peakDeficit x lateral exposure x linear downstream recovery, bounded below one; estimated dynamic-pressure reduction is q [1 - (1 - deficit)^2].",
       "Directed results are evaluated on the union of both traces with piecewise-linear position and velocity interpolation; no aerodynamic load is fed back into either trace.",
       "The result is an engineering diagnostic and does not establish stage-separation clearance, interference-force accuracy, structural adequacy, certification, or flight safety.",
+      ...(databaseBindings.length > 0
+        ? [
+            "Relative-body database queries use the source air-relative velocity as the axial frame, normalize separation by source equivalent diameter, and evaluate target dynamic pressure from the supplied environment provider.",
+            "Database coefficient deltas are not added to the isolated-body loads; reference-area and moment-length scaling is reported only when the target or table supplies those conventions.",
+            "Database applicability issues, skipped reject-policy queries, source provenance, and uncertainty cells remain caller-owned evidence; no covariance or unsteady process is inferred.",
+          ]
+        : []),
     ],
   };
 }
