@@ -268,8 +268,9 @@ research, standards, and original code.
   plus equal-share parallel/radial force-scale audit for per-instance axial
   and transverse demand, canted-thrust radial force, eccentric moment, and
   symmetric resultant; when parent/child shear evidence exists, it adds a
-  separate shell-section transverse/radial shear proxy without claiming
-  connector capacity;
+  separate shell-section transverse/radial shear proxy, and optional child-stage
+  upstream connector-group direct-shear evidence using explicit count, diameter,
+  allowable, and efficiency fields without claiming joint qualification;
 - a trace-level force impulse budget that integrates recorded thrust,
   aerodynamic drag, recovery drag, and force/mass velocity-equivalent signals
   by stage without mislabeling scalar accounting as vector delta-v;
@@ -319,7 +320,7 @@ research, standards, and original code.
   browser-local persistence, and explicit validation boundaries;
 - on-demand deterministic physics benchmarks for atmosphere, gravity,
   thrust-curve impulse, static aerodynamics, rigid-body 6DOF, bounded gimbal
-  control-authority, stage-interface shear reserve, structural, and
+  control-authority, stage-interface shear and connector reserve, structural, and
   preliminary aeroelastic regression fixtures;
 - benchmark evidence CSV and matching engineering-report section with model
   identity, fixture tolerances, assumptions, and explicit regression-only
@@ -454,7 +455,7 @@ stage-to-stage interference data remain future work. The stage-interface
 screen now carries a body-transverse trace envelope alongside its axial
 compression proxy and an explicitly separate shell-section shear proxy when
 material evidence exists; connector/radial capacity validation remains future
-work. The new attached-flow screen is intentionally a conservative,
+work beyond the new optional direct-shear connector evidence screen. The new attached-flow screen is intentionally a conservative,
 non-propagating geometry diagnostic,
 not an aerodynamic correction.
 Longer-term work includes collaboration and cloud project storage plus native

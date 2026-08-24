@@ -6,6 +6,15 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an optional child-stage upstream connector-group direct-shear evidence
+  screen beside the shell-section stage-interface proxy. Users can persist
+  connector count, diameter, allowable shear, and an explicit group-efficiency
+  reduction; serial and parallel rows expose separate connector capacity and
+  factor-of-safety status. Bearing, pull-through, preload, prying, eccentric
+  group effects, fatigue, joint qualification, and flight-safety claims remain
+  outside scope. The stage-interface model is versioned as
+  `rocketworks-stage-interface-loads-0.6.0`.
+
 - Extend stage-interface review to model an explicitly separate shell-section
   shear proxy when parent and child materials provide allowable-shear evidence.
   Serial rows expose transverse demand and shear factor of safety without
@@ -14,7 +23,7 @@ flight-readiness claims.
   transient response, and flight-safety claims remain outside scope. The
   model is versioned as `rocketworks-stage-interface-loads-0.5.0`.
 
-- Extend the deterministic benchmark suite to 27 regression anchors with an
+- Extend the deterministic benchmark suite to 29 regression anchors with an
   independent ±15° gimbal force, moment, angular-acceleration, and
   control-to-aerodynamic-moment fixture. The benchmark lane remains
   mathematical regression evidence only and does not validate an actuator,

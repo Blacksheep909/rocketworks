@@ -319,10 +319,11 @@ test("stage interface load review computes serial downstream demand and reserve"
     ],
   });
 
-  assert.equal(result.modelVersion, "rocketworks-stage-interface-loads-0.5.0");
-  assert.equal(result.validationStatus, "analytical-axial-transverse-radial-load-path-proxy");
+  assert.equal(result.modelVersion, "rocketworks-stage-interface-loads-0.6.0");
+  assert.equal(result.validationStatus, "analytical-axial-transverse-radial-connector-load-path-proxy");
   assert.equal(result.overallStatus, "assessed");
   assert.equal(result.shearStatus, "not-assessed");
+  assert.equal(result.connectorStatus, "not-assessed");
   assert.deepEqual(result.counts, { pass: 1, review: 0, unavailable: 0 });
   assert.equal(result.totalStackMassKg, 1.7);
   assert.equal(result.interfaces.length, 1);
@@ -398,6 +399,7 @@ test("stage interface load review carries body-transverse trace demand without c
   assert.equal(result.interfaces[0].resultantDemandN, Math.hypot(28, 5.6));
   assert.equal(result.interfaces[0].status, "pass");
   assert.equal(result.shearStatus, "review");
+  assert.equal(result.connectorStatus, "review");
   assert.match(result.warnings.join(" "), /transverse demand is kept separate/);
 });
 
@@ -418,6 +420,7 @@ test("stage interface load review keeps transverse and radial shear reserve sepa
   assert.equal(serial.interfaces[0].transverseFactorOfSafety, 1 / 5.6);
   assert.equal(serial.interfaces[0].transverseCapacityStatus, "review");
   assert.equal(serial.shearStatus, "review");
+  assert.equal(serial.connectorStatus, "review");
   assert.match(serial.warnings.join(" "), /transverse shear proxy below/);
 
   const parallel = createStageInterfaceLoadReview({
@@ -431,7 +434,57 @@ test("stage interface load review keeps transverse and radial shear reserve sepa
   assert.equal(audit.shearCapacityN, 0.1);
   assert.equal(audit.radialCapacityStatus, "review");
   assert.equal(parallel.shearStatus, "review");
+  assert.equal(parallel.connectorStatus, "review");
   assert.ok((audit.radialFactorOfSafety ?? 0) < 1);
+});
+
+test("stage interface load review keeps connector direct shear separate from shell reserve", () => {
+  const pass = createStageInterfaceLoadReview({
+    retainedMassKg: 0.2,
+    trace: [{ timeS: 0, axialAccelerationMps2: 40, transverseAccelerationMps2: 8, attachedStageIds: ["core", "upper"] }],
+    stages: [
+      { id: "core", label: "Core", attachment: "serial", stageMassKg: 1, peakThrustN: 30, sectionAreaM2: 0.001, allowableCompressionPa: 1e6, allowableShearPa: 2e3 },
+      {
+        id: "upper",
+        label: "Upper",
+        parentStageId: "core",
+        attachment: "serial",
+        stageMassKg: 0.5,
+        peakThrustN: 10,
+        sectionAreaM2: 0.001,
+        allowableCompressionPa: 2e6,
+        allowableShearPa: 2e3,
+        connectorEvidence: { count: 4, diameterM: 0.01, allowableShearPa: 1e6, efficiency: 0.8 },
+      },
+    ],
+  });
+  const serial = pass.interfaces[0];
+  assert.ok(serial);
+  assert.equal(serial.connectorCapacityN, 4 * Math.PI * 0.005 ** 2 * 1e6 * 0.8);
+  assert.equal(serial.connectorCapacityStatus, "pass");
+  assert.ok((serial.connectorFactorOfSafety ?? 0) > 1.5);
+  assert.equal(pass.connectorStatus, "assessed");
+
+  const review = createStageInterfaceLoadReview({
+    retainedMassKg: 0.2,
+    trace: [{ timeS: 0, axialAccelerationMps2: 40, transverseAccelerationMps2: 8, attachedStageIds: ["core", "upper"] }],
+    stages: [
+      { id: "core", label: "Core", attachment: "serial", stageMassKg: 1, peakThrustN: 30 },
+      { id: "upper", label: "Upper", parentStageId: "core", attachment: "serial", stageMassKg: 0.5, peakThrustN: 10, connectorEvidence: { count: 2, diameterM: 0.004, allowableShearPa: 1e3 } },
+    ],
+  });
+  assert.equal(review.interfaces[0].connectorCapacityStatus, "review");
+  assert.equal(review.connectorStatus, "review");
+  assert.match(review.warnings.join(" "), /connector-group direct-shear/);
+  assert.throws(
+    () => createStageInterfaceLoadReview({
+      stages: [
+        { id: "core", label: "Core", attachment: "serial", stageMassKg: 1, peakThrustN: 0 },
+        { id: "upper", label: "Upper", parentStageId: "core", attachment: "serial", stageMassKg: 0.5, peakThrustN: 0, connectorEvidence: { count: 0, diameterM: 0.004, allowableShearPa: 1e3 } },
+      ],
+    }),
+    /connector evidence count/,
+  );
 });
 
 test("stage interface load review keeps serial capacity unavailable while auditing parallel force scales", () => {

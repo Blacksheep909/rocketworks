@@ -16,9 +16,9 @@
  */
 
 export const STAGE_INTERFACE_LOADS_MODEL_VERSION =
-  "rocketworks-stage-interface-loads-0.5.0";
+  "rocketworks-stage-interface-loads-0.6.0";
 export const STAGE_INTERFACE_LOADS_VALIDATION_STATUS =
-  "analytical-axial-transverse-radial-load-path-proxy" as const;
+  "analytical-axial-transverse-radial-connector-load-path-proxy" as const;
 
 export type StageInterfaceLoadAttachment = "serial" | "parallel";
 export type StageInterfaceLoadStatus = "pass" | "review" | "unavailable";
@@ -42,6 +42,21 @@ export type StageInterfaceLoadTracePoint = Readonly<{
 export type StageParallelLoadAuditStatus = "screened" | "unavailable";
 export type StageInterfaceShearCapacityStatus = "pass" | "review" | "unavailable";
 export type StageInterfaceShearReviewStatus = "assessed" | "review" | "not-assessed";
+export type StageInterfaceConnectorReviewStatus = "assessed" | "review" | "not-assessed";
+
+/**
+ * User-supplied upstream connector-group evidence for one child stage.
+ *
+ * The group is treated as a set of identical fasteners sharing a direct
+ * single-shear load. `efficiency` is an explicit user-supplied reduction for
+ * load sharing/installation effects; it is not inferred from geometry.
+ */
+export type StageInterfaceConnectorEvidence = Readonly<{
+  count: number;
+  diameterM: number;
+  allowableShearPa: number;
+  efficiency?: number;
+}>;
 
 /**
  * A bounded equal-share load audit for a repeated radial stage. The values
@@ -70,6 +85,9 @@ export type StageParallelLoadAudit = Readonly<{
   shearCapacityN: number | null;
   radialFactorOfSafety: number | null;
   radialCapacityStatus: StageInterfaceShearCapacityStatus;
+  connectorCapacityN: number | null;
+  connectorFactorOfSafety: number | null;
+  connectorCapacityStatus: StageInterfaceShearCapacityStatus;
   perInstancePeakThrustN: number | null;
   perInstanceRadialThrustN: number | null;
   perInstanceEccentricMomentNm: number | null;
@@ -108,6 +126,8 @@ export type StageInterfaceLoadStageInput = Readonly<{
   allowableCompressionPa?: number | null;
   /** Shear allowable used as a clearly labelled shell-section capacity proxy. */
   allowableShearPa?: number | null;
+  /** Optional upstream connector-group evidence for this child stage. */
+  connectorEvidence?: StageInterfaceConnectorEvidence | null;
   requiredFactorOfSafety?: number;
 }>;
 
@@ -137,6 +157,9 @@ export type StageInterfaceLoadInterface = Readonly<{
   shearCapacityN: number | null;
   transverseFactorOfSafety: number | null;
   transverseCapacityStatus: StageInterfaceShearCapacityStatus;
+  connectorCapacityN: number | null;
+  connectorFactorOfSafety: number | null;
+  connectorCapacityStatus: StageInterfaceShearCapacityStatus;
   sectionAreaM2: number | null;
   allowableCompressionPa: number | null;
   capacityN: number | null;
@@ -151,6 +174,7 @@ export type StageInterfaceLoadResult = Readonly<{
   validationStatus: typeof STAGE_INTERFACE_LOADS_VALIDATION_STATUS;
   overallStatus: "assessed" | "review" | "not-assessed";
   shearStatus: StageInterfaceShearReviewStatus;
+  connectorStatus: StageInterfaceConnectorReviewStatus;
   counts: Readonly<{
     pass: number;
     review: number;
@@ -210,6 +234,37 @@ function normalizeOptionalNonNegative(value: number | null | undefined, label: s
   if (value === null || value === undefined) return null;
   assertNonNegative(value, label);
   return value;
+}
+
+function normalizeConnectorEvidence(
+  value: StageInterfaceConnectorEvidence | null | undefined,
+  label: string,
+): StageInterfaceConnectorEvidence | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "object") throw new Error(`${label} must be an object when supplied`);
+  const count = value.count;
+  if (!Number.isInteger(count) || count < 1 || count > 256) {
+    throw new Error(`${label} count must be an integer from 1 through 256`);
+  }
+  const diameterM = value.diameterM;
+  if (!Number.isFinite(diameterM) || diameterM <= 0 || diameterM > 0.2) {
+    throw new Error(`${label} diameter must be finite, positive, and at most 0.2 m`);
+  }
+  const allowableShearPa = value.allowableShearPa;
+  if (!Number.isFinite(allowableShearPa) || allowableShearPa <= 0 || allowableShearPa > 2e9) {
+    throw new Error(`${label} allowable shear must be finite, positive, and at most 2e9 Pa`);
+  }
+  const efficiency = value.efficiency ?? 1;
+  if (!Number.isFinite(efficiency) || efficiency <= 0 || efficiency > 1) {
+    throw new Error(`${label} efficiency must be greater than 0 and at most 1`);
+  }
+  return { count, diameterM, allowableShearPa, efficiency };
+}
+
+function connectorCapacityN(evidence: StageInterfaceConnectorEvidence | null): number | null {
+  if (evidence === null) return null;
+  const grossShearAreaM2 = evidence.count * Math.PI * (evidence.diameterM / 2) ** 2;
+  return grossShearAreaM2 * evidence.allowableShearPa * (evidence.efficiency ?? 1);
 }
 
 function normalizeRepeatCount(value: number | undefined, label: string): number {
@@ -353,6 +408,10 @@ export function createStageInterfaceLoadReview(
       stage.allowableShearPa,
       `stage ${stage.id} shear allowable`,
     );
+    const connectorEvidence = normalizeConnectorEvidence(
+      stage.connectorEvidence,
+      `stage ${stage.id} connector evidence`,
+    );
     const requiredFactorOfSafety = normalizePositive(
       stage.requiredFactorOfSafety,
       DEFAULT_REQUIRED_FACTOR_OF_SAFETY,
@@ -389,6 +448,7 @@ export function createStageInterfaceLoadReview(
       sectionAreaM2,
       allowableCompressionPa,
       allowableShearPa,
+      connectorEvidence,
       requiredFactorOfSafety,
       repeatCount,
       repeatRadiusM,
@@ -524,6 +584,9 @@ export function createStageInterfaceLoadReview(
           shearCapacityN: null,
           transverseFactorOfSafety: null,
           transverseCapacityStatus: "unavailable",
+          connectorCapacityN: null,
+          connectorFactorOfSafety: null,
+          connectorCapacityStatus: "unavailable",
           factorOfSafety: null,
           detail: "Axial demand is not available because the active stack has no positive mass.",
           reason: "No positive active stack mass was supplied.",
@@ -543,6 +606,9 @@ export function createStageInterfaceLoadReview(
           shearCapacityN: null,
           transverseFactorOfSafety: null,
           transverseCapacityStatus: "unavailable",
+          connectorCapacityN: null,
+          connectorFactorOfSafety: null,
+          connectorCapacityStatus: "unavailable",
           factorOfSafety: null,
           detail: "The parent stage is not present in the supplied topology.",
           reason: `Parent stage ${parentId ?? "(none)"} is missing.`,
@@ -562,6 +628,9 @@ export function createStageInterfaceLoadReview(
           shearCapacityN: null,
           transverseFactorOfSafety: null,
           transverseCapacityStatus: "unavailable",
+          connectorCapacityN: null,
+          connectorFactorOfSafety: null,
+          connectorCapacityStatus: "unavailable",
           factorOfSafety: null,
           detail: "The parent stage is disabled, so the active axial load path is incomplete.",
           reason: `Parent stage ${parent.label} is disabled or inactive.`,
@@ -590,6 +659,9 @@ export function createStageInterfaceLoadReview(
           shearCapacityN: null,
           transverseFactorOfSafety: null,
           transverseCapacityStatus: "unavailable",
+          connectorCapacityN: null,
+          connectorFactorOfSafety: null,
+          connectorCapacityStatus: "unavailable",
           factorOfSafety: null,
           detail: "Parallel attachment is identified, but radial joint load transfer is not modeled.",
           reason: "Parallel/radial interface solver is outside this axial serial proxy.",
@@ -624,6 +696,17 @@ export function createStageInterfaceLoadReview(
           : transverseFactorOfSafety >= requiredFactorOfSafety
             ? "pass"
             : "review";
+      const connectorCapacity = connectorCapacityN(child.connectorEvidence);
+      const connectorFactorOfSafety = connectorCapacity !== null && transverseDemandN !== null && transverseDemandN > 0
+        ? connectorCapacity / transverseDemandN
+        : null;
+      const connectorCapacityStatus: StageInterfaceShearCapacityStatus = transverseDemandN === null || connectorCapacity === null
+        ? "unavailable"
+        : connectorFactorOfSafety === null
+          ? "unavailable"
+          : connectorFactorOfSafety >= requiredFactorOfSafety
+            ? "pass"
+            : "review";
       const missingEvidence = [
         sectionAreaM2 === null ? "parent/child section area" : null,
         allowableCompressionPa === null ? "parent/child compression allowable" : null,
@@ -651,6 +734,9 @@ export function createStageInterfaceLoadReview(
         shearCapacityN,
         transverseFactorOfSafety,
         transverseCapacityStatus,
+        connectorCapacityN: connectorCapacity,
+        connectorFactorOfSafety,
+        connectorCapacityStatus,
         factorOfSafety,
         detail: status === "pass"
           ? "Serial interface passes the supplied axial compression proxy with the declared reserve."
@@ -740,6 +826,17 @@ export function createStageInterfaceLoadReview(
           : radialFactorOfSafety >= child.requiredFactorOfSafety
             ? "pass"
             : "review";
+      const connectorCapacity = connectorCapacityN(child.connectorEvidence);
+      const connectorFactorOfSafety = connectorCapacity !== null && radialDemandN !== null && radialDemandN > 0
+        ? connectorCapacity / radialDemandN
+        : null;
+      const connectorCapacityStatus: StageInterfaceShearCapacityStatus = radialDemandN === null || connectorCapacity === null
+        ? "unavailable"
+        : connectorFactorOfSafety === null
+          ? "unavailable"
+          : connectorFactorOfSafety >= child.requiredFactorOfSafety
+            ? "pass"
+            : "review";
       return {
         id,
         parentStageId: parentId,
@@ -763,6 +860,9 @@ export function createStageInterfaceLoadReview(
         shearCapacityN,
         radialFactorOfSafety,
         radialCapacityStatus,
+        connectorCapacityN: connectorCapacity,
+        connectorFactorOfSafety,
+        connectorCapacityStatus,
         perInstancePeakThrustN: missingReason === null ? perInstancePeakThrustN : null,
         perInstanceRadialThrustN: missingReason === null ? perInstanceRadialThrustN : null,
         perInstanceEccentricMomentNm: missingReason === null
@@ -797,6 +897,19 @@ export function createStageInterfaceLoadReview(
     : shearStatuses.some((status) => status === "review" || status === "unavailable")
       ? "review"
       : "assessed";
+  const connectorStatuses = [
+    ...interfaces
+      .filter((item) => item.transverseDemandN !== null && item.transverseDemandN > 0)
+      .map((item) => item.connectorCapacityStatus),
+    ...parallelAudits
+      .filter((audit) => audit.radialDemandN !== null && audit.radialDemandN > 0)
+      .map((audit) => audit.connectorCapacityStatus),
+  ];
+  const connectorStatus: StageInterfaceConnectorReviewStatus = connectorStatuses.length === 0
+    ? "not-assessed"
+    : connectorStatuses.some((status) => status === "review" || status === "unavailable")
+      ? "review"
+      : "assessed";
   const counts = {
     pass: interfaces.filter((item) => item.status === "pass").length,
     review: interfaces.filter((item) => item.status === "review").length,
@@ -821,7 +934,7 @@ export function createStageInterfaceLoadReview(
       ? "review"
       : "assessed";
   const warnings = [
-    "This proxy uses a common or trace-backed acceleration and weaker parent/child shell-section compression and shear proxies; it does not model connector geometry, fasteners, joints, bending, local buckling, or transient loads.",
+    "This proxy uses a common or trace-backed acceleration and weaker parent/child shell-section compression and shear proxies; optional connector evidence is a separate direct-shear capacity screen, not a joint solver and does not model connector geometry, contact, or local joint behavior.",
     "Thrust is summed by configured peak value and thrust cant, drag, rail contact, staging impulse, and off-axis imbalance are not represented.",
     ...(trace.length > 0
       ? [
@@ -852,6 +965,12 @@ export function createStageInterfaceLoadReview(
     ...(parallelAudits.some((audit) => audit.radialCapacityStatus === "review")
       ? ["One or more parallel instances has a radial shear proxy below its required factor of safety; connector and bending qualification remain separate work."]
       : []),
+    ...(interfaces.some((item) => item.connectorCapacityStatus === "review") || parallelAudits.some((audit) => audit.connectorCapacityStatus === "review")
+      ? ["One or more connector-group direct-shear screens is below the required factor of safety; bearing, pull-through, preload, prying, fatigue, and joint qualification remain separate work."]
+      : []),
+    ...(interfaces.some((item) => item.transverseDemandN !== null && item.connectorCapacityStatus === "unavailable") || parallelAudits.some((audit) => audit.radialDemandN !== null && audit.connectorCapacityStatus === "unavailable")
+      ? ["Positive transverse or radial demand exists without complete upstream connector-group evidence, so connector direct-shear capacity remains unavailable."]
+      : []),
     ...(interfaces.length === 0
       ? ["No enabled child stage with a parent relationship was supplied, so stage-interface load review is not assessed."]
       : []),
@@ -862,6 +981,7 @@ export function createStageInterfaceLoadReview(
     validationStatus: STAGE_INTERFACE_LOADS_VALIDATION_STATUS,
     overallStatus,
     shearStatus,
+    connectorStatus,
     counts,
     totalStackMassKg,
     retainedMassKg,
@@ -889,6 +1009,7 @@ export function createStageInterfaceLoadReview(
         : []),
       "Axial interface capacity uses the minimum supplied parent/child shell-section area multiplied by the minimum supplied compression allowable.",
       "When both parent and child supply positive shear allowables, the same weaker shell-section area is multiplied by the weaker shear allowable to provide a clearly labelled transverse/radial shear proxy; it is not connector qualification.",
+      "When a child stage supplies connector evidence, direct-shear capacity is count × π(d/2)² × allowable shear × efficiency. The evidence describes that child stage's upstream connector group and is not inferred from shell geometry.",
       ...(parallelAudits.length > 0
         ? [
             "Parallel repeated stages are split by equal instance count for a force-scale audit; canted thrust uses the authored angle and radial placement radius to report per-instance radial force and eccentric moment.",

@@ -23,7 +23,7 @@ import { computeMissionMassRatio } from "./stage-mass-ratio.ts";
 import { analyzeGimbalControlAuthority } from "./gimbal-control-authority.ts";
 
 export const BENCHMARK_SUITE_MODEL_VERSION =
-  "kestrel-physics-benchmark-suite-0.7.0";
+  "kestrel-physics-benchmark-suite-0.8.0";
 export const BENCHMARK_SUITE_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -194,6 +194,12 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
         sectionAreaM2: 0.02,
         allowableCompressionPa: 1e6,
         allowableShearPa: 4e3,
+        connectorEvidence: {
+          count: 4,
+          diameterM: 0.01,
+          allowableShearPa: 1e6,
+          efficiency: 0.8,
+        },
       },
     ],
   });
@@ -543,6 +549,26 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
       method: "weaker parent/child shell-section shear capacity divided by the transverse demand anchor",
     }),
     compareCase({
+      id: "stage-interface-connector-direct-shear-capacity",
+      label: "Serial interface connector-group direct-shear capacity",
+      metric: "connector capacity",
+      unit: "N",
+      observed: benchmarkShearInterface.connectorCapacityN ?? Number.NaN,
+      expected: 4 * Math.PI * (0.01 / 2) ** 2 * 1e6 * 0.8,
+      tolerance: 1e-12,
+      method: "count times circular fastener shear area, allowable shear, and explicit group-efficiency reduction",
+    }),
+    compareCase({
+      id: "stage-interface-connector-direct-shear-factor-of-safety",
+      label: "Serial interface connector-group direct-shear factor of safety",
+      metric: "connector factor of safety",
+      unit: "1",
+      observed: benchmarkShearInterface.connectorFactorOfSafety ?? Number.NaN,
+      expected: (4 * Math.PI * (0.01 / 2) ** 2 * 1e6 * 0.8) / (1.5 * 4),
+      tolerance: 1e-12,
+      method: "connector-group direct-shear capacity divided by the trace-backed transverse demand anchor",
+    }),
+    compareCase({
       id: "mission-mass-ratio-booster",
       label: "Serial mission mass ratio for the first stage",
       metric: "attached mass ratio",
@@ -730,6 +756,7 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
       "Reference values are SI anchors and closed-form published relations, not a substitute for instrumented flight data.",
       "The suite uses fixed inputs and no user or manufacturer data.",
       "The stage-interface and serial mission-mass-ratio fixtures use independent two-stage SI stacks with explicit retained mass, section evidence, thrust, and propellant values.",
+      "The connector direct-shear fixture uses four 10 mm fasteners, a 1 MPa allowable, and 0.8 group efficiency as an analytical regression anchor only; it does not qualify a real joint.",
       "Tolerance checks compare absolute error; relative error is reported for review.",
     ],
   };

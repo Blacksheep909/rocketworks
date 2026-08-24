@@ -1350,7 +1350,7 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Mean-wind profile: user-supplied \(3 altitude layers\)/);
   assert.match(report, /Turbulence RMS scale: 1\.20×/);
   assert.match(report, /## Deterministic physics evidence/);
-  assert.match(report, /Result: all fixtures pass \(27\/27\)/);
+  assert.match(report, /Result: all fixtures pass \(29\/29\)/);
   assert.match(report, /6DOF constant-force translation/);
   assert.match(report, /regression evidence only/);
   assert.match(report, /Weather replay seed: `report-weather-v1`/);
@@ -1388,7 +1388,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /## Attached-body aerodynamic interference review/);
   assert.match(report, /rocketworks-attached-aero-interference-0.1.0/);
   assert.match(report, /Minimum radial clearance/);
-  assert.match(report, /rocketworks-stage-interface-loads-0.5.0/);
+  assert.match(report, /rocketworks-stage-interface-loads-0.6.0/);
+  assert.match(report, /Separate connector direct-shear review/);
   assert.match(report, /Body-transverse trace envelope/);
   assert.match(report, /Transverse demand/);
   assert.match(report, /Parallel \/ radial equal-share audit/);

@@ -1338,7 +1338,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stagePreview, /attitudeDependentDrag/);
   assert.match(stagePreview, /missionSerialStageIds/);
   assert.match(stagePreview, /computeMissionMassRatio/);
-  assert.match(stageInterfaceLoads, /analytical-axial-transverse-radial-load-path-proxy/);
+  assert.match(stageInterfaceLoads, /analytical-axial-transverse-radial-connector-load-path-proxy/);
   assert.match(stageInterfaceLoads, /transverseAccelerationMps2/);
   assert.match(stageInterfaceLoads, /Parallel\/radial interface solver/);
   assert.match(stageInterfaceLoads, /downstream mass/);
@@ -1349,6 +1349,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stageInterfaceLoads, /allowableShearPa/);
   assert.match(stageInterfaceLoads, /transverseFactorOfSafety/);
   assert.match(stageInterfaceLoads, /shearStatus/);
+  assert.match(stageInterfaceLoads, /connectorEvidence/);
+  assert.match(stageInterfaceLoads, /connectorCapacityN/);
+  assert.match(page, /Connector evidence/);
   assert.match(stageForceBudget, /analytical-trace-integral-only/);
   assert.match(stageForceBudget, /velocity-equivalent accounting/);
   assert.match(gimbalAuthority, /GIMBAL_CONTROL_AUTHORITY_MODEL_VERSION/);

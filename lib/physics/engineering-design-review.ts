@@ -376,15 +376,15 @@ export function createEngineeringDesignReview(
                 : "warning",
         summary:
           stageInterfaceLoads.overallStatus === "assessed"
-            ? `${stageInterfaceLoads.counts.pass} stage interface${stageInterfaceLoads.counts.pass === 1 ? "" : "s"} pass the axial load-path proxy; any body-transverse trace envelope is diagnostic.`
+            ? `${stageInterfaceLoads.counts.pass} stage interface${stageInterfaceLoads.counts.pass === 1 ? "" : "s"} pass the axial load-path proxy; connector direct-shear status is ${stageInterfaceLoads.connectorStatus}.`
             : stageInterfaceLoads.overallStatus === "not-assessed"
               ? "Stage-interface load path is not assessed."
               : `${needsReview} stage interface${needsReview === 1 ? "" : "s"} need load-path review or evidence.`,
         detail:
-          "The analytical axial load-path proxy transfers downstream mass across serial topology edges using supplied shell-section capacity. A body-transverse trace envelope can be shown separately, but connector geometry, radial joints, and transverse capacity remain outside scope.",
+          "The analytical axial load-path proxy transfers downstream mass across serial topology edges using supplied shell-section capacity. A body-transverse trace envelope and optional connector-group direct-shear screen can be shown separately; connector geometry, bearing, pull-through, radial joints, bending, and transient capacity remain outside scope.",
         action:
           status === "pass"
-            ? "No immediate action from this bounded axial proxy; review any transverse telemetry separately."
+            ? "No immediate action from this bounded axial proxy; review connector evidence, transverse telemetry, and joint details separately."
             : status === "unavailable"
               ? "Supply current parent/child section and allowable evidence, then rerun the interface review."
               : "Review the weakest interface, connector design, transient loads, and parallel attachment load paths before interpreting the result.",

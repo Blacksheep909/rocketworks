@@ -1,4 +1,4 @@
-# Deterministic physics benchmark suite 0.7
+# Deterministic physics benchmark suite 0.8
 
 Status: `mathematical-regression-tests-only`.
 
@@ -36,14 +36,17 @@ enough to run in CI.
 - a serial stage-interface body-transverse demand and shell-section shear
   factor-of-safety anchor with explicit trace acceleration and parent/child
   allowable-shear evidence.
+- a serial stage-interface connector-group direct-shear capacity and
+  factor-of-safety anchor with explicit fastener count, diameter, allowable, and
+  group-efficiency evidence kept separate from the shell-section proxy.
 
 Each case reports the observed value, public-reference expected value, absolute
 and relative error, and a declared tolerance. The suite currently contains
-twenty-seven cases because the atmosphere fixture checks pressure and density as
+twenty-nine cases because the atmosphere fixture checks pressure and density as
 separate metrics, the 6DOF conservation checks are reported independently,
 and the structural/aeroelastic, stage-interface, serial mass-ratio, gimbal
-control-authority, and transverse-shear equations are checked against
-independent closed-form recomputations.
+control-authority, transverse-shear, and connector direct-shear equations are
+checked against independent closed-form recomputations.
 
 ## Interpretation
 
@@ -59,4 +62,5 @@ gravity, static-aerodynamics, rigid-body 6DOF, gimbal-control-authority,
 stage-interface-loads, structural-screen, and fin-flutter modules directly.
 The conservation, structural, aeroelastic, actuator-envelope, and shear-capacity
 cases are regression anchors, not experimental validation of a vehicle, motor,
-aerodynamic database, material, actuator, connector, or operational profile.
+aerodynamic database, material, actuator, connector, joint, or operational
+profile.

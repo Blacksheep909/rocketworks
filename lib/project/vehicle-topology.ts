@@ -33,6 +33,14 @@ export type VehicleStageSeparationImpulseBodyNs = Readonly<{
   z: number;
 }>;
 
+/** Optional upstream connector-group evidence for a child stage interface. */
+export type VehicleStageConnectorEvidence = Readonly<{
+  count: number;
+  diameterM: number;
+  allowableShearPa: number;
+  efficiency?: number;
+}>;
+
 /** Optional recovery hardware carried by a detachable stage. */
 export type VehicleStageRecoveryTrigger = "apogee" | "altitude" | "time";
 
@@ -126,6 +134,8 @@ export type VehicleStagePlan = Readonly<{
   separationDeltaVBodyMps?: number;
   /** Optional measured retained-body separation impulse in the body frame, N·s. */
   separationImpulseBodyNs?: VehicleStageSeparationImpulseBodyNs;
+  /** Optional upstream connector-group evidence for this stage's interface. */
+  connectorEvidence?: VehicleStageConnectorEvidence;
   ignitionFailure: boolean;
   /** Zero-based radial motor instance indices that are configured not to ignite. */
   failedMotorInstanceIndices: readonly number[];
@@ -390,6 +400,28 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
       throw new Error(`Payload stage ${id} cannot configure a separation impulse.`);
     }
   }
+  const rawConnectorEvidence = stage.connectorEvidence;
+  let connectorEvidence: VehicleStageConnectorEvidence | undefined;
+  if (rawConnectorEvidence !== undefined) {
+    const evidence = objectValue(rawConnectorEvidence, `Stage ${id} connectorEvidence`);
+    const count = evidence.count;
+    const diameterM = evidence.diameterM;
+    const allowableShearPa = evidence.allowableShearPa;
+    const efficiency = evidence.efficiency ?? 1;
+    if (typeof count !== "number" || !Number.isInteger(count) || count < 1 || count > 256) {
+      throw new Error(`Stage ${id} connectorEvidence count must be an integer from 1 through 256.`);
+    }
+    if (typeof diameterM !== "number" || !Number.isFinite(diameterM) || diameterM <= 0 || diameterM > 0.2) {
+      throw new Error(`Stage ${id} connectorEvidence diameterM must be finite, positive, and at most 0.2 m.`);
+    }
+    if (typeof allowableShearPa !== "number" || !Number.isFinite(allowableShearPa) || allowableShearPa <= 0 || allowableShearPa > 2e9) {
+      throw new Error(`Stage ${id} connectorEvidence allowableShearPa must be finite, positive, and at most 2e9 Pa.`);
+    }
+    if (typeof efficiency !== "number" || !Number.isFinite(efficiency) || efficiency <= 0 || efficiency > 1) {
+      throw new Error(`Stage ${id} connectorEvidence efficiency must be greater than 0 and at most 1.`);
+    }
+    connectorEvidence = { count, diameterM, allowableShearPa, efficiency };
+  }
   const ignitionFailure = stage.ignitionFailure ?? false;
   if (typeof ignitionFailure !== "boolean") throw new Error(`Stage ${id} ignitionFailure must be boolean.`);
   const failedMotorInstanceIndices = stage.failedMotorInstanceIndices ?? [];
@@ -504,6 +536,7 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     separationDelayS,
     separationDeltaVBodyMps,
     ...(separationImpulseBodyNs ? { separationImpulseBodyNs } : {}),
+    ...(connectorEvidence ? { connectorEvidence } : {}),
     ignitionFailure,
     failedMotorInstanceIndices: [...failedMotorSet].sort((left, right) => left - right),
     ...(recovery ? { recovery } : {}),
@@ -686,6 +719,7 @@ export function createStagePlan(input: Readonly<{
   separationDelayS?: number;
   separationDeltaVBodyMps?: number;
   separationImpulseBodyNs?: VehicleStageSeparationImpulseBodyNs;
+  connectorEvidence?: VehicleStageConnectorEvidence;
   ignitionFailure?: boolean;
   failedMotorInstanceIndices?: readonly number[];
   recovery?: VehicleStageRecoveryPlan;
@@ -701,6 +735,7 @@ export function createStagePlan(input: Readonly<{
     separationDelayS: input.separationDelayS ?? 0.1,
     separationDeltaVBodyMps: input.separationDeltaVBodyMps ?? 0,
     ...(input.separationImpulseBodyNs ? { separationImpulseBodyNs: input.separationImpulseBodyNs } : {}),
+    ...(input.connectorEvidence ? { connectorEvidence: input.connectorEvidence } : {}),
     ...(input.finCount === undefined ? {} : { finCount: input.finCount }),
     ...(input.finRootChordM === undefined ? {} : { finRootChordM: input.finRootChordM }),
     ...(input.finTipChordM === undefined ? {} : { finTipChordM: input.finTipChordM }),

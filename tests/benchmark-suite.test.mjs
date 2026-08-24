@@ -6,11 +6,11 @@ import { createPhysicsBenchmarkCsv } from "../lib/export/project-exports.ts";
 test("physics benchmark suite passes deterministic standards and closed-form fixtures", () => {
   const result = runPhysicsBenchmarkSuite();
 
-  assert.equal(result.modelVersion, "kestrel-physics-benchmark-suite-0.7.0");
+  assert.equal(result.modelVersion, "kestrel-physics-benchmark-suite-0.8.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.status, "pass");
   assert.equal(result.passedCount, result.totalCount);
-  assert.equal(result.totalCount, 27);
+  assert.equal(result.totalCount, 29);
   assert.ok(result.cases.every((benchmark) => benchmark.passed));
   assert.ok(result.cases.some((benchmark) => benchmark.id === "cone-center-of-pressure"));
   assert.ok(result.cases.some((benchmark) => benchmark.id === "six-dof-torque-free-angular-momentum"));
@@ -25,6 +25,8 @@ test("physics benchmark suite passes deterministic standards and closed-form fix
   assert.ok(result.cases.some((benchmark) => benchmark.id === "gimbal-control-to-aero-moment-ratio"));
   assert.ok(result.cases.some((benchmark) => benchmark.id === "stage-interface-transverse-shear-demand"));
   assert.ok(result.cases.some((benchmark) => benchmark.id === "stage-interface-transverse-shear-factor-of-safety"));
+  assert.ok(result.cases.some((benchmark) => benchmark.id === "stage-interface-connector-direct-shear-capacity"));
+  assert.ok(result.cases.some((benchmark) => benchmark.id === "stage-interface-connector-direct-shear-factor-of-safety"));
   assert.ok(result.warnings.some((warning) => warning.includes("not experimental validation")));
 });
 
@@ -44,15 +46,16 @@ test("physics benchmark evidence CSV preserves provenance and deterministic rows
   const csv = createPhysicsBenchmarkCsv(result);
 
   assert.equal(csv, createPhysicsBenchmarkCsv(result));
-  assert.match(csv, /# benchmark_model_version,kestrel-physics-benchmark-suite-0\.7\.0/);
+  assert.match(csv, /# benchmark_model_version,kestrel-physics-benchmark-suite-0\.8\.0/);
   assert.match(csv, /# validation_status,mathematical-regression-tests-only/);
   assert.match(csv, /# result_status,pass/);
-  assert.match(csv, /# passed_count,27/);
+  assert.match(csv, /# passed_count,29/);
   assert.match(csv, /case_id,label,metric,unit,observed,expected,absolute_error,relative_error,tolerance,passed,method/);
   assert.match(csv, /atmosphere-sea-level-pressure/);
   assert.match(csv, /six-dof-torque-free-angular-momentum/);
   assert.match(csv, /stage-interface-axial-demand/);
   assert.match(csv, /gimbal-control-angular-acceleration-envelope/);
   assert.match(csv, /stage-interface-transverse-shear-factor-of-safety/);
+  assert.match(csv, /stage-interface-connector-direct-shear-factor-of-safety/);
   assert.match(csv, /These checks exercise deterministic equations/);
 });

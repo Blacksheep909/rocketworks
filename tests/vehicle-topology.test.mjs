@@ -216,6 +216,36 @@ test("serial upper stages and repeated parallel boosters validate in order", () 
   assert.deepEqual(validated.stages[2].failedMotorInstanceIndices, [0, 2]);
 });
 
+test("connector evidence validates, persists, and is retained by stage duplication", () => {
+  const topology = {
+    ...createDefaultVehicleTopology(),
+    stages: [
+      createStagePlan({ id: "sustainer", name: "Sustainer", role: "core", attachment: "serial" }),
+      createStagePlan({
+        id: "upper-01",
+        name: "Upper stage",
+        role: "upper",
+        attachment: "serial",
+        parentStageId: "sustainer",
+        connectorEvidence: { count: 6, diameterM: 0.005, allowableShearPa: 80e6, efficiency: 0.65 },
+      }),
+    ],
+  };
+  const validated = validateVehicleTopology(topology);
+  assert.deepEqual(validated.stages[1].connectorEvidence, topology.stages[1].connectorEvidence);
+  assert.deepEqual(parseVehicleTopology(serializeVehicleTopology(validated)), validated);
+  const duplicated = duplicateVehicleStageTopology(topology, "upper-01");
+  assert.deepEqual(duplicated.stages.at(-1).connectorEvidence, topology.stages[1].connectorEvidence);
+  assert.throws(() => validateVehicleTopology({
+    ...topology,
+    stages: topology.stages.map((stage) => stage.id === "upper-01" ? { ...stage, connectorEvidence: { count: 0, diameterM: 0.005, allowableShearPa: 80e6 } } : stage),
+  }), /connectorEvidence count/);
+  assert.throws(() => validateVehicleTopology({
+    ...topology,
+    stages: topology.stages.map((stage) => stage.id === "upper-01" ? { ...stage, connectorEvidence: { count: 6, diameterM: 0.005, allowableShearPa: 80e6, efficiency: 1.2 } } : stage),
+  }), /connectorEvidence efficiency/);
+});
+
 test("gimbal schedules validate, round-trip, and follow radial thrust bases", () => {
   const topology = {
     ...createDefaultVehicleTopology(),
