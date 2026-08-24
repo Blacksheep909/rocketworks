@@ -43,6 +43,7 @@ import {
   createPlanarTerrainSurface,
   ASCENT_DRIFT_MODEL_VERSION,
   createAerodynamicCoefficientTable,
+  createRelativeAeroDatabase,
   sampleAerodynamicPolar,
   computeStaticStability,
   analyzeVerticalFlightUncertainty,
@@ -134,6 +135,8 @@ import {
   type RetainedBodyCoupledTrackMode,
   type StageFlightSeparationPulseProfile,
   type RelativeAeroInteractionOptions,
+  type RelativeAeroDatabaseBindingMode,
+  type RelativeAeroDatabaseDefinition,
   type StageFlightUncertaintyResult,
   type CoupledMultiBodyContactOptions,
   type CoupledMultiBodyGravityOptions,
@@ -288,6 +291,14 @@ import {
   upsertLocalAerodynamicTable,
 } from "../lib/project/aero-library-state.ts";
 import {
+  LOCAL_RELATIVE_AERO_BINDING_MODE_STORAGE_KEY,
+  LOCAL_RELATIVE_AERO_LIBRARY_STORAGE_KEY,
+  LOCAL_RELATIVE_AERO_SELECTION_STORAGE_KEY,
+  parseLocalRelativeAeroLibrary,
+  serializeLocalRelativeAeroLibrary,
+  upsertLocalRelativeAeroDatabase,
+} from "../lib/project/relative-aero-library-state.ts";
+import {
   LOCAL_COMPONENT_LIBRARY_STORAGE_KEY,
   parseLocalComponentLibrary,
   serializeLocalComponentLibrary,
@@ -403,6 +414,8 @@ function namedProjectFingerprint(
   selectedMotorId: string,
   selectedAerodynamicTableId: string,
   projectName: string,
+  selectedRelativeAeroDatabaseId = "none",
+  relativeAeroDatabaseBindingMode: RelativeAeroDatabaseBindingMode = "disabled",
 ): string {
   return JSON.stringify([
     projectConfigurationFingerprint({
@@ -410,6 +423,8 @@ function namedProjectFingerprint(
       topology,
       selectedMotorId,
       selectedAerodynamicTableId,
+      selectedRelativeAeroDatabaseId,
+      relativeAeroDatabaseBindingMode,
     }),
     projectName,
   ]);
@@ -644,6 +659,10 @@ type AerodynamicTableImportDraft = {
   json: string;
 };
 
+type RelativeAeroDatabaseImportDraft = {
+  json: string;
+};
+
 type ComponentPresetDraft = {
   name: string;
   description: string;
@@ -700,6 +719,53 @@ const defaultAerodynamicTableImportDraft: AerodynamicTableImportDraft = {
       outOfRangePolicy: "clamp-with-warning",
       provenance: {
         sourceName: "RocketWorks example surface",
+        sourceKind: "user-supplied",
+        dataVersion: "example-1",
+        licenseIdentifier: "CC0-1.0",
+        attribution: "Original RocketWorks example data; replace before engineering use",
+        validationStatus: "user-supplied-unvalidated",
+      },
+    },
+    null,
+    2,
+  ),
+};
+
+const defaultRelativeAeroDatabaseImportDraft: RelativeAeroDatabaseImportDraft = {
+  json: JSON.stringify(
+    {
+      id: "user-relative-aero-01",
+      name: "Example retained-to-detached interaction table",
+      machPoints: [0, 1],
+      axialSeparationPointsBodyDiameters: [0, 10],
+      lateralSeparationPointsBodyDiameters: [0, 2],
+      axialForceCoefficientDelta: {
+        values: [
+          [[0.02, 0.03], [0.01, 0.02]],
+          [[0.01, 0.02], [0.005, 0.01]],
+        ],
+        absoluteUncertainty: [
+          [[0.01, 0.01], [0.008, 0.008]],
+          [[0.008, 0.008], [0.005, 0.005]],
+        ],
+      },
+      normalForceCoefficientDelta: {
+        values: [
+          [[0.01, 0.015], [0.006, 0.01]],
+          [[0.005, 0.01], [0.002, 0.005]],
+        ],
+      },
+      pitchMomentCoefficientDelta: {
+        values: [
+          [[0.004, 0.006], [0.002, 0.004]],
+          [[0.002, 0.004], [0.001, 0.002]],
+        ],
+      },
+      referenceAreaM2: 0.012,
+      momentReferenceLengthM: 0.4,
+      outOfRangePolicy: "clamp-with-warning",
+      provenance: {
+        sourceName: "RocketWorks example relative-body data",
         sourceKind: "user-supplied",
         dataVersion: "example-1",
         licenseIdentifier: "CC0-1.0",
@@ -1713,6 +1779,8 @@ function createStageFlightPreviewInputs({
   relativeAeroWakeRecoveryDistanceBodyDiameters,
   relativeAeroPeakVelocityDeficitFraction,
   relativeAeroMaximumVelocityDeficitFraction,
+  relativeAeroDatabase,
+  relativeAeroDatabaseBindingMode,
   separationContactStoppingDistanceM,
   separationContactCoefficientOfRestitution,
   recoveryEnabled,
@@ -1772,6 +1840,8 @@ function createStageFlightPreviewInputs({
   relativeAeroWakeRecoveryDistanceBodyDiameters: number;
   relativeAeroPeakVelocityDeficitFraction: number;
   relativeAeroMaximumVelocityDeficitFraction: number;
+  relativeAeroDatabase?: RelativeAeroDatabaseDefinition;
+  relativeAeroDatabaseBindingMode: RelativeAeroDatabaseBindingMode;
   separationContactStoppingDistanceM: number;
   separationContactCoefficientOfRestitution: number;
   recoveryEnabled: boolean;
@@ -2238,6 +2308,9 @@ function createStageFlightPreviewInputs({
       : undefined,
     releasedBodyDragModel,
     relativeAeroInteraction,
+    ...(relativeAeroDatabase && relativeAeroDatabaseBindingMode !== "disabled"
+      ? { relativeAeroDatabase, relativeAeroDatabaseBindingMode }
+      : {}),
     relativeAeroForceFeedback: coupledRelativeAeroForceFeedbackEnabled
       ? ({ ...relativeAeroInteraction, enabled: true } satisfies CoupledMultiBodyRelativeAeroOptions)
       : ({ enabled: false } satisfies CoupledMultiBodyRelativeAeroOptions),
@@ -4544,6 +4617,13 @@ export default function Home() {
   const [selectedAerodynamicTableId, setSelectedAerodynamicTableId] = useState("constant");
   const [aerodynamicTableImportDraft, setAerodynamicTableImportDraft] = useState<AerodynamicTableImportDraft>(defaultAerodynamicTableImportDraft);
   const [aerodynamicTableError, setAerodynamicTableError] = useState("");
+  const [relativeAeroLibraryOpen, setRelativeAeroLibraryOpen] = useState(false);
+  const relativeAeroLibraryCloseRef = useRef<HTMLButtonElement>(null);
+  const [relativeAeroDatabaseDefinitions, setRelativeAeroDatabaseDefinitions] = useState<RelativeAeroDatabaseDefinition[]>([]);
+  const [selectedRelativeAeroDatabaseId, setSelectedRelativeAeroDatabaseId] = useState("none");
+  const [relativeAeroDatabaseBindingMode, setRelativeAeroDatabaseBindingMode] = useState<RelativeAeroDatabaseBindingMode>("disabled");
+  const [relativeAeroDatabaseImportDraft, setRelativeAeroDatabaseImportDraft] = useState<RelativeAeroDatabaseImportDraft>(defaultRelativeAeroDatabaseImportDraft);
+  const [relativeAeroDatabaseError, setRelativeAeroDatabaseError] = useState("");
   const [componentLibraryOpen, setComponentLibraryOpen] = useState(false);
   const componentLibraryCloseRef = useRef<HTMLButtonElement>(null);
   const [componentRecords, setComponentRecords] = useState<LocalComponentRecord[]>([]);
@@ -4771,6 +4851,8 @@ export default function Home() {
     selectedMotorId,
     selectedAerodynamicTableId,
     projectName,
+    selectedRelativeAeroDatabaseId,
+    relativeAeroDatabaseBindingMode,
   );
   const historyHasPendingChanges = currentHistoryFingerprint !== lastSavedFingerprintRef.current;
   const canUndoProjectHistory = historyCursor >= 0 && (historyHasPendingChanges || historyCursor > 0);
@@ -4948,6 +5030,12 @@ export default function Home() {
         : null,
     [selectedAerodynamicTableDefinition],
   );
+  const selectedRelativeAeroDatabase = useMemo(
+    () => relativeAeroDatabaseDefinitions.find(
+      (definition) => definition.id === selectedRelativeAeroDatabaseId,
+    ) ?? null,
+    [relativeAeroDatabaseDefinitions, selectedRelativeAeroDatabaseId],
+  );
   const aerodynamicTableModels = useMemo<Readonly<Record<string, AerodynamicCoefficientTableModel>>>(
     () => Object.fromEntries(
       aerodynamicTableDefinitions.map((definition) => [
@@ -4981,6 +5069,9 @@ export default function Home() {
           coupledMultiBodyRetainedBodyMode,
           coupledRelativeAeroForceFeedbackEnabled,
           releasedBodyDragModel,
+          relativeAeroDatabaseId: selectedRelativeAeroDatabase?.id ?? "none",
+          relativeAeroDatabaseBindingMode,
+          relativeAeroDatabase: selectedRelativeAeroDatabase,
           separationContactLoad: {
             stoppingDistanceM: separationContactStoppingDistanceM,
             coefficientOfRestitution: separationContactCoefficientOfRestitution,
@@ -4992,7 +5083,7 @@ export default function Home() {
           },
         },
       }),
-    [coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledIntegrationTimeStepS, coupledMultiBodyIncludeRetainedBody, coupledMultiBodyRetainedBodyMode, coupledRelativeAeroForceFeedbackEnabled, coupledMutualGravityEnabled, editableInputs, previewMotor, releasedBodyDragModel, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, vehicleTopology, verticalIntegrationTimeStepS],
+    [coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledIntegrationTimeStepS, coupledMultiBodyIncludeRetainedBody, coupledMultiBodyRetainedBodyMode, coupledRelativeAeroForceFeedbackEnabled, coupledMutualGravityEnabled, editableInputs, previewMotor, relativeAeroDatabaseBindingMode, releasedBodyDragModel, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, selectedRelativeAeroDatabase, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, vehicleTopology, verticalIntegrationTimeStepS],
   );
   const previewEnvironment = useMemo(
     () => createPreviewEnvironment(launchAltitude, windSpeed, { siteName: launchSiteName, latitudeDeg: launchLatitudeDeg, longitudeDeg: launchLongitudeDeg, windAzimuthDeg, windProfileLayers, turbulenceScale, earthRotationEnabled, normalGravityEnabled, seed: weatherSeed, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
@@ -5638,8 +5729,11 @@ export default function Home() {
       let restoredRegistry = createEmptyProjectRegistry("arc54");
       let restoredMotorRecords: MotorDataRecord[] = [];
       let restoredAerodynamicTables: AerodynamicCoefficientTableDefinition[] = [];
+      let restoredRelativeAeroDatabases: RelativeAeroDatabaseDefinition[] = [];
       let restoredMotorSelection = "synthetic";
       let restoredAerodynamicSelection = "constant";
+      let restoredRelativeAeroSelection = "none";
+      let restoredRelativeAeroBindingMode: RelativeAeroDatabaseBindingMode = "disabled";
       let restoredUiPreferences = createDefaultUiPreferences();
       const problems: string[] = [];
       const selectionWarnings: string[] = [];
@@ -5726,6 +5820,19 @@ export default function Home() {
         problems.push("the local aerodynamic library");
       }
       try {
+        const serialized = window.localStorage.getItem(LOCAL_RELATIVE_AERO_LIBRARY_STORAGE_KEY);
+        restoredRelativeAeroDatabases = serialized ? parseLocalRelativeAeroLibrary(serialized) : [];
+        setRelativeAeroDatabaseDefinitions(restoredRelativeAeroDatabases);
+        const storedSelection = window.localStorage.getItem(LOCAL_RELATIVE_AERO_SELECTION_STORAGE_KEY);
+        if (storedSelection?.trim()) restoredRelativeAeroSelection = storedSelection;
+        const storedBindingMode = window.localStorage.getItem(LOCAL_RELATIVE_AERO_BINDING_MODE_STORAGE_KEY);
+        if (storedBindingMode === "disabled" || storedBindingMode === "retained-to-detached") {
+          restoredRelativeAeroBindingMode = storedBindingMode;
+        }
+      } catch {
+        problems.push("the local relative-body aerodynamic library");
+      }
+      try {
         const serialized = window.localStorage.getItem(LOCAL_COMPONENT_LIBRARY_STORAGE_KEY);
         setComponentRecords(serialized ? parseLocalComponentLibrary(serialized) : []);
       } catch {
@@ -5763,6 +5870,8 @@ export default function Home() {
       setExportDestination(restoredUiPreferences.exportDestination);
       if (restoredSnapshot?.selectedMotorId) restoredMotorSelection = restoredSnapshot.selectedMotorId;
       if (restoredSnapshot?.selectedAerodynamicTableId) restoredAerodynamicSelection = restoredSnapshot.selectedAerodynamicTableId;
+      if (restoredSnapshot?.selectedRelativeAeroDatabaseId) restoredRelativeAeroSelection = restoredSnapshot.selectedRelativeAeroDatabaseId;
+      if (restoredSnapshot?.relativeAeroDatabaseBindingMode) restoredRelativeAeroBindingMode = restoredSnapshot.relativeAeroDatabaseBindingMode;
       const motorSelectionAvailable = restoredMotorSelection === "synthetic" || restoredMotorRecords.some((record) => record.id === restoredMotorSelection);
       const effectiveMotorSelection = motorSelectionAvailable ? restoredMotorSelection : "synthetic";
       if (!motorSelectionAvailable) {
@@ -5773,11 +5882,23 @@ export default function Home() {
       if (!aerodynamicSelectionAvailable) {
         selectionWarnings.push(`Selected aerodynamic table ${restoredAerodynamicSelection} is not available on this device; constant drag selected.`);
       }
+      const relativeAeroSelectionAvailable = restoredRelativeAeroSelection === "none" || restoredRelativeAeroDatabases.some((database) => database.id === restoredRelativeAeroSelection);
+      const effectiveRelativeAeroSelection = relativeAeroSelectionAvailable ? restoredRelativeAeroSelection : "none";
+      const effectiveRelativeAeroBindingMode = effectiveRelativeAeroSelection === "none"
+        ? "disabled"
+        : restoredRelativeAeroBindingMode;
+      if (!relativeAeroSelectionAvailable) {
+        selectionWarnings.push(`Selected relative-body database ${restoredRelativeAeroSelection} is not available on this device; relative-body diagnostics disabled.`);
+      }
       setSelectedMotorId(effectiveMotorSelection);
       setSelectedAerodynamicTableId(effectiveAerodynamicSelection);
+      setSelectedRelativeAeroDatabaseId(effectiveRelativeAeroSelection);
+      setRelativeAeroDatabaseBindingMode(effectiveRelativeAeroBindingMode);
       try {
         window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, effectiveMotorSelection);
         window.localStorage.setItem(LOCAL_AERODYNAMIC_SELECTION_STORAGE_KEY, effectiveAerodynamicSelection);
+        window.localStorage.setItem(LOCAL_RELATIVE_AERO_SELECTION_STORAGE_KEY, effectiveRelativeAeroSelection);
+        window.localStorage.setItem(LOCAL_RELATIVE_AERO_BINDING_MODE_STORAGE_KEY, effectiveRelativeAeroBindingMode);
       } catch {
         selectionWarnings.push("source selections could not be refreshed in local storage");
       }
@@ -5881,6 +6002,8 @@ export default function Home() {
           restoredMotorSelection,
           restoredAerodynamicSelection,
           restoredSnapshot.projectName,
+          effectiveRelativeAeroSelection,
+          effectiveRelativeAeroBindingMode,
         );
         revisionRef.current = restoredSnapshot.revision;
       } else if (problems.length > 0) {
@@ -5891,6 +6014,8 @@ export default function Home() {
           restoredMotorSelection,
           restoredAerodynamicSelection,
           DEFAULT_PROJECT_NAME,
+          effectiveRelativeAeroSelection,
+          effectiveRelativeAeroBindingMode,
         );
       }
       const latestHistoryRevision = restoredHistory.entries.at(-1)?.snapshot.revision ?? 0;
@@ -6166,6 +6291,8 @@ export default function Home() {
       selectedMotorId,
       selectedAerodynamicTableId,
       projectName,
+      selectedRelativeAeroDatabaseId,
+      relativeAeroDatabaseBindingMode,
     );
     if (fingerprint === lastSavedFingerprintRef.current) {
       setSaved(true);
@@ -6188,6 +6315,8 @@ export default function Home() {
           topology: vehicleTopology,
           selectedMotorId,
           selectedAerodynamicTableId,
+          selectedRelativeAeroDatabaseId,
+          relativeAeroDatabaseBindingMode,
         });
         const label = previous
           ? projectName !== previousSnapshot?.projectName
@@ -6219,7 +6348,7 @@ export default function Home() {
       }
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [activeProjectId, editableInputs, projectName, selectedAerodynamicTableId, selectedMotorId, storageReady, vehicleTopology]);
+  }, [activeProjectId, editableInputs, projectName, relativeAeroDatabaseBindingMode, selectedAerodynamicTableId, selectedMotorId, selectedRelativeAeroDatabaseId, storageReady, vehicleTopology]);
 
   useEffect(() => {
     if (!exportOpen) return;
@@ -6289,6 +6418,16 @@ export default function Home() {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [aerodynamicLibraryOpen]);
+
+  useEffect(() => {
+    if (!relativeAeroLibraryOpen) return;
+    relativeAeroLibraryCloseRef.current?.focus();
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setRelativeAeroLibraryOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [relativeAeroLibraryOpen]);
 
   useEffect(() => {
     if (!componentLibraryOpen) return;
@@ -6970,6 +7109,8 @@ export default function Home() {
       selectedMotorId,
       selectedAerodynamicTableId,
       projectName,
+      selectedRelativeAeroDatabaseId,
+      relativeAeroDatabaseBindingMode,
     ) !== lastSavedFingerprintRef.current;
     const targetIndex = pendingChanges ? currentIndex : currentIndex + direction;
     if (direction === 1 && (pendingChanges || targetIndex >= entries.length)) return;
@@ -6981,12 +7122,18 @@ export default function Home() {
       const topology = source.topology ?? topologyRef.current;
       const sourceMotorSelection = source.selectedMotorId ?? selectedMotorId;
       const sourceAerodynamicSelection = source.selectedAerodynamicTableId ?? selectedAerodynamicTableId;
+      const sourceRelativeAeroSelection = source.selectedRelativeAeroDatabaseId ?? selectedRelativeAeroDatabaseId;
+      const sourceRelativeAeroMode = source.relativeAeroDatabaseBindingMode ?? relativeAeroDatabaseBindingMode;
       const motorAvailable = sourceMotorSelection === "synthetic"
         || userMotorRecords.some((record) => record.id === sourceMotorSelection);
       const aerodynamicAvailable = sourceAerodynamicSelection === "constant"
         || aerodynamicTableDefinitions.some((table) => table.id === sourceAerodynamicSelection);
       const effectiveMotorSelection = motorAvailable ? sourceMotorSelection : "synthetic";
       const effectiveAerodynamicSelection = aerodynamicAvailable ? sourceAerodynamicSelection : "constant";
+      const relativeAeroAvailable = sourceRelativeAeroSelection === "none"
+        || relativeAeroDatabaseDefinitions.some((database) => database.id === sourceRelativeAeroSelection);
+      const effectiveRelativeAeroSelection = relativeAeroAvailable ? sourceRelativeAeroSelection : "none";
+      const effectiveRelativeAeroMode = effectiveRelativeAeroSelection === "none" ? "disabled" : sourceRelativeAeroMode;
       const appliedSnapshot = createLocalProjectSnapshot({
         projectId: source.projectId,
         projectName: source.projectName,
@@ -6996,6 +7143,8 @@ export default function Home() {
         topology,
         selectedMotorId: effectiveMotorSelection,
         selectedAerodynamicTableId: effectiveAerodynamicSelection,
+        selectedRelativeAeroDatabaseId: effectiveRelativeAeroSelection,
+        relativeAeroDatabaseBindingMode: effectiveRelativeAeroMode,
       });
       setProjectName(source.projectName);
       applyEditableInputs(source.inputs);
@@ -7004,8 +7153,12 @@ export default function Home() {
       window.localStorage.setItem(LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY, serializeVehicleTopology(topology));
       setSelectedMotorId(effectiveMotorSelection);
       setSelectedAerodynamicTableId(effectiveAerodynamicSelection);
+      setSelectedRelativeAeroDatabaseId(effectiveRelativeAeroSelection);
+      setRelativeAeroDatabaseBindingMode(effectiveRelativeAeroMode);
       window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, effectiveMotorSelection);
       window.localStorage.setItem(LOCAL_AERODYNAMIC_SELECTION_STORAGE_KEY, effectiveAerodynamicSelection);
+      window.localStorage.setItem(LOCAL_RELATIVE_AERO_SELECTION_STORAGE_KEY, effectiveRelativeAeroSelection);
+      window.localStorage.setItem(LOCAL_RELATIVE_AERO_BINDING_MODE_STORAGE_KEY, effectiveRelativeAeroMode);
       window.localStorage.setItem(LOCAL_PROJECT_STORAGE_KEY, serializeLocalProjectSnapshot(appliedSnapshot));
       window.localStorage.setItem(LOCAL_PROJECT_HISTORY_STORAGE_KEY, serializeLocalProjectHistory(historyRef.current));
       persistProjectRegistryRecord(appliedSnapshot, historyRef.current);
@@ -7019,6 +7172,8 @@ export default function Home() {
         effectiveMotorSelection,
         effectiveAerodynamicSelection,
         source.projectName,
+        effectiveRelativeAeroSelection,
+        effectiveRelativeAeroMode,
       );
       setStageFlightResult(null);
       setStageFlightError("");
@@ -7033,8 +7188,11 @@ export default function Home() {
         !aerodynamicAvailable && sourceAerodynamicSelection !== "constant"
           ? `Referenced aerodynamic table ${sourceAerodynamicSelection} is not available on this device; constant drag selected.`
           : "",
+        !relativeAeroAvailable && sourceRelativeAeroSelection !== "none"
+          ? `Referenced relative-body database ${sourceRelativeAeroSelection} is not available on this device; diagnostics disabled.`
+          : "",
       ].filter(Boolean).join(" "));
-      setSaved(motorAvailable && aerodynamicAvailable);
+      setSaved(motorAvailable && aerodynamicAvailable && relativeAeroAvailable);
       notify(`${direction === -1 ? "Undid to" : "Redid to"} revision ${source.revision}`);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Unable to navigate local project history");
@@ -7063,7 +7221,12 @@ export default function Home() {
     label: string,
     allowDuplicate = true,
     topology = vehicleTopology,
-    sourceSelections = { selectedMotorId, selectedAerodynamicTableId },
+    sourceSelections: {
+      selectedMotorId: string;
+      selectedAerodynamicTableId: string;
+      selectedRelativeAeroDatabaseId?: string;
+      relativeAeroDatabaseBindingMode?: RelativeAeroDatabaseBindingMode;
+    } = { selectedMotorId, selectedAerodynamicTableId, selectedRelativeAeroDatabaseId, relativeAeroDatabaseBindingMode },
     projectNameOverride = projectName,
   ) => {
     const lastTimestamp = historyRef.current.entries.at(-1)?.snapshot.savedAtIso;
@@ -7091,6 +7254,8 @@ export default function Home() {
       sourceSelections.selectedMotorId,
       sourceSelections.selectedAerodynamicTableId,
       projectNameOverride,
+      sourceSelections.selectedRelativeAeroDatabaseId,
+      sourceSelections.relativeAeroDatabaseBindingMode,
     );
     setSaveError("");
     setSaved(true);
@@ -7108,10 +7273,15 @@ export default function Home() {
       const topology = record.snapshot.topology ?? createDefaultVehicleTopology();
       const sourceMotorSelection = record.snapshot.selectedMotorId ?? "synthetic";
       const sourceAerodynamicSelection = record.snapshot.selectedAerodynamicTableId ?? "constant";
+      const sourceRelativeAeroSelection = record.snapshot.selectedRelativeAeroDatabaseId ?? "none";
+      const sourceRelativeAeroMode = record.snapshot.relativeAeroDatabaseBindingMode ?? "disabled";
       const motorAvailable = sourceMotorSelection === "synthetic" || userMotorRecords.some((item) => item.id === sourceMotorSelection);
       const aerodynamicAvailable = sourceAerodynamicSelection === "constant" || aerodynamicTableDefinitions.some((item) => item.id === sourceAerodynamicSelection);
+      const relativeAeroAvailable = sourceRelativeAeroSelection === "none" || relativeAeroDatabaseDefinitions.some((item) => item.id === sourceRelativeAeroSelection);
       const effectiveMotorSelection = motorAvailable ? sourceMotorSelection : "synthetic";
       const effectiveAerodynamicSelection = aerodynamicAvailable ? sourceAerodynamicSelection : "constant";
+      const effectiveRelativeAeroSelection = relativeAeroAvailable ? sourceRelativeAeroSelection : "none";
+      const effectiveRelativeAeroMode = effectiveRelativeAeroSelection === "none" ? "disabled" : sourceRelativeAeroMode;
       const nextRegistry = setActiveLocalProject(projectRegistryRef.current, record.projectId);
       projectRegistryRef.current = nextRegistry;
       setProjectRegistry(nextRegistry);
@@ -7123,8 +7293,12 @@ export default function Home() {
       window.localStorage.setItem(LOCAL_VEHICLE_TOPOLOGY_STORAGE_KEY, serializeVehicleTopology(topology));
       setSelectedMotorId(effectiveMotorSelection);
       setSelectedAerodynamicTableId(effectiveAerodynamicSelection);
+      setSelectedRelativeAeroDatabaseId(effectiveRelativeAeroSelection);
+      setRelativeAeroDatabaseBindingMode(effectiveRelativeAeroMode);
       window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, effectiveMotorSelection);
       window.localStorage.setItem(LOCAL_AERODYNAMIC_SELECTION_STORAGE_KEY, effectiveAerodynamicSelection);
+      window.localStorage.setItem(LOCAL_RELATIVE_AERO_SELECTION_STORAGE_KEY, effectiveRelativeAeroSelection);
+      window.localStorage.setItem(LOCAL_RELATIVE_AERO_BINDING_MODE_STORAGE_KEY, effectiveRelativeAeroMode);
       window.localStorage.setItem(LOCAL_PROJECT_STORAGE_KEY, serializeLocalProjectSnapshot(record.snapshot));
       window.localStorage.setItem(LOCAL_PROJECT_HISTORY_STORAGE_KEY, serializeLocalProjectHistory(record.history));
       window.localStorage.setItem(LOCAL_PROJECT_REGISTRY_STORAGE_KEY, serializeLocalProjectRegistry(nextRegistry));
@@ -7140,6 +7314,8 @@ export default function Home() {
         effectiveMotorSelection,
         effectiveAerodynamicSelection,
         record.projectName,
+        effectiveRelativeAeroSelection,
+        effectiveRelativeAeroMode,
       );
       setStageFlightResult(null);
       setStageFlightError("");
@@ -7156,9 +7332,10 @@ export default function Home() {
         [
           !motorAvailable && sourceMotorSelection !== "synthetic" ? `Referenced motor ${sourceMotorSelection} is not available on this device; synthetic preview selected.` : "",
           !aerodynamicAvailable && sourceAerodynamicSelection !== "constant" ? `Referenced aerodynamic table ${sourceAerodynamicSelection} is not available on this device; constant drag selected.` : "",
+          !relativeAeroAvailable && sourceRelativeAeroSelection !== "none" ? `Referenced relative-body database ${sourceRelativeAeroSelection} is not available on this device; diagnostics disabled.` : "",
         ].filter(Boolean).join(" "),
       );
-      setSaved(motorAvailable && aerodynamicAvailable);
+      setSaved(motorAvailable && aerodynamicAvailable && relativeAeroAvailable);
       setProjectRegistryError("");
       setProjectConsoleOpen(false);
       setView("design");
@@ -7228,6 +7405,8 @@ export default function Home() {
         topology: vehicleTopology,
         selectedMotorId,
         selectedAerodynamicTableId,
+        selectedRelativeAeroDatabaseId,
+        relativeAeroDatabaseBindingMode,
       });
       const duplicateHistory = appendProjectHistory(
         createEmptyProjectHistory(nextId),
@@ -7257,6 +7436,8 @@ export default function Home() {
         selectedMotorId,
         selectedAerodynamicTableId,
         nextName,
+        selectedRelativeAeroDatabaseId,
+        relativeAeroDatabaseBindingMode,
       );
       setProjectDraftName("");
       setProjectRegistryError("");
@@ -7282,30 +7463,39 @@ export default function Home() {
       const topology = source.topology ?? topologyRef.current;
       const sourceMotorSelection = source.selectedMotorId ?? selectedMotorId;
       const sourceAerodynamicSelection = source.selectedAerodynamicTableId ?? selectedAerodynamicTableId;
+      const sourceRelativeAeroSelection = source.selectedRelativeAeroDatabaseId ?? selectedRelativeAeroDatabaseId;
+      const sourceRelativeAeroMode = source.relativeAeroDatabaseBindingMode ?? relativeAeroDatabaseBindingMode;
       setProjectName(source.projectName);
       if (source.topology) {
         persistVehicleTopology(source.topology);
       }
       const motorAvailable = sourceMotorSelection === "synthetic" || userMotorRecords.some((record) => record.id === sourceMotorSelection);
       const aerodynamicAvailable = sourceAerodynamicSelection === "constant" || aerodynamicTableDefinitions.some((table) => table.id === sourceAerodynamicSelection);
+      const relativeAeroAvailable = sourceRelativeAeroSelection === "none" || relativeAeroDatabaseDefinitions.some((database) => database.id === sourceRelativeAeroSelection);
       const effectiveMotorSelection = motorAvailable ? sourceMotorSelection : "synthetic";
       const effectiveAerodynamicSelection = aerodynamicAvailable ? sourceAerodynamicSelection : "constant";
+      const effectiveRelativeAeroSelection = relativeAeroAvailable ? sourceRelativeAeroSelection : "none";
+      const effectiveRelativeAeroMode = effectiveRelativeAeroSelection === "none" ? "disabled" : sourceRelativeAeroMode;
       setSelectedMotorId(effectiveMotorSelection);
       setSelectedAerodynamicTableId(effectiveAerodynamicSelection);
+      setSelectedRelativeAeroDatabaseId(effectiveRelativeAeroSelection);
+      setRelativeAeroDatabaseBindingMode(effectiveRelativeAeroMode);
       window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, effectiveMotorSelection);
       window.localStorage.setItem(LOCAL_AERODYNAMIC_SELECTION_STORAGE_KEY, effectiveAerodynamicSelection);
+      window.localStorage.setItem(LOCAL_RELATIVE_AERO_SELECTION_STORAGE_KEY, effectiveRelativeAeroSelection);
+      window.localStorage.setItem(LOCAL_RELATIVE_AERO_BINDING_MODE_STORAGE_KEY, effectiveRelativeAeroMode);
       persistCheckpoint(
         source.inputs,
         `Restored revision ${source.revision}`,
         true,
         topology,
-        { selectedMotorId: effectiveMotorSelection, selectedAerodynamicTableId: effectiveAerodynamicSelection },
+        { selectedMotorId: effectiveMotorSelection, selectedAerodynamicTableId: effectiveAerodynamicSelection, selectedRelativeAeroDatabaseId: effectiveRelativeAeroSelection, relativeAeroDatabaseBindingMode: effectiveRelativeAeroMode },
         source.projectName,
       );
       applyEditableInputs(source.inputs);
       setHistoryOpen(false);
       const sourceNote = source.topology ? " with vehicle topology" : " (legacy topology retained)";
-      const selectionNote = motorAvailable && aerodynamicAvailable ? "" : "; unavailable source selections fell back";
+      const selectionNote = motorAvailable && aerodynamicAvailable && relativeAeroAvailable ? "" : "; unavailable source selections fell back";
       notify(`Restored revision ${source.revision}${sourceNote}${selectionNote}`);
     } catch {
       setSaveError("This browser could not restore that checkpoint. The current design was not changed.");
@@ -7525,6 +7715,13 @@ export default function Home() {
     );
     setAerodynamicTableDefinitions(records);
   };
+  const persistRelativeAeroDatabases = (records: RelativeAeroDatabaseDefinition[]) => {
+    window.localStorage.setItem(
+      LOCAL_RELATIVE_AERO_LIBRARY_STORAGE_KEY,
+      serializeLocalRelativeAeroLibrary(records),
+    );
+    setRelativeAeroDatabaseDefinitions(records);
+  };
   const selectMotor = (id: string) => {
     setSelectedMotorId(id);
     window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, id);
@@ -7651,6 +7848,49 @@ export default function Home() {
       notify("Aerodynamic table removed from this device");
     } catch (error) {
       setAerodynamicTableError(error instanceof Error ? error.message : "Unable to remove aerodynamic table");
+    }
+  };
+  const selectRelativeAeroDatabase = (
+    id: string,
+    bindingMode: RelativeAeroDatabaseBindingMode = id === "none" ? "disabled" : relativeAeroDatabaseBindingMode,
+  ) => {
+    if (id !== "none" && !relativeAeroDatabaseDefinitions.some((database) => database.id === id)) {
+      setRelativeAeroDatabaseError("That relative-body database is no longer available on this device.");
+      return;
+    }
+    const nextMode = id === "none" ? "disabled" : bindingMode;
+    setSelectedRelativeAeroDatabaseId(id);
+    setRelativeAeroDatabaseBindingMode(nextMode);
+    window.localStorage.setItem(LOCAL_RELATIVE_AERO_SELECTION_STORAGE_KEY, id);
+    window.localStorage.setItem(LOCAL_RELATIVE_AERO_BINDING_MODE_STORAGE_KEY, nextMode);
+    setStageFlightResult(null);
+    setStageFlightError("");
+    setRelativeAeroLibraryOpen(false);
+    setRelativeAeroDatabaseError("");
+    notify(id === "none" ? "Relative-body database disabled" : "Relative-body database selected; rerun the staged preview");
+  };
+  const importRelativeAeroDatabase = () => {
+    try {
+      const parsed = JSON.parse(relativeAeroDatabaseImportDraft.json) as RelativeAeroDatabaseDefinition;
+      const nextDatabases = upsertLocalRelativeAeroDatabase(relativeAeroDatabaseDefinitions, parsed);
+      const nextDatabase = nextDatabases.find((database) => database.id === parsed.id);
+      persistRelativeAeroDatabases(nextDatabases);
+      if (nextDatabase) selectRelativeAeroDatabase(nextDatabase.id, "retained-to-detached");
+      setRelativeAeroDatabaseImportDraft({ json: defaultRelativeAeroDatabaseImportDraft.json });
+      setRelativeAeroDatabaseError("");
+      notify(`${nextDatabase?.name ?? "Relative-body database"} imported; rerun the staged preview`);
+    } catch (error) {
+      setRelativeAeroDatabaseError(error instanceof Error ? error.message : "Unable to import relative-body database");
+    }
+  };
+  const removeRelativeAeroDatabase = (id: string) => {
+    try {
+      const nextDatabases = relativeAeroDatabaseDefinitions.filter((database) => database.id !== id);
+      persistRelativeAeroDatabases(nextDatabases);
+      if (selectedRelativeAeroDatabaseId === id) selectRelativeAeroDatabase("none");
+      notify("Relative-body database removed from this device");
+    } catch (error) {
+      setRelativeAeroDatabaseError(error instanceof Error ? error.message : "Unable to remove relative-body database");
     }
   };
   const persistVehicleTopology = (next: LocalVehicleTopology) => {
@@ -8061,11 +8301,15 @@ export default function Home() {
       persistComponentRecords([...imported.componentLibrary]);
       setSelectedMotorId(imported.selectedMotorId);
       setSelectedAerodynamicTableId(imported.selectedAerodynamicTableId);
+      setSelectedRelativeAeroDatabaseId("none");
+      setRelativeAeroDatabaseBindingMode("disabled");
       window.localStorage.setItem(LOCAL_MOTOR_SELECTION_STORAGE_KEY, imported.selectedMotorId);
       window.localStorage.setItem(
         LOCAL_AERODYNAMIC_SELECTION_STORAGE_KEY,
         imported.selectedAerodynamicTableId,
       );
+      window.localStorage.setItem(LOCAL_RELATIVE_AERO_SELECTION_STORAGE_KEY, "none");
+      window.localStorage.setItem(LOCAL_RELATIVE_AERO_BINDING_MODE_STORAGE_KEY, "disabled");
       markChanged();
       persistCheckpoint(
         imported.editableInputs,
@@ -8756,6 +9000,8 @@ export default function Home() {
             relativeAeroWakeRecoveryDistanceBodyDiameters,
             relativeAeroPeakVelocityDeficitFraction,
             relativeAeroMaximumVelocityDeficitFraction,
+            relativeAeroDatabase: selectedRelativeAeroDatabase ?? undefined,
+            relativeAeroDatabaseBindingMode,
             separationContactStoppingDistanceM,
             separationContactCoefficientOfRestitution,
             normalForceModel,
@@ -8841,6 +9087,8 @@ export default function Home() {
           relativeAeroWakeRecoveryDistanceBodyDiameters,
           relativeAeroPeakVelocityDeficitFraction,
           relativeAeroMaximumVelocityDeficitFraction,
+          relativeAeroDatabase: selectedRelativeAeroDatabase ?? undefined,
+          relativeAeroDatabaseBindingMode,
           separationContactStoppingDistanceM,
           separationContactCoefficientOfRestitution,
           normalForceModel,
@@ -9119,6 +9367,8 @@ export default function Home() {
           relativeAeroWakeRecoveryDistanceBodyDiameters,
           relativeAeroPeakVelocityDeficitFraction,
           relativeAeroMaximumVelocityDeficitFraction,
+          relativeAeroDatabase: selectedRelativeAeroDatabase ?? undefined,
+          relativeAeroDatabaseBindingMode,
           separationContactStoppingDistanceM,
           separationContactCoefficientOfRestitution,
           normalForceModel,
@@ -9210,6 +9460,8 @@ export default function Home() {
           relativeAeroWakeRecoveryDistanceBodyDiameters,
           relativeAeroPeakVelocityDeficitFraction,
           relativeAeroMaximumVelocityDeficitFraction,
+          relativeAeroDatabase: selectedRelativeAeroDatabase ?? undefined,
+          relativeAeroDatabaseBindingMode,
           separationContactStoppingDistanceM,
           separationContactCoefficientOfRestitution,
           normalForceModel,
@@ -9331,6 +9583,8 @@ export default function Home() {
           relativeAeroWakeRecoveryDistanceBodyDiameters,
           relativeAeroPeakVelocityDeficitFraction,
           relativeAeroMaximumVelocityDeficitFraction,
+          relativeAeroDatabase: selectedRelativeAeroDatabase ?? undefined,
+          relativeAeroDatabaseBindingMode,
           separationContactStoppingDistanceM,
           separationContactCoefficientOfRestitution,
           normalForceModel,
@@ -9648,6 +9902,7 @@ export default function Home() {
     { id: "open-topology", label: "Edit stages and boosters", description: "Open the serial, parallel, and radial topology editor", run: () => setTopologyOpen(true) },
     { id: "open-motors", label: "Open motor library", description: "Review or import a provenance-qualified user motor curve", run: () => setMotorLibraryOpen(true) },
     { id: "open-aero", label: "Open aerodynamic data", description: "Review or import Mach-Reynolds coefficient tables", run: () => setAerodynamicLibraryOpen(true) },
+    { id: "open-relative-aero", label: "Open relative-body data", description: "Review or import separated-body interaction tables", run: () => setRelativeAeroLibraryOpen(true) },
     { id: "open-components", label: "Open component library", description: "Reuse attributed geometry, recovery, equipment, and pod presets", run: () => setComponentLibraryOpen(true) },
     { id: "open-run-library", label: "Open simulation run library", description: "Save, review, and reuse local vertical or staged simulation runs", run: () => setRunLibraryOpen(true) },
     { id: "open-templates", label: "Choose a project template", description: "Start from a beginner, high-power, weather, or diagnostic setup", run: () => setTemplatesOpen(true) },
@@ -12268,6 +12523,10 @@ export default function Home() {
               <span><strong>Aerodynamic data</strong><small>{selectedAerodynamicTable?.name ?? "Constant drag coefficient"}</small></span>
               <em>{aerodynamicTableDefinitions.length} saved · Manage</em>
             </button>
+            <button className="library-button" onClick={() => setRelativeAeroLibraryOpen(true)}>
+              <span><strong>Relative-body data</strong><small>{selectedRelativeAeroDatabase?.name ?? "Disabled · no interaction table"}</small></span>
+              <em>{selectedRelativeAeroDatabase ? "Retained → detached · Manage" : "Optional · Manage"}</em>
+            </button>
             <button className="library-button" onClick={() => setMotorLibraryOpen(true)}>
               <span><strong>Motor library</strong><small>{previewMotor.manufacturer} · {previewMotor.designation}</small></span>
               <em>{userMotorRecords.length} saved · Manage</em>
@@ -12798,6 +13057,84 @@ export default function Home() {
             <div className="history-notice">
               <span>MODEL BOUNDARY</span>
               <p>Tables are interpolated in Mach and log10 Reynolds number exactly as supplied. When provided, angle-of-attack and sideslip volumes are linearly interpolated and query limits remain visible. RocketWorks validates the document shape and provenance but does not certify aerodynamic accuracy or source licensing.</p>
+            </div>
+          </section>
+        </div>
+      )}
+      {relativeAeroLibraryOpen && (
+        <div
+          className="export-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setRelativeAeroLibraryOpen(false);
+          }}
+        >
+          <section
+            className="export-dialog aerodynamic-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="relative-aero-library-title"
+            aria-describedby="relative-aero-library-description"
+          >
+            <div className="export-heading">
+              <div>
+                <span className="eyebrow">Interaction data center</span>
+                <h2 id="relative-aero-library-title">Relative-body data</h2>
+                <p id="relative-aero-library-description">Import a source-declared separation/Mach coefficient table for post-trace retained-to-detached diagnostics. The selected table is never fed back into the flight solver.</p>
+              </div>
+              <button
+                ref={relativeAeroLibraryCloseRef}
+                className="export-close"
+                aria-label="Close relative-body data library"
+                onClick={() => setRelativeAeroLibraryOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="aerodynamic-library-list" aria-label="Available relative-body aerodynamic databases">
+              <article className={selectedRelativeAeroDatabaseId === "none" ? "aerodynamic-record active" : "aerodynamic-record"}>
+                <div className="aerodynamic-record-main">
+                  <span className="motor-record-badge">OFF</span>
+                  <div><strong>Diagnostics disabled</strong><small>No relative-body table is queried by the staged preview.</small></div>
+                </div>
+                <div className="aerodynamic-record-actions">
+                  <span>Baseline · no table data</span>
+                  <button onClick={() => selectRelativeAeroDatabase("none")}>{selectedRelativeAeroDatabaseId === "none" ? "Selected" : "Disable"}</button>
+                </div>
+              </article>
+              {relativeAeroDatabaseDefinitions.map((database) => {
+                const model = createRelativeAeroDatabase(database);
+                const bindingActive = selectedRelativeAeroDatabaseId === database.id && relativeAeroDatabaseBindingMode === "retained-to-detached";
+                return (
+                  <article className={bindingActive ? "aerodynamic-record active" : "aerodynamic-record"} key={database.id}>
+                    <div className="aerodynamic-record-main">
+                      <span className="motor-record-badge user">RELATIVE</span>
+                      <div><strong>{database.name}</strong><small>Mach {model.machRange[0]}–{model.machRange[1]} · axial {model.axialSeparationRangeBodyDiameters[0]}–{model.axialSeparationRangeBodyDiameters[1]} body Ø · lateral {model.lateralSeparationRangeBodyDiameters[0]}–{model.lateralSeparationRangeBodyDiameters[1]} body Ø · {model.availableChannels.length} channel{model.availableChannels.length === 1 ? "" : "s"} · {database.provenance.sourceName}</small></div>
+                    </div>
+                    <div className="aerodynamic-record-actions">
+                      <span>{database.provenance.licenseIdentifier} · {database.provenance.validationStatus}</span>
+                      <button onClick={() => downloadTextArtifact(`${database.id}.json`, "application/json;charset=utf-8", `${JSON.stringify(database, null, 2)}\n`)}>JSON</button>
+                      <button onClick={() => selectRelativeAeroDatabase(database.id, "retained-to-detached")}>{bindingActive ? "Selected" : "Use retained → detached"}</button>
+                      <button className="danger-button" onClick={() => removeRelativeAeroDatabase(database.id)}>Remove</button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+            {selectedRelativeAeroDatabase && (
+              <div className="history-notice">
+                <span>ACTIVE BINDING</span>
+                <p><strong>{selectedRelativeAeroDatabase.name}</strong> is applied to each available retained-vehicle → detached-body direction after separation. Queries use the source air-relative frame and source body diameter. Select “Diagnostics disabled” to remove the binding.</p>
+              </div>
+            )}
+            <div className="aerodynamic-import-section">
+              <div className="motor-import-heading"><div><span className="eyebrow">User-supplied data</span><h3>Import a relative-body table</h3></div><span>{relativeAeroDatabaseDefinitions.length} / 8 saved</span></div>
+              <label className="motor-csv-field">JSON database definition <small>Grid order is lateral separation × axial separation × Mach. Axial separation is signed in source-flow body diameters; lateral separation is non-negative. Coefficient deltas are diagnostics relative to an isolated-body reference, with provenance and optional uncertainty required for interpretation.</small><textarea value={relativeAeroDatabaseImportDraft.json} onChange={(event) => setRelativeAeroDatabaseImportDraft({ json: event.target.value })} spellCheck={false} /></label>
+              {relativeAeroDatabaseError && <p className="motor-import-error" role="alert">{relativeAeroDatabaseError}</p>}
+              <div className="motor-import-actions"><button className="primary-button" onClick={importRelativeAeroDatabase}>Validate and save table</button><span>Strict schema · max 8 tables · user-supplied-unvalidated by default</span></div>
+            </div>
+            <div className="history-notice">
+              <span>MODEL BOUNDARY</span>
+              <p>RocketWorks validates axes, grid shape, coefficient bounds, moment reference length, provenance, and out-of-range policy. The table produces post-trace diagnostic deltas only; it does not model unsteady interference, covariance, CFD, wind-tunnel accuracy, certification, or flight safety.</p>
             </div>
           </section>
         </div>

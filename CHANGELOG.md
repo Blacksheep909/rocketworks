@@ -10,8 +10,10 @@ flight-readiness claims.
   configuration tables interpolate axial/lateral separation and Mach, retain
   provenance, uncertainty, applicability, and query-failure metadata, and
   expose post-trace dimensional force/moment deltas in the Flight inspector
-  and engineering report. The database is diagnostic-only: it does not feed
-  isolated-body loads, wake feedback, or flight-safety decisions.
+  and engineering report. Add a device-local library panel with strict JSON
+  validation, stable-id upsert, explicit retained-to-detached binding, and a
+  disable control. The database is diagnostic-only: it does not feed isolated-
+  body loads, wake feedback, or flight-safety decisions.
 
 - Add optional source-declared aerodynamic uncertainty correlation metadata.
   Table imports validate channel coverage, symmetry, coefficient bounds, and

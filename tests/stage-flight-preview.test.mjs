@@ -56,6 +56,36 @@ const detachedForceMomentTable = createAerodynamicCoefficientTable({
   },
 });
 
+function constantRelativeCoefficientGrid(value) {
+  return {
+    values: [
+      [[value, value], [value, value]],
+      [[value, value], [value, value]],
+    ],
+  };
+}
+
+const retainedToDetachedRelativeDatabase = {
+  id: "retained-to-detached-fixture",
+  name: "Retained-to-detached fixture",
+  machPoints: [0, 2],
+  axialSeparationPointsBodyDiameters: [-10, 50],
+  lateralSeparationPointsBodyDiameters: [0, 20],
+  axialForceCoefficientDelta: constantRelativeCoefficientGrid(0.04),
+  normalForceCoefficientDelta: constantRelativeCoefficientGrid(0.01),
+  pitchMomentCoefficientDelta: constantRelativeCoefficientGrid(0.005),
+  referenceAreaM2: 0.01,
+  momentReferenceLengthM: 0.4,
+  outOfRangePolicy: "clamp-with-warning",
+  provenance: {
+    sourceName: "Synthetic stage fixture",
+    sourceKind: "user-supplied",
+    dataVersion: "stage-relative-1",
+    licenseIdentifier: "CC0-1.0",
+    validationStatus: "user-supplied-unvalidated",
+  },
+};
+
 function properties(massKg, x, inertia = 0.02) {
   return {
     massKg,
@@ -315,6 +345,16 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
       peakVelocityDeficitFraction: 0.4,
       maximumVelocityDeficitFraction: 0.65,
     },
+    relativeAeroDatabase: retainedToDetachedRelativeDatabase,
+    relativeAeroDatabaseBindingMode: "retained-to-detached",
+    separationEnvelopeRadiiM: {
+      "retained-vehicle": 0.04,
+      "booster/booster": 0.04,
+    },
+    environmentAt: () => ({
+      windWorldMps: { x: 0, y: 0, z: 0 },
+      atmosphere: { densityKgM3: 1.2, speedOfSoundMps: 340 },
+    }),
     integration: { method: "adaptive-rk4-step-doubling" },
     launchAltitudeM: 0,
     events: [
@@ -426,6 +466,11 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.equal(result.coupledMultiBodyFlight.contact.contactPairCount, 0);
   assert.equal(result.coupledMultiBodyFlight.status, "assessed");
   assert.ok(result.relativeAeroInteraction);
+  assert.equal(result.relativeAeroInteraction.databasePairCount, 1);
+  assert.ok(result.relativeAeroInteraction.databaseSampleCount > 0);
+  assert.equal(result.relativeAeroInteraction.databaseBindings[0].databaseId, "retained-to-detached-fixture");
+  assert.ok((result.relativeAeroInteraction.maximumDatabaseForceDeltaN ?? 0) > 0);
+  assert.ok((result.relativeAeroInteraction.maximumDatabaseMomentDeltaNm ?? 0) > 0);
   assert.deepEqual(result.relativeAeroInteraction.configuration, {
     enabled: true,
     wakeHalfAngleDeg: 12,

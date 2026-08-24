@@ -85,6 +85,7 @@ import {
   type RelativeAeroInteractionOptions,
   type RelativeAeroInteractionResult,
 } from "./relative-aero-interaction.ts";
+import type { RelativeAeroDatabaseDefinition } from "./relative-aero-database.ts";
 import {
   auditSeparationDynamics,
   solveCoupledSeparationImpulse,
@@ -146,6 +147,11 @@ export type ReleasedBodyDragModel =
   | "isotropic-point"
   | "attitude-projected-area"
   | "coefficient-table";
+
+/** Safe high-level binding policy for a selected relative-body database. */
+export type RelativeAeroDatabaseBindingMode =
+  | "disabled"
+  | "retained-to-detached";
 
 /** Retained-body handoff used by the optional shared released-body track. */
 export type RetainedBodyCoupledTrackMode =
@@ -222,6 +228,10 @@ export type StageFlightPreviewInput = Readonly<{
   releasedBodyDragModel?: ReleasedBodyDragModel;
   /** Optional post-trace wake/relative-flow screen; it never feeds forces back into flight. */
   relativeAeroInteraction?: RelativeAeroInteractionOptions;
+  /** Optional source-declared table used by the post-trace retained-to-detached screen. */
+  relativeAeroDatabase?: RelativeAeroDatabaseDefinition;
+  /** Explicit binding policy for the selected relative-body table. */
+  relativeAeroDatabaseBindingMode?: RelativeAeroDatabaseBindingMode;
   /** Optional bounded wake-deficit feedback for the shared coupled track. */
   relativeAeroForceFeedback?: CoupledMultiBodyRelativeAeroOptions;
   /** Optional finite-duration equal-and-opposite separation mechanisms for the shared track. */
@@ -2095,9 +2105,29 @@ export function simulateStageFlightPreview(
         }));
     if (detachedInteractionBodies.length > 0) {
       try {
+        const selectedRelativeAeroBindings =
+          input.relativeAeroDatabase &&
+          (input.relativeAeroDatabaseBindingMode ?? "disabled") === "retained-to-detached"
+            ? detachedInteractionBodies.map((body) => ({
+                sourceBodyId: "retained-vehicle",
+                targetBodyId: body.id,
+                database: input.relativeAeroDatabase!,
+              }))
+            : [];
+        const relativeAeroOptions = input.relativeAeroInteraction
+          ? {
+              ...input.relativeAeroInteraction,
+              ...(input.relativeAeroInteraction.databaseBindings === undefined &&
+              selectedRelativeAeroBindings.length > 0
+                ? { databaseBindings: selectedRelativeAeroBindings }
+                : {}),
+            }
+          : selectedRelativeAeroBindings.length > 0
+            ? { databaseBindings: selectedRelativeAeroBindings }
+            : undefined;
         relativeAeroInteraction = analyzeRelativeAeroInteraction({
           environmentAt: input.environmentAt,
-          options: input.relativeAeroInteraction,
+          options: relativeAeroOptions,
           bodies: [
             {
               id: "retained-vehicle",

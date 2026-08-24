@@ -192,6 +192,27 @@ test("legacy snapshots receive explicit surface-weather defaults", () => {
   assert.deepEqual(legacy.inputs.uncertaintyCorrelations, []);
 });
 
+test("project snapshots persist the device-local relative-body source reference and binding policy", () => {
+  const source = createLocalProjectSnapshot({
+    ...snapshot(1),
+    selectedMotorId: "synthetic",
+    selectedAerodynamicTableId: "constant",
+    selectedRelativeAeroDatabaseId: "separation-fixture",
+    relativeAeroDatabaseBindingMode: "retained-to-detached",
+  });
+  const restored = parseLocalProjectSnapshot(serializeLocalProjectSnapshot(source));
+  assert.equal(restored.selectedRelativeAeroDatabaseId, "separation-fixture");
+  assert.equal(restored.relativeAeroDatabaseBindingMode, "retained-to-detached");
+  assert.throws(
+    () => createLocalProjectSnapshot({
+      ...snapshot(2),
+      selectedRelativeAeroDatabaseId: "separation-fixture",
+      relativeAeroDatabaseBindingMode: "unsupported",
+    }),
+    /relativeAeroDatabaseBindingMode/,
+  );
+});
+
 test("project snapshots preserve the opt-in Earth rotation control", () => {
   const source = snapshot(1, { earthRotationEnabled: true });
   assert.equal(source.inputs.earthRotationEnabled, true);

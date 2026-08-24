@@ -194,6 +194,8 @@ export type EditableProjectInputs = Readonly<{
 export type ProjectSourceSelections = Readonly<{
   selectedMotorId: string;
   selectedAerodynamicTableId: string;
+  selectedRelativeAeroDatabaseId: string;
+  relativeAeroDatabaseBindingMode: "disabled" | "retained-to-detached";
 }>;
 
 export type LocalProjectSnapshot = Readonly<{
@@ -210,6 +212,10 @@ export type LocalProjectSnapshot = Readonly<{
   selectedMotorId?: string;
   /** Optional in schema v1 for migration; new browser checkpoints include it. */
   selectedAerodynamicTableId?: string;
+  /** Optional in schema v1 for migration; references a device-local relative-body table. */
+  selectedRelativeAeroDatabaseId?: string;
+  /** Optional in schema v1 for migration; explicit post-trace binding policy. */
+  relativeAeroDatabaseBindingMode?: "disabled" | "retained-to-detached";
 }>;
 
 export type ProjectHistoryEntry = Readonly<{
@@ -394,7 +400,18 @@ function nonEmptyString(value: unknown, label: string, maximumLength = 160): str
 function validateProjectSourceSelections(value: Readonly<{
   selectedMotorId?: unknown;
   selectedAerodynamicTableId?: unknown;
+  selectedRelativeAeroDatabaseId?: unknown;
+  relativeAeroDatabaseBindingMode?: unknown;
 }> = {}): ProjectSourceSelections {
+  const selectedRelativeAeroDatabaseId = value.selectedRelativeAeroDatabaseId === undefined
+    ? "none"
+    : nonEmptyString(value.selectedRelativeAeroDatabaseId, "selectedRelativeAeroDatabaseId");
+  const bindingMode = value.relativeAeroDatabaseBindingMode === undefined
+    ? "disabled"
+    : value.relativeAeroDatabaseBindingMode;
+  if (bindingMode !== "disabled" && bindingMode !== "retained-to-detached") {
+    throw new Error("relativeAeroDatabaseBindingMode must be disabled or retained-to-detached.");
+  }
   return {
     selectedMotorId: value.selectedMotorId === undefined
       ? "synthetic"
@@ -402,6 +419,10 @@ function validateProjectSourceSelections(value: Readonly<{
     selectedAerodynamicTableId: value.selectedAerodynamicTableId === undefined
       ? "constant"
       : nonEmptyString(value.selectedAerodynamicTableId, "selectedAerodynamicTableId"),
+    selectedRelativeAeroDatabaseId,
+    relativeAeroDatabaseBindingMode: selectedRelativeAeroDatabaseId === "none"
+      ? "disabled"
+      : bindingMode,
   };
 }
 
@@ -834,8 +855,10 @@ export function createLocalProjectSnapshot(input: {
   topology?: LocalVehicleTopology;
   selectedMotorId?: string;
   selectedAerodynamicTableId?: string;
+  selectedRelativeAeroDatabaseId?: string;
+  relativeAeroDatabaseBindingMode?: "disabled" | "retained-to-detached";
 }): LocalProjectSnapshot {
-  const sourceSelections = input.selectedMotorId === undefined && input.selectedAerodynamicTableId === undefined
+  const sourceSelections = input.selectedMotorId === undefined && input.selectedAerodynamicTableId === undefined && input.selectedRelativeAeroDatabaseId === undefined && input.relativeAeroDatabaseBindingMode === undefined
     ? undefined
     : validateProjectSourceSelections(input);
   return {
@@ -862,7 +885,7 @@ function validateSnapshot(value: unknown): LocalProjectSnapshot {
     savedAtIso: isoDate(snapshot.savedAtIso, "savedAtIso"),
     inputs: validateEditableProjectInputs(snapshot.inputs),
     ...(snapshot.topology === undefined ? {} : { topology: validateVehicleTopology(snapshot.topology) }),
-    ...(snapshot.selectedMotorId === undefined && snapshot.selectedAerodynamicTableId === undefined
+    ...(snapshot.selectedMotorId === undefined && snapshot.selectedAerodynamicTableId === undefined && snapshot.selectedRelativeAeroDatabaseId === undefined && snapshot.relativeAeroDatabaseBindingMode === undefined
       ? {}
       : validateProjectSourceSelections(snapshot)),
   });
@@ -889,6 +912,8 @@ export function projectConfigurationFingerprint(input: Readonly<{
   topology: LocalVehicleTopology;
   selectedMotorId?: string;
   selectedAerodynamicTableId?: string;
+  selectedRelativeAeroDatabaseId?: string;
+  relativeAeroDatabaseBindingMode?: "disabled" | "retained-to-detached";
 }>): string {
   const sourceSelections = validateProjectSourceSelections(input);
   return JSON.stringify({
@@ -1016,6 +1041,7 @@ export function describeProjectConfigurationChanges(
   const changedSources = [
     beforeSelections.selectedMotorId !== afterSelections.selectedMotorId ? "motor source" : "",
     beforeSelections.selectedAerodynamicTableId !== afterSelections.selectedAerodynamicTableId ? "aerodynamic source" : "",
+    beforeSelections.selectedRelativeAeroDatabaseId !== afterSelections.selectedRelativeAeroDatabaseId || beforeSelections.relativeAeroDatabaseBindingMode !== afterSelections.relativeAeroDatabaseBindingMode ? "relative-body source" : "",
   ].filter(Boolean);
   const labels: string[] = [];
   if (inputLabel !== "No input changes") labels.push(inputLabel);
