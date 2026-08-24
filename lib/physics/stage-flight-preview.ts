@@ -132,7 +132,7 @@ import {
 } from "./mission-delta-v-bridge.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.44.0";
+  "kestrel-stage-flight-preview-0.45.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -274,6 +274,8 @@ export type StageFlightTracePoint = Readonly<{
   thrustN: number;
   /** Net force projected onto the vehicle nose axis (+nose direction) as acceleration. */
   axialAccelerationMps2: number;
+  /** Magnitude of the net-force acceleration perpendicular to the nose in body +Y/+Z. */
+  transverseAccelerationMps2?: number;
   attachedStageIds: readonly string[];
 }>;
 
@@ -1255,6 +1257,10 @@ export function simulateStageFlightPreview(
         addVectors(thrustForceWorldN, aerodynamicForceWorldN),
         addVectors(gravityForceWorldN, recoveryForceWorldN),
       );
+      const netAccelerationBodyMps2 = rotateWorldToBody(
+        state.orientationBodyToWorld,
+        scaleVector(netForceWorldN, 1 / evaluation.massProperties.massKg),
+      );
       const noseDirectionWorld = rotateBodyToWorld(
         state.orientationBodyToWorld,
         { x: -1, y: 0, z: 0 },
@@ -1304,6 +1310,10 @@ export function simulateStageFlightPreview(
         axialAccelerationMps2: dot(
           scaleVector(netForceWorldN, 1 / evaluation.massProperties.massKg),
           noseDirectionWorld,
+        ),
+        transverseAccelerationMps2: Math.hypot(
+          netAccelerationBodyMps2.y,
+          netAccelerationBodyMps2.z,
         ),
         attachedStageIds: [...evaluation.attachedStageIds],
       };

@@ -1059,6 +1059,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   const stagePreview = await readFile(new URL("../lib/physics/stage-flight-preview.ts", import.meta.url), "utf8");
   const stageInterfaceLoads = await readFile(new URL("../lib/physics/stage-interface-loads.ts", import.meta.url), "utf8");
   const stageForceBudget = await readFile(new URL("../lib/physics/stage-flight-force-budget.ts", import.meta.url), "utf8");
+  const exportSource = await readFile(new URL("../lib/export/project-exports.ts", import.meta.url), "utf8");
   const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(page, /Stages, boosters & clusters/);
   assert.match(page, /\+ Upper stage/);
@@ -1150,7 +1151,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Rerun required/);
   assert.match(page, /Stage flight profile/);
   assert.match(page, /createStageInterfaceLoadReview/);
-  assert.match(page, /STAGE-INTERFACE AXIAL LOAD PATH/);
+  assert.match(page, /STAGE-INTERFACE LOAD PATH/);
+  assert.match(page, /transverseAccelerationMps2/);
   assert.match(page, /stageInterfaceLoadReview/);
   assert.match(page, /PARALLEL \/ RADIAL FORCE-SCALE AUDIT/);
   assert.match(page, /Trace peak/);
@@ -1205,6 +1207,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /ArrowLeft/);
   assert.match(page, /Staged 6DOF trace/);
   assert.match(page, /createStageFlightTraceCsv/);
+  assert.match(exportSource, /transverse_acceleration_mps2/);
   assert.match(page, /Released-body traces/);
   assert.match(page, /createSeparatedBodyTraceCsv/);
   assert.match(page, /MODEL BOUNDARY/);
@@ -1321,13 +1324,14 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stagePreview, /independentRetainedLoads/);
   assert.match(stagePreview, /velocityImpulseEvents/);
   assert.match(stagePreview, /duplicate world-gravity term/);
-  assert.match(stagePreview, /kestrel-stage-flight-preview-0\.44\.0/);
+  assert.match(stagePreview, /kestrel-stage-flight-preview-0\.45\.0/);
   assert.match(stagePreview, /relativeAeroForceFeedback/);
   assert.match(stagePreview, /interpolateStageTraceNonGravityForceWorldN/);
   assert.match(stagePreview, /attitudeDependentDrag/);
   assert.match(stagePreview, /missionSerialStageIds/);
   assert.match(stagePreview, /computeMissionMassRatio/);
-  assert.match(stageInterfaceLoads, /analytical-axial-load-path-proxy/);
+  assert.match(stageInterfaceLoads, /analytical-axial-transverse-load-path-proxy/);
+  assert.match(stageInterfaceLoads, /transverseAccelerationMps2/);
   assert.match(stageInterfaceLoads, /Parallel\/radial interface solver/);
   assert.match(stageInterfaceLoads, /downstream mass/);
   assert.match(stageInterfaceLoads, /StageInterfaceLoadTracePoint/);

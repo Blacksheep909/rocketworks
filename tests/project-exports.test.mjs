@@ -231,13 +231,13 @@ test("flight CSV has stable SI columns, CRLF rows, and boolean deployment state"
 
 test("staged flight CSV preserves attached-stage topology and SI values", () => {
   const csv = createStageFlightTraceCsv([
-    { timeS: 0, altitudeAglM: 0, speedMps: 0, mach: 0, angleOfAttackRad: 0, sideslipRad: 0, dynamicPressurePa: 0, dragN: 0, recoveryDragN: 0, recoveryEffectiveAreaM2: 0, massKg: 1.2, thrustN: 30, attachedStageIds: ["booster", "upper"] },
-    { timeS: 1, altitudeAglM: 42.5, speedMps: 28.2, mach: 0.08, angleOfAttackRad: 0.02, sideslipRad: -0.01, dynamicPressurePa: 480, dragN: 2.5, recoveryDragN: 4.2, recoveryEffectiveAreaM2: 0.18, massKg: 0.8, thrustN: 18, attachedStageIds: ["upper"] },
+    { timeS: 0, altitudeAglM: 0, speedMps: 0, mach: 0, angleOfAttackRad: 0, sideslipRad: 0, dynamicPressurePa: 0, dragN: 0, recoveryDragN: 0, recoveryEffectiveAreaM2: 0, massKg: 1.2, thrustN: 30, axialAccelerationMps2: 25, transverseAccelerationMps2: 1.5, attachedStageIds: ["booster", "upper"] },
+    { timeS: 1, altitudeAglM: 42.5, speedMps: 28.2, mach: 0.08, angleOfAttackRad: 0.02, sideslipRad: -0.01, dynamicPressurePa: 480, dragN: 2.5, recoveryDragN: 4.2, recoveryEffectiveAreaM2: 0.18, massKg: 0.8, thrustN: 18, axialAccelerationMps2: 17, transverseAccelerationMps2: 2.25, attachedStageIds: ["upper"] },
   ]);
   const rows = csv.trim().split("\r\n");
-  assert.equal(rows[0], "time_s,altitude_agl_m,speed_mps,mach,angle_of_attack_deg,sideslip_deg,center_of_pressure_x_m,center_of_mass_x_m,static_margin_calibers,normal_force_slope_per_rad,attitude_tilt_deg,angular_rate_deg_s,quaternion_w,quaternion_x,quaternion_y,quaternion_z,angular_velocity_x_rad_s,angular_velocity_y_rad_s,angular_velocity_z_rad_s,dynamic_pressure_pa,drag_n,aerodynamic_force_n,aerodynamic_moment_nm,aerodynamic_damping_moment_nm,direct_force_applied,direct_moment_applied,coefficient_basis,recovery_drag_n,recovery_effective_area_m2,mass_kg,thrust_n,attached_stage_ids");
-  assert.equal(rows[1], "0,0,0,0,0,0,,,,,,,,,,,,,,0,0,0,0,0,false,false,,0,0,1.2,30,booster|upper");
-  assert.equal(rows[2], "1,42.5,28.2,0.08,1.1459155902616465,-0.5729577951308232,,,,,,,,,,,,,,480,2.5,0,0,0,false,false,,4.2,0.18,0.8,18,upper");
+  assert.equal(rows[0], "time_s,altitude_agl_m,speed_mps,mach,angle_of_attack_deg,sideslip_deg,center_of_pressure_x_m,center_of_mass_x_m,static_margin_calibers,normal_force_slope_per_rad,attitude_tilt_deg,angular_rate_deg_s,quaternion_w,quaternion_x,quaternion_y,quaternion_z,angular_velocity_x_rad_s,angular_velocity_y_rad_s,angular_velocity_z_rad_s,dynamic_pressure_pa,drag_n,aerodynamic_force_n,aerodynamic_moment_nm,aerodynamic_damping_moment_nm,direct_force_applied,direct_moment_applied,coefficient_basis,recovery_drag_n,recovery_effective_area_m2,mass_kg,thrust_n,axial_acceleration_mps2,transverse_acceleration_mps2,attached_stage_ids");
+  assert.equal(rows[1], "0,0,0,0,0,0,,,,,,,,,,,,,,0,0,0,0,0,false,false,,0,0,1.2,30,25,1.5,booster|upper");
+  assert.equal(rows[2], "1,42.5,28.2,0.08,1.1459155902616465,-0.5729577951308232,,,,,,,,,,,,,,480,2.5,0,0,0,false,false,,4.2,0.18,0.8,18,17,2.25,upper");
 });
 
 test("staged flight CSV preserves attitude and angular-rate state", () => {
@@ -1363,11 +1363,13 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Excluded topology stages \| booster/);
   assert.match(report, /## Preliminary structural screen/);
   assert.match(report, /## Stage-aware structural review/);
-  assert.match(report, /## Stage-interface axial load path/);
+  assert.match(report, /## Stage-interface load path/);
   assert.match(report, /## Attached-body aerodynamic interference review/);
   assert.match(report, /rocketworks-attached-aero-interference-0.1.0/);
   assert.match(report, /Minimum radial clearance/);
-  assert.match(report, /rocketworks-stage-interface-loads-0.3.0/);
+  assert.match(report, /rocketworks-stage-interface-loads-0.4.0/);
+  assert.match(report, /Body-transverse trace envelope/);
+  assert.match(report, /Transverse demand/);
   assert.match(report, /Parallel \/ radial equal-share audit/);
   assert.match(report, /Acceleration basis: peak-thrust-common-acceleration/);
   assert.match(report, /Parallel\/radial interface solver|Interface rows/);

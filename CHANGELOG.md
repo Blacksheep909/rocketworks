@@ -6,6 +6,13 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extend the stage-interface review with an optional body-transverse load
+  envelope derived from the authoritative 6-DOF net-force trace. Serial and
+  parallel rows now retain transverse and resultant demand telemetry while
+  keeping the declared shell-section capacity and factor of safety axial-only;
+  old traces without the channel remain explicitly unavailable. The staged
+  preview model is versioned as `kestrel-stage-flight-preview-0.45.0`.
+
 - Add an optional bounded angular separation pulse to the shared released-body
   solver and first-separation UI. A relative angular Δω target is converted
   through sampled retained/detached inertia into equal-and-opposite body-frame

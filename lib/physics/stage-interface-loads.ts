@@ -1,31 +1,37 @@
 /**
- * First-order axial load-path review for stage interfaces.
+ * First-order axial load-path review with optional body-transverse telemetry.
  *
  * This is deliberately a bounded proxy, not a connector/contact solver. It
  * uses the supplied stage masses, peak thrusts, and shell-section allowables
  * to estimate the axial force carried across each serial topology edge. A
- * current staged-flight trace may add a peak body-axis acceleration envelope,
- * while the peak-thrust baseline remains as a conservative lower bound. A
- * parallel edge keeps its serial-capacity row unavailable, but also receives a
- * separate equal-share force-scale audit so radial and eccentric effects stay
- * visible without pretending to solve the local joint.
+ * current staged-flight trace may add peak body-axis and body-transverse
+ * acceleration envelopes, while the peak-thrust baseline remains as a
+ * conservative lower bound for axial demand. A parallel edge keeps its
+ * serial-capacity row unavailable, but also receives a separate equal-share
+ * force-scale audit so radial and eccentric effects stay visible without
+ * pretending to solve the local joint.
  */
 
 export const STAGE_INTERFACE_LOADS_MODEL_VERSION =
-  "rocketworks-stage-interface-loads-0.3.0";
+  "rocketworks-stage-interface-loads-0.4.0";
 export const STAGE_INTERFACE_LOADS_VALIDATION_STATUS =
-  "analytical-axial-load-path-proxy" as const;
+  "analytical-axial-transverse-load-path-proxy" as const;
 
 export type StageInterfaceLoadAttachment = "serial" | "parallel";
 export type StageInterfaceLoadStatus = "pass" | "review" | "unavailable";
 export type StageInterfaceLoadAccelerationBasis =
   | "peak-thrust-common-acceleration"
   | "trace-peak-with-baseline";
+export type StageInterfaceLoadTransverseAccelerationBasis =
+  | "not-available"
+  | "trace-body-transverse";
 
 export type StageInterfaceLoadTracePoint = Readonly<{
   timeS: number;
   /** Net acceleration projected onto the vehicle nose axis (+nose direction). */
   axialAccelerationMps2: number;
+  /** Magnitude of net acceleration perpendicular to the nose in body +Y/+Z. */
+  transverseAccelerationMps2?: number;
   /** Optional active-stage set used to exclude post-separation intervals. */
   attachedStageIds?: readonly string[];
 }>;
@@ -52,6 +58,9 @@ export type StageParallelLoadAudit = Readonly<{
   downstreamMassKg: number | null;
   totalDownstreamAxialDemandN: number | null;
   perInstanceAxialDemandN: number | null;
+  totalDownstreamTransverseDemandN: number | null;
+  perInstanceTransverseDemandN: number | null;
+  perInstanceResultantDemandN: number | null;
   perInstancePeakThrustN: number | null;
   perInstanceRadialThrustN: number | null;
   perInstanceEccentricMomentNm: number | null;
@@ -59,6 +68,9 @@ export type StageParallelLoadAudit = Readonly<{
   effectiveAxialAccelerationMps2: number | null;
   tracePeakAxialAccelerationMps2: number | null;
   tracePeakTimeS: number | null;
+  transverseAccelerationMps2: number | null;
+  tracePeakTransverseAccelerationMps2: number | null;
+  tracePeakTransverseTimeS: number | null;
   loadFactor: number;
   detail: string;
 }>;
@@ -97,14 +109,20 @@ export type StageInterfaceLoadInterface = Readonly<{
   attachment: StageInterfaceLoadAttachment;
   status: StageInterfaceLoadStatus;
   accelerationBasis: StageInterfaceLoadAccelerationBasis;
+  transverseAccelerationBasis: StageInterfaceLoadTransverseAccelerationBasis;
   tracePeakAxialAccelerationMps2: number | null;
   tracePeakTimeS: number | null;
+  tracePeakTransverseAccelerationMps2: number | null;
+  tracePeakTransverseTimeS: number | null;
   downstreamMassKg: number | null;
   totalStackMassKg: number;
   peakThrustN: number;
   effectiveAxialAccelerationMps2: number;
+  effectiveTransverseAccelerationMps2: number | null;
   loadFactor: number;
   axialDemandN: number | null;
+  transverseDemandN: number | null;
+  resultantDemandN: number | null;
   sectionAreaM2: number | null;
   allowableCompressionPa: number | null;
   capacityN: number | null;
@@ -128,8 +146,11 @@ export type StageInterfaceLoadResult = Readonly<{
   peakThrustN: number;
   effectiveAxialAccelerationMps2: number | null;
   accelerationBasis: StageInterfaceLoadAccelerationBasis;
+  transverseAccelerationBasis: StageInterfaceLoadTransverseAccelerationBasis;
   tracePeakAxialAccelerationMps2: number | null;
   tracePeakTimeS: number | null;
+  tracePeakTransverseAccelerationMps2: number | null;
+  tracePeakTransverseTimeS: number | null;
   gravityMps2: number;
   loadFactor: number;
   interfaces: readonly StageInterfaceLoadInterface[];
@@ -208,6 +229,12 @@ function normalizeTrace(
       point.axialAccelerationMps2,
       `stage interface load trace sample ${index + 1} axial acceleration`,
     );
+    if (point.transverseAccelerationMps2 !== undefined) {
+      assertNonNegative(
+        point.transverseAccelerationMps2,
+        `stage interface load trace sample ${index + 1} transverse acceleration`,
+      );
+    }
     const attachedStageIds = point.attachedStageIds === undefined
       ? undefined
       : [...new Set(point.attachedStageIds.map((stageId) => stageId.trim()))];
@@ -218,6 +245,9 @@ function normalizeTrace(
     return {
       timeS: point.timeS,
       axialAccelerationMps2: point.axialAccelerationMps2,
+      ...(point.transverseAccelerationMps2 === undefined
+        ? {}
+        : { transverseAccelerationMps2: point.transverseAccelerationMps2 }),
       ...(attachedStageIds ? { attachedStageIds } : {}),
     };
   });
@@ -227,17 +257,21 @@ function tracePeakForInterface(
   trace: readonly StageInterfaceLoadTracePoint[],
   parentStageId: string,
   childStageId: string,
+  channel: "axial" | "transverse" = "axial",
 ): Readonly<{ accelerationMps2: number; timeS: number }> | null {
   const relevant = trace.filter((point) =>
-    point.attachedStageIds === undefined ||
-    (point.attachedStageIds.includes(parentStageId) && point.attachedStageIds.includes(childStageId)),
+    (channel === "axial" || point.transverseAccelerationMps2 !== undefined) &&
+    (point.attachedStageIds === undefined ||
+      (point.attachedStageIds.includes(parentStageId) && point.attachedStageIds.includes(childStageId))),
   );
   if (relevant.length === 0) return null;
+  const accelerationAt = (point: StageInterfaceLoadTracePoint): number =>
+    channel === "axial" ? point.axialAccelerationMps2 : point.transverseAccelerationMps2!;
   return relevant.reduce<Readonly<{ accelerationMps2: number; timeS: number }>>(
-    (peak, point) => point.axialAccelerationMps2 > peak.accelerationMps2
-      ? { accelerationMps2: point.axialAccelerationMps2, timeS: point.timeS }
+    (peak, point) => accelerationAt(point) > peak.accelerationMps2
+      ? { accelerationMps2: accelerationAt(point), timeS: point.timeS }
       : peak,
-    { accelerationMps2: relevant[0]!.axialAccelerationMps2, timeS: relevant[0]!.timeS },
+    { accelerationMps2: accelerationAt(relevant[0]!), timeS: relevant[0]!.timeS },
   );
 }
 
@@ -382,12 +416,29 @@ export function createStageInterfaceLoadReview(
         { accelerationMps2: trace[0]!.axialAccelerationMps2, timeS: trace[0]!.timeS },
       )
     : null;
+  const transverseTrace = trace.filter(
+    (point): point is StageInterfaceLoadTracePoint & { transverseAccelerationMps2: number } =>
+      point.transverseAccelerationMps2 !== undefined,
+  );
+  const tracePeakTransverse = transverseTrace.length > 0
+    ? transverseTrace.reduce<Readonly<{ accelerationMps2: number; timeS: number }>>(
+        (peak, point) => point.transverseAccelerationMps2 > peak.accelerationMps2
+          ? { accelerationMps2: point.transverseAccelerationMps2, timeS: point.timeS }
+          : peak,
+        {
+          accelerationMps2: transverseTrace[0]!.transverseAccelerationMps2,
+          timeS: transverseTrace[0]!.timeS,
+        },
+      )
+    : null;
   const effectiveAxialAccelerationMps2 = baselineAxialAccelerationMps2 === null
     ? null
     : Math.max(baselineAxialAccelerationMps2, tracePeak?.accelerationMps2 ?? 0);
   const accelerationBasis: StageInterfaceLoadAccelerationBasis = trace.length > 0
     ? "trace-peak-with-baseline"
     : "peak-thrust-common-acceleration";
+  const transverseAccelerationBasis: StageInterfaceLoadTransverseAccelerationBasis =
+    tracePeakTransverse === null ? "not-available" : "trace-body-transverse";
 
   const interfaces: StageInterfaceLoadInterface[] = activeStages
     .filter((stage) => stage.parentStageId !== null)
@@ -403,12 +454,17 @@ export function createStageInterfaceLoadReview(
       const interfaceTracePeak = parentId === null
         ? null
         : tracePeakForInterface(trace, parentId, child.id);
+      const interfaceTracePeakTransverse = parentId === null
+        ? null
+        : tracePeakForInterface(trace, parentId, child.id, "transverse");
       const interfaceEffectiveAxialAccelerationMps2 = effectiveAxialAccelerationMps2 === null
         ? null
         : Math.max(
             baselineAxialAccelerationMps2 ?? 0,
             interfaceTracePeak?.accelerationMps2 ?? 0,
           );
+      const interfaceEffectiveTransverseAccelerationMps2 =
+        interfaceTracePeakTransverse?.accelerationMps2 ?? null;
       const base = {
         id,
         parentStageId: parentId,
@@ -417,11 +473,15 @@ export function createStageInterfaceLoadReview(
         childLabel: child.label,
         attachment: child.attachment,
         accelerationBasis,
+        transverseAccelerationBasis,
         tracePeakAxialAccelerationMps2: interfaceTracePeak?.accelerationMps2 ?? null,
         tracePeakTimeS: interfaceTracePeak?.timeS ?? null,
+        tracePeakTransverseAccelerationMps2: interfaceTracePeakTransverse?.accelerationMps2 ?? null,
+        tracePeakTransverseTimeS: interfaceTracePeakTransverse?.timeS ?? null,
         totalStackMassKg,
         peakThrustN,
         effectiveAxialAccelerationMps2: interfaceEffectiveAxialAccelerationMps2 ?? 0,
+        effectiveTransverseAccelerationMps2: interfaceEffectiveTransverseAccelerationMps2,
         loadFactor,
         requiredFactorOfSafety,
       };
@@ -432,6 +492,8 @@ export function createStageInterfaceLoadReview(
           status: "unavailable" as const,
           downstreamMassKg: null,
           axialDemandN: null,
+          transverseDemandN: null,
+          resultantDemandN: null,
           sectionAreaM2: null,
           allowableCompressionPa: null,
           capacityN: null,
@@ -446,6 +508,8 @@ export function createStageInterfaceLoadReview(
           status: "unavailable" as const,
           downstreamMassKg: null,
           axialDemandN: null,
+          transverseDemandN: null,
+          resultantDemandN: null,
           sectionAreaM2: null,
           allowableCompressionPa: null,
           capacityN: null,
@@ -460,6 +524,8 @@ export function createStageInterfaceLoadReview(
           status: "unavailable" as const,
           downstreamMassKg: null,
           axialDemandN: null,
+          transverseDemandN: null,
+          resultantDemandN: null,
           sectionAreaM2: null,
           allowableCompressionPa: null,
           capacityN: null,
@@ -471,12 +537,20 @@ export function createStageInterfaceLoadReview(
 
       const downstreamMassKg = subtreeMass(child.id, new Set()) + retainedMassKg;
       const axialDemandN = downstreamMassKg * interfaceEffectiveAxialAccelerationMps2 * loadFactor;
+      const transverseDemandN = interfaceEffectiveTransverseAccelerationMps2 === null
+        ? null
+        : downstreamMassKg * interfaceEffectiveTransverseAccelerationMps2 * loadFactor;
+      const resultantDemandN = transverseDemandN === null
+        ? null
+        : Math.hypot(axialDemandN, transverseDemandN);
       if (child.attachment === "parallel") {
         return {
           ...base,
           status: "unavailable" as const,
           downstreamMassKg: null,
           axialDemandN: null,
+          transverseDemandN: null,
+          resultantDemandN: null,
           sectionAreaM2: null,
           allowableCompressionPa: null,
           capacityN: null,
@@ -517,6 +591,8 @@ export function createStageInterfaceLoadReview(
         status,
         downstreamMassKg,
         axialDemandN,
+        transverseDemandN,
+        resultantDemandN,
         sectionAreaM2,
         allowableCompressionPa,
         capacityN,
@@ -536,12 +612,19 @@ export function createStageInterfaceLoadReview(
       const activeParent = activeStagesById.get(parentId);
       const id = `${parentId}--${child.id}`;
       const interfaceTracePeak = tracePeakForInterface(trace, parentId, child.id);
+      const interfaceTracePeakTransverse = tracePeakForInterface(
+        trace,
+        parentId,
+        child.id,
+        "transverse",
+      );
       const effectiveAcceleration = effectiveAxialAccelerationMps2 === null
         ? null
         : Math.max(
             baselineAxialAccelerationMps2 ?? 0,
             interfaceTracePeak?.accelerationMps2 ?? 0,
           );
+      const effectiveTransverseAcceleration = interfaceTracePeakTransverse?.accelerationMps2 ?? null;
       const instanceCount = child.repeatCount;
       const angleRad = (child.thrustCantAngleDeg * Math.PI) / 180;
       const azimuthRad = (child.thrustCantAzimuthDeg * Math.PI) / 180;
@@ -570,6 +653,15 @@ export function createStageInterfaceLoadReview(
       const totalDownstreamAxialDemandN = perInstanceAxialDemandN === null
         ? null
         : perInstanceAxialDemandN * instanceCount;
+      const perInstanceTransverseDemandN = effectiveTransverseAcceleration === null || missingReason !== null
+        ? null
+        : perInstanceMassKg * effectiveTransverseAcceleration * loadFactor;
+      const totalDownstreamTransverseDemandN = perInstanceTransverseDemandN === null
+        ? null
+        : perInstanceTransverseDemandN * instanceCount;
+      const perInstanceResultantDemandN = perInstanceAxialDemandN === null || perInstanceTransverseDemandN === null
+        ? null
+        : Math.hypot(perInstanceAxialDemandN, perInstanceTransverseDemandN);
       return {
         id,
         parentStageId: parentId,
@@ -586,6 +678,9 @@ export function createStageInterfaceLoadReview(
         downstreamMassKg: missingReason === null ? downstreamMassKg : null,
         totalDownstreamAxialDemandN,
         perInstanceAxialDemandN,
+        totalDownstreamTransverseDemandN,
+        perInstanceTransverseDemandN,
+        perInstanceResultantDemandN,
         perInstancePeakThrustN: missingReason === null ? perInstancePeakThrustN : null,
         perInstanceRadialThrustN: missingReason === null ? perInstanceRadialThrustN : null,
         perInstanceEccentricMomentNm: missingReason === null
@@ -597,6 +692,9 @@ export function createStageInterfaceLoadReview(
         effectiveAxialAccelerationMps2: effectiveAcceleration,
         tracePeakAxialAccelerationMps2: interfaceTracePeak?.accelerationMps2 ?? null,
         tracePeakTimeS: interfaceTracePeak?.timeS ?? null,
+        transverseAccelerationMps2: effectiveTransverseAcceleration,
+        tracePeakTransverseAccelerationMps2: interfaceTracePeakTransverse?.accelerationMps2 ?? null,
+        tracePeakTransverseTimeS: interfaceTracePeakTransverse?.timeS ?? null,
         loadFactor,
         detail: missingReason === null
           ? "Equal-share parallel load scale computed; radial joint transfer and moment capacity remain outside this review."
@@ -633,8 +731,15 @@ export function createStageInterfaceLoadReview(
     ...(trace.length > 0
       ? [
           `The current trace peak axial acceleration is ${tracePeak!.accelerationMps2.toFixed(3)} m/s² at ${tracePeak!.timeS.toFixed(3)} s; demand retains the peak-thrust baseline when it is larger. Rail reaction, stage-wise propellant redistribution, and transient amplification remain outside this proxy.`,
-        ]
+      ]
       : []),
+    ...(tracePeakTransverse !== null
+      ? [
+          `The trace also provides a ${tracePeakTransverse.accelerationMps2.toFixed(3)} m/s² body-transverse acceleration envelope at ${tracePeakTransverse.timeS.toFixed(3)} s; transverse force is diagnostic telemetry and does not change the axial compression factor of safety.`,
+        ]
+      : trace.length > 0
+        ? ["The supplied trace has no body-transverse acceleration channel, so transverse interface demand remains unavailable."]
+        : []),
     ...(interfaces.some((item) => item.attachment === "parallel")
       ? [
           "Parallel interfaces receive an equal-share force-scale audit, but radial joint transfer, bending capacity, fasteners, and local failure modes remain outside this review.",
@@ -658,8 +763,11 @@ export function createStageInterfaceLoadReview(
     peakThrustN,
     effectiveAxialAccelerationMps2,
     accelerationBasis,
+    transverseAccelerationBasis,
     tracePeakAxialAccelerationMps2: tracePeak?.accelerationMps2 ?? null,
     tracePeakTimeS: tracePeak?.timeS ?? null,
+    tracePeakTransverseAccelerationMps2: tracePeakTransverse?.accelerationMps2 ?? null,
+    tracePeakTransverseTimeS: tracePeakTransverse?.timeS ?? null,
     gravityMps2,
     loadFactor,
     interfaces,
@@ -671,6 +779,7 @@ export function createStageInterfaceLoadReview(
         ? [
             "When supplied, each interface filters the current stage-flight trace to samples where both parent and child are attached, then uses the largest body-axis acceleration while retaining the static peak-thrust baseline if larger.",
             "Trace axial acceleration is the unconstrained net-force projection onto the vehicle nose axis; rail reaction, flex, local eccentricity, propellant slosh, and transient joint response are not reconstructed.",
+            "When available, body-transverse acceleration is the magnitude of the net-force acceleration in body +Y/+Z; it produces a separate force envelope and is not combined with the axial shell-section capacity.",
           ]
         : []),
       "Interface capacity uses the minimum supplied parent/child shell-section area multiplied by the minimum supplied compression allowable.",

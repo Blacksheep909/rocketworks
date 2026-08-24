@@ -173,9 +173,10 @@ The staged 6DOF trace CSV uses the same explicit style and adds
 `normal_force_slope_per_rad`, `attitude_tilt_deg`, `angular_rate_deg_s`,
 quaternion components, angular-velocity components, `dynamic_pressure_pa`, and `drag_n`,
 `recovery_drag_n`, and `recovery_effective_area_m2` before the live mass,
-thrust, and attached-stage identifiers. These aerodynamic, stability, and
-recovery columns are evaluated from the coupled load diagnostics at each
-retained sample, not reconstructed from the display chart. Stability cells are
+thrust, axial/transverse acceleration, and attached-stage identifiers. These
+aerodynamic, stability, recovery, and load-envelope columns are evaluated
+from the coupled load diagnostics at each retained sample, not reconstructed
+from the display chart. Stability cells are
 blank when the active source cannot provide a CP/CG estimate. Recovery values
 are zero when no retained-vehicle recovery device is configured or before its command.
 `recovery_inflation_fraction` is the vertical preview's smoothstep
@@ -187,6 +188,11 @@ in rad/s. These are direct 6DOF state projections for replay and inspection;
 legacy records without them retain blank cells. See
 `stage-flight-attitude-telemetry-0.1.md` for the coordinate convention and
 validation boundary.
+
+`axial_acceleration_mps2` is the net-force projection onto the vehicle nose
+direction. `transverse_acceleration_mps2` is the body-frame +Y/+Z magnitude
+used by the stage-interface load envelope; it is telemetry only and does not
+turn the axial shell-section proxy into a lateral joint-capacity model.
 
 The staged project JSON and engineering report also retain the optional
 `separationContact` screen. It records fixed-envelope pair coverage, first

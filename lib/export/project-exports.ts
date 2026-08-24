@@ -517,6 +517,8 @@ export function createStageFlightTraceCsv(
     "recovery_effective_area_m2",
     "mass_kg",
     "thrust_n",
+    "axial_acceleration_mps2",
+    "transverse_acceleration_mps2",
     "attached_stage_ids",
   ];
   const rows = trace.map((point, index) => {
@@ -549,6 +551,8 @@ export function createStageFlightTraceCsv(
       point.recoveryEffectiveAreaM2 ?? 0,
       point.massKg,
       point.thrustN,
+      point.axialAccelerationMps2,
+      point.transverseAccelerationMps2,
     ];
     values.forEach((value, valueIndex) => {
       if (value !== null && value !== undefined) {
@@ -2102,6 +2106,8 @@ export function createEngineeringReportMarkdown(
   const stageInterfaceAccelerationBasis = input.stageInterfaceLoads?.accelerationBasis ?? "peak-thrust-common-acceleration";
   const stageInterfaceTracePeakAxialAccelerationMps2 = input.stageInterfaceLoads?.tracePeakAxialAccelerationMps2 ?? null;
   const stageInterfaceTracePeakTimeS = input.stageInterfaceLoads?.tracePeakTimeS ?? null;
+  const stageInterfaceTracePeakTransverseAccelerationMps2 = input.stageInterfaceLoads?.tracePeakTransverseAccelerationMps2 ?? null;
+  const stageInterfaceTracePeakTransverseTimeS = input.stageInterfaceLoads?.tracePeakTransverseTimeS ?? null;
   const landingTerrainName = input.landing?.footprint.terrainName ?? "Flat launch surface";
   const landingTerrainModelVersion = input.landing?.footprint.terrainModelVersion ?? "legacy-flat-ground";
   const landingMeanTerrainElevationM = input.landing?.footprint.meanImpact.terrainElevationM ?? 0;
@@ -3060,7 +3066,7 @@ export function createEngineeringReportMarkdown(
       : []),
     ...(input.stageInterfaceLoads
       ? [
-          "## Stage-interface axial load path",
+          "## Stage-interface load path",
           "",
           `Model: \`${markdownText(input.stageInterfaceLoads.modelVersion)}\`  `,
           `Status: \`${markdownText(input.stageInterfaceLoads.validationStatus)}\`  `,
@@ -3070,13 +3076,14 @@ export function createEngineeringReportMarkdown(
           `- Peak configured thrust: ${formatNumber(input.stageInterfaceLoads.peakThrustN, 2)} N.`,
           `- Effective axial acceleration: ${input.stageInterfaceLoads.effectiveAxialAccelerationMps2 === null ? "not assessed" : `${formatNumber(input.stageInterfaceLoads.effectiveAxialAccelerationMps2, 3)} m/s²`}.`,
           `- Acceleration basis: ${markdownText(stageInterfaceAccelerationBasis)}${stageInterfaceTracePeakAxialAccelerationMps2 === null ? "" : ` (trace peak ${formatNumber(stageInterfaceTracePeakAxialAccelerationMps2, 3)} m/s² at ${formatNumber(stageInterfaceTracePeakTimeS ?? 0, 3)} s)`}.`,
+          `- Body-transverse trace envelope: ${stageInterfaceTracePeakTransverseAccelerationMps2 === null ? "not assessed" : `${formatNumber(stageInterfaceTracePeakTransverseAccelerationMps2, 3)} m/s² at ${formatNumber(stageInterfaceTracePeakTransverseTimeS ?? 0, 3)} s`}.`,
           `- Interface rows: ${input.stageInterfaceLoads.interfaces.length}; pass ${input.stageInterfaceLoads.counts.pass}, review ${input.stageInterfaceLoads.counts.review}, unavailable ${input.stageInterfaceLoads.counts.unavailable}.`,
           "",
-          "| Interface | Attachment | Downstream mass | Axial demand | Capacity | Factor of safety | Status |",
-          "|---|---|---:|---:|---:|---:|---|",
+          "| Interface | Attachment | Downstream mass | Axial demand | Transverse demand | Resultant demand | Capacity | Factor of safety | Status |",
+          "|---|---|---:|---:|---:|---:|---:|---:|---|",
           ...input.stageInterfaceLoads.interfaces.map(
             (interfaceLoad) =>
-              `| ${markdownText(`${interfaceLoad.parentLabel ?? "Missing parent"} → ${interfaceLoad.childLabel}`)} | ${markdownText(interfaceLoad.attachment)} | ${interfaceLoad.downstreamMassKg === null ? "not assessed" : `${formatNumber(interfaceLoad.downstreamMassKg, 3)} kg`} | ${interfaceLoad.axialDemandN === null ? "not assessed" : `${formatNumber(interfaceLoad.axialDemandN, 2)} N`} | ${interfaceLoad.capacityN === null ? "not assessed" : `${formatNumber(interfaceLoad.capacityN, 2)} N`} | ${interfaceLoad.factorOfSafety === null ? "not assessed" : `${formatNumber(interfaceLoad.factorOfSafety, 2)}×`} | ${markdownText(interfaceLoad.status)} |`,
+              `| ${markdownText(`${interfaceLoad.parentLabel ?? "Missing parent"} → ${interfaceLoad.childLabel}`)} | ${markdownText(interfaceLoad.attachment)} | ${interfaceLoad.downstreamMassKg === null ? "not assessed" : `${formatNumber(interfaceLoad.downstreamMassKg, 3)} kg`} | ${interfaceLoad.axialDemandN === null ? "not assessed" : `${formatNumber(interfaceLoad.axialDemandN, 2)} N`} | ${interfaceLoad.transverseDemandN === null || interfaceLoad.transverseDemandN === undefined ? "not assessed" : `${formatNumber(interfaceLoad.transverseDemandN, 2)} N`} | ${interfaceLoad.resultantDemandN === null || interfaceLoad.resultantDemandN === undefined ? "not assessed" : `${formatNumber(interfaceLoad.resultantDemandN, 2)} N`} | ${interfaceLoad.capacityN === null ? "not assessed" : `${formatNumber(interfaceLoad.capacityN, 2)} N`} | ${interfaceLoad.factorOfSafety === null ? "not assessed" : `${formatNumber(interfaceLoad.factorOfSafety, 2)}×`} | ${markdownText(interfaceLoad.status)} |`,
           ),
           "",
           ...(input.stageInterfaceLoads.parallelAudits.length > 0
@@ -3085,11 +3092,11 @@ export function createEngineeringReportMarkdown(
                 "",
                 `- Audits screened: ${input.stageInterfaceLoads.parallelAudits.filter((audit) => audit.status === "screened").length} / ${input.stageInterfaceLoads.parallelAudits.length}.`,
                 "",
-                "| Parallel path | Instances | Share | Per-instance axial | Per-instance radial thrust | Eccentric moment | Symmetric resultant | Status |",
-                "|---|---:|---:|---:|---:|---:|---:|---|",
+                "| Parallel path | Instances | Share | Per-instance axial | Per-instance transverse | Per-instance resultant | Per-instance radial thrust | Eccentric moment | Symmetric resultant | Status |",
+                "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|",
                 ...input.stageInterfaceLoads.parallelAudits.map(
                   (audit) =>
-                    `| ${markdownText(`${audit.parentLabel ?? "Missing parent"} -> ${audit.childLabel}`)} | ${audit.instanceCount} | ${audit.loadShareFraction === null ? "not assessed" : `${formatNumber(audit.loadShareFraction * 100, 1)}%`} | ${audit.perInstanceAxialDemandN === null ? "not assessed" : `${formatNumber(audit.perInstanceAxialDemandN, 2)} N`} | ${audit.perInstanceRadialThrustN === null ? "not assessed" : `${formatNumber(audit.perInstanceRadialThrustN, 2)} N`} | ${audit.perInstanceEccentricMomentNm === null ? "not assessed" : `${formatNumber(audit.perInstanceEccentricMomentNm, 3)} N-m`} | ${audit.symmetricResultantRadialThrustN === null ? "not assessed" : `${formatNumber(audit.symmetricResultantRadialThrustN, 3)} N`} | ${markdownText(audit.status)} |`,
+                    `| ${markdownText(`${audit.parentLabel ?? "Missing parent"} -> ${audit.childLabel}`)} | ${audit.instanceCount} | ${audit.loadShareFraction === null ? "not assessed" : `${formatNumber(audit.loadShareFraction * 100, 1)}%`} | ${audit.perInstanceAxialDemandN === null ? "not assessed" : `${formatNumber(audit.perInstanceAxialDemandN, 2)} N`} | ${audit.perInstanceTransverseDemandN === null || audit.perInstanceTransverseDemandN === undefined ? "not assessed" : `${formatNumber(audit.perInstanceTransverseDemandN, 2)} N`} | ${audit.perInstanceResultantDemandN === null || audit.perInstanceResultantDemandN === undefined ? "not assessed" : `${formatNumber(audit.perInstanceResultantDemandN, 2)} N`} | ${audit.perInstanceRadialThrustN === null ? "not assessed" : `${formatNumber(audit.perInstanceRadialThrustN, 2)} N`} | ${audit.perInstanceEccentricMomentNm === null ? "not assessed" : `${formatNumber(audit.perInstanceEccentricMomentNm, 3)} N-m`} | ${audit.symmetricResultantRadialThrustN === null ? "not assessed" : `${formatNumber(audit.symmetricResultantRadialThrustN, 3)} N`} | ${markdownText(audit.status)} |`,
                 ),
                 "",
                 "> Equal-share radial placement is a force-scale audit only. Symmetric cancellation does not certify the per-instance joint; radial capacity, bending, fasteners, eccentricity, and transient response remain unmodeled.",
@@ -3099,7 +3106,7 @@ export function createEngineeringReportMarkdown(
           ...input.stageInterfaceLoads.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
           ...input.stageInterfaceLoads.warnings.map((warning) => `- **Interface load warning:** ${markdownText(warning)}`),
           "",
-          "> This is a first-order axial serial load-path proxy plus a bounded equal-share parallel force-scale audit. It does not model connector geometry, fasteners, joint capacity, bending, transient loads, separation impulse, or flight safety.",
+          "> This is a first-order axial serial load-path proxy with optional body-transverse trace telemetry plus a bounded equal-share parallel force-scale audit. Capacity and factor of safety remain axial-only; this does not model connector geometry, fasteners, joint capacity, bending, transient loads, separation impulse, or flight safety.",
           "",
         ]
       : []),

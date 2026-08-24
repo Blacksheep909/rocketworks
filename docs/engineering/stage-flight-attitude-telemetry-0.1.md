@@ -2,7 +2,7 @@
 
 Status: `engineering-preview-unvalidated`  
 Implementation: `lib/physics/stage-flight-preview.ts`, `app/page.tsx`, and `lib/export/project-exports.ts`  
-Model: `kestrel-stage-flight-preview-0.44.0`
+Model: `kestrel-stage-flight-preview-0.45.0`
 
 ## Purpose
 
@@ -16,7 +16,9 @@ Each current trace sample carries:
 - `orientationBodyToWorld`, the normalized attitude quaternion;
 - `angularVelocityBodyRadS`, the body-frame angular velocity vector in rad/s;
 - `attitudeTiltRad`, the angle between the vehicle nose axis and local ENU
-  vertical; and
+  vertical;
+- `transverseAccelerationMps2`, the magnitude of net-force acceleration in
+  body +Y/+Z, retained for the separate stage-interface load envelope; and
 - `angularRateRadS`, the magnitude of the body angular velocity.
 
 The browser profile inspector exposes attitude tilt and angular-rate plots.
@@ -39,6 +41,17 @@ solver quaternion. The angular-rate magnitude is
 \[
 \omega = \sqrt{\omega_x^2 + \omega_y^2 + \omega_z^2}.
 \]
+
+The transverse acceleration diagnostic is computed from the same net force
+used by the staged trace, divided by instantaneous mass and rotated into the
+body frame:
+
+\[
+a_{transverse} = \sqrt{a_y^2 + a_z^2}.
+\]
+
+It is a load-envelope signal only; it does not change the staged trajectory or
+upgrade the axial stage-interface capacity screen into a lateral joint model.
 
 These are state projections, not new forces, control laws, or stability
 claims. Quaternion values remain the solver's normalized state; the adapter

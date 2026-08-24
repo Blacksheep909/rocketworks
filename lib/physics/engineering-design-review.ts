@@ -364,7 +364,7 @@ export function createEngineeringDesignReview(
       makeFinding({
         id: "structural-stage-interface",
         category: "structural",
-        label: "Stage-interface axial load path",
+        label: "Stage-interface load path",
         status,
         severity:
           status === "pass"
@@ -376,15 +376,15 @@ export function createEngineeringDesignReview(
                 : "warning",
         summary:
           stageInterfaceLoads.overallStatus === "assessed"
-            ? `${stageInterfaceLoads.counts.pass} stage interface${stageInterfaceLoads.counts.pass === 1 ? "" : "s"} pass the axial load-path proxy.`
+            ? `${stageInterfaceLoads.counts.pass} stage interface${stageInterfaceLoads.counts.pass === 1 ? "" : "s"} pass the axial load-path proxy; any body-transverse trace envelope is diagnostic.`
             : stageInterfaceLoads.overallStatus === "not-assessed"
-              ? "Stage-interface axial load path is not assessed."
+              ? "Stage-interface load path is not assessed."
               : `${needsReview} stage interface${needsReview === 1 ? "" : "s"} need load-path review or evidence.`,
         detail:
-          "The analytical axial load-path proxy transfers downstream mass across serial topology edges using supplied shell-section capacity; connector geometry and radial joints remain outside scope.",
+          "The analytical axial load-path proxy transfers downstream mass across serial topology edges using supplied shell-section capacity. A body-transverse trace envelope can be shown separately, but connector geometry, radial joints, and transverse capacity remain outside scope.",
         action:
           status === "pass"
-            ? "No immediate action from this bounded axial proxy."
+            ? "No immediate action from this bounded axial proxy; review any transverse telemetry separately."
             : status === "unavailable"
               ? "Supply current parent/child section and allowable evidence, then rerun the interface review."
               : "Review the weakest interface, connector design, transient loads, and parallel attachment load paths before interpreting the result.",

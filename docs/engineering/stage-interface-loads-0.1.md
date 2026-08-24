@@ -1,4 +1,4 @@
-# Stage-interface axial and parallel load path 0.3
+# Stage-interface load path 0.4
 
 RocketWorks includes a bounded stage-interface review for enabled topology edges. The adapter is original clean-room code and is intentionally narrower than a connector, contact, or structural finite-element solver.
 
@@ -15,6 +15,11 @@ RocketWorks includes a bounded stage-interface review for enabled topology edges
 7. For repeated parallel stages, compute a separate equal-share force-scale
    audit: per-instance axial demand, canted-thrust radial force, eccentric
    moment at the authored repeat radius, and the symmetric radial resultant.
+8. When the staged trace supplies the current body attitude and net force, carry
+   the magnitude of the body-transverse (+Y/+Z) acceleration into a separate
+   force envelope: `F_transverse = m_downstream · a_transverse · loadFactor`.
+   The optional resultant `sqrt(F_axial² + F_transverse²)` is telemetry only;
+   it does not change the axial shell-section capacity or factor of safety.
 
 The default load factor is 1.0. It is an explicit screening multiplier and is not a measured transient or certification factor. When a current staged-flight trace is supplied, the review filters each interface to samples where both stages remain attached and compares the largest body-axis acceleration with the peak-thrust baseline; the larger value is used for the demand.
 
@@ -35,13 +40,13 @@ The aggregate is `assessed` only when every interface passes. Any review or unav
 
 ## Deliberate limits
 
-The trace projection uses the unconstrained net force divided by instantaneous stack mass, projected onto the vehicle nose direction. It is a kinematic envelope, not a rail-reaction or joint-load reconstruction. The parallel audit assumes equal mass/thrust sharing across repeated instances and uses `F_r = T_i sin(theta)` and `M_e = F_r r` as local force/moment scales. It does not model connector geometry, fasteners, threads, latches, bonded joints, local shell buckling, bending capacity, eccentricity beyond the simple moment scale, drag, rail contact/reaction, transient amplification, staging impulse, plume interaction, separation dynamics, or radial/parallel joint capacity. The section and allowable fields are proxies taken from the current component screen, not connector qualification data.
+The trace projection uses the unconstrained net force divided by instantaneous stack mass, projected onto the vehicle nose direction. The transverse channel is the magnitude of the same acceleration in body +Y/+Z, so it is only available for traces that carry the body attitude and full force vector. These are kinematic envelopes, not rail-reaction or joint-load reconstructions. The parallel audit assumes equal mass/thrust sharing across repeated instances and uses `F_r = T_i sin(theta)` and `M_e = F_r r` as local force/moment scales. It does not model connector geometry, fasteners, threads, latches, bonded joints, local shell buckling, bending capacity, eccentricity beyond the simple moment scale, drag, rail contact/reaction, transient amplification, staging impulse, plume interaction, separation dynamics, or radial/parallel joint capacity. The section and allowable fields are proxies taken from the current component screen, not connector qualification data.
 
 The result is an engineering triage surface. It is not structural certification, manufacturing release, range-safety evidence, flight-safety evidence, or experimental validation.
 
 ## Provenance
 
 - Implementation: `lib/physics/stage-interface-loads.ts`
-- Model version: `rocketworks-stage-interface-loads-0.3.0`
-- Validation status: `analytical-axial-load-path-proxy`
+- Model version: `rocketworks-stage-interface-loads-0.4.0`
+- Validation status: `analytical-axial-transverse-load-path-proxy`
 - Related public basis: Newton's second law (`F = m a`) and the project structural-screen section/allowable inputs. Public equations and standards are reference material only; no OpenRocket source, UI, assets, database, or simulation engine is used.

@@ -256,12 +256,13 @@ research, standards, and original code.
 - a serial-stack mass-ratio preview that carries retained payload and later
   serial-stage mass through each ideal burn, while explicitly listing excluded
   parallel/booster stages instead of flattening their coupled trajectory;
-- a bounded stage-interface axial load-path review that transfers downstream
-  mass across serial topology edges, compares supplied parent/child section
-  proxies, uses a current staged trace peak when available while retaining the
-  peak-thrust baseline, and adds an equal-share parallel/radial force-scale
-  audit for per-instance axial demand, canted-thrust radial force, eccentric
-  moment, and symmetric resultant without claiming joint capacity;
+- a bounded stage-interface load-path review that transfers downstream mass
+  across serial topology edges, compares supplied parent/child section proxies,
+  uses a current staged trace peak when available while retaining the
+  peak-thrust baseline, and carries an optional body-transverse trace envelope
+  plus equal-share parallel/radial force-scale audit for per-instance axial
+  and transverse demand, canted-thrust radial force, eccentric moment, and
+  symmetric resultant without claiming joint capacity;
 - a trace-level force impulse budget that integrates recorded thrust,
   aerodynamic drag, recovery drag, and force/mass velocity-equivalent signals
   by stage without mislabeling scalar accounting as vector delta-v;
@@ -441,8 +442,11 @@ volumes are now supported as explicit
 interpolation sources, and seeded event-factor dispersion now covers timing,
 separation impulse, and launch alignment; benchmarked data packages,
 relative-body separation databases, unsteady models, and validated
-stage-to-stage interference data remain future work. The new attached-flow
-screen is intentionally a conservative, non-propagating geometry diagnostic,
+stage-to-stage interference data remain future work. The stage-interface
+screen now carries a body-transverse trace envelope alongside its axial
+compression proxy, while connector/radial capacity validation remains future
+work. The new attached-flow screen is intentionally a conservative,
+non-propagating geometry diagnostic,
 not an aerodynamic correction.
 Longer-term work includes collaboration and cloud project storage plus native
 desktop/tablet packaging. Those additions

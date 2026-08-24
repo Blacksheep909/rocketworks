@@ -319,8 +319,8 @@ test("stage interface load review computes serial downstream demand and reserve"
     ],
   });
 
-  assert.equal(result.modelVersion, "rocketworks-stage-interface-loads-0.3.0");
-  assert.equal(result.validationStatus, "analytical-axial-load-path-proxy");
+  assert.equal(result.modelVersion, "rocketworks-stage-interface-loads-0.4.0");
+  assert.equal(result.validationStatus, "analytical-axial-transverse-load-path-proxy");
   assert.equal(result.overallStatus, "assessed");
   assert.deepEqual(result.counts, { pass: 1, review: 0, unavailable: 0 });
   assert.equal(result.totalStackMassKg, 1.7);
@@ -374,6 +374,31 @@ test("stage interface load review uses attached trace acceleration without under
   assert.ok(result.assumptions.some((assumption) => assumption.includes("filters the current stage-flight trace")));
 });
 
+test("stage interface load review carries body-transverse trace demand without changing axial capacity status", () => {
+  const result = createStageInterfaceLoadReview({
+    retainedMassKg: 0.2,
+    trace: [
+      { timeS: 0, axialAccelerationMps2: 12, transverseAccelerationMps2: 3, attachedStageIds: ["core", "upper"] },
+      { timeS: 1, axialAccelerationMps2: 40, transverseAccelerationMps2: 8, attachedStageIds: ["core", "upper"] },
+      { timeS: 2, axialAccelerationMps2: 120, transverseAccelerationMps2: 2, attachedStageIds: ["core"] },
+    ],
+    stages: [
+      { id: "core", label: "Core", attachment: "serial", stageMassKg: 1, peakThrustN: 30, sectionAreaM2: 0.002, allowableCompressionPa: 1e6 },
+      { id: "upper", label: "Upper", parentStageId: "core", attachment: "serial", stageMassKg: 0.5, peakThrustN: 10, sectionAreaM2: 0.001, allowableCompressionPa: 2e6 },
+    ],
+  });
+
+  assert.equal(result.transverseAccelerationBasis, "trace-body-transverse");
+  assert.equal(result.tracePeakTransverseAccelerationMps2, 8);
+  assert.equal(result.tracePeakTransverseTimeS, 1);
+  assert.equal(result.interfaces[0].tracePeakTransverseAccelerationMps2, 8);
+  assert.equal(result.interfaces[0].effectiveTransverseAccelerationMps2, 8);
+  assert.equal(result.interfaces[0].transverseDemandN, 5.6);
+  assert.equal(result.interfaces[0].resultantDemandN, Math.hypot(28, 5.6));
+  assert.equal(result.interfaces[0].status, "pass");
+  assert.match(result.warnings.join(" "), /transverse force is diagnostic telemetry/);
+});
+
 test("stage interface load review keeps serial capacity unavailable while auditing parallel force scales", () => {
   const parallel = createStageInterfaceLoadReview({
     stages: [
@@ -416,6 +441,16 @@ test("stage interface load review keeps serial capacity unavailable while auditi
 });
 
 test("stage interface load review rejects malformed topology and surfaces a review finding", () => {
+  assert.throws(
+    () => createStageInterfaceLoadReview({
+      trace: [{ timeS: 0, axialAccelerationMps2: 1, transverseAccelerationMps2: -0.1 }],
+      stages: [
+        { id: "core", label: "Core", attachment: "serial", stageMassKg: 1, peakThrustN: 0 },
+        { id: "upper", label: "Upper", parentStageId: "core", attachment: "serial", stageMassKg: 0.5, peakThrustN: 0 },
+      ],
+    }),
+    /transverse acceleration cannot be negative/,
+  );
   assert.throws(
     () => createStageInterfaceLoadReview({
       stages: [
