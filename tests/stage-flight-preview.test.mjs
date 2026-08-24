@@ -327,7 +327,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.41.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.42.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);
@@ -468,6 +468,15 @@ test("stage-flight adapter optionally includes a replay-backed retained vehicle 
       peakVelocityDeficitFraction: 0.35,
       maximumVelocityDeficitFraction: 0.6,
     },
+    separationMechanisms: [{
+      id: "preview-separation-pulse",
+      retainedBodyId: "retained-vehicle",
+      detachedBodyId: "booster/booster",
+      startTimeS: 1.1,
+      durationS: 0.2,
+      relativeDeltaVWorldMps: { x: 1, y: 0, z: 0 },
+      profile: "constant",
+    }],
   });
 
   assert.equal(detachedOnly.coupledMultiBodyFlight?.trajectories.length, 1);
@@ -486,6 +495,8 @@ test("stage-flight adapter optionally includes a replay-backed retained vehicle 
   assert.equal(replayed.separationContact?.bodies.length, 2);
   assert.equal(replayed.coupledMultiBodyFlight.relativeAeroForceFeedback.enabled, true);
   assert.equal(replayed.coupledMultiBodyFlight.relativeAeroForceFeedback.wakeHalfAngleDeg, 10);
+  assert.equal(replayed.coupledMultiBodyFlight.separationMechanisms.enabled, true);
+  assert.equal(replayed.coupledMultiBodyFlight.separationMechanisms.configuredPulseCount, 1);
   assert.ok(replayed.assumptions.some((assumption) => assumption.includes("Wake feedback uses a finite expanding cone")));
   assert.ok(replayed.assumptions.some((assumption) => assumption.includes("replays interpolated thrust")));
   assert.ok(replayed.assumptions.some((assumption) => assumption.includes("not an independent retained-stage 6DOF rerun")));

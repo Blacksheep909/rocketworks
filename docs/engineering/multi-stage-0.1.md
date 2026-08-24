@@ -175,7 +175,7 @@ point basis, plume interaction, separation mechanism, angular impulse
 response, collision, recovery, or clearance.
 
 It does not conserve the angular momentum of the pre-separation combined stack
-inside the retained body alone; the discarded body carries away its share.
+  inside the retained body alone; the discarded body carries away its share.
 There is no claim that real separation hardware is impulse-free. Explicit
 separation impulses can be composed as event state resets, but clearance,
 contact, plume, and recontact analysis require simultaneous multi-body
@@ -285,11 +285,13 @@ replay-backed retained-vehicle rigid seed at first separation, using
 authoritative staged translation loads for contact and mutual-gravity
 diagnostics. That seed is intentionally not an independent retained-stage
 propellant/aerodynamic/moment solution, and later mass-property changes are not
-re-applied. Next work remains a force-coupled multi-body branch that resolves
-discarded stages, retained-stage dynamics, relative-body aerodynamic
-databases, and momentum exchange. The current event-level minimum-norm impulse
-allocator and replay seed are diagnostic telemetry only and do not replace that
-validated propagated branch.
+  re-applied. The shared track now has an API-only finite-duration
+  equal-and-opposite separation-force pulse preview. Next work remains a
+  force-coupled multi-body branch that resolves discarded stages, retained-stage
+  dynamics, relative-body aerodynamic databases, hardware timing, and full
+  momentum exchange. The current event-level minimum-norm impulse allocator,
+  replay seed, and pulse preview are diagnostic telemetry only and do not
+  replace that validated propagated branch.
 Monte Carlo event uncertainty
 should then vary
 ignition delay, failure, separation impulse, thrust, mass, and alignment while

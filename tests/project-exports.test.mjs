@@ -362,8 +362,10 @@ test("shared coupled-body CSV preserves contact settings and per-sample diagnost
   assert.match(csv, /# contact_enabled,true/);
   assert.match(csv, /# contact_pair_count,1/);
   assert.match(csv, /# relative_aero_feedback_enabled,false/);
+  assert.match(csv, /# separation_enabled,false/);
   assert.match(csv, /contact_force_world_x_n/);
   assert.match(csv, /contact_penetration_m/);
+  assert.match(csv, /separation_force_world_x_n/);
   assert.match(csv, /relative_wake_deficit_fraction/);
   assert.match(csv, /left,Left body,1,0,0,100/);
   assert.doesNotMatch(csv, /NaN|Infinity/);
@@ -1207,7 +1209,7 @@ test("engineering report leads with status and preserves calculations and limita
         assumptions: ["Relative-flow fixture assumption."],
       },
       coupledMultiBodyFlight: {
-        modelVersion: "rocketworks-coupled-multi-body-flight-0.10.0",
+        modelVersion: "rocketworks-coupled-multi-body-flight-0.11.0",
         validationStatus: "analytical-component-checks-only",
         startTimeS: 4.2,
         endTimeS: 8,

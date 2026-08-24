@@ -102,6 +102,7 @@ import {
   type CoupledMultiBodyGravityOptions,
   type CoupledMultiBodyRelativeAeroOptions,
   type CoupledMultiBodyVelocityImpulseEvent,
+  type CoupledMultiBodySeparationForcePulse,
   type CoupledMultiBodyFlightResult,
 } from "./coupled-multi-body-flight.ts";
 import type { AttitudeDependentDragGeometry } from "./attitude-dependent-drag.ts";
@@ -130,7 +131,7 @@ import {
 } from "./mission-delta-v-bridge.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.41.0";
+  "kestrel-stage-flight-preview-0.42.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -198,6 +199,8 @@ export type StageFlightPreviewInput = Readonly<{
   relativeAeroInteraction?: RelativeAeroInteractionOptions;
   /** Optional bounded wake-deficit feedback for the shared coupled track. */
   relativeAeroForceFeedback?: CoupledMultiBodyRelativeAeroOptions;
+  /** Optional finite-duration equal-and-opposite separation mechanisms for the shared track. */
+  separationMechanisms?: readonly CoupledMultiBodySeparationForcePulse[];
   launchRail?: LaunchRailConfig;
   launchRailMaximumSteps?: number;
   additionalWarnings?: readonly string[];
@@ -1536,7 +1539,7 @@ export function simulateStageFlightPreview(
           retainedCoupledTrackAssumptions.push(
             "The retained vehicle in the shared coupled track uses the first separation event as a state handoff, then evaluates clean-room staging mass/inertia plus propulsion, active-topology aerodynamics, and recovery callbacks at every shared-grid substep.",
             "The coupled solver supplies gravity and optional mutual/contact terms; the retained callback omits the preliminary model's duplicate world-gravity term while preserving body-frame propulsion/aero loads and recovery force/moment loads.",
-            "Later authoritative staging state handoffs and retained-body velocity impulses are applied at exact shared-grid boundaries; separation-mechanism dynamics, plume interaction, and validated stage interference remain outside this bounded branch.",
+            "Later authoritative staging state handoffs and retained-body velocity impulses are applied at exact shared-grid boundaries; an optional bounded separation-force pulse may be forwarded, while mechanism hardware, plume interaction, and validated stage interference remain outside this branch.",
           );
         } else if (retainedLoadTrace.length > 0) {
           retainedCoupledTrackAssumptions.push(
@@ -1723,6 +1726,9 @@ export function simulateStageFlightPreview(
         relativeAeroForceFeedback: input.relativeAeroForceFeedback,
         ...(retainedBodyVelocityImpulseEvents.length > 0
           ? { velocityImpulseEvents: retainedBodyVelocityImpulseEvents }
+          : {}),
+        ...(input.separationMechanisms && input.separationMechanisms.length > 0
+          ? { separationMechanisms: input.separationMechanisms }
           : {}),
         integration: input.integration,
       });

@@ -826,6 +826,14 @@ export function createCoupledMultiBodyTraceCsv(
     exposedSampleCount: 0,
     affectedBodyCount: 0,
   };
+  const separationMechanisms = result.separationMechanisms ?? {
+    modelVersion: "legacy-separation-mechanism",
+    validationStatus: "legacy-result",
+    enabled: false,
+    configuredPulseCount: 0,
+    activeSampleCount: 0,
+    maximumForceN: null,
+  };
   const metadata = [
     ["# rocketworks_export", KESTREL_EXPORT_MODEL_VERSION],
     ["# model_version", result.modelVersion],
@@ -847,6 +855,12 @@ export function createCoupledMultiBodyTraceCsv(
     ["# relative_aero_feedback_maximum_observed_deficit_fraction", relativeAeroForceFeedback.maximumObservedVelocityDeficitFraction],
     ["# relative_aero_feedback_exposed_sample_count", relativeAeroForceFeedback.exposedSampleCount],
     ["# relative_aero_feedback_affected_body_count", relativeAeroForceFeedback.affectedBodyCount],
+    ["# separation_model_version", separationMechanisms.modelVersion],
+    ["# separation_validation_status", separationMechanisms.validationStatus],
+    ["# separation_enabled", separationMechanisms.enabled],
+    ["# separation_configured_pulse_count", separationMechanisms.configuredPulseCount],
+    ["# separation_active_sample_count", separationMechanisms.activeSampleCount],
+    ["# separation_maximum_force_n", separationMechanisms.maximumForceN],
     ...result.assumptions.map((assumption) => ["# assumption", assumption]),
     ...result.warnings.map((warning) => ["# warning", warning]),
   ].map(([key, value]) => `${key},${csvCell(value)}`);
@@ -878,6 +892,11 @@ export function createCoupledMultiBodyTraceCsv(
     "contact_force_n",
     "contact_penetration_m",
     "contact_pair_count",
+    "separation_force_world_x_n",
+    "separation_force_world_y_n",
+    "separation_force_world_z_n",
+    "separation_force_n",
+    "separation_mechanism_source_count",
   ];
   const rows = result.trajectories.flatMap((trajectory) => trajectory.trace.map((point, index) => {
     const values: readonly (number | string | null | undefined)[] = [
@@ -908,6 +927,11 @@ export function createCoupledMultiBodyTraceCsv(
       point.contactForceN,
       point.contactPenetrationM,
       point.contactPairCount,
+      point.separationForceWorldN?.x,
+      point.separationForceWorldN?.y,
+      point.separationForceWorldN?.z,
+      point.separationForceN,
+      point.separationMechanismSourceCount,
     ];
     values.forEach((value, valueIndex) => {
       if (typeof value === "number") assertFinite(value, `coupled trace row ${index + 1} column ${headers[valueIndex]}`);

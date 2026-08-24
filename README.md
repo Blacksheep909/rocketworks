@@ -198,8 +198,10 @@ research, standards, and original code.
   authoritative staged trace for contact/mutual-gravity diagnostics; an
   explicit independent mode instead evaluates changing retained mass/inertia,
   propulsion, active-topology aerodynamics, recovery loads, and later
-  authoritative staging state/velocity-impulse events on the shared grid while
-  keeping finite-duration mechanisms and validated interference out of scope;
+  authoritative staging state/velocity-impulse events on the shared grid; an
+  optional bounded separation-force pulse can be forwarded to that track while
+  mechanism hardware, plume interaction, and validated interference remain out
+  of scope;
 - an opt-in projected-area attitude-drag mode for released rigid bodies that
   blends caller-supplied axial and broadside CdA pairs, retains incidence and
   effective-area diagnostics on the shared trace;
@@ -424,9 +426,11 @@ preliminary fin flutter screen. The optional retained replay track now provides
 an explicit shared-grid diagnostic, and the staged adapter now has an explicit
 API-only independent retained handoff that evaluates changing mass/inertia,
 caller-supplied thrust, active-topology aerodynamics, recovery loads, and later
-authoritative staging state/velocity-impulse events after the first separation.
-Separation mechanisms, relative-body databases, and a full momentum-exchange
-solver remain future work.
+  authoritative staging state/velocity-impulse events after the first separation.
+The shared solver now also has an API-only finite-duration separation-force
+pulse preview with exact boundaries and equal-and-opposite linear momentum;
+mechanism hardware models, relative-body databases, angular/plume exchange,
+and a full validated momentum-exchange solver remain future work.
 Angular and direct force/moment coefficient
 volumes are now supported as explicit
 interpolation sources, and seeded event-factor dispersion now covers timing,

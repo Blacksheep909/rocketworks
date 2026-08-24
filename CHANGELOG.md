@@ -6,6 +6,14 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an opt-in finite-duration separation-force pulse to the shared released-
+  body track. Constant and raised-cosine profiles use a reduced-mass
+  equal-and-opposite translational force, exact shared-grid boundaries, optional
+  retained-body-frame vectors, dynamic-mass sampling, trace/export force
+  provenance, and conservation regressions. Springs, pyrotechnic timing, plume
+  momentum, joint compliance, angular impulse, and flight-safety validation stay
+  outside the analytical preview.
+
 - Add an opt-in coupled wake-feedback sensitivity branch. The shared-grid
   solver now applies the strongest overlapping finite-cone velocity-deficit
   proxy to eligible point-drag/projected-area/detached-aero loads, retains

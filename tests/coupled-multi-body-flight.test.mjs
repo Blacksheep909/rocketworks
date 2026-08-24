@@ -112,6 +112,98 @@ test("shared-grid applies exact-time world and body-frame velocity impulses", ()
   assert.ok(Math.abs(bodyFrame.appliedVelocityImpulseEvents[0].deltaVWorldMps.y - 4) < 1e-10);
 });
 
+test("finite separation force pulses close pair momentum and expose force provenance", () => {
+  const atTime = (trace, target) => trace.find((point) => Math.abs(point.timeS - target) < 1e-9);
+  const result = simulateCoupledMultiBodyFlight({
+    bodies: [
+      body({
+        id: "retained",
+        massKg: 2,
+        releaseTimeS: 0,
+        releasePositionWorldM: { x: 0, y: 0, z: 100 },
+        releaseVelocityWorldMps: { x: 0, y: 0, z: 0 },
+      }),
+      body({
+        id: "detached",
+        massKg: 1,
+        releaseTimeS: 0,
+        releasePositionWorldM: { x: 2, y: 0, z: 100 },
+        releaseVelocityWorldMps: { x: 0, y: 0, z: 0 },
+      }),
+    ],
+    durationS: 1,
+    timeStepS: 0.05,
+    separationMechanisms: [{
+      id: "finite-separation",
+      retainedBodyId: "retained",
+      detachedBodyId: "detached",
+      startTimeS: 0.2,
+      durationS: 0.4,
+      relativeDeltaVWorldMps: { x: 6, y: 0, z: 0 },
+      profile: "raised-cosine",
+    }],
+  });
+
+  assert.equal(result.separationMechanisms.enabled, true);
+  assert.equal(result.separationMechanisms.configuredPulseCount, 1);
+  assert.ok(result.separationMechanisms.activeSampleCount > 0);
+  assert.ok(result.separationMechanisms.maximumForceN > 0);
+  assert.equal(result.trajectories[0].trace.find((point) => point.timeS === 0.2)?.separationMechanismSourceCount, 1);
+  const middleRetained = atTime(result.trajectories[0].trace, 0.4);
+  const middleDetached = atTime(result.trajectories[1].trace, 0.4);
+  assert.ok(middleRetained);
+  assert.ok(middleDetached);
+  assert.ok(middleRetained.separationForceN > 0);
+  assert.ok(Math.abs(middleRetained.separationForceWorldN.x + middleDetached.separationForceWorldN.x) < 1e-12);
+  const postPulseRetained = atTime(result.trajectories[0].trace, 0.8);
+  const postPulseDetached = atTime(result.trajectories[1].trace, 0.8);
+  assert.ok(postPulseRetained);
+  assert.ok(postPulseDetached);
+  assert.ok(Math.abs(2 * postPulseRetained.velocityWorldMps.x + postPulseDetached.velocityWorldMps.x) < 1e-8);
+  assert.ok(Math.abs(postPulseDetached.velocityWorldMps.x - postPulseRetained.velocityWorldMps.x - 6) < 1e-8);
+  assert.ok(result.warnings.some((warning) => warning.includes("finite-duration force pulse")));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("μ =")));
+});
+
+test("separation force pulses reject invalid frame, timing, and body contracts", () => {
+  const input = {
+    bodies: [body({ id: "retained", releaseTimeS: 0.25 }), body({ id: "detached", releaseTimeS: 0.25 })],
+    durationS: 1,
+    timeStepS: 0.1,
+  };
+  const base = {
+    id: "pulse",
+    retainedBodyId: "retained",
+    detachedBodyId: "detached",
+    startTimeS: 0.3,
+    durationS: 0.2,
+    relativeDeltaVWorldMps: { x: 1, y: 0, z: 0 },
+  };
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({ ...input, separationMechanisms: [{ ...base, relativeDeltaVBodyMps: { x: 1, y: 0, z: 0 } }] }),
+    /exactly one delta-v frame/,
+  );
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({ ...input, separationMechanisms: [{ ...base, startTimeS: 0.1, durationS: 0.2 }] }),
+    /before both bodies are released/,
+  );
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({ ...input, separationMechanisms: [{ ...base, durationS: 2 }] }),
+    /ends after mission end/,
+  );
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({ ...input, separationMechanisms: [{ ...base, detachedBodyId: "missing" }] }),
+    /unknown detached body/,
+  );
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({
+      ...input,
+      separationMechanisms: [{ ...base, relativeDeltaVWorldMps: undefined, relativeDeltaVBodyMps: { x: 1, y: 0, z: 0 } }],
+    }),
+    /requires a rigid retained body/,
+  );
+});
+
 test("velocity impulse events reject ambiguous frames and invalid timing", () => {
   const input = { bodies: [body({ releaseTimeS: 0.25 })], durationS: 1, timeStepS: 0.1 };
   assert.throws(

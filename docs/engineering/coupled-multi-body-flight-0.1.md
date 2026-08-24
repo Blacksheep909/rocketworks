@@ -1,4 +1,4 @@
-# Shared-grid coupled multi-body flight 0.10
+# Shared-grid coupled multi-body flight 0.11
 
 Status: implemented analytical component check; mathematical regression tests
 only. This model is not flight-safety, range-safety, contact, or collision
@@ -82,6 +82,38 @@ returns canonical `appliedVelocityImpulseEvents`; an event targeting a body
 after ground impact is skipped with an explicit warning. This is an
 instantaneous state correction, not a finite-duration separation-mechanism or
 angular-impulse solver.
+
+## Optional finite-duration separation pulse
+
+The generic solver also accepts an opt-in `separationMechanisms` list for a
+bounded translational mechanism preview. Each pulse names a distinct retained
+and detached body, an exact `startTimeS`, a positive `durationS`, one relative
+delta-v vector (world or retained-body frame), and an optional `constant` or
+`raised-cosine` profile. Pulse boundaries are inserted into the shared grid.
+
+For a current retained mass `m_r`, detached mass `m_d`, requested relative
+delta-v `Δv_rel`, and duration `T`, the equal-and-opposite centre force is
+
+```text
+μ = m_r m_d / (m_r + m_d)
+F_detached(t) = μ Δv_rel w(t) / T
+F_retained(t) = -F_detached(t)
+```
+
+The constant profile uses `w(t)=1`; the raised-cosine profile uses
+`w(t)=1-cos(2πt/T)`, whose integral is one over the pulse. Body-frame vectors
+are rotated using the retained body's current attitude at each Runge–Kutta
+substep, and dynamic mass providers are sampled as usual. Trace points expose
+the applied world force, magnitude, and contributing pulse count; the result
+returns the separation model identity, configured count, active trace count,
+and maximum sampled force.
+
+This is an analytical mechanism preview, not a pyrotechnic, spring, joint, or
+plume solver. It applies force at body centres and therefore adds no angular
+impulse, compliance, shock, release timing uncertainty, contact response,
+structural load, or aerodynamic interference. Calibration against mechanism
+tests and measured flight data is required before any design, operations, or
+flight/range-safety use.
 
 ## Equations and numerical method
 

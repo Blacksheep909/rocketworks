@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.41.0`.
+`kestrel-stage-flight-preview-0.42.0`.
 
 Relation-based aerodynamics retain both the selected normal-force trend and
 the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions
@@ -67,8 +67,10 @@ loads, and retained recovery force/moment loads at each substep. Gravity is
 supplied by the shared solver, so the preliminary load model's duplicate world
 gravity term is omitted from this callback. Later authoritative staging state
 handoffs and body-frame velocity impulses are applied at exact shared-grid
-boundaries; finite-duration separation mechanisms, plume interaction, and
-validated stage-to-stage interference remain outside the branch. The result
+boundaries; optional finite-duration separation pulses may now be forwarded
+to the shared track as bounded equal-and-opposite translational forces, while
+pyrotechnic/spring timing, plume interaction, and validated stage-to-stage
+interference remain outside the branch. The result
 keeps those assumptions visible and remains an engineering preview.
 
 ## Event and state policy
@@ -459,8 +461,9 @@ supplied by the shared solver and is not duplicated in the callback. Later
 authoritative staging state handoffs and retained-body body-frame velocity
 impulses are applied at exact shared-grid boundaries using the current retained
 attitude. This mode still does not claim a full retained-stage rerun:
-finite-duration separation mechanics, plume/contact interaction, and validated
-stage-to-stage interference remain outside the branch. `"trace-replay"`
+the optional pulse is a centre-force mechanism preview only; pyrotechnic or
+spring timing, plume/contact interaction, and validated stage-to-stage
+interference remain outside the branch. `"trace-replay"`
 remains the compatibility default.
 
 If the retained payload/recovery allowance is made only from collinear point
@@ -509,5 +512,6 @@ environment, or event mechanics without hiding a new monolithic simulator
   behind the browser UI. Future work can add measured table covariance and
   correlated/model-form uncertainty,
   relative-body aerodynamic databases, attitude-aware envelope geometry, and a
-  force-coupled multi-body separation solver with contact, relative
-  aerodynamics, and attitude while preserving this provenance boundary.
+  full force-coupled multi-body separation solver with hardware timing,
+  contact, relative aerodynamics, and attitude while preserving this provenance
+  boundary. The current API-only pulse preview is deliberately narrower.
