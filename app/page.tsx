@@ -30,7 +30,12 @@ import {
   type RocketCadStageGeometry,
 } from "../lib/export/project-exports.ts";
 import { createFlightPathGeoJson } from "../lib/export/flight-path-geojson.ts";
-import { downloadTextArtifact } from "../lib/export/browser-artifact.ts";
+import {
+  chooseArtifactDirectory,
+  downloadTextArtifact,
+  getArtifactDirectoryName,
+  setArtifactDirectory,
+} from "../lib/export/browser-artifact.ts";
 import {
   analyzeRecoveryLandingDispersion,
   createPlanarTerrainSurface,
@@ -4351,6 +4356,7 @@ export default function Home() {
   const [highContrast, setHighContrast] = useState(() => createDefaultUiPreferences().highContrast);
   const [locale, setLocale] = useState<UiLocale>(() => createDefaultUiPreferences().locale);
   const [exportDestination, setExportDestination] = useState<UiExportDestination>(() => createDefaultUiPreferences().exportDestination);
+  const [artifactDirectoryName, setArtifactDirectoryName] = useState<string | null>(() => getArtifactDirectoryName());
   const [length, setLength] = useState(710);
   const [diameter, setDiameter] = useState(54);
   const [noseLength, setNoseLength] = useState(180);
@@ -8540,6 +8546,27 @@ export default function Home() {
     }
     setExportDestination(destination);
   };
+  const chooseArtifactExportDirectory = async () => {
+    try {
+      const selection = await chooseArtifactDirectory();
+      if (selection === "unsupported") {
+        notify(uiCopy.projectFolderUnsupported);
+        return;
+      }
+      if (selection === "cancelled") return;
+      setArtifactDirectory(selection);
+      const folderName = selection.name?.trim() || "Selected project folder";
+      setArtifactDirectoryName(folderName);
+      notify(`Exports will be saved to ${folderName} for this session`);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unable to authorize the project folder");
+    }
+  };
+  const clearArtifactExportDirectory = () => {
+    setArtifactDirectory(null);
+    setArtifactDirectoryName(null);
+    notify("Project-folder export destination cleared");
+  };
   const simulate = () => {
     const inputs = {
       mass,
@@ -9569,7 +9596,7 @@ export default function Home() {
     { id: "open-project-console", label: "Open project console", description: "Review local save status and hand off this design", run: () => setProjectConsoleOpen(true) },
     { id: "open-history", label: "Open local project history", description: "Restore a validated device-local checkpoint", run: () => setHistoryOpen(true) },
     { id: "open-export", label: "Open artifact center", description: "Export project JSON, traces, reports, and CAD references", run: () => setExportOpen(true) },
-    { id: "export-workspace-backup", label: "Backup local workspace", description: "Download every validated browser-local project snapshot and history", run: exportLocalWorkspaceBackup },
+    { id: "export-workspace-backup", label: "Backup local workspace", description: "Save every validated browser-local project snapshot and history together", run: exportLocalWorkspaceBackup },
     { id: "import-workspace-backup", label: "Restore workspace backup", description: "Merge a validated local workspace backup into this browser", run: openWorkspaceBackupImport },
     { id: "share-design", label: "Copy design share link", description: "Share validated inputs and stage topology without embedding local library data", run: () => { void copyProjectShare(); } },
     { id: "import-project", label: "Import RocketWorks project", description: "Restore a portable project document and its validated user libraries", run: () => setProjectImportRequested(true) },
@@ -12338,6 +12365,16 @@ export default function Home() {
               </select>
             </div>
             <p className="accessibility-export-description">{uiCopy.exportDestinationDescription}</p>
+            <div className="accessibility-export-folder">
+              <div>
+                <strong>{uiCopy.projectFolderTitle}</strong>
+                <small>{artifactDirectoryName ? `Active: ${artifactDirectoryName}` : uiCopy.projectFolderDescription}</small>
+              </div>
+              <div className="accessibility-export-folder-actions">
+                <button type="button" onClick={() => { void chooseArtifactExportDirectory(); }}>{uiCopy.chooseProjectFolder}</button>
+                {artifactDirectoryName && <button type="button" className="secondary-button" onClick={clearArtifactExportDirectory}>{uiCopy.clearProjectFolder}</button>}
+              </div>
+            </div>
             <div className="accessibility-options">
               <label className="accessibility-option">
                 <input
@@ -13003,7 +13040,7 @@ export default function Home() {
               </button>
               <button className="project-console-action" onClick={exportLocalWorkspaceBackup} disabled={!storageReady}>
                 <span className="export-extension">BACK</span>
-                <span><strong>Export workspace backup</strong><small>Download every local project snapshot and history in one inspectable JSON envelope.</small></span>
+                <span><strong>Export workspace backup</strong><small>Save every local project snapshot and history in one inspectable JSON envelope.</small></span>
                 <em>↓</em>
               </button>
               <button className="project-console-action" onClick={openWorkspaceBackupImport} disabled={!storageReady}>
@@ -13339,6 +13376,17 @@ export default function Home() {
                 </button>
               </div>
             )}
+            <div className="export-folder-banner" role="status">
+              <span>PROJECT FOLDER</span>
+              <div>
+                <strong>{artifactDirectoryName ? `Exports use ${artifactDirectoryName}` : "Keep exports together"}</strong>
+                <p>{artifactDirectoryName ? "This session's artifacts are written to the selected folder before any browser fallback." : uiCopy.projectFolderDescription}</p>
+              </div>
+              <div className="export-folder-banner-actions">
+                <button type="button" className="secondary-button" onClick={() => { void chooseArtifactExportDirectory(); }}>{artifactDirectoryName ? "Change folder" : uiCopy.chooseProjectFolder}</button>
+                {artifactDirectoryName && <button type="button" className="secondary-button" onClick={clearArtifactExportDirectory}>{uiCopy.clearProjectFolder}</button>}
+              </div>
+            </div>
             <div className="export-grid">
               <button className="export-import-option" onClick={() => { void copyProjectShare(); }}>
                 <span className="export-extension">LINK</span>
@@ -13352,7 +13400,7 @@ export default function Home() {
               </button>
               <button className="export-import-option" onClick={exportLocalWorkspaceBackup} disabled={!storageReady}>
                 <span className="export-extension">BACK</span>
-                <span><strong>Backup local workspace</strong><small>Download all validated browser-local project snapshots and histories; external libraries remain separate.</small></span>
+                <span><strong>Backup local workspace</strong><small>Save all validated browser-local project snapshots and histories together; external libraries remain separate.</small></span>
                 <em>↓</em>
               </button>
               <button className="export-import-option" onClick={openWorkspaceBackupImport} disabled={!storageReady}>

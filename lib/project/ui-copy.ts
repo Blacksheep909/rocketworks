@@ -52,6 +52,11 @@ export type UiCopyKey =
   | "browserDownloadWarningDescription"
   | "switchToSaveDialog"
   | "browserDownloadConfirm"
+  | "projectFolderTitle"
+  | "projectFolderDescription"
+  | "chooseProjectFolder"
+  | "clearProjectFolder"
+  | "projectFolderUnsupported"
   | "keyboardAccess"
   | "close"
   | "accessibilityNote"
@@ -108,6 +113,11 @@ const ENGLISH_COPY: UiCopy = {
   browserDownloadWarningDescription: "Each export will be placed in your browser's Downloads folder without asking. Switch to Ask where to save to choose a location for every artifact.",
   switchToSaveDialog: "Switch to save dialog",
   browserDownloadConfirm: "Automatic Downloads sends every RocketWorks export to your browser's Downloads folder. Continue?",
+  projectFolderTitle: "Project folder for this session",
+  projectFolderDescription: "Choose a folder once to keep exports together during this session. Browser permissions are not persisted across reloads.",
+  chooseProjectFolder: "Choose project folder",
+  clearProjectFolder: "Clear project folder",
+  projectFolderUnsupported: "This browser cannot authorize a project folder; use the save dialog instead.",
   keyboardAccess: "Keyboard access",
   close: "Close",
   accessibilityNote: "Engineering outputs remain subject to their stated model limits. A presentation preference cannot make an unvalidated estimate flight-safe.",
@@ -163,6 +173,11 @@ const SPANISH_COPY: UiCopy = {
   browserDownloadWarningDescription: "Cada exportación se colocará en la carpeta Descargas del navegador sin preguntar. Cambia a Preguntar dónde guardar para elegir una ubicación para cada artefacto.",
   switchToSaveDialog: "Cambiar al diálogo de guardado",
   browserDownloadConfirm: "Las descargas automáticas envían cada exportación de RocketWorks a la carpeta Descargas del navegador. ¿Continuar?",
+  projectFolderTitle: "Carpeta del proyecto para esta sesión",
+  projectFolderDescription: "Elige una carpeta una vez para mantener juntas las exportaciones durante esta sesión. Los permisos del navegador no se conservan tras recargar.",
+  chooseProjectFolder: "Elegir carpeta del proyecto",
+  clearProjectFolder: "Borrar carpeta del proyecto",
+  projectFolderUnsupported: "Este navegador no puede autorizar una carpeta del proyecto; usa el diálogo de guardado.",
   keyboardAccess: "Acceso por teclado",
   close: "Cerrar",
   accessibilityNote: "Los resultados de ingeniería siguen sujetos a sus límites de modelo declarados. Una preferencia visual no convierte una estimación no validada en segura para vuelo.",

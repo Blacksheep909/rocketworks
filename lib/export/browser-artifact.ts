@@ -4,13 +4,26 @@ import {
   type UiExportDestination,
 } from "../project/ui-preferences.ts";
 
-type SaveFileWritable = {
+export type SaveFileWritable = {
   write: (data: Blob) => Promise<void>;
   close: () => Promise<void>;
 };
 
-type SaveFileHandle = {
+export type SaveFileHandle = {
   createWritable: () => Promise<SaveFileWritable>;
+};
+
+/**
+ * Minimal File System Access API surface used by the optional session-scoped
+ * project-folder destination. The handle is intentionally kept in memory;
+ * browsers must re-authorize filesystem access after a reload.
+ */
+export type ArtifactDirectoryHandle = {
+  readonly name?: string;
+  getFileHandle: (
+    name: string,
+    options?: { create?: boolean },
+  ) => Promise<SaveFileHandle>;
 };
 
 type SaveFilePickerOptions = {
@@ -21,11 +34,29 @@ type SaveFilePickerOptions = {
   }>;
 };
 
+type DirectoryPickerOptions = {
+  mode?: "read" | "readwrite";
+};
+
 type SaveFileWindow = Window & {
   showSaveFilePicker?: (options?: SaveFilePickerOptions) => Promise<SaveFileHandle>;
+  showDirectoryPicker?: (options?: DirectoryPickerOptions) => Promise<ArtifactDirectoryHandle>;
 };
 
 export type SaveArtifactResult = "saved" | "cancelled" | "unsupported";
+
+let selectedArtifactDirectory: ArtifactDirectoryHandle | null = null;
+
+/** Set or clear the current session's explicit project-folder destination. */
+export function setArtifactDirectory(directory: ArtifactDirectoryHandle | null): void {
+  selectedArtifactDirectory = directory;
+}
+
+/** Return the user-visible folder name, if a project folder is selected. */
+export function getArtifactDirectoryName(): string | null {
+  const name = selectedArtifactDirectory?.name?.trim();
+  return name || null;
+}
 
 export function readExportDestinationPreference(
   storage?: Pick<Storage, "getItem"> | null,
@@ -37,6 +68,25 @@ export function readExportDestinationPreference(
     return serialized ? parseUiPreferences(serialized).exportDestination : "save-dialog";
   } catch {
     return "save-dialog";
+  }
+}
+
+/**
+ * Ask the browser to authorize a folder for the current session. This must be
+ * called directly from a user gesture so Chromium can honor its permission
+ * and activation requirements. No arbitrary filesystem path is accepted.
+ */
+export async function chooseArtifactDirectory(): Promise<
+  ArtifactDirectoryHandle | "cancelled" | "unsupported"
+> {
+  if (typeof window === "undefined") return "unsupported";
+  const picker = (window as SaveFileWindow).showDirectoryPicker;
+  if (typeof picker !== "function") return "unsupported";
+  try {
+    return await picker({ mode: "readwrite" });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
+    throw error;
   }
 }
 
@@ -98,12 +148,46 @@ export async function saveTextArtifactWithPicker(
   }
 }
 
+/** Write an artifact into the explicitly selected project folder. */
+export async function saveTextArtifactToDirectory(
+  directory: ArtifactDirectoryHandle,
+  filename: string,
+  mediaType: string,
+  content: string,
+): Promise<SaveArtifactResult> {
+  try {
+    const fileHandle = await directory.getFileHandle(filename, { create: true });
+    const writable = await fileHandle.createWritable();
+    try {
+      await writable.write(new Blob([content], { type: mediaType }));
+    } finally {
+      await writable.close();
+    }
+    return "saved";
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
+    throw error;
+  }
+}
+
 export function downloadTextArtifact(
   filename: string,
   mediaType: string,
   content: string,
   storage?: Pick<Storage, "getItem"> | null,
 ) {
+  if (selectedArtifactDirectory) {
+    void saveTextArtifactToDirectory(selectedArtifactDirectory, filename, mediaType, content)
+      .then((result) => {
+        if (result === "unsupported") triggerFallbackBrowserDownload(filename, mediaType, content);
+      })
+      .catch(() => {
+        // A stale permission or filesystem error must not silently fill
+        // Downloads. Ask before using the browser fallback.
+        triggerFallbackBrowserDownload(filename, mediaType, content);
+      });
+    return;
+  }
   if (readExportDestinationPreference(storage) !== "save-dialog") {
     triggerBrowserDownload(filename, mediaType, content);
     return;

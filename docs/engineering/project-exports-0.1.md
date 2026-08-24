@@ -23,6 +23,13 @@ enabled, and the artifact center displays a warning while it is active. Use
 **Switch to save dialog** there, or choose the save-dialog option in Display &
 accessibility, to keep exports out of Downloads unless a location is selected.
 
+For a batch of related artifacts, choose **Project folder for this session**
+from the Artifact center or Display & accessibility. The browser authorizes a
+folder once and RocketWorks writes subsequent named exports there for the
+current session. The permission is memory-only and must be granted again after
+a reload. If the folder is unavailable, RocketWorks asks before using a browser
+download fallback; it never silently redirects the export to Downloads.
+
 The center offers inspectable project, simulation, evidence, and CAD formats
 plus a validated project-import path:
 

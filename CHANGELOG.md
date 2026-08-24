@@ -6,6 +6,13 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an explicit session-scoped project-folder export destination. Users can
+  authorize one browser folder from Display & accessibility or the Artifact
+  center and keep named exports together for the current session; the handle
+  is not persisted into project state or browser preferences. Unsupported or
+  stale folder permissions ask before falling back to Downloads, and clearing
+  the destination returns to the normal save-dialog flow.
+
 - Add a strict pair-level relative-flow evidence importer and bounded wake-
   proxy calibration study. Flight can compare directed source/target body
   observations for exposure coverage, velocity deficit, and dynamic-pressure

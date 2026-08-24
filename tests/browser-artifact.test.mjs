@@ -6,8 +6,12 @@ import {
   UI_PREFERENCES_STORAGE_KEY,
 } from "../lib/project/ui-preferences.ts";
 import {
+  chooseArtifactDirectory,
   downloadTextArtifact,
+  getArtifactDirectoryName,
   saveTextArtifactWithPicker,
+  saveTextArtifactToDirectory,
+  setArtifactDirectory,
 } from "../lib/export/browser-artifact.ts";
 
 function storageFor(exportDestination) {
@@ -18,7 +22,7 @@ function storageFor(exportDestination) {
   return { getItem: (key) => key === UI_PREFERENCES_STORAGE_KEY ? value : null };
 }
 
-function installBrowserHarness({ picker, clicks, confirm = false }) {
+function installBrowserHarness({ picker, directoryPicker, clicks, confirm = false }) {
   const previousWindow = globalThis.window;
   const previousDocument = globalThis.document;
   const previousCreateObjectUrl = URL.createObjectURL;
@@ -30,6 +34,7 @@ function installBrowserHarness({ picker, clicks, confirm = false }) {
   };
   globalThis.window = {
     showSaveFilePicker: picker,
+    showDirectoryPicker: directoryPicker,
     confirm: () => confirm,
     setTimeout: (callback) => {
       callback();
@@ -40,6 +45,7 @@ function installBrowserHarness({ picker, clicks, confirm = false }) {
   URL.createObjectURL = () => "blob:rocketworks-test";
   URL.revokeObjectURL = () => {};
   return () => {
+    setArtifactDirectory(null);
     if (previousWindow === undefined) delete globalThis.window;
     else globalThis.window = previousWindow;
     if (previousDocument === undefined) delete globalThis.document;
@@ -48,6 +54,54 @@ function installBrowserHarness({ picker, clicks, confirm = false }) {
     URL.revokeObjectURL = previousRevokeObjectUrl;
   };
 }
+
+test("project-folder selection writes exports without creating browser downloads", async () => {
+  const clicks = [];
+  const writes = [];
+  const directory = {
+    name: "RocketWorks",
+    getFileHandle: async () => ({
+      createWritable: async () => ({
+        write: async (blob) => writes.push(await blob.text()),
+        close: async () => {},
+      }),
+    }),
+  };
+  const restore = installBrowserHarness({
+    clicks,
+    directoryPicker: async () => directory,
+  });
+  try {
+    const selected = await chooseArtifactDirectory();
+    assert.equal(selected, directory);
+    setArtifactDirectory(selected);
+    assert.equal(getArtifactDirectoryName(), "RocketWorks");
+    downloadTextArtifact("project.json", "application/json", "{\"ok\":true}");
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 0));
+    assert.deepEqual(writes, ["{\"ok\":true}"]);
+    assert.deepEqual(clicks, []);
+  } finally {
+    restore();
+  }
+});
+
+test("project-folder save preserves content and reports cancellation", async () => {
+  const writes = [];
+  const directory = {
+    getFileHandle: async () => ({
+      createWritable: async () => ({
+        write: async (blob) => writes.push(await blob.text()),
+        close: async () => {},
+      }),
+    }),
+  };
+  assert.equal(await saveTextArtifactToDirectory(directory, "report.md", "text/markdown", "# report"), "saved");
+  assert.deepEqual(writes, ["# report"]);
+  const cancelled = await saveTextArtifactToDirectory({
+    getFileHandle: async () => { throw new DOMException("user cancelled", "AbortError"); },
+  }, "report.md", "text/markdown", "# report");
+  assert.equal(cancelled, "cancelled");
+});
 
 test("save picker writes the requested artifact and preserves the extension filter", async () => {
   let pickerOptions;

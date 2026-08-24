@@ -369,8 +369,9 @@ research, standards, and original code.
   bounds, portable project-file exchange, and no bundled third-party geometry;
 - device-local display and accessibility preferences with versioned migration,
   reduced-motion behavior, high-contrast controls, keyboard-reachable settings,
-  and an opt-in save-location dialog for exports; these never enter
-  engineering project state;
+  an opt-in save-location dialog, and a session-scoped project-folder chooser
+  for keeping exports together; these destinations never enter engineering
+  project state;
 - synchronized bounded sliders plus exact-number inputs for flight, weather,
   launch-rail, recovery, reefing, and uncertainty tuning, with the same
   validation and stale-result guardrails as direct edits;

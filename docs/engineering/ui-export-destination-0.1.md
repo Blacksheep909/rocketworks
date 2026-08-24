@@ -17,6 +17,23 @@ download. If the API is unavailable, or a browser/permission error occurs,
 RocketWorks asks for explicit confirmation before using the normal browser
 download path; it never silently fills Downloads from the save-dialog mode.
 
+## Session project folder
+
+The **Project folder for this session** control provides a second explicit
+workflow for users who want a run of exports kept together. From Display &
+accessibility or the Artifact center, choose a folder through the browser's
+File System Access API. Each subsequent export writes its named artifact into
+that folder without opening another picker. The folder handle and visible name
+are held in memory only; they are not serialized into project JSON, local
+history, share links, or the UI preference envelope, and the browser asks for
+authorization again after a reload.
+
+If the browser does not implement the directory API, the user can continue
+with the per-file save dialog. If a selected folder becomes unavailable or its
+permission expires, RocketWorks asks before using a browser download fallback;
+it never silently redirects a project-folder export to Downloads. Clear the
+folder destination to return to the normal save-dialog preference.
+
 ## Persistence and migration
 
 The setting lives in the device-local UI preference envelope, not in a project
@@ -38,9 +55,10 @@ browser preference cannot partially change the workbench.
 
 ## Limits
 
-The browser cannot be given a silent arbitrary filesystem path. The save dialog
-is therefore an explicit per-export flow, and unsupported browsers continue to
-use their own download settings. A future desktop wrapper can provide a
+The browser cannot be given a silent arbitrary filesystem path. Both the
+per-file save dialog and the session project-folder chooser therefore require
+an explicit user gesture; unsupported browsers continue to use their own
+download settings. A future desktop wrapper can persist a user-approved
 project-folder workflow without changing the export payload contract.
 
 All exported engineering results retain their existing model version,

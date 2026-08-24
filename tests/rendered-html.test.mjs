@@ -810,7 +810,17 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(page, /ENGINEERING DESIGN REVIEW/);
   assert.match(page, /Flutter-safe speed/);
   assert.match(page, /Analytical component checks only/);
+  assert.match(page, /chooseArtifactExportDirectory/);
+  assert.match(page, /artifactDirectoryName/);
+  assert.match(page, /projectFolderTitle/);
+  assert.match(page, /uiCopy\.chooseProjectFolder/);
+  assert.match(page, /export-folder-banner/);
+  assert.match(page, /accessibility-export-folder/);
   assert.match(browserArtifact, /URL\.createObjectURL/);
+  assert.match(browserArtifact, /showDirectoryPicker/);
+  assert.match(browserArtifact, /saveTextArtifactToDirectory/);
+  assert.match(browserArtifact, /setArtifactDirectory/);
+  assert.match(browserArtifact, /must not silently fill[\s\S]*Downloads/);
   assert.match(page, /Run the vertical estimate again before exporting simulation results/);
   assert.match(page, /Rerun the coupled 6DOF preview before exporting its trace/);
   assert.match(page, /reference geometry—not drawings, toleranced solids/);
@@ -828,6 +838,8 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(stylesheet, /\.engineering-review-finding-review/);
   assert.match(stylesheet, /\.stage-separation-dynamics/);
   assert.match(stylesheet, /\.structural-check-review/);
+  assert.match(stylesheet, /\.export-folder-banner/);
+  assert.match(stylesheet, /\.accessibility-export-folder/);
   assert.match(stylesheet, /\.export-grid button:focus-visible/);
 });
 
