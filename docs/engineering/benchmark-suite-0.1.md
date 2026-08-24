@@ -1,4 +1,4 @@
-# Deterministic physics benchmark suite 0.5
+# Deterministic physics benchmark suite 0.6
 
 Status: `mathematical-regression-tests-only`.
 
@@ -30,13 +30,17 @@ enough to run in CI.
   explicit section evidence and common peak-thrust acceleration;
 - a serial mission mass-ratio and ideal-delta-v composition anchor with a
   retained payload and downstream stage stack.
+- a bounded ±15° gimbal control-authority envelope anchor covering vector
+  force, thrust-vector moment, rigid-body angular acceleration, and the
+  control-to-aerodynamic-moment ratio.
 
 Each case reports the observed value, public-reference expected value, absolute
 and relative error, and a declared tolerance. The suite currently contains
-twenty-one cases because the atmosphere fixture checks pressure and density as
+twenty-five cases because the atmosphere fixture checks pressure and density as
 separate metrics, the 6DOF conservation checks are reported independently,
-and the structural/aeroelastic, stage-interface, and serial mass-ratio
-equations are checked against independent closed-form recomputations.
+and the structural/aeroelastic, stage-interface, serial mass-ratio, and gimbal
+control-authority equations are checked against independent closed-form
+recomputations.
 
 ## Interpretation
 
@@ -48,7 +52,8 @@ visible.
 
 The fixtures deliberately use no OpenRocket code, data, assets, backend, or
 simulation engine. They exercise the independent atmosphere, thrust-curve,
-gravity, static-aerodynamics, rigid-body 6DOF, structural-screen, and
-fin-flutter modules directly. The conservation, structural, and aeroelastic
-cases are regression anchors, not experimental validation of a vehicle, motor,
-aerodynamic database, material, or operational profile.
+gravity, static-aerodynamics, rigid-body 6DOF, gimbal-control-authority,
+structural-screen, and fin-flutter modules directly. The conservation,
+structural, aeroelastic, and actuator-envelope cases are regression anchors,
+not experimental validation of a vehicle, motor, aerodynamic database,
+material, actuator, or operational profile.

@@ -316,8 +316,9 @@ research, standards, and original code.
   normalized residual statistics, deterministic residual CSV export,
   browser-local persistence, and explicit validation boundaries;
 - on-demand deterministic physics benchmarks for atmosphere, gravity,
-  thrust-curve impulse, static aerodynamics, rigid-body 6DOF, structural, and
-  preliminary aeroelastic regression fixtures;
+  thrust-curve impulse, static aerodynamics, rigid-body 6DOF, bounded gimbal
+  control-authority, structural, and preliminary aeroelastic regression
+  fixtures;
 - benchmark evidence CSV and matching engineering-report section with model
   identity, fixture tolerances, assumptions, and explicit regression-only
   interpretation;

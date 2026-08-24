@@ -20,9 +20,10 @@ import {
 } from "./structural-screen.ts";
 import { createStageInterfaceLoadReview } from "./stage-interface-loads.ts";
 import { computeMissionMassRatio } from "./stage-mass-ratio.ts";
+import { analyzeGimbalControlAuthority } from "./gimbal-control-authority.ts";
 
 export const BENCHMARK_SUITE_MODEL_VERSION =
-  "kestrel-physics-benchmark-suite-0.5.0";
+  "kestrel-physics-benchmark-suite-0.6.0";
 export const BENCHMARK_SUITE_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -249,6 +250,50 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
     timeStepS: 0.002,
     loads: () => ({ momentBodyNm: { x: 2, y: 0, z: 0 } }),
   });
+
+  const gimbalMassProperties = {
+    massKg: 2,
+    centerOfMassM: { x: 0, y: 0, z: 0 },
+    inertiaAtCenterKgM2: [
+      [2, 0, 0],
+      [0, 3, 0],
+      [0, 0, 4],
+    ],
+  } as const;
+  const gimbalThrustN = 100;
+  const gimbalDeflectionRad = (15 * Math.PI) / 180;
+  const gimbalTangent = Math.tan(gimbalDeflectionRad);
+  const gimbalSingleAxisNorm = Math.sqrt(1 + gimbalTangent ** 2);
+  const gimbalCommandAxisNorm = Math.sqrt(1 + 2 * gimbalTangent ** 2);
+  const gimbalExpectedForceN = gimbalThrustN * Math.sqrt(
+    2 - 2 / gimbalCommandAxisNorm,
+  );
+  const gimbalExpectedMomentNm = gimbalThrustN * Math.sqrt(
+    (1 - 1 / gimbalSingleAxisNorm) ** 2 +
+      (gimbalTangent / gimbalSingleAxisNorm) ** 2,
+  );
+  const gimbalExpectedAngularAccelerationRadS2 = gimbalThrustN * Math.sqrt(
+    ((1 - 1 / gimbalCommandAxisNorm) ** 2) / 3 ** 2 +
+      ((gimbalTangent / gimbalCommandAxisNorm) ** 2) / 4 ** 2,
+  );
+  const gimbalAuthority = analyzeGimbalControlAuthority([
+    {
+      timeS: 0,
+      massProperties: gimbalMassProperties,
+      motors: [
+        {
+          id: "benchmark-gimbal-motor",
+          name: "Benchmark gimbal motor",
+          thrustN: gimbalThrustN,
+          thrustAxisBody: { x: 0, y: 0, z: 1 },
+          thrustApplicationPointBodyM: { x: 1, y: 0, z: 0 },
+          gimbalConfigured: true,
+          responseTimeS: 0.12,
+        },
+      ],
+      aerodynamicMomentBodyNm: { x: 0, y: 0, z: gimbalExpectedMomentNm / 2 },
+    },
+  ]);
 
   const structuralMaterial: StructuralMaterialModel = {
     label: "Benchmark isotropic laminate",
@@ -508,6 +553,46 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
       expected: 1,
       tolerance: 1e-14,
       method: "constant principal-axis moment with normalized attitude state",
+    }),
+    compareCase({
+      id: "gimbal-control-force-envelope",
+      label: "±15° thrust-vector control force envelope",
+      metric: "control force",
+      unit: "N",
+      observed: gimbalAuthority.peakControlForceN ?? Number.NaN,
+      expected: gimbalExpectedForceN,
+      tolerance: 1e-12,
+      method: "independent vector-difference norm for the two-axis ±15° command corner",
+    }),
+    compareCase({
+      id: "gimbal-control-moment-envelope",
+      label: "Thrust-vector control moment envelope",
+      metric: "control moment",
+      unit: "N·m",
+      observed: gimbalAuthority.peakControlMomentNm ?? Number.NaN,
+      expected: gimbalExpectedMomentNm,
+      tolerance: 1e-12,
+      method: "r×ΔF with a 1 m transverse lever arm and the single-axis ±15° command corner",
+    }),
+    compareCase({
+      id: "gimbal-control-angular-acceleration-envelope",
+      label: "Thrust-vector angular-acceleration envelope",
+      metric: "angular acceleration",
+      unit: "rad/s²",
+      observed: gimbalAuthority.peakControlAngularAccelerationRadS2 ?? Number.NaN,
+      expected: gimbalExpectedAngularAccelerationRadS2,
+      tolerance: 1e-12,
+      method: "diagonal I·α=τ solve for the benchmark rigid-body inertia tensor",
+    }),
+    compareCase({
+      id: "gimbal-control-to-aero-moment-ratio",
+      label: "Gimbal-to-aerodynamic moment ratio",
+      metric: "control/aero moment ratio",
+      unit: "1",
+      observed: gimbalAuthority.minimumControlToAerodynamicMomentRatio ?? Number.NaN,
+      expected: 2,
+      tolerance: 1e-12,
+      method: "control-moment magnitude divided by a deliberately half-sized aerodynamic-moment sample",
     }),
     compareCase({
       id: "structural-shell-area",

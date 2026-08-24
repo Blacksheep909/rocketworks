@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Extend the deterministic benchmark suite to 25 regression anchors with an
+  independent ±15° gimbal force, moment, angular-acceleration, and
+  control-to-aerodynamic-moment fixture. The benchmark lane remains
+  mathematical regression evidence only and does not validate an actuator,
+  controller, vehicle, or flight-safety margin.
+
 - Add a bounded, post-trace gimbal control-authority envelope to staged
   previews. The clean-room analyzer evaluates public thrust-vector and rigid-
   body equations at the authored ±15° command corners, exposes conservative
