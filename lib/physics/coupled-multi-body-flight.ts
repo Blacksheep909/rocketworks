@@ -29,6 +29,7 @@ import {
   type Quaternion,
   type RigidBodyLoads,
   type RigidBodyIntegrationMethod,
+  type RigidBodyProperties,
   type RigidBodyState,
 } from "./six-dof.ts";
 import {
@@ -56,7 +57,7 @@ import {
  * aerodynamic interference remain outside the model.
  */
 export const COUPLED_MULTI_BODY_FLIGHT_MODEL_VERSION =
-  "rocketworks-coupled-multi-body-flight-0.8.0";
+  "rocketworks-coupled-multi-body-flight-0.9.0";
 export const COUPLED_MULTI_BODY_FLIGHT_STATUS =
   "analytical-component-checks-only" as const;
 export const STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2 = 6.67430e-11;
@@ -121,6 +122,18 @@ export type CoupledMultiBodyVelocityAdjustment = Readonly<{
 }>;
 
 /**
+ * Optional time-varying rigid-body properties for a released body.
+ *
+ * The provider is evaluated at every Runge–Kutta substep, so it may expose a
+ * caller-owned propellant or payload schedule without making that schedule a
+ * hidden part of the shared solver. The returned inertia rate is used in the
+ * Euler angular-momentum equation when supplied.
+ */
+export type CoupledMultiBodyRigidBodyPropertiesProvider = (
+  state: RigidBodyState,
+) => RigidBodyProperties;
+
+/**
  * Optional rigid-body state for a released component.
  *
  * Translation still receives the shared gravity/point-drag environment model,
@@ -133,6 +146,8 @@ export type CoupledMultiBodyRigidBodyInput = Readonly<{
   orientationBodyToWorld: Quaternion;
   angularVelocityBodyRadS?: Vector3;
   inertiaBodyKgM2: Matrix3;
+  /** Optional dynamic mass/inertia provider; constant fields remain the fallback. */
+  propertiesAt?: CoupledMultiBodyRigidBodyPropertiesProvider;
   loads?: (state: RigidBodyState) => RigidBodyLoads;
 }>;
 
@@ -159,6 +174,8 @@ export type CoupledMultiBodyFlightBodyInput = Readonly<{
 
 export type CoupledMultiBodyTracePoint = Readonly<{
   timeS: number;
+  /** Effective rigid-body mass used for this trace sample. */
+  massKg: number;
   altitudeAglM: number;
   speedMps: number;
   positionWorldM: Vector3;
@@ -279,6 +296,7 @@ export type CoupledMultiBodyFlightResult = Readonly<{
     affectedBodyCount: number;
   }>;
   rigidBodyCount: number;
+  dynamicMassBodyCount: number;
   aerodynamicBodyCount: number;
   integration: Readonly<{
     method: RigidBodyIntegrationMethod;
@@ -615,8 +633,20 @@ function validateBody(body: CoupledMultiBodyFlightBodyInput): void {
       `coupled-flight body ${body.id} angular velocity`,
     );
     normalizeQuaternion(body.rigidBody.orientationBodyToWorld);
+    if (
+      body.rigidBody.propertiesAt !== undefined &&
+      typeof body.rigidBody.propertiesAt !== "function"
+    ) {
+      throw new Error(`coupled-flight body ${body.id} rigid-body propertiesAt must be a function`);
+    }
     rigidBodyPropertiesAt(
-      {
+      body.rigidBody.propertiesAt?.({
+        timeS: body.releaseTimeS,
+        positionWorldM: body.releasePositionWorldM,
+        velocityWorldMps: body.releaseVelocityWorldMps,
+        orientationBodyToWorld: body.rigidBody.orientationBodyToWorld,
+        angularVelocityBodyRadS: angularVelocity,
+      }) ?? {
         massKg: body.massKg,
         inertiaBodyKgM2: body.rigidBody.inertiaBodyKgM2,
       },
@@ -878,6 +908,7 @@ function accelerationAt(
   velocityWorldMps: Vector3,
   orientationBodyToWorld?: Quaternion,
   relativeAirVelocityWorldMps?: Vector3,
+  massKg: number = body.massKg,
 ): Vector3 {
   const environment = environmentAt(input, timeS, positionWorldM, velocityWorldMps);
   const altitudeAslM =
@@ -921,7 +952,7 @@ function accelerationAt(
     });
     return addVectors(
       gravityAccelerationWorldMps2,
-      scaleVector(drag.dragForceWorldN, 1 / body.massKg),
+      scaleVector(drag.dragForceWorldN, 1 / massKg),
     );
   }
   if (body.referenceAreaM2 === undefined || body.dragCoefficient === undefined) {
@@ -930,7 +961,7 @@ function accelerationAt(
   const atmosphere = environment?.atmosphere ?? standardAtmosphere(altitudeAslM);
   const dragAccelerationMagnitudeMps2 =
     (0.5 * atmosphere.densityKgM3 * relativeAirSpeedMps ** 2 * body.dragCoefficient * body.referenceAreaM2) /
-    body.massKg;
+    massKg;
   return addVectors(
     gravityAccelerationWorldMps2,
     scaleVector(relativeAirVelocityMps, -dragAccelerationMagnitudeMps2 / relativeAirSpeedMps),
@@ -940,6 +971,7 @@ function accelerationAt(
 function mutualGravityAccelerationAt(
   bodyIndex: number,
   bodies: readonly CoupledMultiBodyFlightBodyInput[],
+  state: CoupledGroupState,
   positionsWorldM: readonly Vector3[],
   active: readonly boolean[],
   softeningRadiusM: number,
@@ -962,8 +994,8 @@ function mutualGravityAccelerationAt(
       acceleration,
       scaleVector(
         displacement,
-        STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2 *
-          bodies[otherIndex].massKg *
+          STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2 *
+          bodyMassKgAt(bodies[otherIndex], state, otherIndex) *
           inverseDistanceCubed,
       ),
     );
@@ -1104,22 +1136,56 @@ function rigidBodyStateAt(
   };
 }
 
-function rigidBodyAngularAccelerationAt(
+function rigidBodyPropertiesAtState(
   body: CoupledMultiBodyFlightBodyInput,
   state: RigidBodyState,
+): RigidBodyProperties {
+  const rigidBody = body.rigidBody;
+  if (!rigidBody) {
+    throw new Error(`coupled-flight body ${body.id} has no rigid-body properties`);
+  }
+  const properties = rigidBody.propertiesAt?.(state) ?? {
+    massKg: body.massKg,
+    inertiaBodyKgM2: rigidBody.inertiaBodyKgM2,
+  };
+  rigidBodyPropertiesAt(properties, state);
+  return properties;
+}
+
+function bodyMassKgAt(
+  body: CoupledMultiBodyFlightBodyInput,
+  state: CoupledGroupState,
+  index: number,
+): number {
+  if (!body.rigidBody) return body.massKg;
+  return rigidBodyPropertiesAtState(body, rigidBodyStateAt(body, state, index)).massKg;
+}
+
+function rigidBodyAngularAccelerationAt(
+  state: RigidBodyState,
+  properties: RigidBodyProperties,
   loads: RigidBodyLoads,
 ): Vector3 {
-  const rigidBody = body.rigidBody;
-  if (!rigidBody) return ZERO_VECTOR;
   const angularMomentumBody = multiplyMatrixVector(
-    rigidBody.inertiaBodyKgM2,
+    properties.inertiaBodyKgM2,
+    state.angularVelocityBodyRadS,
+  );
+  const inertiaRateMoment = multiplyMatrixVector(
+    properties.inertiaRateBodyKgM2PerS ?? [
+      [0, 0, 0],
+      [0, 0, 0],
+      [0, 0, 0],
+    ],
     state.angularVelocityBodyRadS,
   );
   return solveMatrix3(
-    rigidBody.inertiaBodyKgM2,
+    properties.inertiaBodyKgM2,
     subtractVectors(
-      loads.momentBodyNm ?? ZERO_VECTOR,
-      cross(state.angularVelocityBodyRadS, angularMomentumBody),
+      subtractVectors(
+        loads.momentBodyNm ?? ZERO_VECTOR,
+        cross(state.angularVelocityBodyRadS, angularMomentumBody),
+      ),
+      inertiaRateMoment,
     ),
   );
 }
@@ -1170,6 +1236,10 @@ function coupledGroupDerivativeAt(
     const rigidState = body.rigidBody
       ? rigidBodyStateAt(body, state, index)
       : null;
+    const rigidProperties = rigidState
+      ? rigidBodyPropertiesAtState(body, rigidState)
+      : null;
+    const massKg = rigidProperties?.massKg ?? body.massKg;
     const aerodynamic = evaluateCoupledBodyAerodynamics(
       body,
       input,
@@ -1191,15 +1261,17 @@ function coupledGroupDerivativeAt(
             state.velocitiesWorldMps[index]!,
             state.orientationsBodyToWorld[index] ?? undefined,
             relativeAeroEvaluation?.relativeAirVelocityWorldMps,
+            massKg,
           ),
           aerodynamic && body.aerodynamicBasis
-            ? scaleVector(aerodynamic.forceWorldN, 1 / body.massKg)
+            ? scaleVector(aerodynamic.forceWorldN, 1 / massKg)
             : ZERO_VECTOR,
         ),
         mutualGravity.enabled
           ? mutualGravityAccelerationAt(
               index,
               bodies,
+              state,
               state.positionsWorldM,
               state.active,
               mutualGravity.softeningRadiusM,
@@ -1207,7 +1279,7 @@ function coupledGroupDerivativeAt(
           : ZERO_VECTOR,
       ),
       contact.enabled
-        ? scaleVector(contactEvaluation.forcesWorldN[index]!, 1 / body.massKg)
+        ? scaleVector(contactEvaluation.forcesWorldN[index]!, 1 / massKg)
         : ZERO_VECTOR,
     );
     let acceleration = baseAcceleration;
@@ -1227,18 +1299,18 @@ function coupledGroupDerivativeAt(
       );
       acceleration = scaleVector(
         addVectors(
-          scaleVector(baseAcceleration, body.massKg),
+          scaleVector(baseAcceleration, massKg),
           externalForceWorldN,
         ),
-        1 / body.massKg,
+        1 / massKg,
       );
       orientationRate = quaternionRate(
         rigidState!.orientationBodyToWorld,
         rigidState!.angularVelocityBodyRadS,
       );
       angularVelocityRate = rigidBodyAngularAccelerationAt(
-        body,
         rigidState!,
+        rigidProperties!,
         {
           ...loads,
           ...(aerodynamic
@@ -1807,6 +1879,7 @@ function tracePoint(
 ): CoupledMultiBodyTracePoint {
   return {
     timeS: state.timeS,
+    massKg: body.massKg,
     altitudeAglM: state.positionWorldM.z,
     speedMps: magnitude(state.velocityWorldMps),
     positionWorldM: state.positionWorldM,
@@ -1826,6 +1899,7 @@ function tracePointWithAcceleration(
   input: CoupledMultiBodyFlightInput,
   state: PointState,
   accelerationWorldMps2: Vector3,
+  massKg: number = body.massKg,
   orientationBodyToWorld?: Quaternion,
   angularVelocityBodyRadS?: Vector3,
   contactDiagnostics?: Readonly<{
@@ -1885,6 +1959,7 @@ function tracePointWithAcceleration(
     : {};
   return {
     timeS: state.timeS,
+    massKg,
     altitudeAglM: state.positionWorldM.z,
     speedMps: magnitude(state.velocityWorldMps),
     positionWorldM: state.positionWorldM,
@@ -1940,7 +2015,7 @@ function trajectoryFromTrace(
   return {
     id: body.id,
     label: body.label ?? body.id,
-    massKg: body.massKg,
+    massKg: trace[0]?.massKg ?? body.massKg,
     releaseTimeS: body.releaseTimeS,
     releasePositionWorldM: body.releasePositionWorldM,
     releaseVelocityWorldMps: addVectors(body.releaseVelocityWorldMps, adjustment),
@@ -2130,6 +2205,7 @@ function propagateCoupledBodies(
           velocityWorldMps: state.velocitiesWorldMps[index],
         },
         initialDerivative.accelerationsWorldMps2[index]!,
+        bodyMassKgAt(bodies[index], state, index),
         state.orientationsBodyToWorld[index] ?? undefined,
         state.angularVelocitiesBodyRadS[index] ?? undefined,
         contact.enabled
@@ -2248,6 +2324,7 @@ function propagateCoupledBodies(
               input,
               impactState,
               impactDerivative.accelerationsWorldMps2[index]!,
+              bodyMassKgAt(bodies[index], impactGroupState, index),
               impactOrientation ?? undefined,
               impactAngularVelocity ?? undefined,
               contact.enabled
@@ -2300,6 +2377,7 @@ function propagateCoupledBodies(
             velocityWorldMps: state.velocitiesWorldMps[index],
           },
           derivative.accelerationsWorldMps2[index]!,
+          bodyMassKgAt(bodies[index], state, index),
           state.orientationsBodyToWorld[index] ?? undefined,
           state.angularVelocitiesBodyRadS[index] ?? undefined,
           contact.enabled
@@ -2382,6 +2460,9 @@ export function simulateCoupledMultiBodyFlight(
     }
   });
   const rigidBodyCount = input.bodies.filter((body) => body.rigidBody !== undefined).length;
+  const dynamicMassBodyCount = input.bodies.filter(
+    (body) => body.rigidBody?.propertiesAt !== undefined,
+  ).length;
   const attitudeDependentDragBodyCount = input.bodies.filter(
     (body) => body.attitudeDependentDrag !== undefined && body.aerodynamicBasis === undefined,
   ).length;
@@ -2508,6 +2589,9 @@ export function simulateCoupledMultiBodyFlight(
     ...(rigidBodyCount > 0
       ? [`${rigidBodyCount} released bod${rigidBodyCount === 1 ? "y" : "ies"} used the opt-in rigid-body attitude state; supplied external loads were evaluated in the body/world frames.`]
       : []),
+    ...(dynamicMassBodyCount > 0
+      ? [`${dynamicMassBodyCount} released bod${dynamicMassBodyCount === 1 ? "y" : "ies"} used a caller-supplied time-varying mass/inertia provider; effective mass is retained in each trace sample.`]
+      : []),
     ...(attitudeDependentDragBodyCount > 0
       ? [`${attitudeDependentDragBodyCount} released bod${attitudeDependentDragBodyCount === 1 ? "y" : "ies"} used the opt-in projected-area attitude drag model; the trace retains incidence, effective area, and Cd diagnostics.`]
       : []),
@@ -2574,10 +2658,18 @@ export function simulateCoupledMultiBodyFlight(
       : []),
     ...(rigidBodyCount > 0
       ? [
-          "Rigid-body attitude uses quaternion kinematics and Euler angular momentum with the supplied constant inertia tensor; flexible-body, contact, plume, and unprovided aerodynamic moment models remain outside the solver.",
+          dynamicMassBodyCount > 0
+            ? "Rigid-body attitude uses quaternion kinematics and Euler angular momentum with the supplied time-varying mass/inertia provider where configured; flexible-body, contact, plume, and unprovided aerodynamic moment models remain outside the solver."
+            : "Rigid-body attitude uses quaternion kinematics and Euler angular momentum with the supplied constant inertia tensor; flexible-body, contact, plume, and unprovided aerodynamic moment models remain outside the solver.",
           relativeAero.enabled
             ? "Rigid-body loads are caller-supplied additions to the shared gravity/drag force basis; the opt-in wake proxy is the only inferred pairwise aerodynamic force, omitted moments are zero, and no validated interference force is inferred."
             : "Rigid-body loads are caller-supplied additions to the shared gravity/drag force basis; omitted moments are zero and no contact or aerodynamic-interference force is inferred.",
+        ]
+      : []),
+    ...(dynamicMassBodyCount > 0
+      ? [
+          "Dynamic mass/inertia callbacks are sampled at every RK4 substep and must be pure, finite, and positive-definite; the solver does not infer propellant flow, exhaust control-volume momentum, slosh, or center-of-mass migration from mass alone.",
+          "Caller-supplied force and moment loads remain responsible for thrust and any mass-flow momentum exchange; a changing mass property by itself does not create thrust.",
         ]
       : []),
     ...(attitudeDependentDragBodyCount > 0
@@ -2645,6 +2737,7 @@ export function simulateCoupledMultiBodyFlight(
       affectedBodyCount: relativeAeroAffectedBodyCount,
     },
     rigidBodyCount,
+    dynamicMassBodyCount,
     aerodynamicBodyCount,
     integration: {
       method: integrationDiagnostics.method,

@@ -129,7 +129,7 @@ import {
 } from "./mission-delta-v-bridge.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.38.0";
+  "kestrel-stage-flight-preview-0.39.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -138,6 +138,11 @@ export type ReleasedBodyDragModel =
   | "isotropic-point"
   | "attitude-projected-area"
   | "coefficient-table";
+
+/** Retained-body handoff used by the optional shared released-body track. */
+export type RetainedBodyCoupledTrackMode =
+  | "trace-replay"
+  | "independent-mass-propulsion";
 
 export type StageFlightPreviewInput = Readonly<{
   retainedMassProperties: MassProperties;
@@ -184,6 +189,8 @@ export type StageFlightPreviewInput = Readonly<{
   coupledMultiBodyContact?: CoupledMultiBodyContactOptions;
   /** Optional replay-backed retained-vehicle seed in the shared released-body track. */
   coupledMultiBodyIncludeRetainedBody?: boolean;
+  /** Optional independent mass/thrust handoff for the retained seed; replay remains the default. */
+  coupledMultiBodyRetainedBodyMode?: RetainedBodyCoupledTrackMode;
   /** Optional detached-body force contract for shared-grid and branch tracks. */
   releasedBodyDragModel?: ReleasedBodyDragModel;
   /** Optional post-trace wake/relative-flow screen; it never feeds forces back into flight. */
@@ -923,6 +930,13 @@ export function simulateStageFlightPreview(
   if (!Number.isFinite(input.timeStepS) || input.timeStepS <= 0 || input.timeStepS > 0.1) {
     throw new Error("stage-flight preview time step must be greater than 0 and at most 0.1 s");
   }
+  const retainedBodyMode = input.coupledMultiBodyRetainedBodyMode ?? "trace-replay";
+  if (
+    retainedBodyMode !== "trace-replay" &&
+    retainedBodyMode !== "independent-mass-propulsion"
+  ) {
+    throw new Error("coupled multi-body retained-body mode must be trace-replay or independent-mass-propulsion");
+  }
   if (input.components.length === 0) throw new Error("stage-flight preview requires geometry components");
   const initiallyIgnitedStageIds = uniqueStrings(
     input.initiallyIgnitedStageIds,
@@ -1423,7 +1437,9 @@ export function simulateStageFlightPreview(
         const retainedEnvelopeRadiusM = input.separationEnvelopeRadiiM?.["retained-vehicle"];
         retainedBodyCoupledSeed = {
           id: "retained-vehicle",
-          label: "Retained vehicle (trace replay)",
+          label: retainedBodyMode === "independent-mass-propulsion"
+            ? "Retained vehicle (independent mass + propulsion)"
+            : "Retained vehicle (trace replay)",
           massKg: retainedMassPropertiesAfterSeparation.massKg,
           releaseTimeS: event.timeS,
           releasePositionWorldM: event.stateAfter.positionWorldM,
@@ -1435,19 +1451,35 @@ export function simulateStageFlightPreview(
             orientationBodyToWorld: event.stateAfter.orientationBodyToWorld,
             angularVelocityBodyRadS: event.stateAfter.angularVelocityBodyRadS,
             inertiaBodyKgM2: retainedMassPropertiesAfterSeparation.inertiaAtCenterKgM2,
-            ...(retainedLoadTrace.length > 0
+            ...(retainedBodyMode === "independent-mass-propulsion"
               ? {
-                  loads: (state: RigidBodyState): RigidBodyLoads => ({
-                    forceWorldN: interpolateStageTraceNonGravityForceWorldN(
-                      retainedLoadTrace,
-                      state.timeS,
-                    ),
+                  propertiesAt: (state: RigidBodyState) => staging.body({
+                    ...event.stateAfter,
+                    ...state,
+                  }),
+                  loads: (state: RigidBodyState): RigidBodyLoads => staging.loads({
+                    ...event.stateAfter,
+                    ...state,
                   }),
                 }
-              : {}),
+              : retainedLoadTrace.length > 0
+                ? {
+                    loads: (state: RigidBodyState): RigidBodyLoads => ({
+                      forceWorldN: interpolateStageTraceNonGravityForceWorldN(
+                        retainedLoadTrace,
+                        state.timeS,
+                      ),
+                    }),
+                  }
+                : {}),
           },
         };
-        if (retainedLoadTrace.length > 0) {
+        if (retainedBodyMode === "independent-mass-propulsion") {
+          retainedCoupledTrackAssumptions.push(
+            "The retained vehicle in the shared coupled track uses the first separation event as a state handoff, then evaluates the clean-room staging mass/inertia and propulsion callbacks at every shared-grid substep.",
+            "The independent retained mass/propulsion track does not yet re-solve fresh retained-stage aerodynamics, recovery loads, separation mechanism dynamics, plume interaction, or later staging events; those remain outside this bounded branch.",
+          );
+        } else if (retainedLoadTrace.length > 0) {
           retainedCoupledTrackAssumptions.push(
             "The retained vehicle in the shared coupled track is seeded at the first separation event and replays interpolated thrust, aerodynamic, and recovery translation loads from the authoritative staged trace; coupled gravity, mutual gravity, and envelope contact remain evaluated by the shared solver.",
             "The retained replay track is a translation-load diagnostic, not an independent retained-stage 6DOF rerun: retained-stage propellant flow, fresh aerodynamic evaluation, aerodynamic moments, and later mass-property changes are not re-solved.",

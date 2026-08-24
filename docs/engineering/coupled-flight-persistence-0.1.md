@@ -40,6 +40,14 @@ The fields are configuration provenance, not validation evidence. The coupled
 simulation remains an analytical engineering preview and must not be treated
 as flight-safety, range-safety, or collision-certification data.
 
+The API-only `coupledMultiBodyRetainedBodyMode =
+"independent-mass-propulsion"` branch is deliberately not persisted by the
+browser schema yet. It is an explicit research/engineering-preview override
+that evaluates the staged mass/inertia and propulsion callbacks after the first
+separation event; `"trace-replay"` remains the persisted compatibility path
+until the independent branch has broader aerodynamics, recovery, and later
+staging coverage.
+
 ## Clean-room boundary
 
 This persistence contract is original RocketWorks code. It carries only

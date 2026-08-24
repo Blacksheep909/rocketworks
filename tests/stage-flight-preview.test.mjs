@@ -327,7 +327,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.38.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.39.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);
@@ -490,6 +490,23 @@ test("stage-flight adapter optionally includes a replay-backed retained vehicle 
   assert.ok(replayed.assumptions.some((assumption) => assumption.includes("replays interpolated thrust")));
   assert.ok(replayed.assumptions.some((assumption) => assumption.includes("not an independent retained-stage 6DOF rerun")));
   assert.equal(replayed.warnings.some((warning) => warning.includes("retained-vehicle coupled replay")), false);
+
+  const independent = simulateStageFlightPreview({
+    ...baseInput,
+    coupledMultiBodyIncludeRetainedBody: true,
+    coupledMultiBodyRetainedBodyMode: "independent-mass-propulsion",
+  });
+  const independentCoupled = independent.coupledMultiBodyFlight;
+  assert.ok(independentCoupled);
+  assert.equal(independentCoupled.dynamicMassBodyCount, 1);
+  const independentRetained = independentCoupled.trajectories.find(
+    (trajectory) => trajectory.id === "retained-vehicle",
+  );
+  assert.ok(independentRetained);
+  assert.equal(independentRetained.label, "Retained vehicle (independent mass + propulsion)");
+  assert.ok(independentRetained.trace.every((point) => Number.isFinite(point.massKg)));
+  assert.ok(independent.assumptions.some((assumption) => assumption.includes("clean-room staging mass/inertia")));
+  assert.ok(independent.assumptions.some((assumption) => assumption.includes("does not yet re-solve fresh retained-stage aerodynamics")));
 });
 
 test("stage-flight adapter forwards projected-area drag to the detached shared track", () => {

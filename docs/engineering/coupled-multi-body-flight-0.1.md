@@ -1,4 +1,4 @@
-# Shared-grid coupled multi-body flight 0.8
+# Shared-grid coupled multi-body flight 0.9
 
 Status: implemented analytical component check; mathematical regression tests
 only. This model is not flight-safety, range-safety, contact, or collision
@@ -17,9 +17,12 @@ An individual body may also opt into a rigid-body state by supplying a
 body-to-world quaternion, body-frame angular velocity, and positive-definite
 body-frame inertia tensor. That state is propagated on the same shared grid.
 An optional body load callback receives the current rigid-body state and may
-return body/world forces and a body-frame moment. The shared gravity and point
-drag basis remains active; callback loads are additive and provenance remains
-with the caller.
+return body/world forces and a body-frame moment. A rigid body may additionally
+provide `propertiesAt(state)` to replace its constant mass/inertia with a
+caller-owned time-varying provider; the effective mass is retained in every
+trace sample and an optional inertia-rate tensor participates in Euler's
+angular-momentum equation. The shared gravity and point-drag basis remains
+active; callback loads are additive and provenance remains with the caller.
 
 The mission end time and requested step are shared across all bodies. Release
 times are inserted as exact trace points, and each body is advanced to the same
@@ -52,6 +55,17 @@ mass-property changes after the first event. The browser labels the trajectory
 and assumptions accordingly. The default remains detached bodies only, so
 existing projects and comparisons retain their previous behavior unless the
 option is explicitly enabled.
+
+The staged adapter also accepts the explicit
+`coupledMultiBodyRetainedBodyMode = "independent-mass-propulsion"` opt-in. This
+keeps the first separation event as a state handoff, then evaluates the
+clean-room staging `body` and `loads` callbacks at every shared-grid substep.
+It therefore carries changing propellant mass/inertia and caller-supplied
+thrust into the shared track without replaying the authoritative force trace.
+It is intentionally bounded: fresh retained-stage aerodynamics, recovery loads,
+separation mechanism dynamics, plume interaction, and later staging events are
+not re-solved. `"trace-replay"` remains the default and existing projects are
+unchanged.
 
 ## Equations and numerical method
 
@@ -140,6 +154,20 @@ a_i,gravity = sum_j G m_j (r_j - r_i) / (|r_j - r_i|^2 + epsilon^2)^(3/2)
 The optional `epsilon` is a Plummer-style softening radius for close
 approaches. With `epsilon = 0`, coincident bodies are rejected as a singular
 state rather than silently inventing a force.
+
+For a body with a dynamic property provider, the solver uses the effective
+mass at each evaluation time in its translational force balance and uses the
+provided inertia and inertia-rate tensor for rotational dynamics:
+
+```text
+m(t) a = F_gravity + F_drag + F_contact + F_caller
+I(t) ω̇ = M_caller - ω × (I(t)ω) - Ī(t)ω
+```
+
+The provider is a contract boundary, not an inferred propulsion model. A
+changing mass value does not create thrust or exhaust momentum; caller-supplied
+loads remain responsible for those terms. The provider must return finite,
+positive mass and a positive-definite inertia at every sampled state.
 
 ## Optional spherical-envelope contact branch
 

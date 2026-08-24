@@ -1207,7 +1207,7 @@ test("engineering report leads with status and preserves calculations and limita
         assumptions: ["Relative-flow fixture assumption."],
       },
       coupledMultiBodyFlight: {
-        modelVersion: "rocketworks-coupled-multi-body-flight-0.8.0",
+        modelVersion: "rocketworks-coupled-multi-body-flight-0.9.0",
         validationStatus: "analytical-component-checks-only",
         startTimeS: 4.2,
         endTimeS: 8,
@@ -1219,6 +1219,7 @@ test("engineering report leads with status and preserves calculations and limita
           gravitationalConstantM3KgS2: 6.67430e-11,
         },
         rigidBodyCount: 1,
+        dynamicMassBodyCount: 0,
         aerodynamicBodyCount: 1,
         integration: {
           method: "fixed-rk4",

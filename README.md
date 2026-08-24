@@ -416,9 +416,12 @@ relative-flow wake proxy and its bounded force-feedback sensitivity branch,
 validated stage-interface/load-transfer and
 mission-level mass-ratio loss models, and validated structural/aeroelastic benchmarks beyond the
 preliminary fin flutter screen. The optional retained replay track now provides
-an explicit shared-grid diagnostic; a true independent retained-stage force,
-propellant, moment, relative-body database, and momentum-exchange solver
-remains future work. Angular and direct force/moment coefficient
+an explicit shared-grid diagnostic, and the staged adapter now has an explicit
+API-only independent retained mass/propulsion handoff that evaluates changing
+mass/inertia and caller-supplied thrust after the first separation. A true
+independent retained-stage force, fresh aerodynamics, recovery, later-staging,
+relative-body database, and momentum-exchange solver remains future work.
+Angular and direct force/moment coefficient
 volumes are now supported as explicit
 interpolation sources, and seeded event-factor dispersion now covers timing,
 separation impulse, and launch alignment; benchmarked data packages,

@@ -357,6 +357,50 @@ test("opt-in released rigid bodies propagate attitude and body-frame torque", ()
   assert.ok(result.assumptions.some((assumption) => assumption.includes("Euler angular momentum")));
 });
 
+test("opt-in rigid-body properties provider propagates changing mass and retains telemetry", () => {
+  const result = simulateCoupledMultiBodyFlight({
+    bodies: [body({
+      id: "burning-body",
+      massKg: 2,
+      releaseTimeS: 0,
+      releasePositionWorldM: { x: 0, y: 0, z: 500 },
+      releaseVelocityWorldMps: { x: 0, y: 0, z: 0 },
+      rigidBody: {
+        orientationBodyToWorld: { w: 1, x: 0, y: 0, z: 0 },
+        inertiaBodyKgM2: [
+          [1, 0, 0],
+          [0, 1, 0],
+          [0, 0, 1],
+        ],
+        propertiesAt: (state) => ({
+          massKg: 2 - 0.5 * state.timeS,
+          inertiaBodyKgM2: [
+            [1 + state.timeS, 0, 0],
+            [0, 1 + state.timeS, 0],
+            [0, 0, 1 + state.timeS],
+          ],
+          inertiaRateBodyKgM2PerS: [
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+          ],
+        }),
+        loads: () => ({ forceWorldN: { x: 8, y: 0, z: 0 } }),
+      },
+    })],
+    durationS: 1,
+    timeStepS: 0.05,
+  });
+  assert.equal(result.dynamicMassBodyCount, 1);
+  const initial = result.trajectories[0].trace[0];
+  const final = result.trajectories[0].trace.at(-1);
+  assert.equal(initial.massKg, 2);
+  assert.equal(final.massKg, 1.5);
+  assert.ok(final.velocityWorldMps.x > 4.1);
+  assert.ok(result.warnings.some((warning) => warning.includes("time-varying mass/inertia")));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("changing mass property")));
+});
+
 test("detached-body aerodynamic basis adds normal force, CP moment, and trace diagnostics", () => {
   const result = simulateCoupledMultiBodyFlight({
     bodies: [body({
