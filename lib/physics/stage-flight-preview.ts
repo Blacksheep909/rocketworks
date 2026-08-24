@@ -83,6 +83,7 @@ import {
 import {
   analyzeRelativeAeroInteraction,
   type RelativeAeroInteractionOptions,
+  type RelativeAeroInteractionDatabaseBinding,
   type RelativeAeroInteractionResult,
 } from "./relative-aero-interaction.ts";
 import type { RelativeAeroDatabaseDefinition } from "./relative-aero-database.ts";
@@ -151,7 +152,9 @@ export type ReleasedBodyDragModel =
 /** Safe high-level binding policy for a selected relative-body database. */
 export type RelativeAeroDatabaseBindingMode =
   | "disabled"
-  | "retained-to-detached";
+  | "retained-to-detached"
+  | "detached-to-retained"
+  | "all-directed-pairs";
 
 /** Retained-body handoff used by the optional shared released-body track. */
 export type RetainedBodyCoupledTrackMode =
@@ -228,7 +231,7 @@ export type StageFlightPreviewInput = Readonly<{
   releasedBodyDragModel?: ReleasedBodyDragModel;
   /** Optional post-trace wake/relative-flow screen; it never feeds forces back into flight. */
   relativeAeroInteraction?: RelativeAeroInteractionOptions;
-  /** Optional source-declared table used by the post-trace retained-to-detached screen. */
+  /** Optional source-declared table used by the post-trace directed-pair screen. */
   relativeAeroDatabase?: RelativeAeroDatabaseDefinition;
   /** Explicit binding policy for the selected relative-body table. */
   relativeAeroDatabaseBindingMode?: RelativeAeroDatabaseBindingMode;
@@ -243,6 +246,40 @@ export type StageFlightPreviewInput = Readonly<{
   additionalWarnings?: readonly string[];
   additionalAssumptions?: readonly string[];
 }>;
+
+/**
+ * Expand the browser's explicit relative-body binding policy into directed
+ * source/target table bindings. The returned pairs are diagnostic-only; the
+ * staged flight integrator never consumes these coefficient deltas.
+ */
+export function createRelativeAeroDatabaseBindings(
+  mode: RelativeAeroDatabaseBindingMode,
+  database: RelativeAeroDatabaseDefinition,
+  detachedBodyIds: readonly string[],
+): readonly RelativeAeroInteractionDatabaseBinding[] {
+  if (
+    mode !== "disabled" &&
+    mode !== "retained-to-detached" &&
+    mode !== "detached-to-retained" &&
+    mode !== "all-directed-pairs"
+  ) {
+    throw new Error(`Unsupported relative-body binding mode: ${String(mode)}`);
+  }
+  if (mode === "disabled" || detachedBodyIds.length === 0) return [];
+  const ids = ["retained-vehicle", ...detachedBodyIds];
+  const uniqueIds = new Set(ids);
+  if (uniqueIds.size !== ids.length || detachedBodyIds.some((id) => !id.trim() || id === "retained-vehicle")) {
+    throw new Error("relative-body binding targets must be unique non-empty detached body ids");
+  }
+  const pairs = mode === "retained-to-detached"
+    ? detachedBodyIds.map((targetBodyId) => ({ sourceBodyId: "retained-vehicle", targetBodyId }))
+    : mode === "detached-to-retained"
+      ? detachedBodyIds.map((sourceBodyId) => ({ sourceBodyId, targetBodyId: "retained-vehicle" }))
+      : ids.flatMap((sourceBodyId) => ids
+        .filter((targetBodyId) => targetBodyId !== sourceBodyId)
+        .map((targetBodyId) => ({ sourceBodyId, targetBodyId })));
+  return pairs.map((pair) => ({ ...pair, database }));
+}
 
 export type StageFlightTracePoint = Readonly<{
   timeS: number;
@@ -2105,15 +2142,13 @@ export function simulateStageFlightPreview(
         }));
     if (detachedInteractionBodies.length > 0) {
       try {
-        const selectedRelativeAeroBindings =
-          input.relativeAeroDatabase &&
-          (input.relativeAeroDatabaseBindingMode ?? "disabled") === "retained-to-detached"
-            ? detachedInteractionBodies.map((body) => ({
-                sourceBodyId: "retained-vehicle",
-                targetBodyId: body.id,
-                database: input.relativeAeroDatabase!,
-              }))
-            : [];
+        const selectedRelativeAeroBindings = input.relativeAeroDatabase
+          ? createRelativeAeroDatabaseBindings(
+              input.relativeAeroDatabaseBindingMode ?? "disabled",
+              input.relativeAeroDatabase,
+              detachedInteractionBodies.map((body) => body.id),
+            )
+          : [];
         const relativeAeroOptions = input.relativeAeroInteraction
           ? {
               ...input.relativeAeroInteraction,

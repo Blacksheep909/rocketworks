@@ -7,6 +7,7 @@ import {
   createScheduledRecoveryDeploymentEvent,
   createScheduledStageIgnitionEvent,
   createScheduledStageSeparationEvent,
+  createRelativeAeroDatabaseBindings,
   computeMissionMassRatio,
   computeStageMassRatio,
   computeStageFlightForceBudget,
@@ -129,6 +130,35 @@ const stages = [
     motors: [motor("upper-motor", 0.72)],
   },
 ];
+
+test("relative-body binding policies expand explicit directed pairs", () => {
+  assert.deepEqual(
+    createRelativeAeroDatabaseBindings("disabled", retainedToDetachedRelativeDatabase, ["booster/1"]),
+    [],
+  );
+  assert.deepEqual(
+    createRelativeAeroDatabaseBindings("retained-to-detached", retainedToDetachedRelativeDatabase, ["booster/1", "booster/2"])
+      .map(({ sourceBodyId, targetBodyId }) => [sourceBodyId, targetBodyId]),
+    [["retained-vehicle", "booster/1"], ["retained-vehicle", "booster/2"]],
+  );
+  assert.deepEqual(
+    createRelativeAeroDatabaseBindings("detached-to-retained", retainedToDetachedRelativeDatabase, ["booster/1", "booster/2"])
+      .map(({ sourceBodyId, targetBodyId }) => [sourceBodyId, targetBodyId]),
+    [["booster/1", "retained-vehicle"], ["booster/2", "retained-vehicle"]],
+  );
+  assert.equal(
+    createRelativeAeroDatabaseBindings("all-directed-pairs", retainedToDetachedRelativeDatabase, ["booster/1", "booster/2"]).length,
+    6,
+  );
+  assert.throws(
+    () => createRelativeAeroDatabaseBindings("all-directed-pairs", retainedToDetachedRelativeDatabase, ["booster/1", "booster/1"]),
+    /unique non-empty detached body ids/,
+  );
+  assert.throws(
+    () => createRelativeAeroDatabaseBindings("unsupported", retainedToDetachedRelativeDatabase, ["booster/1"]),
+    /Unsupported relative-body binding mode/,
+  );
+});
 
 const components = [
   {

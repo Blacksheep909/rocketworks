@@ -440,6 +440,32 @@ function publicModelVersion(value: string | null | undefined): string {
   return value.replace(/^kestrel-/i, "rocketworks-");
 }
 
+function relativeAeroBindingModeLabel(mode: RelativeAeroDatabaseBindingMode): string {
+  switch (mode) {
+    case "retained-to-detached":
+      return "Retained → detached";
+    case "detached-to-retained":
+      return "Detached → retained";
+    case "all-directed-pairs":
+      return "All directed pairs";
+    default:
+      return "Diagnostics disabled";
+  }
+}
+
+function relativeAeroBindingModeDescription(mode: RelativeAeroDatabaseBindingMode): string {
+  switch (mode) {
+    case "retained-to-detached":
+      return "retained-vehicle wake into every available detached body";
+    case "detached-to-retained":
+      return "each detached-body wake into the retained vehicle";
+    case "all-directed-pairs":
+      return "every ordered pair, including detached ↔ detached directions";
+    default:
+      return "no relative-body database queries";
+  }
+}
+
 type SweepParameterDefinition = Readonly<{
   key: VerticalFlightSweepParameterKey;
   label: string;
@@ -5826,7 +5852,7 @@ export default function Home() {
         const storedSelection = window.localStorage.getItem(LOCAL_RELATIVE_AERO_SELECTION_STORAGE_KEY);
         if (storedSelection?.trim()) restoredRelativeAeroSelection = storedSelection;
         const storedBindingMode = window.localStorage.getItem(LOCAL_RELATIVE_AERO_BINDING_MODE_STORAGE_KEY);
-        if (storedBindingMode === "disabled" || storedBindingMode === "retained-to-detached") {
+        if (storedBindingMode === "disabled" || storedBindingMode === "retained-to-detached" || storedBindingMode === "detached-to-retained" || storedBindingMode === "all-directed-pairs") {
           restoredRelativeAeroBindingMode = storedBindingMode;
         }
       } catch {
@@ -10605,6 +10631,25 @@ export default function Home() {
                     <small>Reports directed finite-wake overlap between the retained vehicle and released bodies. It never feeds a force or moment back into the trajectory.</small>
                   </div>
                   <div className="field-group">
+                    <label htmlFor="relative-body-database-binding-mode">Relative-body table binding</label>
+                    <select
+                      id="relative-body-database-binding-mode"
+                      value={selectedRelativeAeroDatabase ? relativeAeroDatabaseBindingMode : "disabled"}
+                      disabled={!selectedRelativeAeroDatabase}
+                      onChange={(event) => {
+                        if (selectedRelativeAeroDatabase) {
+                          selectRelativeAeroDatabase(selectedRelativeAeroDatabase.id, event.target.value as RelativeAeroDatabaseBindingMode);
+                        }
+                      }}
+                    >
+                      <option value="disabled">Diagnostics disabled</option>
+                      <option value="retained-to-detached">Retained → detached</option>
+                      <option value="detached-to-retained">Detached → retained</option>
+                      <option value="all-directed-pairs">All directed pairs</option>
+                    </select>
+                    <small>{selectedRelativeAeroDatabase ? `Applies ${relativeAeroBindingModeDescription(relativeAeroDatabaseBindingMode)}. Post-trace deltas only.` : "Choose a local table in Relative-body data to enable directed-pair diagnostics."}</small>
+                  </div>
+                  <div className="field-group">
                     <label htmlFor="released-body-wake-feedback-mode">Coupled wake force feedback</label>
                     <select
                       id="released-body-wake-feedback-mode"
@@ -12525,7 +12570,7 @@ export default function Home() {
             </button>
             <button className="library-button" onClick={() => setRelativeAeroLibraryOpen(true)}>
               <span><strong>Relative-body data</strong><small>{selectedRelativeAeroDatabase?.name ?? "Disabled · no interaction table"}</small></span>
-              <em>{selectedRelativeAeroDatabase ? "Retained → detached · Manage" : "Optional · Manage"}</em>
+              <em>{selectedRelativeAeroDatabase ? `${relativeAeroBindingModeLabel(relativeAeroDatabaseBindingMode)} · Manage` : "Optional · Manage"}</em>
             </button>
             <button className="library-button" onClick={() => setMotorLibraryOpen(true)}>
               <span><strong>Motor library</strong><small>{previewMotor.manufacturer} · {previewMotor.designation}</small></span>
@@ -13079,7 +13124,7 @@ export default function Home() {
               <div>
                 <span className="eyebrow">Interaction data center</span>
                 <h2 id="relative-aero-library-title">Relative-body data</h2>
-                <p id="relative-aero-library-description">Import a source-declared separation/Mach coefficient table for post-trace retained-to-detached diagnostics. The selected table is never fed back into the flight solver.</p>
+                <p id="relative-aero-library-description">Import a source-declared separation/Mach coefficient table for post-trace directed-pair diagnostics. Choose which ordered body directions receive the table; it is never fed back into the flight solver.</p>
               </div>
               <button
                 ref={relativeAeroLibraryCloseRef}
@@ -13103,7 +13148,7 @@ export default function Home() {
               </article>
               {relativeAeroDatabaseDefinitions.map((database) => {
                 const model = createRelativeAeroDatabase(database);
-                const bindingActive = selectedRelativeAeroDatabaseId === database.id && relativeAeroDatabaseBindingMode === "retained-to-detached";
+                const bindingActive = selectedRelativeAeroDatabaseId === database.id && relativeAeroDatabaseBindingMode !== "disabled";
                 return (
                   <article className={bindingActive ? "aerodynamic-record active" : "aerodynamic-record"} key={database.id}>
                     <div className="aerodynamic-record-main">
@@ -13113,7 +13158,9 @@ export default function Home() {
                     <div className="aerodynamic-record-actions">
                       <span>{database.provenance.licenseIdentifier} · {database.provenance.validationStatus}</span>
                       <button onClick={() => downloadTextArtifact(`${database.id}.json`, "application/json;charset=utf-8", `${JSON.stringify(database, null, 2)}\n`)}>JSON</button>
-                      <button onClick={() => selectRelativeAeroDatabase(database.id, "retained-to-detached")}>{bindingActive ? "Selected" : "Use retained → detached"}</button>
+                      <button onClick={() => selectRelativeAeroDatabase(database.id, "retained-to-detached")}>{bindingActive && relativeAeroDatabaseBindingMode === "retained-to-detached" ? "Selected · retained → detached" : "Use retained → detached"}</button>
+                      <button onClick={() => selectRelativeAeroDatabase(database.id, "detached-to-retained")}>{bindingActive && relativeAeroDatabaseBindingMode === "detached-to-retained" ? "Selected · detached → retained" : "Use detached → retained"}</button>
+                      <button onClick={() => selectRelativeAeroDatabase(database.id, "all-directed-pairs")}>{bindingActive && relativeAeroDatabaseBindingMode === "all-directed-pairs" ? "Selected · all pairs" : "Use all directed pairs"}</button>
                       <button className="danger-button" onClick={() => removeRelativeAeroDatabase(database.id)}>Remove</button>
                     </div>
                   </article>
@@ -13123,7 +13170,7 @@ export default function Home() {
             {selectedRelativeAeroDatabase && (
               <div className="history-notice">
                 <span>ACTIVE BINDING</span>
-                <p><strong>{selectedRelativeAeroDatabase.name}</strong> is applied to each available retained-vehicle → detached-body direction after separation. Queries use the source air-relative frame and source body diameter. Select “Diagnostics disabled” to remove the binding.</p>
+                <p><strong>{selectedRelativeAeroDatabase.name}</strong> is applied to {relativeAeroBindingModeDescription(relativeAeroDatabaseBindingMode)} after separation. Queries use the source air-relative frame and source body diameter. Select “Diagnostics disabled” to remove the binding.</p>
               </div>
             )}
             <div className="aerodynamic-import-section">

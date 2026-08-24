@@ -23,7 +23,11 @@ export type LocalRelativeAeroLibraryDocument = Readonly<{
   records: ReadonlyArray<RelativeAeroDatabaseDefinition>;
 }>;
 
-export type RelativeAeroBindingMode = "disabled" | "retained-to-detached";
+export type RelativeAeroBindingMode =
+  | "disabled"
+  | "retained-to-detached"
+  | "detached-to-retained"
+  | "all-directed-pairs";
 
 function objectValue(value: unknown, label: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {

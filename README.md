@@ -183,8 +183,8 @@ research, standards, and original code.
   interpolates source-declared separation/Mach coefficient deltas, reports
   applicability, uncertainty, coverage, and dimensional force/moment scales in
   the Flight inspector and engineering report, with a device-local validated
-  library and explicit retained-to-detached binding workflow, and remains
-  post-trace only;
+  library and explicit retained-to-detached, detached-to-retained, or
+  all-directed-pairs binding workflow, and remains post-trace only;
 - an opt-in coupled wake-feedback sensitivity branch that feeds the strongest
   overlapping source-wake velocity deficit into the shared-grid drag/aero
   evaluation, with persisted controls, per-sample provenance, CSV/report
@@ -475,15 +475,15 @@ caller-supplied thrust, active-topology aerodynamics, recovery loads, and later
   authoritative staging state/velocity-impulse events after the first separation.
 The shared solver now also has an API-only finite-duration separation-force
 pulse preview with exact boundaries and equal-and-opposite linear momentum;
-mechanism hardware models, relative-body databases, angular/plume exchange,
-and a full validated momentum-exchange solver remain future work.
+mechanism hardware models, angular/plume exchange, and a full validated
+momentum-exchange solver remain future work.
 Angular and direct force/moment coefficient
 volumes are now supported as explicit
 interpolation sources, and seeded event-factor dispersion now covers timing,
-separation impulse, and launch alignment; benchmarked data packages,
-relative-body separation databases, unsteady models, and validated
-stage-to-stage interference data remain future work. The stage-interface
-screen now carries a body-transverse trace envelope alongside its axial
+separation impulse, and launch alignment; benchmarked data packages, unsteady
+models, and validated stage-to-stage interference data remain future work.
+The stage-interface screen now carries a body-transverse trace envelope
+alongside its axial
 compression proxy and an explicitly separate shell-section shear proxy when
   material evidence exists; full connector/radial capacity validation remains
   future work beyond the new optional direct-shear and eccentric fastener-group

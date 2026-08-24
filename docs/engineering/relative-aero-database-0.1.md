@@ -12,13 +12,14 @@ user-supplied or appropriately licensed proximity data; no aerodynamic data is
 bundled with the application.
 
 The browser's **Relative-body data** panel validates and stores up to eight
-tables in versioned local storage. Selecting **Use retained → detached** binds
-the chosen table to every released-body direction available after the staged
-trace is generated. Selecting **Diagnostics disabled** removes the binding.
-The panel can export the exact JSON definition, shows the declared provenance
-and ranges, and makes the binding policy explicit before a preview is rerun.
-Local storage is device-local; the table is not silently embedded in a share
-link or downloaded from a third-party database.
+tables in versioned local storage. The selected table can be bound to retained
+→ detached, detached → retained, or all ordered body directions (including
+detached ↔ detached pairs) after the staged trace is generated. Selecting
+**Diagnostics disabled** removes the binding. The panel can export the exact
+JSON definition, shows the declared provenance and ranges, and makes the
+binding policy explicit before a preview is rerun. Local storage is
+device-local; the table is not silently embedded in a share link or downloaded
+from a third-party database.
 
 ## Coordinate and table convention
 
@@ -115,5 +116,6 @@ that input traces remain unchanged.
 `tests/relative-aero-library-state.test.mjs` covers the versioned local
 document, stable-id upsert, duplicate/schema rejection, grid-shape validation,
 and provenance preservation. `tests/stage-flight-preview.test.mjs` covers the
-automatic retained-to-detached binding seam and confirms that dimensional
-diagnostics are produced without changing the staged trace contract.
+explicit directed-pair expansion seam and the automatic retained-to-detached
+binding path, confirming that dimensional diagnostics are produced without
+changing the staged trace contract.

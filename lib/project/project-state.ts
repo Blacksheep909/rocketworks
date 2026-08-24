@@ -7,6 +7,7 @@ import type { InducedDragModelKind } from "../physics/induced-drag.ts";
 import type { RigidBodyIntegrationMethod } from "../physics/six-dof.ts";
 import type { ReleasedBodyDragModel } from "../physics/stage-flight-preview.ts";
 import type { StageFlightSeparationPulseProfile } from "../physics/stage-flight-preview.ts";
+import type { RelativeAeroDatabaseBindingMode } from "../physics/stage-flight-preview.ts";
 import {
   DEFAULT_CUSTOM_MATERIAL_PROFILE,
   validateCustomMaterialProfile,
@@ -195,7 +196,7 @@ export type ProjectSourceSelections = Readonly<{
   selectedMotorId: string;
   selectedAerodynamicTableId: string;
   selectedRelativeAeroDatabaseId: string;
-  relativeAeroDatabaseBindingMode: "disabled" | "retained-to-detached";
+  relativeAeroDatabaseBindingMode: RelativeAeroDatabaseBindingMode;
 }>;
 
 export type LocalProjectSnapshot = Readonly<{
@@ -215,7 +216,7 @@ export type LocalProjectSnapshot = Readonly<{
   /** Optional in schema v1 for migration; references a device-local relative-body table. */
   selectedRelativeAeroDatabaseId?: string;
   /** Optional in schema v1 for migration; explicit post-trace binding policy. */
-  relativeAeroDatabaseBindingMode?: "disabled" | "retained-to-detached";
+  relativeAeroDatabaseBindingMode?: RelativeAeroDatabaseBindingMode;
 }>;
 
 export type ProjectHistoryEntry = Readonly<{
@@ -409,8 +410,13 @@ function validateProjectSourceSelections(value: Readonly<{
   const bindingMode = value.relativeAeroDatabaseBindingMode === undefined
     ? "disabled"
     : value.relativeAeroDatabaseBindingMode;
-  if (bindingMode !== "disabled" && bindingMode !== "retained-to-detached") {
-    throw new Error("relativeAeroDatabaseBindingMode must be disabled or retained-to-detached.");
+  if (
+    bindingMode !== "disabled" &&
+    bindingMode !== "retained-to-detached" &&
+    bindingMode !== "detached-to-retained" &&
+    bindingMode !== "all-directed-pairs"
+  ) {
+    throw new Error("relativeAeroDatabaseBindingMode must be disabled, retained-to-detached, detached-to-retained, or all-directed-pairs.");
   }
   return {
     selectedMotorId: value.selectedMotorId === undefined
@@ -856,7 +862,7 @@ export function createLocalProjectSnapshot(input: {
   selectedMotorId?: string;
   selectedAerodynamicTableId?: string;
   selectedRelativeAeroDatabaseId?: string;
-  relativeAeroDatabaseBindingMode?: "disabled" | "retained-to-detached";
+  relativeAeroDatabaseBindingMode?: RelativeAeroDatabaseBindingMode;
 }): LocalProjectSnapshot {
   const sourceSelections = input.selectedMotorId === undefined && input.selectedAerodynamicTableId === undefined && input.selectedRelativeAeroDatabaseId === undefined && input.relativeAeroDatabaseBindingMode === undefined
     ? undefined
@@ -913,7 +919,7 @@ export function projectConfigurationFingerprint(input: Readonly<{
   selectedMotorId?: string;
   selectedAerodynamicTableId?: string;
   selectedRelativeAeroDatabaseId?: string;
-  relativeAeroDatabaseBindingMode?: "disabled" | "retained-to-detached";
+  relativeAeroDatabaseBindingMode?: RelativeAeroDatabaseBindingMode;
 }>): string {
   const sourceSelections = validateProjectSourceSelections(input);
   return JSON.stringify({

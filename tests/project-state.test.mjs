@@ -198,11 +198,11 @@ test("project snapshots persist the device-local relative-body source reference 
     selectedMotorId: "synthetic",
     selectedAerodynamicTableId: "constant",
     selectedRelativeAeroDatabaseId: "separation-fixture",
-    relativeAeroDatabaseBindingMode: "retained-to-detached",
+    relativeAeroDatabaseBindingMode: "all-directed-pairs",
   });
   const restored = parseLocalProjectSnapshot(serializeLocalProjectSnapshot(source));
   assert.equal(restored.selectedRelativeAeroDatabaseId, "separation-fixture");
-  assert.equal(restored.relativeAeroDatabaseBindingMode, "retained-to-detached");
+  assert.equal(restored.relativeAeroDatabaseBindingMode, "all-directed-pairs");
   assert.throws(
     () => createLocalProjectSnapshot({
       ...snapshot(2),

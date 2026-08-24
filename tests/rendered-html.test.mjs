@@ -1534,6 +1534,7 @@ test("ships a pair-level relative-flow evidence calibration workflow", async () 
 
 test("ships a provenance-labeled relative-body aerodynamic database diagnostic", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const stagePreview = await readFile(new URL("../lib/physics/stage-flight-preview.ts", import.meta.url), "utf8");
   const database = await readFile(new URL("../lib/physics/relative-aero-database.ts", import.meta.url), "utf8");
   const libraryState = await readFile(new URL("../lib/project/relative-aero-library-state.ts", import.meta.url), "utf8");
   const interaction = await readFile(new URL("../lib/physics/relative-aero-interaction.ts", import.meta.url), "utf8");
@@ -1545,6 +1546,12 @@ test("ships a provenance-labeled relative-body aerodynamic database diagnostic",
   assert.match(page, /Max database moment delta/);
   assert.match(page, /Relative-body data/);
   assert.match(page, /Use retained → detached/);
+  assert.match(page, /Use detached → retained/);
+  assert.match(page, /Use all directed pairs/);
+  assert.match(page, /relative-body-database-binding-mode/);
+  assert.match(page, /All directed pairs/);
+  assert.match(stagePreview, /createRelativeAeroDatabaseBindings/);
+  assert.match(stagePreview, /all-directed-pairs/);
   assert.match(database, /RELATIVE_AERO_DATABASE_MODEL_VERSION/);
   assert.match(database, /trilinear/);
   assert.match(interaction, /databaseBindings/);
