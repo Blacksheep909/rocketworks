@@ -614,6 +614,9 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(page, /id="launch-rail-friction".*slider/);
   assert.match(page, /id="launch-rail-tipoff-pitch".*slider/);
   assert.match(page, /id="launch-rail-tipoff-yaw".*slider/);
+  assert.match(page, /id="first-separation-angular-mode"/);
+  assert.match(page, /id="first-separation-angular-delta"/);
+  assert.match(page, /label="Relative angular Δω \(\+Y\)"/);
   assert.match(page, /id="recovery-diameter".*slider/);
   assert.match(page, /value="custom"/);
   assert.match(page, /custom-material-label/);
@@ -1318,7 +1321,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stagePreview, /independentRetainedLoads/);
   assert.match(stagePreview, /velocityImpulseEvents/);
   assert.match(stagePreview, /duplicate world-gravity term/);
-  assert.match(stagePreview, /kestrel-stage-flight-preview-0\.43\.0/);
+  assert.match(stagePreview, /kestrel-stage-flight-preview-0\.44\.0/);
   assert.match(stagePreview, /relativeAeroForceFeedback/);
   assert.match(stagePreview, /interpolateStageTraceNonGravityForceWorldN/);
   assert.match(stagePreview, /attitudeDependentDrag/);

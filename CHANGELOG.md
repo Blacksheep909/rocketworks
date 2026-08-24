@@ -6,6 +6,19 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an optional bounded angular separation pulse to the shared released-body
+  solver and first-separation UI. A relative angular Δω target is converted
+  through sampled retained/detached inertia into equal-and-opposite body-frame
+  torques, with trace/CSV peak-torque telemetry, persisted controls, exact
+  RK4 boundary handling, and regressions for angular-momentum closure. Joint,
+  plume, structural-flex, hardware-calibration, and flight-safety claims
+  remain outside the analytical preview.
+
+- Harden the default save-dialog export path. Browsers that cannot open a native
+  picker now ask before falling back to Downloads, so unsupported in-app
+  browsers no longer fill the folder silently. Automatic browser Downloads
+  remains available as an explicit preference.
+
 - Add an opt-in finite-duration separation-force pulse to the shared released-
   body track. Constant and raised-cosine profiles use a reduced-mass
   equal-and-opposite translational force, exact shared-grid boundaries, optional

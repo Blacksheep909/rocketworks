@@ -272,6 +272,8 @@ test("project snapshots preserve coupled-flight contract settings and legacy def
     coupledSeparationPulseStartOffsetS: 0.05,
     coupledSeparationPulseDurationS: 0.2,
     coupledSeparationPulseProfile: "raised-cosine",
+    coupledSeparationPulseAngularEnabled: true,
+    coupledSeparationPulseAngularDeltaRadS: 0.6,
     coupledRelativeAeroForceFeedbackEnabled: true,
     releasedBodyDragModel: "coefficient-table",
     relativeAeroInteractionEnabled: false,
@@ -297,6 +299,8 @@ test("project snapshots preserve coupled-flight contract settings and legacy def
   assert.equal(parsed.inputs.coupledSeparationPulseStartOffsetS, 0.05);
   assert.equal(parsed.inputs.coupledSeparationPulseDurationS, 0.2);
   assert.equal(parsed.inputs.coupledSeparationPulseProfile, "raised-cosine");
+  assert.equal(parsed.inputs.coupledSeparationPulseAngularEnabled, true);
+  assert.equal(parsed.inputs.coupledSeparationPulseAngularDeltaRadS, 0.6);
   assert.equal(parsed.inputs.coupledRelativeAeroForceFeedbackEnabled, true);
   assert.equal(parsed.inputs.releasedBodyDragModel, "coefficient-table");
   assert.equal(parsed.inputs.relativeAeroInteractionEnabled, false);
@@ -319,6 +323,7 @@ test("project snapshots preserve coupled-flight contract settings and legacy def
   assert.equal(snapshot(2).inputs.coupledMultiBodyIncludeRetainedBody, undefined);
   assert.equal(snapshot(2).inputs.coupledMultiBodyRetainedBodyMode, undefined);
   assert.equal(snapshot(2).inputs.coupledSeparationPulseEnabled, undefined);
+  assert.equal(snapshot(2).inputs.coupledSeparationPulseAngularEnabled, undefined);
   assert.equal(snapshot(2).inputs.coupledRelativeAeroForceFeedbackEnabled, undefined);
   assert.equal(snapshot(2).inputs.releasedBodyDragModel, undefined);
 });
@@ -371,6 +376,18 @@ test("project snapshots reject invalid coupled-flight contract settings", () => 
   assert.throws(
     () => snapshot(1, { coupledSeparationPulseProfile: "triangle" }),
     /coupledSeparationPulseProfile must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { coupledSeparationPulseAngularEnabled: "yes" }),
+    /coupledSeparationPulseAngularEnabled must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { coupledSeparationPulseAngularEnabled: true, coupledSeparationPulseEnabled: true, coupledMultiBodyIncludeRetainedBody: true, coupledSeparationPulseDeltaVMps: 0.8, coupledSeparationPulseStartOffsetS: 0.05, coupledSeparationPulseDurationS: 0.2, coupledSeparationPulseAngularDeltaRadS: 0 }),
+    /coupledSeparationPulseAngularDeltaRadS must be positive/,
+  );
+  assert.throws(
+    () => snapshot(1, { coupledSeparationPulseAngularDeltaRadS: 10.1 }),
+    /coupledSeparationPulseAngularDeltaRadS must be/,
   );
   assert.throws(
     () => snapshot(1, { coupledRelativeAeroForceFeedbackEnabled: "yes" }),

@@ -165,6 +165,61 @@ test("finite separation force pulses close pair momentum and expose force proven
   assert.ok(result.assumptions.some((assumption) => assumption.includes("μ =")));
 });
 
+test("finite separation angular pulses close pair angular momentum and expose torque provenance", () => {
+  const atTime = (trace, target) => trace.find((point) => Math.abs(point.timeS - target) < 1e-9);
+  const rigid = (inertia) => ({
+    orientationBodyToWorld: { w: 1, x: 0, y: 0, z: 0 },
+    angularVelocityBodyRadS: { x: 0, y: 0, z: 0 },
+    inertiaBodyKgM2: [
+      [inertia, 0, 0],
+      [0, inertia, 0],
+      [0, 0, inertia],
+    ],
+  });
+  const result = simulateCoupledMultiBodyFlight({
+    bodies: [
+      body({
+        id: "retained",
+        massKg: 2,
+        releaseTimeS: 0,
+        releasePositionWorldM: { x: 0, y: 0, z: 100 },
+        releaseVelocityWorldMps: { x: 0, y: 0, z: 0 },
+        rigidBody: rigid(2),
+      }),
+      body({
+        id: "detached",
+        massKg: 1,
+        releaseTimeS: 0,
+        releasePositionWorldM: { x: 2, y: 0, z: 100 },
+        releaseVelocityWorldMps: { x: 0, y: 0, z: 0 },
+        rigidBody: rigid(1),
+      }),
+    ],
+    durationS: 1,
+    timeStepS: 0.02,
+    separationMechanisms: [{
+      id: "angular-separation",
+      retainedBodyId: "retained",
+      detachedBodyId: "detached",
+      startTimeS: 0.2,
+      durationS: 0.4,
+      relativeAngularDeltaOmegaWorldRadS: { x: 0, y: 3, z: 0 },
+      profile: "constant",
+    }],
+  });
+  assert.ok(result.separationMechanisms.maximumTorqueNm > 0);
+  const middleRetained = atTime(result.trajectories[0].trace, 0.4);
+  assert.ok(middleRetained);
+  assert.ok(middleRetained.separationMomentNm > 0);
+  const postPulseRetained = atTime(result.trajectories[0].trace, 0.8);
+  const postPulseDetached = atTime(result.trajectories[1].trace, 0.8);
+  assert.ok(postPulseRetained);
+  assert.ok(postPulseDetached);
+  assert.ok(Math.abs(postPulseDetached.angularVelocityBodyRadS.y - postPulseRetained.angularVelocityBodyRadS.y - 3) < 1e-8);
+  assert.ok(Math.abs(2 * postPulseRetained.angularVelocityBodyRadS.y + postPulseDetached.angularVelocityBodyRadS.y) < 1e-8);
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("Angular separation targets use")));
+});
+
 test("separation force pulses reject invalid frame, timing, and body contracts", () => {
   const input = {
     bodies: [body({ id: "retained", releaseTimeS: 0.25 }), body({ id: "detached", releaseTimeS: 0.25 })],
@@ -181,7 +236,7 @@ test("separation force pulses reject invalid frame, timing, and body contracts",
   };
   assert.throws(
     () => simulateCoupledMultiBodyFlight({ ...input, separationMechanisms: [{ ...base, relativeDeltaVBodyMps: { x: 1, y: 0, z: 0 } }] }),
-    /exactly one delta-v frame/,
+    /at most one translational delta-v frame/,
   );
   assert.throws(
     () => simulateCoupledMultiBodyFlight({ ...input, separationMechanisms: [{ ...base, startTimeS: 0.1, durationS: 0.2 }] }),
@@ -201,6 +256,17 @@ test("separation force pulses reject invalid frame, timing, and body contracts",
       separationMechanisms: [{ ...base, relativeDeltaVWorldMps: undefined, relativeDeltaVBodyMps: { x: 1, y: 0, z: 0 } }],
     }),
     /requires a rigid retained body/,
+  );
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({
+      ...input,
+      separationMechanisms: [{
+        ...base,
+        relativeDeltaVWorldMps: undefined,
+        relativeAngularDeltaOmegaWorldRadS: { x: 0, y: 1, z: 0 },
+      }],
+    }),
+    /angular delta-omega requires rigid retained and detached bodies/,
   );
 });
 

@@ -833,6 +833,7 @@ export function createCoupledMultiBodyTraceCsv(
     configuredPulseCount: 0,
     activeSampleCount: 0,
     maximumForceN: null,
+    maximumTorqueNm: null,
   };
   const metadata = [
     ["# rocketworks_export", KESTREL_EXPORT_MODEL_VERSION],
@@ -861,6 +862,7 @@ export function createCoupledMultiBodyTraceCsv(
     ["# separation_configured_pulse_count", separationMechanisms.configuredPulseCount],
     ["# separation_active_sample_count", separationMechanisms.activeSampleCount],
     ["# separation_maximum_force_n", separationMechanisms.maximumForceN],
+    ["# separation_maximum_torque_nm", separationMechanisms.maximumTorqueNm],
     ...result.assumptions.map((assumption) => ["# assumption", assumption]),
     ...result.warnings.map((warning) => ["# warning", warning]),
   ].map(([key, value]) => `${key},${csvCell(value)}`);
@@ -896,6 +898,10 @@ export function createCoupledMultiBodyTraceCsv(
     "separation_force_world_y_n",
     "separation_force_world_z_n",
     "separation_force_n",
+    "separation_moment_body_x_nm",
+    "separation_moment_body_y_nm",
+    "separation_moment_body_z_nm",
+    "separation_moment_nm",
     "separation_mechanism_source_count",
   ];
   const rows = result.trajectories.flatMap((trajectory) => trajectory.trace.map((point, index) => {
@@ -931,6 +937,10 @@ export function createCoupledMultiBodyTraceCsv(
       point.separationForceWorldN?.y,
       point.separationForceWorldN?.z,
       point.separationForceN,
+      point.separationMomentBodyNm?.x,
+      point.separationMomentBodyNm?.y,
+      point.separationMomentBodyNm?.z,
+      point.separationMomentNm,
       point.separationMechanismSourceCount,
     ];
     values.forEach((value, valueIndex) => {

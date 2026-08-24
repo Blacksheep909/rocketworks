@@ -132,7 +132,7 @@ import {
 } from "./mission-delta-v-bridge.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.43.0";
+  "kestrel-stage-flight-preview-0.44.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -151,14 +151,16 @@ export type RetainedBodyCoupledTrackMode =
 export type StageFlightSeparationPulseProfile = CoupledMultiBodySeparationForcePulseProfile;
 
 /**
- * High-level browser configuration for one first-separation translational
- * force pulse. The vector is expressed along the retained vehicle's +X body
- * axis and is synthesized against the first detached stage instance. This is
- * intentionally smaller than the generic solver contract so the UI cannot
- * accidentally target an unknown body or introduce an unbounded mechanism.
+ * High-level browser configuration for one first-separation mechanism pulse.
+ * The translational vector is expressed along the retained vehicle's +X body
+ * axis and the optional angular vector along its +Y body axis; both are
+ * synthesized against the first detached stage instance. This is intentionally
+ * smaller than the generic solver contract so the UI cannot accidentally target
+ * an unknown body or introduce an unbounded mechanism.
  */
 export type StageFlightSeparationPulseConfiguration = Readonly<{
   relativeDeltaVBodyMps: Vector3;
+  relativeAngularDeltaOmegaBodyRadS?: Vector3;
   startOffsetS: number;
   durationS: number;
   profile?: StageFlightSeparationPulseProfile;
@@ -973,6 +975,16 @@ export function simulateStageFlightPreview(
     const deltaVMagnitude = magnitude(configuredSeparationPulse.relativeDeltaVBodyMps);
     if (!Number.isFinite(deltaVMagnitude) || deltaVMagnitude <= 0 || deltaVMagnitude > 25) {
       throw new Error("coupledSeparationPulse.relativeDeltaVBodyMps magnitude must be greater than 0 and at most 25 m/s");
+    }
+    if (configuredSeparationPulse.relativeAngularDeltaOmegaBodyRadS !== undefined) {
+      finiteVector(
+        configuredSeparationPulse.relativeAngularDeltaOmegaBodyRadS,
+        "coupledSeparationPulse.relativeAngularDeltaOmegaBodyRadS",
+      );
+      const angularDeltaMagnitude = magnitude(configuredSeparationPulse.relativeAngularDeltaOmegaBodyRadS);
+      if (!Number.isFinite(angularDeltaMagnitude) || angularDeltaMagnitude <= 0 || angularDeltaMagnitude > 10) {
+        throw new Error("coupledSeparationPulse.relativeAngularDeltaOmegaBodyRadS magnitude must be greater than 0 and at most 10 rad/s");
+      }
     }
     if (
       !Number.isFinite(configuredSeparationPulse.startOffsetS) ||
@@ -1791,6 +1803,9 @@ export function simulateStageFlightPreview(
         startTimeS: firstSeparationTimeS + configuredSeparationPulse.startOffsetS,
         durationS: configuredSeparationPulse.durationS,
         relativeDeltaVBodyMps: configuredSeparationPulse.relativeDeltaVBodyMps,
+        ...(configuredSeparationPulse.relativeAngularDeltaOmegaBodyRadS
+          ? { relativeAngularDeltaOmegaBodyRadS: configuredSeparationPulse.relativeAngularDeltaOmegaBodyRadS }
+          : {}),
         profile: configuredSeparationPulse.profile ?? "raised-cosine",
       });
     } else {
@@ -2093,7 +2108,7 @@ export function simulateStageFlightPreview(
             (mechanism) => mechanism.id === "browser-first-separation-pulse",
           )
             ? [
-                "The browser first-separation pulse is synthesized against the first detached stage instance, begins at the first authoritative separation time plus the configured offset, and applies along the retained vehicle's +X body axis. It is a reduced-mass equal-and-opposite translational force preview; springs, pyrotechnic timing, plume interaction, structural flex, angular impulse, and hardware validation remain outside the model.",
+            "The browser first-separation pulse is synthesized against the first detached stage instance, begins at the first authoritative separation time plus the configured offset, and applies along the retained vehicle's +X body axis. When configured, its angular target is along the retained vehicle's +Y body axis and is converted through the sampled retained/detached inertia tensors into an equal-and-opposite torque pair. This remains a bounded translational/angular mechanism preview; springs, pyrotechnic timing, plume interaction, structural flex, joint calibration, and hardware validation remain outside the model.",
               ]
             : []),
           ...(coupledMultiBodyFlight.contact.enabled

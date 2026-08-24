@@ -10,6 +10,7 @@ import {
 } from "./separation-clearance.ts";
 import {
   addVectors,
+  addMatrices,
   cross,
   dot,
   multiplyMatrixVector,
@@ -24,6 +25,7 @@ import {
   multiplyQuaternions,
   normalizeQuaternion,
   rotateBodyToWorld,
+  rotateWorldToBody,
   rigidBodyPropertiesAt,
   type AdaptiveRigidBodyIntegrationOptions,
   type Quaternion,
@@ -58,7 +60,7 @@ import {
   * remain outside the model.
  */
 export const COUPLED_MULTI_BODY_FLIGHT_MODEL_VERSION =
-  "rocketworks-coupled-multi-body-flight-0.11.0";
+  "rocketworks-coupled-multi-body-flight-0.12.0";
 export const COUPLED_MULTI_BODY_FLIGHT_STATUS =
   "analytical-component-checks-only" as const;
 export const STANDARD_GRAVITATIONAL_CONSTANT_M3_KG_S2 = 6.67430e-11;
@@ -74,7 +76,7 @@ export const COUPLED_MULTI_BODY_RELATIVE_AERO_STATUS =
   "analytical-component-checks-only" as const;
 
 export const COUPLED_MULTI_BODY_SEPARATION_MODEL_VERSION =
-  "rocketworks-coupled-multi-body-separation-0.1.0";
+  "rocketworks-coupled-multi-body-separation-0.2.0";
 export const COUPLED_MULTI_BODY_SEPARATION_STATUS =
   "analytical-mechanism-preview-only" as const;
 
@@ -155,10 +157,12 @@ export type CoupledMultiBodySeparationForcePulseProfile =
   | "raised-cosine";
 
 /**
- * An opt-in finite-duration translational separation mechanism. The supplied
- * relative delta-v is integrated through a reduced-mass equal-and-opposite
- * force pulse, so the pair's linear momentum closes while mechanism timing
- * remains explicit and inspectable.
+ * An opt-in finite-duration separation mechanism. The supplied relative
+ * delta-v is integrated through a reduced-mass equal-and-opposite force pulse,
+ * while an optional relative angular delta-omega is integrated through equal-
+ * and-opposite world torque using the two bodies' sampled inverse inertias.
+ * Mechanism timing remains explicit and inspectable; omitted translational or
+ * angular components are zero.
  */
 export type CoupledMultiBodySeparationForcePulse = Readonly<{
   id: string;
@@ -168,6 +172,10 @@ export type CoupledMultiBodySeparationForcePulse = Readonly<{
   durationS: number;
   relativeDeltaVWorldMps?: Vector3;
   relativeDeltaVBodyMps?: Vector3;
+  /** Optional relative angular-velocity change expressed in world axes. */
+  relativeAngularDeltaOmegaWorldRadS?: Vector3;
+  /** Optional relative angular-velocity change expressed in the retained body's axes. */
+  relativeAngularDeltaOmegaBodyRadS?: Vector3;
   profile?: CoupledMultiBodySeparationForcePulseProfile;
 }>;
 
@@ -269,6 +277,10 @@ export type CoupledMultiBodyTracePoint = Readonly<{
   separationForceN?: number;
   /** Number of active separation pulses contributing to this body at the sample. */
   separationMechanismSourceCount?: number;
+  /** Equal-and-opposite body-frame torque from an opt-in angular separation mechanism. */
+  separationMomentBodyNm?: Vector3;
+  /** Magnitude of the angular separation mechanism torque applied to this body. */
+  separationMomentNm?: number;
   orientationBodyToWorld?: Quaternion;
   angularVelocityBodyRadS?: Vector3;
 }>;
@@ -364,6 +376,7 @@ export type CoupledMultiBodyFlightResult = Readonly<{
     configuredPulseCount: number;
     activeSampleCount: number;
     maximumForceN: number | null;
+    maximumTorqueNm: number | null;
   }>;
   rigidBodyCount: number;
   dynamicMassBodyCount: number;
@@ -418,6 +431,7 @@ type CoupledGroupDerivative = Readonly<{
   contactPenetrationsM: readonly number[];
   contactPairCounts: readonly number[];
   separationForceWorldNs: readonly Vector3[];
+  separationMomentBodyNms: readonly Vector3[];
   separationMechanismSourceCounts: readonly number[];
   orientationRates: readonly (Quaternion | null)[];
   angularVelocityRatesBodyRadS2: readonly (Vector3 | null)[];
@@ -465,9 +479,13 @@ type CoupledPropagationResult = Readonly<{
 
 type CoupledSeparationForceEvaluation = Readonly<{
   forcesWorldN: readonly Vector3[];
+  momentsBodyNm: readonly Vector3[];
   sourceCounts: readonly number[];
   maximumForceN: number | null;
+  maximumTorqueNm: number | null;
 }>;
+
+type SeparationPulseBoundaryMode = "inclusive" | "k1" | "interior" | "k4";
 
 type NormalizedRelativeAeroForceFeedbackOptions = Readonly<{
   enabled: boolean;
@@ -814,6 +832,60 @@ function resolveVelocityImpulseWorldMps(
   return rotateBodyToWorld(orientation, event.deltaVBodyMps);
 }
 
+function matrixFromVectorOperator(
+  operator: (value: Vector3) => Vector3,
+): Matrix3 {
+  const x = operator({ x: 1, y: 0, z: 0 });
+  const y = operator({ x: 0, y: 1, z: 0 });
+  const z = operator({ x: 0, y: 0, z: 1 });
+  return [
+    [x.x, y.x, z.x],
+    [x.y, y.y, z.y],
+    [x.z, y.z, z.z],
+  ];
+}
+
+function inverseInertiaWorldApply(
+  body: CoupledMultiBodyFlightBodyInput,
+  state: CoupledGroupState,
+  index: number,
+  valueWorld: Vector3,
+): Vector3 {
+  const rigidState = rigidBodyStateAt(body, state, index);
+  const properties = rigidBodyPropertiesAtState(body, rigidState);
+  return rotateBodyToWorld(
+    rigidState.orientationBodyToWorld,
+    solveMatrix3(
+      properties.inertiaBodyKgM2,
+      rotateWorldToBody(rigidState.orientationBodyToWorld, valueWorld),
+    ),
+  );
+}
+
+function worldTorqueForRelativeAngularDelta(
+  retainedBody: CoupledMultiBodyFlightBodyInput,
+  retainedState: CoupledGroupState,
+  retainedIndex: number,
+  detachedBody: CoupledMultiBodyFlightBodyInput,
+  detachedIndex: number,
+  relativeAngularDeltaOmegaWorldRadS: Vector3,
+  profileWeight: number,
+  durationS: number,
+): Vector3 {
+  const retainedInverseInertiaWorld = matrixFromVectorOperator((value) =>
+    inverseInertiaWorldApply(retainedBody, retainedState, retainedIndex, value));
+  const detachedInverseInertiaWorld = matrixFromVectorOperator((value) =>
+    inverseInertiaWorldApply(detachedBody, retainedState, detachedIndex, value));
+  const combinedInverseInertiaWorld = addMatrices(
+    retainedInverseInertiaWorld,
+    detachedInverseInertiaWorld,
+  );
+  return solveMatrix3(
+    combinedInverseInertiaWorld,
+    scaleVector(relativeAngularDeltaOmegaWorldRadS, profileWeight / durationS),
+  );
+}
+
 function validateSeparationMechanisms(
   mechanisms: readonly CoupledMultiBodySeparationForcePulse[],
   bodies: readonly CoupledMultiBodyFlightBodyInput[],
@@ -853,8 +925,16 @@ function validateSeparationMechanisms(
     }
     const hasWorldFrame = mechanism.relativeDeltaVWorldMps !== undefined;
     const hasBodyFrame = mechanism.relativeDeltaVBodyMps !== undefined;
-    if (hasWorldFrame === hasBodyFrame) {
-      throw new Error(`coupled-flight separation mechanism ${mechanism.id} must provide exactly one delta-v frame`);
+    const hasAngularWorldFrame = mechanism.relativeAngularDeltaOmegaWorldRadS !== undefined;
+    const hasAngularBodyFrame = mechanism.relativeAngularDeltaOmegaBodyRadS !== undefined;
+    if (hasWorldFrame && hasBodyFrame) {
+      throw new Error(`coupled-flight separation mechanism ${mechanism.id} must provide at most one translational delta-v frame`);
+    }
+    if (hasAngularWorldFrame && hasAngularBodyFrame) {
+      throw new Error(`coupled-flight separation mechanism ${mechanism.id} must provide at most one angular delta-omega frame`);
+    }
+    if (!hasWorldFrame && !hasBodyFrame && !hasAngularWorldFrame && !hasAngularBodyFrame) {
+      throw new Error(`coupled-flight separation mechanism ${mechanism.id} must provide a translational or angular delta target`);
     }
     if (hasWorldFrame) {
       assertFiniteVector(
@@ -871,6 +951,24 @@ function validateSeparationMechanisms(
         `coupled-flight separation mechanism ${mechanism.id} body relative delta-v`,
       );
     }
+    if (hasAngularWorldFrame) {
+      assertFiniteVector(
+        mechanism.relativeAngularDeltaOmegaWorldRadS!,
+        `coupled-flight separation mechanism ${mechanism.id} world relative angular delta-omega`,
+      );
+    }
+    if (hasAngularBodyFrame) {
+      if (!retained.rigidBody || !detached.rigidBody) {
+        throw new Error(`coupled-flight separation mechanism ${mechanism.id} angular delta-omega requires rigid retained and detached bodies`);
+      }
+      assertFiniteVector(
+        mechanism.relativeAngularDeltaOmegaBodyRadS!,
+        `coupled-flight separation mechanism ${mechanism.id} retained-body relative angular delta-omega`,
+      );
+    }
+    if (hasAngularWorldFrame && (!retained.rigidBody || !detached.rigidBody)) {
+      throw new Error(`coupled-flight separation mechanism ${mechanism.id} angular delta-omega requires rigid retained and detached bodies`);
+    }
     const profile = mechanism.profile ?? "raised-cosine";
     if (profile !== "constant" && profile !== "raised-cosine") {
       throw new Error(`coupled-flight separation mechanism ${mechanism.id} profile must be constant or raised-cosine`);
@@ -883,18 +981,30 @@ function evaluateCoupledSeparationMechanisms(
   bodies: readonly CoupledMultiBodyFlightBodyInput[],
   state: CoupledGroupState,
   mechanisms: readonly CoupledMultiBodySeparationForcePulse[],
+  boundaryMode: SeparationPulseBoundaryMode = "inclusive",
 ): CoupledSeparationForceEvaluation {
   const forcesWorldN = bodies.map(() => ZERO_VECTOR);
+  const momentsBodyNm = bodies.map(() => ZERO_VECTOR);
   const sourceCounts = bodies.map(() => 0);
   if (mechanisms.length === 0) {
-    return { forcesWorldN, sourceCounts, maximumForceN: null };
+    return {
+      forcesWorldN,
+      momentsBodyNm,
+      sourceCounts,
+      maximumForceN: null,
+      maximumTorqueNm: null,
+    };
   }
   const bodyIndexes = new Map(bodies.map((body, index) => [body.id, index]));
   let maximumForceN = 0;
-  let activePulseCount = 0;
+  let maximumTorqueNm = 0;
+  let activeTranslationalPulseCount = 0;
+  let activeAngularPulseCount = 0;
   for (const mechanism of mechanisms) {
     const elapsedS = state.timeS - mechanism.startTimeS;
     if (elapsedS < -TIME_TOLERANCE_S || elapsedS > mechanism.durationS + TIME_TOLERANCE_S) continue;
+    if (boundaryMode === "k4" && Math.abs(elapsedS) <= TIME_TOLERANCE_S) continue;
+    if (boundaryMode === "k1" && Math.abs(elapsedS - mechanism.durationS) <= TIME_TOLERANCE_S) continue;
     const retainedIndex = bodyIndexes.get(mechanism.retainedBodyId)!;
     const detachedIndex = bodyIndexes.get(mechanism.detachedBodyId)!;
     if (!state.active[retainedIndex] || !state.active[detachedIndex]) continue;
@@ -903,32 +1013,78 @@ function evaluateCoupledSeparationMechanisms(
       ? 1
       : 1 - Math.cos(2 * Math.PI * normalizedTime);
     const retainedBody = bodies[retainedIndex]!;
-    const relativeDeltaVWorldMps = mechanism.relativeDeltaVWorldMps ?? (
-      state.orientationsBodyToWorld[retainedIndex] && mechanism.relativeDeltaVBodyMps
-        ? rotateBodyToWorld(
-            state.orientationsBodyToWorld[retainedIndex]!,
-            mechanism.relativeDeltaVBodyMps,
-          )
-        : ZERO_VECTOR
-    );
-    const retainedMassKg = bodyMassKgAt(retainedBody, state, retainedIndex);
-    const detachedMassKg = bodyMassKgAt(bodies[detachedIndex]!, state, detachedIndex);
-    const reducedMassKg = (retainedMassKg * detachedMassKg) / (retainedMassKg + detachedMassKg);
-    const forceWorldN = scaleVector(
-      relativeDeltaVWorldMps,
-      reducedMassKg * profileWeight / mechanism.durationS,
-    );
-    forcesWorldN[retainedIndex] = subtractVectors(forcesWorldN[retainedIndex]!, forceWorldN);
-    forcesWorldN[detachedIndex] = addVectors(forcesWorldN[detachedIndex]!, forceWorldN);
+    const hasTranslationalTarget =
+      mechanism.relativeDeltaVWorldMps !== undefined || mechanism.relativeDeltaVBodyMps !== undefined;
+    const hasAngularTarget =
+      mechanism.relativeAngularDeltaOmegaWorldRadS !== undefined ||
+      mechanism.relativeAngularDeltaOmegaBodyRadS !== undefined;
+    if (hasTranslationalTarget) {
+      const relativeDeltaVWorldMps = mechanism.relativeDeltaVWorldMps ?? (
+        state.orientationsBodyToWorld[retainedIndex] && mechanism.relativeDeltaVBodyMps
+          ? rotateBodyToWorld(
+              state.orientationsBodyToWorld[retainedIndex]!,
+              mechanism.relativeDeltaVBodyMps,
+            )
+          : ZERO_VECTOR
+      );
+      const retainedMassKg = bodyMassKgAt(retainedBody, state, retainedIndex);
+      const detachedMassKg = bodyMassKgAt(bodies[detachedIndex]!, state, detachedIndex);
+      const reducedMassKg = (retainedMassKg * detachedMassKg) / (retainedMassKg + detachedMassKg);
+      const forceWorldN = scaleVector(
+        relativeDeltaVWorldMps,
+        reducedMassKg * profileWeight / mechanism.durationS,
+      );
+      forcesWorldN[retainedIndex] = subtractVectors(forcesWorldN[retainedIndex]!, forceWorldN);
+      forcesWorldN[detachedIndex] = addVectors(forcesWorldN[detachedIndex]!, forceWorldN);
+      maximumForceN = Math.max(maximumForceN, magnitude(forceWorldN));
+      activeTranslationalPulseCount += 1;
+    }
+    if (hasAngularTarget) {
+      const retainedState = rigidBodyStateAt(retainedBody, state, retainedIndex);
+      const detachedState = rigidBodyStateAt(bodies[detachedIndex]!, state, detachedIndex);
+      const relativeAngularDeltaOmegaWorldRadS = mechanism.relativeAngularDeltaOmegaWorldRadS ??
+        rotateBodyToWorld(
+          retainedState.orientationBodyToWorld,
+          mechanism.relativeAngularDeltaOmegaBodyRadS!,
+        );
+      const torqueWorldNm = worldTorqueForRelativeAngularDelta(
+        retainedBody,
+        state,
+        retainedIndex,
+        bodies[detachedIndex]!,
+        detachedIndex,
+        relativeAngularDeltaOmegaWorldRadS,
+        profileWeight,
+        mechanism.durationS,
+      );
+      const retainedMomentBodyNm = rotateWorldToBody(
+        retainedState.orientationBodyToWorld,
+        scaleVector(torqueWorldNm, -1),
+      );
+      const detachedMomentBodyNm = rotateWorldToBody(
+        detachedState.orientationBodyToWorld,
+        torqueWorldNm,
+      );
+      momentsBodyNm[retainedIndex] = addVectors(
+        momentsBodyNm[retainedIndex]!,
+        retainedMomentBodyNm,
+      );
+      momentsBodyNm[detachedIndex] = addVectors(
+        momentsBodyNm[detachedIndex]!,
+        detachedMomentBodyNm,
+      );
+      maximumTorqueNm = Math.max(maximumTorqueNm, magnitude(torqueWorldNm));
+      activeAngularPulseCount += 1;
+    }
     sourceCounts[retainedIndex] += 1;
     sourceCounts[detachedIndex] += 1;
-    activePulseCount += 1;
-    maximumForceN = Math.max(maximumForceN, magnitude(forceWorldN));
   }
   return {
     forcesWorldN,
+    momentsBodyNm,
     sourceCounts,
-    maximumForceN: activePulseCount > 0 ? maximumForceN : null,
+    maximumForceN: activeTranslationalPulseCount > 0 ? maximumForceN : null,
+    maximumTorqueNm: activeAngularPulseCount > 0 ? maximumTorqueNm : null,
   };
 }
 
@@ -1465,6 +1621,7 @@ function coupledGroupDerivativeAt(
   mutualGravity: Required<CoupledMultiBodyGravityOptions>,
   contact: NormalizedContactOptions,
   relativeAero: NormalizedRelativeAeroForceFeedbackOptions,
+  separationBoundaryMode: SeparationPulseBoundaryMode = "inclusive",
 ): CoupledGroupDerivative {
   const positionRatesWorldMps: Vector3[] = [];
   const velocityRatesWorldMps2: Vector3[] = [];
@@ -1473,6 +1630,7 @@ function coupledGroupDerivativeAt(
   const contactPenetrationsM: number[] = [];
   const contactPairCounts: number[] = [];
   const separationForceWorldNs: Vector3[] = [];
+  const separationMomentBodyNms: Vector3[] = [];
   const separationMechanismSourceCounts: number[] = [];
   const orientationRates: (Quaternion | null)[] = [];
   const angularVelocityRatesBodyRadS2: (Vector3 | null)[] = [];
@@ -1484,6 +1642,7 @@ function coupledGroupDerivativeAt(
     bodies,
     state,
     input.separationMechanisms ?? [],
+    separationBoundaryMode,
   );
   for (let index = 0; index < bodies.length; index += 1) {
     if (!state.active[index]) {
@@ -1494,6 +1653,7 @@ function coupledGroupDerivativeAt(
       contactPenetrationsM.push(0);
       contactPairCounts.push(0);
       separationForceWorldNs.push(ZERO_VECTOR);
+      separationMomentBodyNms.push(ZERO_VECTOR);
       separationMechanismSourceCounts.push(0);
       orientationRates.push(null);
       angularVelocityRatesBodyRadS2.push(null);
@@ -1593,17 +1753,18 @@ function coupledGroupDerivativeAt(
         rigidProperties!,
         {
           ...loads,
-          ...(aerodynamic
-            ? {
-                momentBodyNm: addVectors(
-                  addVectors(
-                    loads.momentBodyNm ?? ZERO_VECTOR,
-                    aerodynamic.staticMomentBodyNm,
-                  ),
+          momentBodyNm: addVectors(
+            addVectors(
+              loads.momentBodyNm ?? ZERO_VECTOR,
+              separationEvaluation.momentsBodyNm[index]!,
+            ),
+            aerodynamic
+              ? addVectors(
+                  aerodynamic.staticMomentBodyNm,
                   aerodynamic.dampingMomentBodyNm,
-                ),
-              }
-            : {}),
+                )
+              : ZERO_VECTOR,
+          ),
         },
       );
     }
@@ -1614,6 +1775,7 @@ function coupledGroupDerivativeAt(
     contactPenetrationsM.push(contactEvaluation.penetrationsM[index]!);
     contactPairCounts.push(contactEvaluation.pairCounts[index]!);
     separationForceWorldNs.push(separationEvaluation.forcesWorldN[index]!);
+    separationMomentBodyNms.push(separationEvaluation.momentsBodyNm[index]!);
     separationMechanismSourceCounts.push(separationEvaluation.sourceCounts[index]!);
     orientationRates.push(orientationRate);
     angularVelocityRatesBodyRadS2.push(angularVelocityRate);
@@ -1633,6 +1795,7 @@ function coupledGroupDerivativeAt(
     contactPenetrationsM,
     contactPairCounts,
     separationForceWorldNs,
+    separationMomentBodyNms,
     separationMechanismSourceCounts,
     orientationRates,
     angularVelocityRatesBodyRadS2,
@@ -1661,7 +1824,7 @@ function integrateCoupledGroupRungeKutta4(
     y: value.y + derivative.y * scale,
     z: value.z + derivative.z * scale,
   });
-  const k1 = coupledGroupDerivativeAt(bodies, input, state, mutualGravity, contact, relativeAero);
+  const k1 = coupledGroupDerivativeAt(bodies, input, state, mutualGravity, contact, relativeAero, "k1");
   const halfState = (
     base: CoupledGroupState,
     derivative: CoupledGroupDerivative,
@@ -1696,6 +1859,7 @@ function integrateCoupledGroupRungeKutta4(
     mutualGravity,
     contact,
     relativeAero,
+    "interior",
   );
   const k3 = coupledGroupDerivativeAt(
     bodies,
@@ -1704,6 +1868,7 @@ function integrateCoupledGroupRungeKutta4(
     mutualGravity,
     contact,
     relativeAero,
+    "interior",
   );
   const k4 = coupledGroupDerivativeAt(
     bodies,
@@ -1712,6 +1877,7 @@ function integrateCoupledGroupRungeKutta4(
     mutualGravity,
     contact,
     relativeAero,
+    "k4",
   );
   const weighted = (
     index: number,
@@ -2193,6 +2359,7 @@ function tracePointWithAcceleration(
   }>,
   separationMechanismDiagnostics?: Readonly<{
     forceWorldN: Vector3;
+    momentBodyNm: Vector3;
     sourceCount: number;
   }>,
   relativeAeroDiagnostics?: Readonly<{
@@ -2275,6 +2442,8 @@ function tracePointWithAcceleration(
       ? {
           separationForceWorldN: separationMechanismDiagnostics.forceWorldN,
           separationForceN: magnitude(separationMechanismDiagnostics.forceWorldN),
+          separationMomentBodyNm: separationMechanismDiagnostics.momentBodyNm,
+          separationMomentNm: magnitude(separationMechanismDiagnostics.momentBodyNm),
           separationMechanismSourceCount: separationMechanismDiagnostics.sourceCount,
         }
       : {}),
@@ -2518,6 +2687,7 @@ function propagateCoupledBodies(
         initialDerivative.separationMechanismSourceCounts[index]! > 0
           ? {
               forceWorldN: initialDerivative.separationForceWorldNs[index]!,
+              momentBodyNm: initialDerivative.separationMomentBodyNms[index]!,
               sourceCount: initialDerivative.separationMechanismSourceCounts[index]!,
             }
           : undefined,
@@ -2681,6 +2851,7 @@ function propagateCoupledBodies(
               impactDerivative.separationMechanismSourceCounts[index]! > 0
                 ? {
                     forceWorldN: impactDerivative.separationForceWorldNs[index]!,
+                    momentBodyNm: impactDerivative.separationMomentBodyNms[index]!,
                     sourceCount: impactDerivative.separationMechanismSourceCounts[index]!,
                   }
                 : undefined,
@@ -2741,6 +2912,7 @@ function propagateCoupledBodies(
           derivative.separationMechanismSourceCounts[index]! > 0
             ? {
                 forceWorldN: derivative.separationForceWorldNs[index]!,
+                momentBodyNm: derivative.separationMomentBodyNms[index]!,
                 sourceCount: derivative.separationMechanismSourceCounts[index]!,
               }
             : undefined,
@@ -2974,6 +3146,17 @@ export function simulateCoupledMultiBodyFlight(
   const separationMaximumForceN = separationTraceSamples.length > 0
     ? Math.max(...separationTraceSamples.map((point) => point.separationForceN ?? 0))
     : null;
+  const separationMaximumTorqueNm = separationTraceSamples.length > 0 &&
+    separationTraceSamples.some((point) => (point.separationMomentNm ?? 0) > 0)
+    ? Math.max(...separationTraceSamples.map((point) => point.separationMomentNm ?? 0))
+    : null;
+  const separationAngularPulseCount = separationMechanisms.filter((mechanism) =>
+    mechanism.relativeAngularDeltaOmegaWorldRadS !== undefined ||
+    mechanism.relativeAngularDeltaOmegaBodyRadS !== undefined,
+  ).length;
+  const separationTranslationalPulseCount = separationMechanisms.filter((mechanism) =>
+    mechanism.relativeDeltaVWorldMps !== undefined || mechanism.relativeDeltaVBodyMps !== undefined,
+  ).length;
   const warnings = [
     "All released bodies were propagated simultaneously on a shared mission-time grid with a common environment provider.",
     ...(velocityImpulseEvents.length > 0
@@ -2984,8 +3167,8 @@ export function simulateCoupledMultiBodyFlight(
       : []),
     ...(separationMechanisms.length > 0
       ? [
-          `The opt-in ${COUPLED_MULTI_BODY_SEPARATION_MODEL_VERSION} applied ${separationMechanisms.length} finite-duration force pulse${separationMechanisms.length === 1 ? "" : "s"}; equal-and-opposite translational force remained active in ${separationTraceSamples.length} trace sample${separationTraceSamples.length === 1 ? "" : "s"}.`,
-          "This separation mechanism path is an analytical preview and does not model springs, pyrotechnic timing, joint compliance, plume momentum exchange, or angular impulse.",
+          `The opt-in ${COUPLED_MULTI_BODY_SEPARATION_MODEL_VERSION} applied ${separationMechanisms.length} finite-duration force pulse${separationMechanisms.length === 1 ? "" : "s"}; ${separationTranslationalPulseCount} included equal-and-opposite translational force and ${separationAngularPulseCount} included equal-and-opposite angular torque across ${separationTraceSamples.length} trace sample${separationTraceSamples.length === 1 ? "" : "s"}.`,
+          "This separation mechanism path is an analytical preview and does not model springs, pyrotechnic timing, joint compliance, plume momentum exchange, structural flex, or hardware calibration.",
         ]
       : []),
     relativeAero.enabled
@@ -3062,7 +3245,12 @@ export function simulateCoupledMultiBodyFlight(
     ...(separationMechanisms.length > 0
       ? [
           "Each separation pulse applies F = μ · Δv_rel · w(t) / T to the detached body and the equal-and-opposite force to the retained body, where μ = m₁m₂/(m₁+m₂). The constant profile has w(t)=1; the raised-cosine profile has w(t)=1−cos(2πt/T), whose integral is one over the pulse.",
-          "Relative delta-v vectors are world-frame constants or are rotated from the retained body's current attitude at each Runge–Kutta substep; body mass may vary through the existing dynamic properties provider. Force is applied at body centres, so no angular impulse is synthesized.",
+          ...(separationTranslationalPulseCount > 0
+            ? ["Relative delta-v vectors are world-frame constants or are rotated from the retained body's current attitude at each Runge–Kutta substep; body mass may vary through the existing dynamic properties provider. Translational force is applied at body centres, so it produces no angular impulse."]
+            : []),
+          ...(separationAngularPulseCount > 0
+            ? ["Angular separation targets use τ = (Iᵣ⁻¹ + I_d⁻¹)⁻¹ · Δω_rel · w(t) / T in world axes, with equal-and-opposite torques converted into each body's current body frame from its sampled inertia; this is a bounded angular-momentum sensitivity preview, not a joint or hardware calibration."]
+            : []),
         ]
       : []),
     "Gravity is evaluated from altitude using the RocketWorks atmosphere/gravity implementation; drag is a constant-Cd, constant-reference-area isotropic approximation when configured.",
@@ -3165,6 +3353,7 @@ export function simulateCoupledMultiBodyFlight(
       configuredPulseCount: separationMechanisms.length,
       activeSampleCount: separationTraceSamples.length,
       maximumForceN: separationMaximumForceN,
+      maximumTorqueNm: separationMaximumTorqueNm,
     },
     rigidBodyCount,
     dynamicMassBodyCount,

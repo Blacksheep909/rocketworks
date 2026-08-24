@@ -53,6 +53,18 @@ function triggerBrowserDownload(
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+function triggerFallbackBrowserDownload(
+  filename: string,
+  mediaType: string,
+  content: string,
+) {
+  if (typeof window === "undefined" || typeof window.confirm !== "function") return;
+  const confirmed = window.confirm(
+    `RocketWorks could not open a save dialog. Download ${filename} to the browser's Downloads folder?`,
+  );
+  if (confirmed) triggerBrowserDownload(filename, mediaType, content);
+}
+
 export async function saveTextArtifactWithPicker(
   filename: string,
   mediaType: string,
@@ -98,11 +110,13 @@ export function downloadTextArtifact(
   }
   void saveTextArtifactWithPicker(filename, mediaType, content)
     .then((result) => {
-      if (result === "unsupported") triggerBrowserDownload(filename, mediaType, content);
+      if (result === "unsupported") {
+        triggerFallbackBrowserDownload(filename, mediaType, content);
+      }
     })
     .catch(() => {
-      // A browser or permission error should not lose an engineering artifact.
-      // Fall back to the existing download path; a cancelled picker does not.
-      triggerBrowserDownload(filename, mediaType, content);
+      // A browser or permission error should not silently fill Downloads.
+      // Ask before using the browser fallback; a cancelled picker does not.
+      triggerFallbackBrowserDownload(filename, mediaType, content);
     });
 }

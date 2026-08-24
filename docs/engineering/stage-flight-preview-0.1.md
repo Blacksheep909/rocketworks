@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.43.0`.
+`kestrel-stage-flight-preview-0.44.0`.
 
 Relation-based aerodynamics retain both the selected normal-force trend and
 the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions
@@ -511,6 +511,11 @@ explicitly approximate; it is not a substitute for retained CAD geometry.
   Rail-phase state resets must preserve the constrained axis and attitude.
 - Results inherit every applicability warning from the staging, aerodynamic,
   load, recovery, environment, launch-rail, and six-degree-of-freedom models.
+- The browser first-separation pulse can optionally forward a relative angular
+  Δω target to the shared released-body solver. That branch uses sampled rigid
+  inertia to create an equal-and-opposite torque sensitivity term and exposes
+  peak torque telemetry; it does not identify joint, spring, plume, structural,
+  or hardware behavior.
 - The half-step convergence rerun can be unavailable when a caller imposes a
   very small rail step budget or another runtime limit; this is surfaced as
   `not-assessed`, never silently treated as converged.

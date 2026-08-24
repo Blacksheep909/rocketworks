@@ -363,9 +363,11 @@ test("shared coupled-body CSV preserves contact settings and per-sample diagnost
   assert.match(csv, /# contact_pair_count,1/);
   assert.match(csv, /# relative_aero_feedback_enabled,false/);
   assert.match(csv, /# separation_enabled,false/);
+  assert.match(csv, /# separation_maximum_torque_nm,/);
   assert.match(csv, /contact_force_world_x_n/);
   assert.match(csv, /contact_penetration_m/);
   assert.match(csv, /separation_force_world_x_n/);
+  assert.match(csv, /separation_moment_body_y_nm/);
   assert.match(csv, /relative_wake_deficit_fraction/);
   assert.match(csv, /left,Left body,1,0,0,100/);
   assert.doesNotMatch(csv, /NaN|Infinity/);

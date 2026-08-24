@@ -18,7 +18,7 @@ function storageFor(exportDestination) {
   return { getItem: (key) => key === UI_PREFERENCES_STORAGE_KEY ? value : null };
 }
 
-function installBrowserHarness({ picker, clicks }) {
+function installBrowserHarness({ picker, clicks, confirm = false }) {
   const previousWindow = globalThis.window;
   const previousDocument = globalThis.document;
   const previousCreateObjectUrl = URL.createObjectURL;
@@ -30,6 +30,7 @@ function installBrowserHarness({ picker, clicks }) {
   };
   globalThis.window = {
     showSaveFilePicker: picker,
+    confirm: () => confirm,
     setTimeout: (callback) => {
       callback();
       return 0;
@@ -93,11 +94,23 @@ test("cancelled save dialogs do not report a saved artifact", async () => {
 
 test("unsupported save dialogs fall back to the browser download path", async () => {
   const clicks = [];
-  const restore = installBrowserHarness({ clicks, picker: undefined });
+  const restore = installBrowserHarness({ clicks, picker: undefined, confirm: true });
   try {
     downloadTextArtifact("review.json", "application/json", "{}", storageFor("save-dialog"));
     await Promise.resolve();
     assert.deepEqual(clicks, ["review.json"]);
+  } finally {
+    restore();
+  }
+});
+
+test("unsupported save dialogs do not fill Downloads without consent", async () => {
+  const clicks = [];
+  const restore = installBrowserHarness({ clicks, picker: undefined, confirm: false });
+  try {
+    downloadTextArtifact("review.json", "application/json", "{}", storageFor("save-dialog"));
+    await Promise.resolve();
+    assert.deepEqual(clicks, []);
   } finally {
     restore();
   }

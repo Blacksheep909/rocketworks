@@ -1,4 +1,4 @@
-# Shared-grid coupled multi-body flight 0.11
+# Shared-grid coupled multi-body flight 0.12
 
 Status: implemented analytical component check; mathematical regression tests
 only. This model is not flight-safety, range-safety, contact, or collision
@@ -86,10 +86,12 @@ angular-impulse solver.
 ## Optional finite-duration separation pulse
 
 The generic solver also accepts an opt-in `separationMechanisms` list for a
-bounded translational mechanism preview. Each pulse names a distinct retained
-and detached body, an exact `startTimeS`, a positive `durationS`, one relative
-delta-v vector (world or retained-body frame), and an optional `constant` or
-`raised-cosine` profile. Pulse boundaries are inserted into the shared grid.
+bounded translational/angular mechanism preview. Each pulse names a distinct
+retained and detached body, an exact `startTimeS`, a positive `durationS`, an
+optional relative delta-v vector (world or retained-body frame), an optional
+relative angular delta-omega vector (world or retained-body frame), and an
+optional `constant` or `raised-cosine` profile. At least one target is required;
+pulse boundaries are inserted into the shared grid.
 
 For a current retained mass `m_r`, detached mass `m_d`, requested relative
 delta-v `Δv_rel`, and duration `T`, the equal-and-opposite centre force is
@@ -104,16 +106,30 @@ The constant profile uses `w(t)=1`; the raised-cosine profile uses
 `w(t)=1-cos(2πt/T)`, whose integral is one over the pulse. Body-frame vectors
 are rotated using the retained body's current attitude at each Runge–Kutta
 substep, and dynamic mass providers are sampled as usual. Trace points expose
-the applied world force, magnitude, and contributing pulse count; the result
-returns the separation model identity, configured count, active trace count,
-and maximum sampled force.
+the applied world force, body-frame torque, magnitudes, and contributing pulse
+count; the result returns the separation model identity, configured count,
+active trace count, and maximum sampled force/torque.
+
+For rigid retained and detached bodies, an angular target `Δω_rel` is converted
+to a bounded world torque using their sampled inverse inertias:
+
+```text
+K = (I_r⁻¹ + I_d⁻¹)⁻¹
+τ_detached(t) = K Δω_rel w(t) / T
+τ_retained(t) = -τ_detached(t)
+```
+
+The torque pair is rotated into each body's current body frame before the
+Euler angular-momentum equation is evaluated. RK4 boundary handling treats a
+constant pulse as a half-open interval for integration while retaining explicit
+boundary telemetry, avoiding duplicate endpoint impulse.
 
 This is an analytical mechanism preview, not a pyrotechnic, spring, joint, or
-plume solver. It applies force at body centres and therefore adds no angular
-impulse, compliance, shock, release timing uncertainty, contact response,
-structural load, or aerodynamic interference. Calibration against mechanism
-tests and measured flight data is required before any design, operations, or
-flight/range-safety use.
+plume solver. Translational force is applied at body centres; the optional
+angular target is a sampled-inertia sensitivity term, not a joint torque or
+hardware model. Compliance, shock, release timing uncertainty, contact
+response, structural load, aerodynamic interference, and calibration against
+mechanism tests or measured flight data remain outside the contract.
 
 ## Equations and numerical method
 

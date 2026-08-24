@@ -327,7 +327,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.43.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.44.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);
@@ -505,8 +505,13 @@ test("stage-flight adapter optionally includes a replay-backed retained vehicle 
   const configuredPulse = simulateStageFlightPreview({
     ...baseInput,
     coupledMultiBodyIncludeRetainedBody: true,
+    initialState: {
+      positionWorldM: { x: 0, y: 0, z: 100 },
+      velocityWorldMps: { x: 0, y: 0, z: 20 },
+    },
     coupledSeparationPulse: {
       relativeDeltaVBodyMps: { x: 0.8, y: 0, z: 0 },
+      relativeAngularDeltaOmegaBodyRadS: { x: 0, y: 0.6, z: 0 },
       startOffsetS: 0.05,
       durationS: 0.2,
       profile: "raised-cosine",
@@ -515,6 +520,7 @@ test("stage-flight adapter optionally includes a replay-backed retained vehicle 
   assert.ok(configuredPulse.coupledMultiBodyFlight);
   assert.equal(configuredPulse.coupledMultiBodyFlight.separationMechanisms.enabled, true);
   assert.equal(configuredPulse.coupledMultiBodyFlight.separationMechanisms.configuredPulseCount, 1);
+  assert.ok(configuredPulse.coupledMultiBodyFlight.separationMechanisms.maximumTorqueNm > 0);
   assert.ok(configuredPulse.assumptions.some((assumption) => assumption.includes("browser first-separation pulse")));
 
   assert.throws(

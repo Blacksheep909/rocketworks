@@ -13,9 +13,9 @@ artifact in the browser's configured Downloads folder.
 
 The save dialog is opened directly from the export action so the browser's user
 activation requirement is respected. A cancelled dialog produces no second
-download. If the API is unavailable, or a browser/permission error occurs, the
-artifact falls back to the normal browser download path rather than being
-silently discarded.
+download. If the API is unavailable, or a browser/permission error occurs,
+RocketWorks asks for explicit confirmation before using the normal browser
+download path; it never silently fills Downloads from the save-dialog mode.
 
 ## Persistence and migration
 
