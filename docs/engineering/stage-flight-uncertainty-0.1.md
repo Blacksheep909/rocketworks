@@ -6,7 +6,7 @@ rigid-body models. It does not import or reuse an external rocket simulator.
 
 ## Contract
 
-- Adapter version: `kestrel-stage-flight-uncertainty-1.2.0`
+- Adapter version: `kestrel-stage-flight-uncertainty-1.3.0`
 - Sampling: seeded Latin hypercube through the shared uncertainty model
   (`kestrel-uncertainty-0.4.0`)
 - Default browser ensemble: 16 samples, retained as individual input/output or
@@ -65,7 +65,14 @@ The three channel keys participate in the existing Gaussian-copula dependence
 editor when matching pairs are declared. A correlation is therefore a
 caller-authored dependence assumption between sampled factors, not a claim
 that neighboring table nodes, flight conditions, or time share a measured
-joint distribution.
+joint distribution. A coefficient table may also declare a square correlation
+matrix for two or more of the same channels. The adapter maps those pairs into
+the matching factor keys automatically, keeps an explicit project pair
+authoritative, and omits conflicting table assignments rather than blending
+them. Matrix validation covers channel coverage, symmetry, unit diagonal,
+coefficient bounds, and positive-definiteness. The source `basis` label remains
+provenance metadata; RocketWorks does not independently verify a measured or
+derived covariance claim.
 
 Per-motor factors are keyed by the exact motor identifier. Repeated physical
 copies with distinct identifiers can vary independently; copies that share an
@@ -118,8 +125,8 @@ nominal. The separate factors avoid implying that drag, transverse force, and
 static moments share one error source. Declared table-cell uncertainty is
 applied by the common fallback and the optional drag, normal-force-slope, and
 center-of-pressure channels described above. Direct force/moment and damping
-cells intentionally retain the common fallback until their own measured
-covariance metadata is available.
+cells intentionally retain the common fallback because this correlation
+contract currently covers only the three scalar channels.
 
 ## Interpretation and limits
 
@@ -128,8 +135,10 @@ default remains independent because no correlations are declared. API callers
 may opt into pairwise Gaussian-copula correlations; the shared uncertainty
 model validates a positive-definite matrix, preserves each marginal, and
 records the declared pairs in the result. This is a dependence assumption, not
-empirical joint-distribution evidence or a flight-safety claim. The channel
-factors do not add temporal correlation or table-node covariance. Epistemic/model-
+empirical joint-distribution evidence or a flight-safety claim. Table-declared
+pairs follow the same latent-space validation and are merged only when all
+matching factor channels are sampled. The channel factors do not add temporal
+correlation or table-node covariance. Epistemic/model-
 form uncertainty, motor grain geometry, weather forecast error, terrain,
 collision, and clearance remain outside scope. Split-sample convergence is a
 finite-ensemble stability heuristic and cannot validate the equations, certify

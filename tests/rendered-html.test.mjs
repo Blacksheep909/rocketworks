@@ -1064,6 +1064,7 @@ test("ships a provenance-aware local aerodynamic table workflow", async () => {
   const library = await readFile(new URL("../lib/project/aero-library-state.ts", import.meta.url), "utf8");
   const polar = await readFile(new URL("../lib/physics/aerodynamic-polar.ts", import.meta.url), "utf8");
   const stageAware = await readFile(new URL("../lib/physics/stage-aware-aerodynamics.ts", import.meta.url), "utf8");
+  const stageUncertainty = await readFile(new URL("../lib/physics/stage-flight-uncertainty.ts", import.meta.url), "utf8");
   const verticalFlight = await readFile(new URL("../lib/physics/vertical-flight.ts", import.meta.url), "utf8");
   const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(page, /Aerodynamic data/);
@@ -1080,6 +1081,9 @@ test("ships a provenance-aware local aerodynamic table workflow", async () => {
   assert.match(page, /sampleAerodynamicPolar/);
   assert.match(page, /Angle-of-attack response/);
   assert.match(page, /absolute grid supplied/);
+  assert.match(page, /Declared uncertainty dependence/);
+  assert.match(page, /SOURCE-DECLARED/);
+  assert.match(page, /Aerodynamic uncertainty correlation matrix/);
   assert.match(page, /aerodynamicTable: selectedAerodynamicTable/);
   assert.match(verticalFlight, /mach-reynolds-table/);
   assert.match(page, /globalTable: aerodynamicTable \?\? null/);
@@ -1089,12 +1093,15 @@ test("ships a provenance-aware local aerodynamic table workflow", async () => {
   assert.match(library, /createAerodynamicCoefficientTable/);
   assert.match(stageAware, /multiple aerodynamic tables/);
   assert.match(stageAware, /angleOfAttackRad: condition\.angleOfAttackRad/);
+  assert.match(stageUncertainty, /table-declared aerodynamic uncertainty correlation/);
+  assert.match(stageUncertainty, /resolveAerodynamicCorrelationMetadata/);
   assert.match(polar, /AERODYNAMIC_POLAR_MODEL_VERSION/);
   assert.match(polar, /small-angle normal-force slope/);
   assert.match(stylesheet, /.aerodynamic-dialog/);
   assert.match(stylesheet, /.aerodynamic-record/);
   assert.match(stylesheet, /.aerodynamic-inspector/);
   assert.match(stylesheet, /.aerodynamic-polar/);
+  assert.match(stylesheet, /.aerodynamic-correlation-card/);
 });
 
 test("ships an interactive multi-stage, booster, and radial-topology editor", async () => {

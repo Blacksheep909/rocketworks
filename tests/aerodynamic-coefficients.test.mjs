@@ -549,3 +549,59 @@ test("malformed grids and incomplete provenance fail explicitly", () => {
     /positive finite/,
   );
 });
+
+test("table-declared uncertainty correlations are validated and exposed", () => {
+  const correlation = {
+    channels: ["dragCoefficient", "normalForceSlopePerRad", "centerOfPressureXM"],
+    matrix: [
+      [1, 0.35, -0.2],
+      [0.35, 1, 0.25],
+      [-0.2, 0.25, 1],
+    ],
+    basis: "measured-covariance",
+  };
+  const model = table({ uncertaintyCorrelation: correlation });
+  assert.deepEqual(model.uncertaintyCorrelation, correlation);
+  assert.ok(model.assumptions.some((assumption) => assumption.includes("measured covariance")));
+  assert.ok(model.warnings.some((warning) => warning.includes("source-declared")));
+});
+
+test("uncertainty correlations reject malformed, non-positive-definite, or unscaled channels", () => {
+  assert.throws(
+    () => table({
+      uncertaintyCorrelation: {
+        channels: ["dragCoefficient", "dragCoefficient"],
+        matrix: [[1, 0.2], [0.2, 1]],
+        basis: "engineering-assumption",
+      },
+    }),
+    /unique and supported/,
+  );
+  assert.throws(
+    () => table({
+      uncertaintyCorrelation: {
+        channels: ["dragCoefficient", "normalForceSlopePerRad", "centerOfPressureXM"],
+        matrix: [
+          [1, 0.9, 0.9],
+          [0.9, 1, -0.9],
+          [0.9, -0.9, 1],
+        ],
+        basis: "derived-covariance",
+      },
+    }),
+    /positive definite/,
+  );
+  assert.throws(
+    () => table({
+      normalForceSlopePerRad: {
+        values: [[2, 4], [6, 8]],
+      },
+      uncertaintyCorrelation: {
+        channels: ["dragCoefficient", "normalForceSlopePerRad"],
+        matrix: [[1, 0.2], [0.2, 1]],
+        basis: "engineering-assumption",
+      },
+    }),
+    /requires absolute uncertainty cells/,
+  );
+});

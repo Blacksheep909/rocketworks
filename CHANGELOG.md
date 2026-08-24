@@ -6,6 +6,14 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add optional source-declared aerodynamic uncertainty correlation metadata.
+  Table imports validate channel coverage, symmetry, coefficient bounds, and
+  positive-definiteness; the inspector shows the matrix and its provenance
+  boundary, and staged dispersion automatically applies matching pairs unless
+  an explicit project correlation overrides them. This remains latent
+  Gaussian-copula metadata, not independently verified covariance, time-series
+  error, or flight-safety evidence.
+
 - Add an accessible recovery phase timeline to the vertical Flight inspector.
   The display-only chart groups recorded ballistic, deployment-delay,
   inflation, reefing, and inflated samples, marks the first command, and plots

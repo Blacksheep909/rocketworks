@@ -97,7 +97,19 @@ explicit shared-factor or channel-factor scenarios rather than fitted
 covariance models. Positive-only drag and normal-force coefficients are
 rejected when a sample would make them non-physical. The Gaussian-copula
 editor can correlate matching sampled channels when the caller declares the
-pair; table-node, flight-condition, and time covariance remain unrepresented.
+pair. A table may now also carry an optional square correlation matrix for two
+or more of those three channels. RocketWorks checks channel coverage, symmetry,
+unit diagonal, coefficient bounds, and positive-definiteness, then applies
+matching pairs automatically to staged dispersion runs unless an explicit
+project pair already exists. The matrix is interpreted in latent Gaussian-
+copula space; the interpolated absolute-uncertainty cells still provide each
+channel's scale.
+
+This metadata is source-declared, not a RocketWorks measurement or certification
+claim. The `basis` value records whether the author labels it as measured or
+derived covariance, or as an engineering assumption. Table-node, flight-
+condition, and time covariance remain unrepresented, and conflicting assigned
+tables are omitted from the automatic merge rather than blended.
 
 ## Rotational damping moments
 
@@ -155,9 +167,9 @@ any real vehicle.
 - Normal force remains linear in bounded angle of attack after table lookup.
 - Damping derivatives are uncoupled diagonal body-axis terms. Cross derivatives
   and unsteady aerodynamic states are absent.
-- Absolute uncertainty is still caller-authored factor metadata; channel
-  correlations are optional Gaussian-copula assumptions, not measured
-  covariance or time-series error.
+- Absolute uncertainty is still caller-authored factor metadata. Channel
+  correlations are optional source-declared Gaussian-copula metadata, not
+  independently verified covariance or time-series error.
 - Source reference area, length, axes, signs, units, and moment origin must be
   checked before importing data.
 
@@ -184,8 +196,8 @@ any real vehicle.
 
 ## Next work
 
-Add measured covariance metadata, time-correlated error processes,
-monotone/high-gradient interpolation options, and importer validation for user
-CSV/JSON coefficient packages. Experimental benchmarks must compare complete
-force and moment histories, not only interpolation mechanics or angular-volume
+Add time-correlated error processes, monotone/high-gradient interpolation
+options, and importer validation for user CSV/JSON coefficient packages.
+Experimental benchmarks must compare complete force and moment histories, not
+only interpolation mechanics, covariance-matrix mechanics, or angular-volume
 round trips.

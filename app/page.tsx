@@ -111,6 +111,7 @@ import {
   type DesignOptimizationResult,
   type AerodynamicCoefficientTableDefinition,
   type AerodynamicCoefficientTableModel,
+  type AerodynamicCoefficientUncertaintyChannel,
   type AerodynamicPolarResult,
   type CoefficientSurface,
   type LandingDispersionResult,
@@ -4066,6 +4067,26 @@ function formatAerodynamicInspectorValue(value: number, definition: AerodynamicI
   return `${value.toFixed(definition.decimals)} ${definition.unit}`;
 }
 
+function aerodynamicUncertaintyChannelLabel(
+  channel: AerodynamicCoefficientUncertaintyChannel,
+): string {
+  return channel === "dragCoefficient"
+    ? "Drag coefficient"
+    : channel === "normalForceSlopePerRad"
+      ? "Normal-force slope"
+      : "Center of pressure";
+}
+
+function aerodynamicUncertaintyBasisLabel(
+  basis: NonNullable<AerodynamicCoefficientTableDefinition["uncertaintyCorrelation"]>["basis"],
+): string {
+  return basis === "measured-covariance"
+    ? "Measured covariance"
+    : basis === "derived-covariance"
+      ? "Derived covariance"
+      : "Engineering assumption";
+}
+
 function MotorThrustCurveChart({ record }: { record: MotorDataRecord }) {
   const width = 620;
   const height = 232;
@@ -4286,6 +4307,7 @@ function AerodynamicTableInspector({ table }: { table: AerodynamicCoefficientTab
   const hasForceMomentDatabase =
     table.forceCoefficientBodyByAngle !== undefined ||
     table.momentCoefficientBodyByAngle !== undefined;
+  const uncertaintyCorrelation = table.uncertaintyCorrelation;
   return (
     <section className="aerodynamic-inspector" aria-labelledby="aerodynamic-inspector-title">
       <div className="aerodynamic-inspector-heading">
@@ -4341,6 +4363,40 @@ function AerodynamicTableInspector({ table }: { table: AerodynamicCoefficientTab
         <div><span>Out-of-range policy</span><strong>{table.outOfRangePolicy === "clamp-with-warning" ? "Clamp + warning" : "Reject query"}</strong></div>
         <div><span>Source</span><strong>{table.provenance.sourceName} · {table.provenance.dataVersion}</strong></div>
       </div>
+      {uncertaintyCorrelation && (
+        <section className="aerodynamic-correlation-card" aria-labelledby="aerodynamic-correlation-title">
+          <div className="aerodynamic-correlation-heading">
+            <div>
+              <span className="eyebrow">Declared uncertainty dependence</span>
+              <h4 id="aerodynamic-correlation-title">{aerodynamicUncertaintyBasisLabel(uncertaintyCorrelation.basis)}</h4>
+              <p>{uncertaintyCorrelation.channels.map(aerodynamicUncertaintyChannelLabel).join(" · ")} are linked for dispersion sampling. Absolute uncertainty cells still provide each channel&apos;s scale.</p>
+            </div>
+            <span className="uncertainty-status uncertainty-status-review">SOURCE-DECLARED</span>
+          </div>
+          <div className="aerodynamic-correlation-grid" role="region" aria-label="Aerodynamic uncertainty correlation matrix" tabIndex={0}>
+            <table>
+              <caption>Latent Gaussian-copula correlation coefficients</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Channel</th>
+                  {uncertaintyCorrelation.channels.map((channel) => <th scope="col" key={channel}>{aerodynamicUncertaintyChannelLabel(channel)}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {uncertaintyCorrelation.channels.map((channel, rowIndex) => (
+                  <tr key={channel}>
+                    <th scope="row">{aerodynamicUncertaintyChannelLabel(channel)}</th>
+                    {uncertaintyCorrelation.matrix[rowIndex]!.map((coefficient, columnIndex) => (
+                      <td key={`${channel}-${uncertaintyCorrelation.channels[columnIndex]}`}>{coefficient.toFixed(3)}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="aerodynamic-correlation-note">RocketWorks validates shape, symmetry, and positive-definiteness only. It does not independently verify the source covariance, make it time-correlated, or treat it as flight-safety evidence.</p>
+        </section>
+      )}
       <p className="aerodynamic-inspector-note">This inspector shows exactly the supplied cells and declared absolute uncertainty. Validation checks the document shape and provenance; it does not certify aerodynamic accuracy, reference conventions, or source licensing.</p>
     </section>
   );

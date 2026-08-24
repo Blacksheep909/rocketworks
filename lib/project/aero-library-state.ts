@@ -1,6 +1,8 @@
 import {
   createAerodynamicCoefficientTable,
   type AerodynamicCoefficientTableDefinition,
+  type AerodynamicCoefficientUncertaintyChannel,
+  type AerodynamicCoefficientUncertaintyCorrelation,
   type CoefficientVolume,
   type CoefficientSurface,
 } from "../physics/aerodynamic-coefficients.ts";
@@ -46,6 +48,47 @@ function finiteNumberArray(value: unknown, label: string): number[] {
     throw new Error(`${label} must be a non-empty array.`);
   }
   return value.map((entry, index) => finiteNumber(entry, `${label}[${index}]`));
+}
+
+function uncertaintyCorrelation(
+  value: unknown,
+  label: string,
+): AerodynamicCoefficientUncertaintyCorrelation {
+  const correlation = objectValue(value, label);
+  const channelsValue = correlation.channels;
+  if (!Array.isArray(channelsValue) || channelsValue.length === 0) {
+    throw new Error(`${label}.channels must be a non-empty array.`);
+  }
+  const channels = channelsValue.map((entry, index) => {
+    if (
+      entry !== "dragCoefficient" &&
+      entry !== "normalForceSlopePerRad" &&
+      entry !== "centerOfPressureXM"
+    ) {
+      throw new Error(`${label}.channels[${index}] is unsupported.`);
+    }
+    return entry as AerodynamicCoefficientUncertaintyChannel;
+  });
+  if (!Array.isArray(correlation.matrix) || correlation.matrix.length === 0) {
+    throw new Error(`${label}.matrix must be a non-empty array.`);
+  }
+  const matrix = correlation.matrix.map((row, rowIndex) => {
+    if (!Array.isArray(row) || row.length === 0) {
+      throw new Error(`${label}.matrix[${rowIndex}] must be a non-empty array.`);
+    }
+    return row.map((entry, columnIndex) =>
+      finiteNumber(entry, `${label}.matrix[${rowIndex}][${columnIndex}]`),
+    );
+  });
+  const basis = correlation.basis;
+  if (
+    basis !== "measured-covariance" &&
+    basis !== "derived-covariance" &&
+    basis !== "engineering-assumption"
+  ) {
+    throw new Error(`${label}.basis is unsupported.`);
+  }
+  return { channels, matrix, basis };
 }
 
 function coefficientSurface(value: unknown, label: string): CoefficientSurface {
@@ -345,6 +388,14 @@ function definitionFromUnknown(value: unknown, index: number): AerodynamicCoeffi
       : {}),
     ...(record.outOfRangePolicy !== undefined
       ? { outOfRangePolicy: record.outOfRangePolicy as "reject" | "clamp-with-warning" }
+      : {}),
+    ...(record.uncertaintyCorrelation !== undefined
+      ? {
+          uncertaintyCorrelation: uncertaintyCorrelation(
+            record.uncertaintyCorrelation,
+            `Aerodynamic table ${index + 1} uncertainty correlation`,
+          ),
+        }
       : {}),
     provenance: provenance(record.provenance),
   };

@@ -1967,6 +1967,20 @@ kbd {
 .aerodynamic-inspector-meta > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 8px; border: 1px solid var(--line); border-radius: 3px; background: rgba(9,14,19,.72); }
 .aerodynamic-inspector-meta span { color: var(--muted); font-size: 7px; text-transform: uppercase; letter-spacing: .06em; }
 .aerodynamic-inspector-meta strong { overflow: hidden; color: #c5deec; font: 8px var(--font-geist-mono),monospace; text-overflow: ellipsis; white-space: nowrap; }
+.aerodynamic-correlation-card { margin-top: 12px; padding: 12px; border: 1px solid rgba(244,163,64,.26); border-radius: 4px; background: linear-gradient(145deg,rgba(244,163,64,.08),rgba(8,14,20,.78) 62%); }
+.aerodynamic-correlation-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.aerodynamic-correlation-heading h4 { margin-top: 4px; color: #ffe0ba; font-size: 10px; }
+.aerodynamic-correlation-heading p { max-width: 660px; margin-top: 4px; color: #9aabb4; font-size: 8px; line-height: 1.45; }
+.aerodynamic-correlation-grid { margin-top: 10px; overflow: auto; border: 1px solid rgba(244,163,64,.18); border-radius: 3px; background: #0b1116; }
+.aerodynamic-correlation-grid:focus-visible { outline: 2px solid rgba(244,163,64,.72); outline-offset: 2px; }
+.aerodynamic-correlation-grid table { min-width: 560px; width: 100%; border-collapse: collapse; font: 8px var(--font-geist-mono),monospace; }
+.aerodynamic-correlation-grid caption { padding: 8px 10px; border-bottom: 1px solid var(--line); color: #9aabb4; text-align: left; }
+.aerodynamic-correlation-grid th, .aerodynamic-correlation-grid td { padding: 7px 9px; border-right: 1px solid rgba(244,163,64,.12); border-bottom: 1px solid rgba(244,163,64,.12); text-align: right; white-space: nowrap; }
+.aerodynamic-correlation-grid thead th { color: #ffc477; font-weight: 650; background: rgba(244,163,64,.08); }
+.aerodynamic-correlation-grid thead th:first-child, .aerodynamic-correlation-grid tbody th { text-align: left; }
+.aerodynamic-correlation-grid tbody th { color: #cdb18b; font-weight: 550; background: rgba(255,255,255,.02); }
+.aerodynamic-correlation-grid td { color: #ffe0ba; }
+.aerodynamic-correlation-note { margin: 9px 1px 0; color: #8f9e9f; font: 7px/1.5 var(--font-geist-mono),monospace; }
 .aerodynamic-inspector-note { margin: 12px 0 0; color: #78909e; font-size: 8px; line-height: 1.45; }
 .aerodynamic-import-section { padding: 18px 22px 20px; border-bottom: 1px solid var(--line); }
 .aerodynamic-import-section .motor-csv-field textarea { min-height: 260px; padding: 10px; font: 9px/1.45 var(--font-geist-mono),monospace; resize: vertical; }
@@ -2391,6 +2405,7 @@ kbd {
   .aerodynamic-inspector { padding: 14px; }
   .aerodynamic-inspector-heading { flex-direction: column; gap: 9px; }
   .aerodynamic-inspector-controls { grid-template-columns: 1fr; }
+  .aerodynamic-correlation-heading { flex-direction: column; gap: 9px; }
   .aerodynamic-polar-heading { flex-direction: column; gap: 9px; }
   .aerodynamic-polar-controls { grid-template-columns: 1fr; }
   .aerodynamic-polar-plot svg { height: 180px; }

@@ -76,6 +76,36 @@ test("aerodynamic library preserves optional angle and sideslip volumes", () => 
   assert.deepEqual(parsed, [angular]);
 });
 
+test("aerodynamic library round-trips declared uncertainty correlation metadata", () => {
+  const correlated = definition({
+    dragCoefficient: {
+      values: [[0.5, 0.6], [0.45, 0.55]],
+      absoluteUncertainty: [[0.01, 0.02], [0.03, 0.04]],
+    },
+    normalForceSlopePerRad: {
+      values: [[4, 3.8], [4.2, 4]],
+      absoluteUncertainty: [[0.1, 0.1], [0.3, 0.3]],
+    },
+    centerOfPressureXM: {
+      values: [[0.5, 0.52], [0.49, 0.51]],
+      absoluteUncertainty: [[0.01, 0.02], [0.02, 0.03]],
+    },
+    uncertaintyCorrelation: {
+      channels: ["dragCoefficient", "normalForceSlopePerRad", "centerOfPressureXM"],
+      matrix: [
+        [1, 0.2, -0.1],
+        [0.2, 1, 0.3],
+        [-0.1, 0.3, 1],
+      ],
+      basis: "derived-covariance",
+    },
+  });
+  const parsed = parseLocalAerodynamicLibrary(
+    serializeLocalAerodynamicLibrary([correlated]),
+  );
+  assert.deepEqual(parsed, [correlated]);
+});
+
 test("aerodynamic library rejects malformed grids, provenance, and duplicates", () => {
   assert.throws(
     () => parseLocalAerodynamicLibrary(JSON.stringify({
@@ -92,6 +122,26 @@ test("aerodynamic library rejects malformed grids, provenance, and duplicates", 
   assert.throws(
     () => serializeLocalAerodynamicLibrary([definition(), definition()]),
     /identifiers must be unique/,
+  );
+  assert.throws(
+    () => serializeLocalAerodynamicLibrary([
+      definition({
+        dragCoefficient: {
+          values: [[0.5, 0.6], [0.45, 0.55]],
+          absoluteUncertainty: [[0.01, 0.01], [0.01, 0.01]],
+        },
+        normalForceSlopePerRad: {
+          values: [[4, 3.8], [4.2, 4]],
+          absoluteUncertainty: [[0.1, 0.1], [0.1, 0.1]],
+        },
+        uncertaintyCorrelation: {
+          channels: ["dragCoefficient", "normalForceSlopePerRad"],
+          matrix: [[1, 1], [1, 1]],
+          basis: "measured-covariance",
+        },
+      }),
+    ]),
+    /strictly between/,
   );
 });
 

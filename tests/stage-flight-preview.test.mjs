@@ -954,7 +954,7 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
     sampleCount: 6,
   });
 
-  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-1.2.0");
+  assert.equal(first.adapterVersion, "kestrel-stage-flight-uncertainty-1.3.0");
   assert.equal(first.requestedSampleCount, 6);
   assert.equal(first.successfulSampleCount, 6);
   assert.deepEqual(first.samples, second.samples);
@@ -988,7 +988,7 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
     centerOfPressureXM: 0.25,
   });
   assert.ok(variant.additionalWarnings.some((warning) => warning.includes("common signed sigma")));
-  assert.ok(variant.additionalWarnings.some((warning) => warning.includes("independent drag, normal-force-slope, and center-of-pressure")));
+  assert.ok(variant.additionalWarnings.some((warning) => warning.includes("drag, normal-force-slope, and center-of-pressure signed-sigma channels")));
 
   const perMotorVariant = createStageFlightVariant(baseInput, {
     thrustScale: 1.05,
@@ -1086,6 +1086,118 @@ test("coupled stage-flight uncertainty is seeded, bounded, and non-mutating", ()
     discreteGustWindWorldMps: { x: 0.8, y: 1, z: 1.2 },
     windWorldMps: { x: 3, y: 5.4, z: 7.8 },
   });
+});
+
+test("coupled uncertainty applies table-declared aerodynamic correlations when channels are sampled", () => {
+  const correlatedTable = createAerodynamicCoefficientTable({
+    id: "correlated-stage-table",
+    name: "Correlated stage fixture",
+    machPoints: [0, 1],
+    reynoldsPoints: [1e3, 1e8],
+    dragCoefficient: {
+      values: [[0.65, 0.65], [0.65, 0.65]],
+      absoluteUncertainty: [[0.02, 0.02], [0.02, 0.02]],
+    },
+    normalForceSlopePerRad: {
+      values: [[3, 3], [3, 3]],
+      absoluteUncertainty: [[0.1, 0.1], [0.1, 0.1]],
+    },
+    centerOfPressureXM: {
+      values: [[0.5, 0.5], [0.5, 0.5]],
+      absoluteUncertainty: [[0.02, 0.02], [0.02, 0.02]],
+    },
+    uncertaintyCorrelation: {
+      channels: ["dragCoefficient", "normalForceSlopePerRad", "centerOfPressureXM"],
+      matrix: [
+        [1, 0.3, -0.15],
+        [0.3, 1, 0.2],
+        [-0.15, 0.2, 1],
+      ],
+      basis: "measured-covariance",
+    },
+    outOfRangePolicy: "clamp-with-warning",
+    provenance: {
+      sourceName: "Correlated stage fixture",
+      sourceKind: "user-supplied",
+      dataVersion: "correlation-1",
+      licenseIdentifier: "CC0-1.0",
+      validationStatus: "user-supplied-unvalidated",
+    },
+  });
+  const correlatedRegimes = regimes.map((regime) => {
+    const next = {
+      ...regime,
+      coefficientTable: correlatedTable,
+      coefficientTableDesignPoint: { mach: 0.1, reynoldsNumber: 1e5 },
+    };
+    delete next.dragCoefficient;
+    return next;
+  });
+  const result = analyzeStageFlightUncertainty({
+    baseInput: {
+      retainedMassProperties: properties(0.4, 0.2),
+      components,
+      stages,
+      regimes: correlatedRegimes,
+      initiallyIgnitedStageIds: ["booster"],
+      durationS: 2.5,
+      timeStepS: 0.1,
+      launchAltitudeM: 0,
+    },
+    factors: [
+      {
+        key: "coefficientUncertaintyDragScale",
+        label: "Aero drag uncertainty",
+        distribution: { kind: "uniform", minimum: -1, maximum: 1 },
+      },
+      {
+        key: "coefficientUncertaintyNormalScale",
+        label: "Aero normal uncertainty",
+        distribution: { kind: "uniform", minimum: -1, maximum: 1 },
+      },
+      {
+        key: "coefficientUncertaintyCpScale",
+        label: "Aero CP uncertainty",
+        distribution: { kind: "uniform", minimum: -1, maximum: 1 },
+      },
+    ],
+    seed: "correlated-aero-stage-fixture",
+    sampleCount: 4,
+  });
+  assert.ok(result.warnings.some((warning) => warning.includes("table-declared aerodynamic uncertainty correlation")));
+  assert.ok(result.assumptions.some((assumption) => assumption.includes("Table-declared aerodynamic correlation metadata")));
+  const explicitOverride = analyzeStageFlightUncertainty({
+    baseInput: {
+      retainedMassProperties: properties(0.4, 0.2),
+      components,
+      stages,
+      regimes: correlatedRegimes,
+      initiallyIgnitedStageIds: ["booster"],
+      durationS: 2.5,
+      timeStepS: 0.1,
+      launchAltitudeM: 0,
+    },
+    factors: [
+      {
+        key: "coefficientUncertaintyDragScale",
+        label: "Aero drag uncertainty",
+        distribution: { kind: "uniform", minimum: -1, maximum: 1 },
+      },
+      {
+        key: "coefficientUncertaintyNormalScale",
+        label: "Aero normal uncertainty",
+        distribution: { kind: "uniform", minimum: -1, maximum: 1 },
+      },
+    ],
+    correlations: [{
+      firstParameterKey: "coefficientUncertaintyDragScale",
+      secondParameterKey: "coefficientUncertaintyNormalScale",
+      coefficient: -0.25,
+    }],
+    seed: "correlated-aero-stage-override",
+    sampleCount: 4,
+  });
+  assert.ok(explicitOverride.warnings.some((warning) => warning.includes("superseded by an explicit project correlation")));
 });
 
 test("stage contact-load uncertainty scales the post-trace scenario without changing flight forces", () => {

@@ -16,6 +16,7 @@ import {
   type Vector3,
 } from "./linear-algebra.ts";
 import type { MassProperties } from "./mass-properties.ts";
+import type { AerodynamicCoefficientUncertaintyCorrelation } from "./aerodynamic-coefficients.ts";
 import type {
   MultiStageMotor,
   RocketStage,
@@ -37,7 +38,7 @@ import {
 } from "./stage-flight-preview.ts";
 
 export const STAGE_FLIGHT_UNCERTAINTY_ADAPTER_VERSION =
-  "kestrel-stage-flight-uncertainty-1.2.0";
+  "kestrel-stage-flight-uncertainty-1.3.0";
 
 /** Prefix used for independent thrust multipliers keyed by motor identifier. */
 export const MOTOR_THRUST_SCALE_FACTOR_PREFIX = "motorThrustScale:";
@@ -83,6 +84,95 @@ export type StageFlightUncertaintyFactor = {
 export type StageFlightUncertaintyResult = UncertaintyAnalysisResult & {
   adapterVersion: string;
 };
+
+const AERODYNAMIC_CHANNEL_FACTOR_KEY: Readonly<
+  Record<
+    AerodynamicCoefficientUncertaintyCorrelation["channels"][number],
+    StageFlightUncertaintyFactorKey
+  >
+> = {
+  dragCoefficient: "coefficientUncertaintyDragScale",
+  normalForceSlopePerRad: "coefficientUncertaintyNormalScale",
+  centerOfPressureXM: "coefficientUncertaintyCpScale",
+};
+
+type ResolvedAerodynamicCorrelationMetadata = Readonly<{
+  correlations: readonly UncertaintyCorrelation[];
+  appliedPairCount: number;
+  skippedPairCount: number;
+  overriddenPairCount: number;
+  conflictingPairCount: number;
+}>;
+
+function correlationPairKey(first: string, second: string): string {
+  return [first, second].sort().join("\u0000");
+}
+
+function resolveAerodynamicCorrelationMetadata(
+  baseInput: StageFlightPreviewInput,
+  factors: readonly StageFlightUncertaintyFactor[],
+  explicitCorrelations: readonly UncertaintyCorrelation[],
+): ResolvedAerodynamicCorrelationMetadata {
+  const factorKeys = new Set(factors.map((factor) => factor.key));
+  const explicitKeys = new Set(
+    explicitCorrelations.map((correlation) =>
+      correlationPairKey(
+        correlation.firstParameterKey,
+        correlation.secondParameterKey,
+      ),
+    ),
+  );
+  const byPair = new Map<string, UncertaintyCorrelation>();
+  const conflictingPairs = new Set<string>();
+  const seenTables = new Set<string>();
+  let skippedPairCount = 0;
+  let overriddenPairCount = 0;
+  for (const regime of baseInput.regimes) {
+    const table = regime.coefficientTable;
+    if (!table?.uncertaintyCorrelation || seenTables.has(table.id)) continue;
+    seenTables.add(table.id);
+    const metadata = table.uncertaintyCorrelation;
+    for (let row = 0; row < metadata.channels.length; row += 1) {
+      for (let column = row + 1; column < metadata.channels.length; column += 1) {
+        const firstParameterKey =
+          AERODYNAMIC_CHANNEL_FACTOR_KEY[metadata.channels[row]!];
+        const secondParameterKey =
+          AERODYNAMIC_CHANNEL_FACTOR_KEY[metadata.channels[column]!];
+        const coefficient = metadata.matrix[row]![column]!;
+        if (!factorKeys.has(firstParameterKey) || !factorKeys.has(secondParameterKey)) {
+          skippedPairCount += 1;
+          continue;
+        }
+        const pairKey = correlationPairKey(firstParameterKey, secondParameterKey);
+        if (explicitKeys.has(pairKey)) {
+          overriddenPairCount += 1;
+          continue;
+        }
+        const previous = byPair.get(pairKey);
+        if (previous && Math.abs(previous.coefficient - coefficient) > 1e-12) {
+          conflictingPairs.add(pairKey);
+          byPair.delete(pairKey);
+          continue;
+        }
+        byPair.set(pairKey, {
+          firstParameterKey,
+          secondParameterKey,
+          coefficient,
+        });
+      }
+    }
+  }
+  const correlations = [...byPair.entries()]
+    .filter(([pairKey]) => !conflictingPairs.has(pairKey))
+    .map(([, correlation]) => correlation);
+  return {
+    correlations,
+    appliedPairCount: correlations.length,
+    skippedPairCount,
+    overriddenPairCount,
+    conflictingPairCount: conflictingPairs.size,
+  };
+}
 
 function positiveScale(value: number, key: string): number {
   if (!Number.isFinite(value) || value <= 0) {
@@ -626,7 +716,7 @@ export function createStageFlightVariant(
               : []),
             ...(hasCoefficientUncertaintyChannelFactors
               ? [
-                  "Sampled aerodynamic coefficient uncertainty uses independent drag, normal-force-slope, and center-of-pressure signed-sigma channels; correlations are only applied when the caller declares matching Gaussian-copula pairs, and time correlation is not modeled.",
+                  "Sampled aerodynamic coefficient uncertainty uses drag, normal-force-slope, and center-of-pressure signed-sigma channels; correlations are applied only when matching project pairs or table-declared Gaussian-copula metadata are available, and time correlation is not modeled.",
                 ]
               : []),
           ],
@@ -654,7 +744,7 @@ export function createStageFlightVariant(
               : []),
             ...(hasCoefficientUncertaintyChannelFactors
               ? [
-                  "The aerodynamic uncertainty channels are caller-supplied signed sigmas, not measured covariance estimates or certification evidence; samples that make positive-only coefficients non-physical fail explicitly.",
+                  "The aerodynamic uncertainty channels are caller-supplied signed sigmas; optional table-declared correlation metadata remains unvalidated and is not certification evidence. Samples that make positive-only coefficients non-physical fail explicitly.",
                 ]
               : []),
             ...(recoveryInflationTimeScale !== 1
@@ -705,13 +795,22 @@ export function analyzeStageFlightUncertainty({
       factor.key === "contactStoppingDistanceScale" ||
       factor.key === "contactRestitutionScale",
   );
+  const explicitCorrelations = correlations ?? [];
+  const aerodynamicCorrelationMetadata = resolveAerodynamicCorrelationMetadata(
+    baseInput,
+    factors,
+    explicitCorrelations,
+  );
   const analysis = runUncertaintyAnalysis({
     seed,
     method: "latin-hypercube",
     sampleCount,
     parameters: factors,
     thresholds,
-    correlations,
+    correlations: [
+      ...explicitCorrelations,
+      ...aerodynamicCorrelationMetadata.correlations,
+    ],
     evaluator: (values) => {
       const result = simulateStageFlightPreview(
         createStageFlightVariant(baseInput, values),
@@ -760,6 +859,26 @@ export function analyzeStageFlightUncertainty({
     ...analysis,
     warnings: [
       ...analysis.warnings,
+      ...(aerodynamicCorrelationMetadata.appliedPairCount > 0
+        ? [
+            `Applied ${aerodynamicCorrelationMetadata.appliedPairCount} table-declared aerodynamic uncertainty correlation pair${aerodynamicCorrelationMetadata.appliedPairCount === 1 ? "" : "s"} in latent Gaussian-copula space; this metadata is not an accuracy or flight-safety validation result.`,
+          ]
+        : []),
+      ...(aerodynamicCorrelationMetadata.skippedPairCount > 0
+        ? [
+            `${aerodynamicCorrelationMetadata.skippedPairCount} table-declared aerodynamic correlation pair${aerodynamicCorrelationMetadata.skippedPairCount === 1 ? " was" : "s were"} not applied because matching uncertainty factors were not sampled.`,
+          ]
+        : []),
+      ...(aerodynamicCorrelationMetadata.conflictingPairCount > 0
+        ? [
+            `${aerodynamicCorrelationMetadata.conflictingPairCount} aerodynamic correlation pair${aerodynamicCorrelationMetadata.conflictingPairCount === 1 ? " was" : "s were"} omitted because assigned tables declare conflicting coefficients for the same sampled channels.`,
+          ]
+        : []),
+      ...(aerodynamicCorrelationMetadata.overriddenPairCount > 0
+        ? [
+            `${aerodynamicCorrelationMetadata.overriddenPairCount} table-declared aerodynamic correlation pair${aerodynamicCorrelationMetadata.overriddenPairCount === 1 ? " was" : "s were"} superseded by an explicit project correlation.`,
+          ]
+        : []),
       ...(contactScenarioSelected
         ? [
             "Contact-load uncertainty varies a post-trace stopping-distance/restitution scenario; it does not add collision forces or structural response to the propagated flight.",
@@ -768,6 +887,11 @@ export function analyzeStageFlightUncertainty({
     ],
     assumptions: [
       ...analysis.assumptions,
+      ...(aerodynamicCorrelationMetadata.appliedPairCount > 0
+        ? [
+            "Table-declared aerodynamic correlation metadata links only the sampled drag, normal-force-slope, and center-of-pressure signed-sigma channels; time correlation and condition-dependent covariance remain outside this adapter.",
+          ]
+        : []),
       ...(contactScenarioSelected
         ? [
             "Contact-load percentile metrics are scenario outputs derived after each trace; they are not measured contact distributions, structural capacity, or flight-safety evidence.",

@@ -75,6 +75,8 @@ export type AerodynamicCoefficientTableDefinition = Readonly<{
     pitch: CoefficientVolume;
     yaw: CoefficientVolume;
   }>;
+  /** Optional source-declared correlation matrix for the sampled uncertainty channels. */
+  uncertaintyCorrelation?: AerodynamicCoefficientUncertaintyCorrelation;
   outOfRangePolicy?: "reject" | "clamp-with-warning";
   provenance: AerodynamicDataProvenance;
 }>;
@@ -114,6 +116,31 @@ export type AerodynamicCoefficientUncertaintyScales = Readonly<{
   dampingDerivativeBody?: number;
 }>;
 
+/**
+ * Coefficient uncertainty channels that can be sampled by the staged-flight
+ * adapter. The matrix below is a correlation matrix for these channels; the
+ * absolute magnitude still comes from the interpolated uncertainty cells.
+ */
+export type AerodynamicCoefficientUncertaintyChannel =
+  | "dragCoefficient"
+  | "normalForceSlopePerRad"
+  | "centerOfPressureXM";
+
+/**
+ * Optional table-declared dependence between uncertainty channels. This is
+ * deliberately a correlation contract rather than a covariance claim: the
+ * supplied absolute uncertainty surfaces provide scale, while this matrix
+ * supplies only latent Gaussian-copula dependence.
+ */
+export type AerodynamicCoefficientUncertaintyCorrelation = Readonly<{
+  channels: readonly AerodynamicCoefficientUncertaintyChannel[];
+  matrix: readonly (readonly number[])[];
+  basis:
+    | "measured-covariance"
+    | "derived-covariance"
+    | "engineering-assumption";
+}>;
+
 export type AerodynamicCoefficientEvaluation = Readonly<{
   modelVersion: string;
   validationStatus: AerodynamicDataProvenance["validationStatus"];
@@ -148,6 +175,8 @@ export type AerodynamicCoefficientTableModel = Readonly<{
   forceMomentDatabaseAvailable: boolean;
   /** True when at least one declared coefficient surface or volume has absolute uncertainty cells. */
   uncertaintyAvailable: boolean;
+  /** Optional table-declared correlation metadata for the sampled scalar channels. */
+  uncertaintyCorrelation?: AerodynamicCoefficientUncertaintyCorrelation;
   provenance: AerodynamicDataProvenance;
   evaluate: (input: Readonly<{
     mach: number;
@@ -361,6 +390,133 @@ function validateProvenance(provenance: AerodynamicDataProvenance): void {
       throw new Error("aerodynamic table provenance source URL must use HTTP or HTTPS");
     }
   }
+}
+
+const AERODYNAMIC_UNCERTAINTY_CHANNELS: readonly AerodynamicCoefficientUncertaintyChannel[] = [
+  "dragCoefficient",
+  "normalForceSlopePerRad",
+  "centerOfPressureXM",
+];
+
+function choleskyCorrelationMatrix(
+  matrix: readonly (readonly number[])[],
+): void {
+  const lower = matrix.map((row) => row.map(() => 0));
+  for (let row = 0; row < matrix.length; row += 1) {
+    for (let column = 0; column <= row; column += 1) {
+      let value = matrix[row]![column]!;
+      for (let prior = 0; prior < column; prior += 1) {
+        value -= lower[row]![prior]! * lower[column]![prior]!;
+      }
+      if (row === column) {
+        if (!(value > 1e-12) || !Number.isFinite(value)) {
+          throw new Error(
+            "aerodynamic uncertainty correlation matrix must be positive definite",
+          );
+        }
+        lower[row]![column] = Math.sqrt(value);
+      } else {
+        lower[row]![column] = value / lower[column]![column]!;
+      }
+    }
+  }
+}
+
+function normalizeUncertaintyCorrelation(
+  correlation: AerodynamicCoefficientUncertaintyCorrelation,
+  hasUncertaintyForChannel: (
+    channel: AerodynamicCoefficientUncertaintyChannel,
+  ) => boolean,
+): AerodynamicCoefficientUncertaintyCorrelation {
+  if (
+    correlation.basis !== "measured-covariance" &&
+    correlation.basis !== "derived-covariance" &&
+    correlation.basis !== "engineering-assumption"
+  ) {
+    throw new Error("aerodynamic uncertainty correlation basis is invalid");
+  }
+  if (correlation.channels.length < 2) {
+    throw new Error(
+      "aerodynamic uncertainty correlation requires at least two channels",
+    );
+  }
+  if (
+    new Set(correlation.channels).size !== correlation.channels.length ||
+    correlation.channels.some(
+      (channel) => !AERODYNAMIC_UNCERTAINTY_CHANNELS.includes(channel),
+    )
+  ) {
+    throw new Error(
+      "aerodynamic uncertainty correlation channels must be unique and supported",
+    );
+  }
+  correlation.channels.forEach((channel) => {
+    if (!hasUncertaintyForChannel(channel)) {
+      throw new Error(
+        `aerodynamic uncertainty correlation channel ${channel} requires absolute uncertainty cells`,
+      );
+    }
+  });
+  if (
+    correlation.matrix.length !== correlation.channels.length ||
+    correlation.matrix.some(
+      (row) => row.length !== correlation.channels.length,
+    )
+  ) {
+    throw new Error(
+      "aerodynamic uncertainty correlation matrix must be square and match its channels",
+    );
+  }
+  correlation.matrix.forEach((row, rowIndex) =>
+    row.forEach((value, columnIndex) => {
+      if (!Number.isFinite(value)) {
+        throw new Error(
+          `aerodynamic uncertainty correlation matrix entry [${rowIndex},${columnIndex}] must be finite`,
+        );
+      }
+      if (rowIndex === columnIndex) {
+        if (Math.abs(value - 1) > 1e-9) {
+          throw new Error(
+            "aerodynamic uncertainty correlation matrix diagonal entries must equal 1",
+          );
+        }
+      } else if (value <= -0.999 || value >= 0.999) {
+        throw new Error(
+          "aerodynamic uncertainty correlation coefficients must be strictly between -0.999 and 0.999",
+        );
+      }
+    }),
+  );
+  for (let row = 0; row < correlation.matrix.length; row += 1) {
+    for (let column = row + 1; column < correlation.matrix.length; column += 1) {
+      if (
+        Math.abs(
+          correlation.matrix[row]![column]! -
+            correlation.matrix[column]![row]!,
+        ) > 1e-9
+      ) {
+        throw new Error(
+          "aerodynamic uncertainty correlation matrix must be symmetric",
+        );
+      }
+    }
+  }
+  choleskyCorrelationMatrix(correlation.matrix);
+  return {
+    basis: correlation.basis,
+    channels: [...correlation.channels],
+    matrix: correlation.matrix.map((row) => [...row]),
+  };
+}
+
+function correlationBasisLabel(
+  basis: AerodynamicCoefficientUncertaintyCorrelation["basis"],
+): string {
+  return basis === "measured-covariance"
+    ? "measured covariance"
+    : basis === "derived-covariance"
+      ? "derived covariance"
+      : "engineering assumption";
 }
 
 function bracketAxis(
@@ -600,6 +756,32 @@ export function createAerodynamicCoefficientTable(
     definition.momentCoefficientBodyByAngle?.pitch,
     definition.momentCoefficientBodyByAngle?.yaw,
   ].some((surface) => hasAbsoluteUncertainty(surface));
+  const hasUncertaintyForChannel = (
+    channel: AerodynamicCoefficientUncertaintyChannel,
+  ): boolean => {
+    if (channel === "dragCoefficient") {
+      return (
+        hasAbsoluteUncertainty(definition.dragCoefficient) ||
+        hasAbsoluteUncertainty(definition.dragCoefficientByAngle)
+      );
+    }
+    if (channel === "normalForceSlopePerRad") {
+      return (
+        hasAbsoluteUncertainty(definition.normalForceSlopePerRad) ||
+        hasAbsoluteUncertainty(definition.normalForceSlopePerRadByAngle)
+      );
+    }
+    return (
+      hasAbsoluteUncertainty(definition.centerOfPressureXM) ||
+      hasAbsoluteUncertainty(definition.centerOfPressureXMByAngle)
+    );
+  };
+  const uncertaintyCorrelation = definition.uncertaintyCorrelation
+    ? normalizeUncertaintyCorrelation(
+        definition.uncertaintyCorrelation,
+        hasUncertaintyForChannel,
+      )
+    : undefined;
   const modelVersion = hasForceMomentDatabase
     ? AERODYNAMIC_FORCE_MOMENT_TABLE_MODEL_VERSION
     : hasAngularCoefficientVolume
@@ -916,6 +1098,9 @@ export function createAerodynamicCoefficientTable(
       : null,
     forceMomentDatabaseAvailable: hasForceMomentDatabase,
     uncertaintyAvailable,
+    ...(uncertaintyCorrelation
+      ? { uncertaintyCorrelation }
+      : {}),
     provenance: definition.provenance,
     evaluate,
     assumptions: [
@@ -936,12 +1121,22 @@ export function createAerodynamicCoefficientTable(
           ]
         : []),
       "Absolute uncertainty uses the same interpolation rule as nominal coefficients",
+      ...(uncertaintyCorrelation
+        ? [
+            `A ${correlationBasisLabel(uncertaintyCorrelation.basis)} matrix links ${uncertaintyCorrelation.channels.join(", ")} in the staged-flight latent Gaussian-copula sampler; absolute uncertainty surfaces still provide each channel's scale.`,
+          ]
+        : []),
       outOfRangePolicy === "reject"
         ? "Queries outside the tabulated domain are rejected"
         : "Queries outside the tabulated domain clamp to the nearest boundary with an unsupported warning",
     ],
     warnings: [
       "RocketWorks validates and interpolates supplied data but does not certify its aerodynamic accuracy.",
+      ...(uncertaintyCorrelation
+        ? [
+            "Correlation metadata is source-declared and remains unvalidated by RocketWorks; time correlation, table-node covariance, and cross-condition evolution are not modeled.",
+          ]
+        : []),
       "Interpolation cannot reconstruct shocks, transitions, hysteresis, or discontinuities absent from the supplied grid.",
       "Coefficient reference axes, areas, lengths, signs, and moment conventions must match the consuming vehicle model.",
       ...(hasAngularCoefficientVolume
