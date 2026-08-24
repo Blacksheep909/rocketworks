@@ -7,15 +7,17 @@
  */
 
 export const UI_PREFERENCES_SCHEMA_ID = "rocketworks-ui-preferences";
-export const UI_PREFERENCES_SCHEMA_VERSION = 3;
-export const UI_PREFERENCES_STORAGE_KEY = "rocketworks-ui-preferences-v3";
+export const UI_PREFERENCES_SCHEMA_VERSION = 4;
+export const UI_PREFERENCES_STORAGE_KEY = "rocketworks-ui-preferences-v4";
 export const UI_PREFERENCES_LEGACY_STORAGE_KEYS = [
+  "rocketworks-ui-preferences-v3",
   "rocketworks-ui-preferences-v2",
   "rocketworks-ui-preferences-v1",
 ] as const;
 
 export type UiDesignView = "2d" | "3d-skeleton" | "3d-final";
 export type UiLocale = "en" | "es";
+export type UiExportDestination = "browser-download" | "save-dialog";
 
 export type UiPreferences = Readonly<{
   schemaId: typeof UI_PREFERENCES_SCHEMA_ID;
@@ -25,6 +27,7 @@ export type UiPreferences = Readonly<{
   reducedMotion: boolean;
   highContrast: boolean;
   locale: UiLocale;
+  exportDestination: UiExportDestination;
 }>;
 
 const DESIGN_VIEWS: readonly UiDesignView[] = ["2d", "3d-skeleton", "3d-final"];
@@ -38,6 +41,7 @@ export function createDefaultUiPreferences(): UiPreferences {
     reducedMotion: false,
     highContrast: false,
     locale: "en",
+    exportDestination: "browser-download",
   };
 }
 
@@ -67,6 +71,9 @@ export function serializeUiPreferences(preferences: UiPreferences): string {
   if (preferences.locale !== "en" && preferences.locale !== "es") {
     throw new Error("UI preferences locale must be en or es");
   }
+  if (preferences.exportDestination !== "browser-download" && preferences.exportDestination !== "save-dialog") {
+    throw new Error("UI preferences export destination must be browser-download or save-dialog");
+  }
   return JSON.stringify(preferences);
 }
 
@@ -79,7 +86,7 @@ export function parseUiPreferences(serialized: string): UiPreferences {
   }
   if (!isRecord(value)) throw new Error("UI preferences must be an object");
   if (value.schemaId !== UI_PREFERENCES_SCHEMA_ID) throw new Error("unsupported UI preferences schema");
-  if (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== UI_PREFERENCES_SCHEMA_VERSION) {
+  if (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3 && value.schemaVersion !== UI_PREFERENCES_SCHEMA_VERSION) {
     throw new Error("unsupported UI preferences version");
   }
   if (typeof value.designView !== "string" || !DESIGN_VIEWS.includes(value.designView as UiDesignView)) {
@@ -90,7 +97,12 @@ export function parseUiPreferences(serialized: string): UiPreferences {
   }
   const reducedMotion = value.schemaVersion === 1 ? false : value.reducedMotion;
   const highContrast = value.schemaVersion === 1 ? false : value.highContrast;
-  const locale = value.schemaVersion === UI_PREFERENCES_SCHEMA_VERSION ? value.locale : "en";
+  const locale = value.schemaVersion === 3 || value.schemaVersion === UI_PREFERENCES_SCHEMA_VERSION
+    ? value.locale
+    : "en";
+  const exportDestination = value.schemaVersion === UI_PREFERENCES_SCHEMA_VERSION
+    ? value.exportDestination
+    : "browser-download";
   if (typeof reducedMotion !== "boolean") {
     throw new Error("UI preferences reduced-motion setting must be a boolean");
   }
@@ -100,6 +112,9 @@ export function parseUiPreferences(serialized: string): UiPreferences {
   if (locale !== "en" && locale !== "es") {
     throw new Error("UI preferences locale must be en or es");
   }
+  if (exportDestination !== "browser-download" && exportDestination !== "save-dialog") {
+    throw new Error("UI preferences export destination must be browser-download or save-dialog");
+  }
   return {
     schemaId: UI_PREFERENCES_SCHEMA_ID,
     schemaVersion: UI_PREFERENCES_SCHEMA_VERSION,
@@ -108,5 +123,6 @@ export function parseUiPreferences(serialized: string): UiPreferences {
     reducedMotion,
     highContrast,
     locale,
+    exportDestination,
   };
 }

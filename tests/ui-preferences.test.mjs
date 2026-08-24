@@ -15,6 +15,7 @@ test("UI preferences round-trip without becoming engineering inputs", () => {
     designAzimuthDeg: 217,
     reducedMotion: true,
     highContrast: true,
+    exportDestination: "save-dialog",
   };
   const restored = parseUiPreferences(serializeUiPreferences(preferences));
   assert.deepEqual(restored, preferences);
@@ -45,6 +46,10 @@ test("UI preferences reject unsupported views and unsafe azimuth values", () => 
     /high-contrast setting must be a boolean/,
   );
   assert.throws(
+    () => parseUiPreferences(JSON.stringify({ ...base, exportDestination: "downloads-folder" })),
+    /export destination must be browser-download or save-dialog/,
+  );
+  assert.throws(
     () => parseUiPreferences(JSON.stringify({ ...base, schemaVersion: 99 })),
     /unsupported UI preferences version/,
   );
@@ -60,6 +65,7 @@ test("UI preference serialization keeps the schema envelope explicit", () => {
     reducedMotion: false,
     highContrast: false,
     locale: "en",
+    exportDestination: "browser-download",
   });
 });
 
@@ -91,6 +97,25 @@ test("UI preferences migrate the v2 accessibility record with an English locale"
     designAzimuthDeg: 12,
     reducedMotion: true,
     highContrast: true,
+  });
+});
+
+test("UI preferences migrate the v3 locale record without enabling save dialogs", () => {
+  const restored = parseUiPreferences(JSON.stringify({
+    schemaId: UI_PREFERENCES_SCHEMA_ID,
+    schemaVersion: 3,
+    designView: "2d",
+    designAzimuthDeg: 12,
+    reducedMotion: true,
+    highContrast: true,
+    locale: "es",
+  }));
+  assert.deepEqual(restored, {
+    ...createDefaultUiPreferences(),
+    designAzimuthDeg: 12,
+    reducedMotion: true,
+    highContrast: true,
+    locale: "es",
   });
 });
 

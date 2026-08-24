@@ -66,6 +66,11 @@ test("keeps the Node 22 TypeScript test-loader contract explicit", async () => {
     "npm test must opt into Node 22's erasable TypeScript loader",
   );
   assert.match(
+    packageJson.scripts?.test ?? "",
+    /tests\/browser-artifact\.test\.mjs/,
+    "npm test must cover browser export destination behavior",
+  );
+  assert.match(
     packageJson.scripts?.typecheck ?? "",
     /tsc --noEmit --incremental false/,
     "the repository must expose a no-emit TypeScript gate",
@@ -579,6 +584,7 @@ test("ships explicit constraint-aware design optimization", async () => {
 
 test("ships an accessible interactive original 3D design viewport", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const browserArtifact = await readFile(new URL("../lib/export/browser-artifact.ts", import.meta.url), "utf8");
   const viewport = await readFile(
     new URL("../app/rocket-3d-viewport.tsx", import.meta.url),
     "utf8",
@@ -620,6 +626,9 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(page, /serializeUiPreferences/);
   assert.match(page, /getUiCopy/);
   assert.match(page, /ui-locale/);
+  assert.match(page, /id="export-destination"/);
+  assert.match(page, /save-dialog/);
+  assert.match(browserArtifact, /showSaveFilePicker/);
   assert.match(page, /accessibilityTitle/);
   assert.match(page, /interfaceLanguage/);
   assert.match(page, /reducedMotion/);
@@ -662,6 +671,7 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(stylesheet, /data-reduced-motion/);
   assert.match(stylesheet, /data-high-contrast/);
   assert.match(stylesheet, /.accessibility-language/);
+  assert.match(stylesheet, /.accessibility-export-description/);
 });
 
 test("keeps command search and experience mode reachable on narrow screens", async () => {
@@ -733,6 +743,7 @@ test("ships a provenance-qualified recovery landing footprint", async () => {
 
 test("ships an accessible multi-format engineering export center", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const browserArtifact = await readFile(new URL("../lib/export/browser-artifact.ts", import.meta.url), "utf8");
   const exportSource = await readFile(new URL("../lib/export/project-exports.ts", import.meta.url), "utf8");
   const stylesheet = await readFile(
     new URL("../app/globals.css", import.meta.url),
@@ -792,7 +803,7 @@ test("ships an accessible multi-format engineering export center", async () => {
   assert.match(page, /ENGINEERING DESIGN REVIEW/);
   assert.match(page, /Flutter-safe speed/);
   assert.match(page, /Analytical component checks only/);
-  assert.match(page, /URL\.createObjectURL/);
+  assert.match(browserArtifact, /URL\.createObjectURL/);
   assert.match(page, /Run the vertical estimate again before exporting simulation results/);
   assert.match(page, /Rerun the coupled 6DOF preview before exporting its trace/);
   assert.match(page, /reference geometry—not drawings, toleranced solids/);

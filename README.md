@@ -328,9 +328,10 @@ research, standards, and original code.
 - device-local, provenance-aware component presets for nose, airframe, fin-set,
   recovery, equipment-mass, and cylindrical-pod configurations, with strict
   bounds, portable project-file exchange, and no bundled third-party geometry;
-- device-local display and accessibility preferences with v1 migration,
-  reduced-motion behavior, high-contrast controls, and keyboard-reachable
-  settings; these never enter engineering project state;
+- device-local display and accessibility preferences with versioned migration,
+  reduced-motion behavior, high-contrast controls, keyboard-reachable settings,
+  and an opt-in save-location dialog for exports; these never enter
+  engineering project state;
 - synchronized bounded sliders plus exact-number inputs for flight, weather,
   launch-rail, recovery, reefing, and uncertainty tuning, with the same
   validation and stale-result guardrails as direct edits;

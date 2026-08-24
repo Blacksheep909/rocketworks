@@ -1,7 +1,8 @@
 # RocketWorks device-local UI preferences 0.2
 
-Status: implemented accessibility contract; the current envelope is v3 (see
-`ui-localization-0.1.md` for the locale extension)
+Status: implemented accessibility contract; the current envelope is v4 (see
+`ui-localization-0.1.md` for the locale extension and
+`ui-export-destination-0.1.md` for the save-location preference).
 
 ## Scope
 
@@ -12,10 +13,11 @@ these values enter a project configuration fingerprint, a simulation input,
 an uncertainty sample, a share link, or an exported engineering artifact.
 
 The accessibility release introduced the `rocketworks-ui-preferences-v2`
-record. The current app stores the v3 envelope under
-`rocketworks-ui-preferences-v3`; both v2 and the earlier
-`rocketworks-ui-preferences-v1` key remain readable so a browser upgrade does
-not discard the user's view selection or accessibility choices.
+record. The locale extension added v3, and the current app stores the v4
+envelope under `rocketworks-ui-preferences-v4`; v1, v2, and v3 keys remain
+readable so a browser upgrade does not discard the user's view selection or
+accessibility choices. The v4 export destination is documented separately so
+the historical accessibility schema below remains stable.
 
 ## Schema
 

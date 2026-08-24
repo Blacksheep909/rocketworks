@@ -44,6 +44,10 @@ export type UiCopyKey =
   | "interfaceLanguage"
   | "english"
   | "spanish"
+  | "exportDestinationTitle"
+  | "exportDestinationDescription"
+  | "browserDownloadDestination"
+  | "saveDialogDestination"
   | "keyboardAccess"
   | "close"
   | "accessibilityNote"
@@ -92,6 +96,10 @@ const ENGLISH_COPY: UiCopy = {
   interfaceLanguage: "Interface language",
   english: "English",
   spanish: "Español",
+  exportDestinationTitle: "Export destination",
+  exportDestinationDescription: "Choose the browser Downloads folder or ask for a save location on each export where supported. Other browsers fall back to normal downloads; this stays separate from engineering data.",
+  browserDownloadDestination: "Use browser Downloads",
+  saveDialogDestination: "Ask where to save",
   keyboardAccess: "Keyboard access",
   close: "Close",
   accessibilityNote: "Engineering outputs remain subject to their stated model limits. A presentation preference cannot make an unvalidated estimate flight-safe.",
@@ -139,6 +147,10 @@ const SPANISH_COPY: UiCopy = {
   interfaceLanguage: "Idioma de la interfaz",
   english: "English",
   spanish: "Español",
+  exportDestinationTitle: "Destino de exportación",
+  exportDestinationDescription: "Elige la carpeta Descargas del navegador o pide una ubicación en cada exportación cuando sea compatible. Otros navegadores usan las descargas normales; esto permanece separado de los datos de ingeniería.",
+  browserDownloadDestination: "Usar Descargas del navegador",
+  saveDialogDestination: "Preguntar dónde guardar",
   keyboardAccess: "Acceso por teclado",
   close: "Cerrar",
   accessibilityNote: "Los resultados de ingeniería siguen sujetos a sus límites de modelo declarados. Una preferencia visual no convierte una estimación no validada en segura para vuelo.",

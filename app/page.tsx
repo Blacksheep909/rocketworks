@@ -29,6 +29,7 @@ import {
   type RocketCadStageGeometry,
 } from "../lib/export/project-exports.ts";
 import { createFlightPathGeoJson } from "../lib/export/flight-path-geojson.ts";
+import { downloadTextArtifact } from "../lib/export/browser-artifact.ts";
 import {
   analyzeRecoveryLandingDispersion,
   createPlanarTerrainSurface,
@@ -320,6 +321,7 @@ import {
   serializeUiPreferences,
   UI_PREFERENCES_STORAGE_KEY,
   type UiDesignView,
+  type UiExportDestination,
 } from "../lib/project/ui-preferences.ts";
 import { getUiCopy, type UiCopy, type UiLocale } from "../lib/project/ui-copy.ts";
 
@@ -595,19 +597,6 @@ const defaultAerodynamicTableImportDraft: AerodynamicTableImportDraft = {
     2,
   ),
 };
-
-function downloadTextArtifact(
-  filename: string,
-  mediaType: string,
-  content: string,
-) {
-  const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
-}
 
 function nextLocalSaveTime(lastTimestamp?: string): string {
   return new Date(
@@ -4126,6 +4115,7 @@ export default function Home() {
   const [reducedMotion, setReducedMotion] = useState(() => createDefaultUiPreferences().reducedMotion);
   const [highContrast, setHighContrast] = useState(() => createDefaultUiPreferences().highContrast);
   const [locale, setLocale] = useState<UiLocale>(() => createDefaultUiPreferences().locale);
+  const [exportDestination, setExportDestination] = useState<UiExportDestination>(() => createDefaultUiPreferences().exportDestination);
   const [length, setLength] = useState(710);
   const [diameter, setDiameter] = useState(54);
   const [noseLength, setNoseLength] = useState(180);
@@ -5375,6 +5365,7 @@ export default function Home() {
       setReducedMotion(restoredUiPreferences.reducedMotion);
       setHighContrast(restoredUiPreferences.highContrast);
       setLocale(restoredUiPreferences.locale);
+      setExportDestination(restoredUiPreferences.exportDestination);
       if (restoredSnapshot?.selectedMotorId) restoredMotorSelection = restoredSnapshot.selectedMotorId;
       if (restoredSnapshot?.selectedAerodynamicTableId) restoredAerodynamicSelection = restoredSnapshot.selectedAerodynamicTableId;
       const motorSelectionAvailable = restoredMotorSelection === "synthetic" || restoredMotorRecords.some((record) => record.id === restoredMotorSelection);
@@ -5601,6 +5592,7 @@ export default function Home() {
           reducedMotion,
           highContrast,
           locale,
+          exportDestination,
         }),
       );
     } catch {
@@ -5609,7 +5601,7 @@ export default function Home() {
         notify("Display preferences are session-only");
       }
     }
-  }, [designAzimuthDeg, designView, highContrast, locale, reducedMotion, storageReady]);
+  }, [designAzimuthDeg, designView, exportDestination, highContrast, locale, reducedMotion, storageReady]);
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -11149,6 +11141,18 @@ export default function Home() {
                 <option value="es">{uiCopy.spanish}</option>
               </select>
             </div>
+            <div className="accessibility-language">
+              <label htmlFor="export-destination">{uiCopy.exportDestinationTitle}</label>
+              <select
+                id="export-destination"
+                value={exportDestination}
+                onChange={(event) => setExportDestination(event.target.value as UiExportDestination)}
+              >
+                <option value="browser-download">{uiCopy.browserDownloadDestination}</option>
+                <option value="save-dialog">{uiCopy.saveDialogDestination}</option>
+              </select>
+            </div>
+            <p className="accessibility-export-description">{uiCopy.exportDestinationDescription}</p>
             <div className="accessibility-options">
               <label className="accessibility-option">
                 <input
