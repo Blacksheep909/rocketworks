@@ -97,6 +97,18 @@ export type VehicleStagePlan = Readonly<{
   diameterM?: number;
   /** Optional nose-length override for generated preview geometry, in metres. */
   noseLengthM?: number;
+  /** Optional fin-count override for generated upper-stage or booster geometry. */
+  finCount?: number;
+  /** Optional fin root-chord override for generated preview geometry, in metres. */
+  finRootChordM?: number;
+  /** Optional fin tip-chord override for generated preview geometry, in metres. */
+  finTipChordM?: number;
+  /** Optional fin sweep override for generated preview geometry, in metres. */
+  finSweepM?: number;
+  /** Optional fin span override for generated preview geometry, in metres. */
+  finSpanM?: number;
+  /** Optional fin thickness override for generated preview geometry, in metres. */
+  finThicknessM?: number;
   enabled: boolean;
   repeatCount: number;
   repeatRadiusM: number;
@@ -316,6 +328,34 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
   if (bodyLengthM !== undefined && noseLengthM !== undefined && noseLengthM > bodyLengthM * 2) {
     throw new Error(`Stage ${id} noseLengthM cannot exceed twice bodyLengthM.`);
   }
+  const finCount = stage.finCount as number | undefined;
+  const finRootChordM = stage.finRootChordM as number | undefined;
+  const finTipChordM = stage.finTipChordM as number | undefined;
+  const finSweepM = stage.finSweepM as number | undefined;
+  const finSpanM = stage.finSpanM as number | undefined;
+  const finThicknessM = stage.finThicknessM as number | undefined;
+  const finOverrides = [finCount, finRootChordM, finTipChordM, finSweepM, finSpanM, finThicknessM];
+  if (finOverrides.some((value) => value !== undefined) && (stage.role === "core" || stage.role === "payload")) {
+    throw new Error(`Stage ${id} fin geometry overrides are only supported for upper and booster stages.`);
+  }
+  if (finCount !== undefined && (!Number.isInteger(finCount) || finCount < 2 || finCount > 12)) {
+    throw new Error(`Stage ${id} finCount must be an integer from 2 through 12.`);
+  }
+  if (finRootChordM !== undefined && (typeof finRootChordM !== "number" || !Number.isFinite(finRootChordM) || finRootChordM < 0.02 || finRootChordM > 1)) {
+    throw new Error(`Stage ${id} finRootChordM must be a finite value from 0.02 through 1 m.`);
+  }
+  if (finTipChordM !== undefined && (typeof finTipChordM !== "number" || !Number.isFinite(finTipChordM) || finTipChordM < 0.005 || finTipChordM > 0.6)) {
+    throw new Error(`Stage ${id} finTipChordM must be a finite value from 0.005 through 0.6 m.`);
+  }
+  if (finSweepM !== undefined && (typeof finSweepM !== "number" || !Number.isFinite(finSweepM) || finSweepM < 0 || finSweepM > 0.6)) {
+    throw new Error(`Stage ${id} finSweepM must be a finite value from 0 through 0.6 m.`);
+  }
+  if (finSpanM !== undefined && (typeof finSpanM !== "number" || !Number.isFinite(finSpanM) || finSpanM < 0.005 || finSpanM > 0.5)) {
+    throw new Error(`Stage ${id} finSpanM must be a finite value from 0.005 through 0.5 m.`);
+  }
+  if (finThicknessM !== undefined && (typeof finThicknessM !== "number" || !Number.isFinite(finThicknessM) || finThicknessM < 0.0005 || finThicknessM > 0.05)) {
+    throw new Error(`Stage ${id} finThicknessM must be a finite value from 0.0005 through 0.05 m.`);
+  }
   const ignitionDelayS = stage.ignitionDelayS ?? 0;
   if (typeof ignitionDelayS !== "number" || !Number.isFinite(ignitionDelayS) || ignitionDelayS < 0 || ignitionDelayS > 120) {
     throw new Error(`Stage ${id} ignitionDelayS must be a finite value from 0 through 120 s.`);
@@ -446,6 +486,12 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     ...(bodyLengthM === undefined ? {} : { bodyLengthM }),
     ...(diameterM === undefined ? {} : { diameterM }),
     ...(noseLengthM === undefined ? {} : { noseLengthM }),
+    ...(finCount === undefined ? {} : { finCount }),
+    ...(finRootChordM === undefined ? {} : { finRootChordM }),
+    ...(finTipChordM === undefined ? {} : { finTipChordM }),
+    ...(finSweepM === undefined ? {} : { finSweepM }),
+    ...(finSpanM === undefined ? {} : { finSpanM }),
+    ...(finThicknessM === undefined ? {} : { finThicknessM }),
     enabled: stage.enabled,
     repeatCount: stage.repeatCount as number,
     repeatRadiusM: stage.repeatRadiusM,
@@ -623,6 +669,12 @@ export function createStagePlan(input: Readonly<{
   bodyLengthM?: number;
   diameterM?: number;
   noseLengthM?: number;
+  finCount?: number;
+  finRootChordM?: number;
+  finTipChordM?: number;
+  finSweepM?: number;
+  finSpanM?: number;
+  finThicknessM?: number;
   repeatCount?: number;
   repeatRadiusM?: number;
   thrustCantAngleDeg?: number;
@@ -649,6 +701,12 @@ export function createStagePlan(input: Readonly<{
     separationDelayS: input.separationDelayS ?? 0.1,
     separationDeltaVBodyMps: input.separationDeltaVBodyMps ?? 0,
     ...(input.separationImpulseBodyNs ? { separationImpulseBodyNs: input.separationImpulseBodyNs } : {}),
+    ...(input.finCount === undefined ? {} : { finCount: input.finCount }),
+    ...(input.finRootChordM === undefined ? {} : { finRootChordM: input.finRootChordM }),
+    ...(input.finTipChordM === undefined ? {} : { finTipChordM: input.finTipChordM }),
+    ...(input.finSweepM === undefined ? {} : { finSweepM: input.finSweepM }),
+    ...(input.finSpanM === undefined ? {} : { finSpanM: input.finSpanM }),
+    ...(input.finThicknessM === undefined ? {} : { finThicknessM: input.finThicknessM }),
     ignitionFailure: input.ignitionFailure ?? false,
     failedMotorInstanceIndices: input.failedMotorInstanceIndices ?? [],
   }, 0);

@@ -1219,6 +1219,12 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Diameter \(m\)/);
   assert.match(page, /Nose length \(m\)/);
   assert.match(page, /stagePreviewGeometry/);
+  assert.match(page, /stageFinGeometry/);
+  assert.match(page, /topologyStageFinGeometry/);
+  assert.match(page, /Fin geometry/);
+  assert.match(page, /topology-fin-editor/);
+  assert.match(page, /Use role-default fin geometry/);
+  assert.match(page, /finRootChordM/);
   assert.match(page, /Separation dV \(\+X, m\/s\)/);
   assert.match(page, /Detached recovery/);
   assert.match(page, /Canopy diameter \(m\)/);
@@ -1274,6 +1280,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(topology, /aerodynamicTableId/);
   assert.match(topology, /bodyLengthM/);
   assert.match(topology, /noseLengthM/);
+  assert.match(topology, /finRootChordM/);
+  assert.match(topology, /finThicknessM/);
   assert.match(topology, /failedMotorInstanceIndices/);
   assert.match(topology, /separationDeltaVBodyMps/);
   assert.match(topology, /separationImpulseBodyNs/);
@@ -1325,6 +1333,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stylesheet, /\.topology-stage-actions/);
   assert.match(stylesheet, /\.topology-stage-profile/);
   assert.match(stylesheet, /\.topology-component-marker/);
+  assert.match(stylesheet, /\.topology-fin-editor/);
   assert.match(stylesheet, /\.stage-flight-profile/);
   assert.match(stylesheet, /\.stage-flight-chart/);
   assert.match(stylesheet, /\.stage-flight-profile-scrubber/);

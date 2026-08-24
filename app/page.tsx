@@ -977,6 +977,27 @@ type StagePreviewGeometry = Readonly<{
   defaultNoseLengthM: number;
 }>;
 
+type StageFinGeometryContext = Readonly<{
+  lengthM: number;
+  diameterM: number;
+  noseLengthM: number;
+  finCount: number;
+  finRootChordM: number;
+  finTipChordM: number;
+  finSweepM: number;
+  finSpanM: number;
+  finThicknessM: number;
+}>;
+
+type ResolvedStageFinGeometry = Readonly<{
+  finCount: number;
+  finRootChordM: number;
+  finTipChordM: number;
+  finSweepM: number;
+  finSpanM: number;
+  finThicknessM: number;
+}>;
+
 function stagePreviewGeometry(stage: VehicleStagePlan, inputs: StageGeometryContext): StagePreviewGeometry {
   const roleScale = stageScaleForRole(stage.role);
   const defaultBodyLengthM = inputs.lengthM * roleScale;
@@ -990,6 +1011,28 @@ function stagePreviewGeometry(stage: VehicleStagePlan, inputs: StageGeometryCont
     defaultBodyLengthM,
     defaultDiameterM,
     defaultNoseLengthM,
+  };
+}
+
+function stageFinGeometry(
+  stage: VehicleStagePlan,
+  inputs: StageFinGeometryContext,
+  stageGeometry: StagePreviewGeometry,
+): ResolvedStageFinGeometry {
+  const lengthOverrideScale = stageGeometry.bodyLengthM / Math.max(stageGeometry.defaultBodyLengthM, 1e-9);
+  const diameterOverrideScale = stageGeometry.diameterM / Math.max(stageGeometry.defaultDiameterM, 1e-9);
+  const stageScale = stageScaleForRole(stage.role);
+  const finScale = stage.role === "core" ? 1 : stageScale * lengthOverrideScale;
+  const spanScale = stage.role === "core"
+    ? 1
+    : stageScale * Math.min(lengthOverrideScale, diameterOverrideScale);
+  return {
+    finCount: stage.finCount ?? inputs.finCount,
+    finRootChordM: stage.finRootChordM ?? inputs.finRootChordM * finScale,
+    finTipChordM: stage.finTipChordM ?? inputs.finTipChordM * finScale,
+    finSweepM: stage.finSweepM ?? inputs.finSweepM * finScale,
+    finSpanM: stage.finSpanM ?? inputs.finSpanM * spanScale,
+    finThicknessM: stage.finThicknessM ?? inputs.finThicknessM,
   };
 }
 
@@ -1072,13 +1115,7 @@ function createCadStageParts(
 ): readonly RocketCadStageGeometry[] {
   return createStagePlacements(stages, inputs).flatMap((placement) => {
     const stageGeometry = stagePreviewGeometry(placement.stage, inputs);
-    const lengthOverrideScale = stageGeometry.bodyLengthM / Math.max(stageGeometry.defaultBodyLengthM, 1e-9);
-    const diameterOverrideScale = stageGeometry.diameterM / Math.max(stageGeometry.defaultDiameterM, 1e-9);
-    const stageScale = stageScaleForRole(placement.stage.role);
-    const finScale = placement.stage.role === "core" ? 1 : stageScale * lengthOverrideScale;
-    const spanScale = placement.stage.role === "core"
-      ? 1
-      : stageScale * Math.min(lengthOverrideScale, diameterOverrideScale);
+    const finGeometry = stageFinGeometry(placement.stage, inputs, stageGeometry);
     return Array.from({ length: placement.instanceCount }, (_, instanceIndex) => {
       const angle = placement.stage.attachment === "parallel"
         ? (instanceIndex * 2 * Math.PI) / Math.max(placement.instanceCount, 1)
@@ -1101,12 +1138,12 @@ function createCadStageParts(
         noseProfile: inputs.noseProfile,
         bodyLengthM: stageGeometry.bodyLengthM,
         diameterM: stageGeometry.diameterM,
-        finCount: inputs.finCount,
-        finRootChordM: inputs.finRootChordM * finScale,
-        finTipChordM: inputs.finTipChordM * finScale,
-        finSweepM: inputs.finSweepM * finScale,
-        finSpanM: inputs.finSpanM * spanScale,
-        finThicknessM: inputs.finThicknessM,
+        finCount: finGeometry.finCount,
+        finRootChordM: finGeometry.finRootChordM,
+        finTipChordM: finGeometry.finTipChordM,
+        finSweepM: finGeometry.finSweepM,
+        finSpanM: finGeometry.finSpanM,
+        finThicknessM: finGeometry.finThicknessM,
       } satisfies RocketCadStageGeometry;
     });
   });
@@ -1490,20 +1527,19 @@ function makeAssemblyStageComponents(
 ): VehicleComponent[] {
   if (stage.role === "core") return baseComponents.map((component) => ({ ...component, stageId: stage.id }));
   const stageGeometry = stagePreviewGeometry(stage, inputs);
-  const lengthOverrideScale = stageGeometry.bodyLengthM / Math.max(stageGeometry.defaultBodyLengthM, 1e-9);
-  const diameterOverrideScale = stageGeometry.diameterM / Math.max(stageGeometry.defaultDiameterM, 1e-9);
+  const finGeometry = stageFinGeometry(stage, inputs, stageGeometry);
   const stageScale = stageScaleForRole(stage.role);
   const generated = makeDesignComponents({
     lengthM: stageGeometry.bodyLengthM,
     diameterM: stageGeometry.diameterM,
     noseLengthM: stageGeometry.noseLengthM,
     noseProfile: inputs.noseProfile,
-    finCount: inputs.finCount,
-    finRootChordM: inputs.finRootChordM * stageScale * lengthOverrideScale,
-    finTipChordM: inputs.finTipChordM * stageScale * lengthOverrideScale,
-    finSweepM: inputs.finSweepM * stageScale * lengthOverrideScale,
-    finSpanM: inputs.finSpanM * stageScale * Math.min(lengthOverrideScale, diameterOverrideScale),
-    finThicknessM: inputs.finThicknessM,
+    finCount: finGeometry.finCount,
+    finRootChordM: finGeometry.finRootChordM,
+    finTipChordM: finGeometry.finTipChordM,
+    finSweepM: finGeometry.finSweepM,
+    finSpanM: finGeometry.finSpanM,
+    finThicknessM: finGeometry.finThicknessM,
     material: inputs.material,
     customMaterial: inputs.customMaterial,
     payloadMassKg: stage.role === "payload" ? inputs.payloadMassKg * 0.7 : inputs.payloadMassKg * 0.18,
@@ -5161,6 +5197,23 @@ export default function Home() {
     }),
     [diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, noseLength, noseProfile, vehicleTopology.stages],
   );
+  const topologyStageFinGeometry = useMemo(() => {
+    const context = {
+      lengthM: length / 1000,
+      diameterM: diameter / 1000,
+      noseLengthM: noseLength / 1000,
+      finCount,
+      finRootChordM: finRootChord / 1000,
+      finTipChordM: finTipChord / 1000,
+      finSweepM: finSweep / 1000,
+      finSpanM: finSpan / 1000,
+      finThicknessM: finThickness / 1000,
+    } satisfies StageFinGeometryContext;
+    return new Map(vehicleTopology.stages.map((stage) => [
+      stage.id,
+      stageFinGeometry(stage, context, stagePreviewGeometry(stage, context)),
+    ]));
+  }, [diameter, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, length, noseLength, vehicleTopology.stages]);
   const topologyComponentMarkers = useMemo(() => {
     const placements = createStagePlacements(vehicleTopology.stages, {
       lengthM: length / 1000,
@@ -7375,7 +7428,7 @@ export default function Home() {
   };
   const updateTopologyDimension = (
     id: string,
-    key: "bodyLengthM" | "diameterM" | "noseLengthM",
+    key: "bodyLengthM" | "diameterM" | "noseLengthM" | "finCount" | "finRootChordM" | "finTipChordM" | "finSweepM" | "finSpanM" | "finThicknessM",
     value: number | string,
   ): boolean => {
     const normalized = typeof value === "string" ? value.trim() : value;
@@ -11612,13 +11665,24 @@ export default function Home() {
                     <div className="topology-stage-heading"><div><strong>{stage.name}</strong><small>{stage.role} · {stage.repeatCount > 1 ? `${stage.repeatCount} radial instances` : "single instance"}</small></div><label className="topology-enabled"><input type="checkbox" checked={stage.enabled} onChange={(event) => updateTopologyStage(stage.id, { enabled: event.target.checked })} /> Enabled</label></div>
                     <div className="topology-stage-fields">
                       <label>Stage name<input value={stage.name} onChange={(event) => updateTopologyStage(stage.id, { name: event.target.value })} /></label>
-                      <TopologyNumberField id={`${stage.id}-body-length`} label="Body length (m)" value={stage.bodyLengthM ?? ""} placeholder={stage.role === "core" ? "core input" : "role default"} min={0.05} max={10} step={0.01} disabled={stage.role === "core"} onChange={(value) => updateTopologyDimension(stage.id, "bodyLengthM", value)} />
-                      <TopologyNumberField id={`${stage.id}-diameter`} label="Diameter (m)" value={stage.diameterM ?? ""} placeholder={stage.role === "core" ? "core input" : "role default"} min={0.02} max={2} step={0.001} disabled={stage.role === "core"} onChange={(value) => updateTopologyDimension(stage.id, "diameterM", value)} />
-                      <TopologyNumberField id={`${stage.id}-nose-length`} label="Nose length (m)" value={stage.noseLengthM ?? ""} placeholder={stage.role === "core" ? "core input" : "role default"} min={0.01} max={3} step={0.01} disabled={stage.role === "core"} onChange={(value) => updateTopologyDimension(stage.id, "noseLengthM", value)} />
-                      <label>Role<select value={stage.role} disabled={stage.role === "core"} onChange={(event) => {
-                        const role = event.target.value as VehicleStageRole;
-                        updateTopologyStage(stage.id, { role, attachment: role === "booster" ? "parallel" : "serial", repeatCount: role === "booster" ? Math.max(2, stage.repeatCount) : 1, repeatRadiusM: role === "booster" ? Math.max(0.09, stage.repeatRadiusM) : 0 });
-                      }}><option value="core">Core</option><option value="upper">Upper</option><option value="booster">Booster</option><option value="payload">Payload</option></select></label>
+                       <TopologyNumberField id={`${stage.id}-body-length`} label="Body length (m)" value={stage.bodyLengthM ?? ""} placeholder={stage.role === "core" ? "core input" : "role default"} min={0.05} max={10} step={0.01} disabled={stage.role === "core"} onChange={(value) => updateTopologyDimension(stage.id, "bodyLengthM", value)} />
+                       <TopologyNumberField id={`${stage.id}-diameter`} label="Diameter (m)" value={stage.diameterM ?? ""} placeholder={stage.role === "core" ? "core input" : "role default"} min={0.02} max={2} step={0.001} disabled={stage.role === "core"} onChange={(value) => updateTopologyDimension(stage.id, "diameterM", value)} />
+                       <TopologyNumberField id={`${stage.id}-nose-length`} label="Nose length (m)" value={stage.noseLengthM ?? ""} placeholder={stage.role === "core" ? "core input" : "role default"} min={0.01} max={3} step={0.01} disabled={stage.role === "core"} onChange={(value) => updateTopologyDimension(stage.id, "noseLengthM", value)} />
+                       {stage.role !== "core" && stage.role !== "payload" && <details className="topology-fin-editor">
+                         <summary>Fin geometry {stage.finCount !== undefined || stage.finRootChordM !== undefined || stage.finTipChordM !== undefined || stage.finSweepM !== undefined || stage.finSpanM !== undefined || stage.finThicknessM !== undefined ? "· custom" : "· role default"}</summary>
+                         <p>Optional stage-local fin dimensions replace the role-scaled global fins in mass properties, 2D/3D geometry, aerodynamic reference geometry, and CAD previews. Clear the fields to return to the role default.</p>
+                         <TopologyNumberField id={`${stage.id}-fin-count`} label="Fin count" value={stage.finCount ?? topologyStageFinGeometry.get(stage.id)?.finCount ?? finCount} min={2} max={12} step={1} onChange={(value) => updateTopologyDimension(stage.id, "finCount", value)} />
+                         <TopologyNumberField id={`${stage.id}-fin-root`} label="Root chord (m)" value={stage.finRootChordM ?? topologyStageFinGeometry.get(stage.id)?.finRootChordM ?? finRootChord / 1000} min={0.02} max={1} step={0.005} onChange={(value) => updateTopologyDimension(stage.id, "finRootChordM", value)} />
+                         <TopologyNumberField id={`${stage.id}-fin-tip`} label="Tip chord (m)" value={stage.finTipChordM ?? topologyStageFinGeometry.get(stage.id)?.finTipChordM ?? finTipChord / 1000} min={0.005} max={0.6} step={0.005} onChange={(value) => updateTopologyDimension(stage.id, "finTipChordM", value)} />
+                         <TopologyNumberField id={`${stage.id}-fin-sweep`} label="Sweep (m)" value={stage.finSweepM ?? topologyStageFinGeometry.get(stage.id)?.finSweepM ?? finSweep / 1000} min={0} max={0.6} step={0.005} onChange={(value) => updateTopologyDimension(stage.id, "finSweepM", value)} />
+                         <TopologyNumberField id={`${stage.id}-fin-span`} label="Span (m)" value={stage.finSpanM ?? topologyStageFinGeometry.get(stage.id)?.finSpanM ?? finSpan / 1000} min={0.005} max={0.5} step={0.005} onChange={(value) => updateTopologyDimension(stage.id, "finSpanM", value)} />
+                         <TopologyNumberField id={`${stage.id}-fin-thickness`} label="Thickness (m)" value={stage.finThicknessM ?? topologyStageFinGeometry.get(stage.id)?.finThicknessM ?? finThickness / 1000} min={0.0005} max={0.05} step={0.0005} onChange={(value) => updateTopologyDimension(stage.id, "finThicknessM", value)} />
+                         {(stage.finCount !== undefined || stage.finRootChordM !== undefined || stage.finTipChordM !== undefined || stage.finSweepM !== undefined || stage.finSpanM !== undefined || stage.finThicknessM !== undefined) && <button className="secondary-button" type="button" onClick={() => updateTopologyStage(stage.id, { finCount: undefined, finRootChordM: undefined, finTipChordM: undefined, finSweepM: undefined, finSpanM: undefined, finThicknessM: undefined })}>Use role-default fin geometry</button>}
+                       </details>}
+                       <label>Role<select value={stage.role} disabled={stage.role === "core"} onChange={(event) => {
+                         const role = event.target.value as VehicleStageRole;
+                         updateTopologyStage(stage.id, { role, attachment: role === "booster" ? "parallel" : "serial", repeatCount: role === "booster" ? Math.max(2, stage.repeatCount) : 1, repeatRadiusM: role === "booster" ? Math.max(0.09, stage.repeatRadiusM) : 0, ...(role === "upper" || role === "booster" ? {} : { finCount: undefined, finRootChordM: undefined, finTipChordM: undefined, finSweepM: undefined, finSpanM: undefined, finThicknessM: undefined }) });
+                       }}><option value="core">Core</option><option value="upper">Upper</option><option value="booster">Booster</option><option value="payload">Payload</option></select></label>
                       <label>Motor assignment<select value={stage.motorId ?? "__global__"} onChange={(event) => updateTopologyStage(stage.id, { motorId: event.target.value === "__global__" ? undefined : event.target.value })}>
                         <option value="__global__">Global · {previewMotor.designation}</option>
                         {userMotorRecords.map((record) => <option value={record.id} key={record.id}>{record.manufacturer} · {record.designation}</option>)}
@@ -11691,14 +11755,14 @@ export default function Home() {
                       <label>Failed motors (1-based)<input type="text" inputMode="text" placeholder={stageMotorInstanceCount(stage) > 1 ? "e.g. 1, 3" : "none"} value={topologyFailureDrafts[stage.id] ?? stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")} disabled={stage.role === "payload"} onChange={(event) => { setTopologyFailureDrafts((current) => ({ ...current, [stage.id]: event.target.value })); setTopologyError(""); }} onBlur={() => { const value = topologyFailureDrafts[stage.id]; if (value === undefined) return; if (updateTopologyMotorFailures(stage, value)) { setTopologyFailureDrafts((current) => { const next = { ...current }; delete next[stage.id]; return next; }); } }} /></label>
                       <label className="topology-failure-toggle"><input type="checkbox" checked={stage.ignitionFailure} onChange={(event) => updateTopologyStage(stage.id, { ignitionFailure: event.target.checked })} /> Force ignition failure in preview</label>
                     </div>
-                    <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{(stage.separationDeltaVBodyMps ?? 0) > 0 ? ` · separation +${(stage.separationDeltaVBodyMps ?? 0).toFixed(2)} m/s` : ""}{stage.separationImpulseBodyNs ? ` · measured impulse ${Math.hypot(stage.separationImpulseBodyNs.x, stage.separationImpulseBodyNs.y, stage.separationImpulseBodyNs.z).toFixed(1)} N·s` : ""}{stage.recovery?.enabled ? ` · detached recovery Ø${stage.recovery.diameterM.toFixed(2)} m · ${stage.recovery.deploymentTrigger === "altitude" ? `descent ${stage.recovery.deploymentAltitudeAglM ?? 150} m` : stage.recovery.deploymentTrigger === "time" ? `time ${stage.recovery.deploymentTimeS ?? 8} s` : "branch apogee"}` : ""}{stage.failedMotorInstanceIndices.length > 0 ? ` · failed motor${stage.failedMotorInstanceIndices.length > 1 ? "s" : ""} ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}` : ""}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}{stage.gimbalSchedule && stage.gimbalSchedule.length > 0 ? ` · gimbal ${stage.gimbalSchedule.length} points` : ""}{stage.gimbalResponseTimeS !== undefined ? ` · response ${stage.gimbalResponseTimeS.toFixed(2)} s` : ""}{stage.throttleSchedule && stage.throttleSchedule.length > 0 ? ` · throttle ${stage.throttleSchedule.length} points` : ""}</span><div className="topology-stage-actions"><button className="secondary-button" onClick={() => duplicateTopologyStage(stage.id)}>Duplicate</button>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div></div>
+                     <div className="topology-stage-footer"><span>{stage.motorId ? `Motor · ${userMotorRecords.find((record) => record.id === stage.motorId)?.designation ?? "unavailable (global fallback)"}` : `Motor · global ${previewMotor.designation}`} · {stage.ignitionFailure ? "Preview ignition failure armed" : `${stage.repeatCount > 1 ? `Equal radial placement · ${stage.repeatRadiusM.toFixed(2)} m radius` : "No radial repetition"} · ignition +${stage.ignitionDelayS.toFixed(2)} s`}{(stage.separationDeltaVBodyMps ?? 0) > 0 ? ` · separation +${(stage.separationDeltaVBodyMps ?? 0).toFixed(2)} m/s` : ""}{stage.separationImpulseBodyNs ? ` · measured impulse ${Math.hypot(stage.separationImpulseBodyNs.x, stage.separationImpulseBodyNs.y, stage.separationImpulseBodyNs.z).toFixed(1)} N·s` : ""}{stage.recovery?.enabled ? ` · detached recovery Ø${stage.recovery.diameterM.toFixed(2)} m · ${stage.recovery.deploymentTrigger === "altitude" ? `descent ${stage.recovery.deploymentAltitudeAglM ?? 150} m` : stage.recovery.deploymentTrigger === "time" ? `time ${stage.recovery.deploymentTimeS ?? 8} s` : "branch apogee"}` : ""}{stage.failedMotorInstanceIndices.length > 0 ? ` · failed motor${stage.failedMotorInstanceIndices.length > 1 ? "s" : ""} ${stage.failedMotorInstanceIndices.map((index) => index + 1).join(", ")}` : ""}{stage.thrustCantAngleDeg > 0 ? ` · cant ${stage.thrustCantAngleDeg.toFixed(1)}° @ ${stage.thrustCantAzimuthDeg.toFixed(0)}°` : ""}{stage.gimbalSchedule && stage.gimbalSchedule.length > 0 ? ` · gimbal ${stage.gimbalSchedule.length} points` : ""}{stage.gimbalResponseTimeS !== undefined ? ` · response ${stage.gimbalResponseTimeS.toFixed(2)} s` : ""}{stage.throttleSchedule && stage.throttleSchedule.length > 0 ? ` · throttle ${stage.throttleSchedule.length} points` : ""}{stage.finCount !== undefined || stage.finRootChordM !== undefined || stage.finTipChordM !== undefined || stage.finSweepM !== undefined || stage.finSpanM !== undefined || stage.finThicknessM !== undefined ? ` · custom fins ${stage.finCount ?? topologyStageFinGeometry.get(stage.id)?.finCount ?? finCount}` : ""}</span><div className="topology-stage-actions"><button className="secondary-button" onClick={() => duplicateTopologyStage(stage.id)}>Duplicate</button>{stage.role !== "core" && <button className="danger-button" onClick={() => removeTopologyStage(stage.id)}>Remove stage</button>}</div></div>
                   </div>
                 </article>
               ))}
             </div>
             <div className="history-notice">
               <span>MODEL BOUNDARY</span>
-              <p>Topology changes update analytical assembly mass, centre of gravity, inertia, instance counts, and stage-level aerodynamic source assignments. Repeated physical copies can separate independently in the retained-body event model. A regime with one available table uses it; combined stages with conflicting or unavailable tables fall back to the global source with an explicit warning. Coupled separation clearance, aerodynamic interference, and flight-safety validation remain outside this retained-body model; the staged preview exposes an independent trajectory for detached bodies, carries stage recovery with an apogee, descending-altitude, or mission-time command when configured, and otherwise uses bounded isotropic point drag or the gravity-only fallback.</p>
+               <p>Topology changes update analytical assembly mass, centre of gravity, inertia, instance counts, stage-local fin geometry, and stage-level aerodynamic source assignments. Repeated physical copies can separate independently in the retained-body event model. A regime with one available table uses it; combined stages with conflicting or unavailable tables fall back to the global source with an explicit warning. Coupled separation clearance, aerodynamic interference, and flight-safety validation remain outside this retained-body model; the staged preview exposes an independent trajectory for detached bodies, carries stage recovery with an apogee, descending-altitude, or mission-time command when configured, and otherwise uses bounded isotropic point drag or the gravity-only fallback.</p>
             </div>
           </section>
         </div>

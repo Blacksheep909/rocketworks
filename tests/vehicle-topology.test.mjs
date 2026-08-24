@@ -159,12 +159,53 @@ test("serial upper stages and repeated parallel boosters validate in order", () 
   const geometryTopology = validateVehicleTopology({
     ...topology,
     stages: topology.stages.map((stage) => stage.id === "upper-01"
-      ? { ...stage, bodyLengthM: 0.9, diameterM: 0.11, noseLengthM: 0.2 }
+      ? {
+        ...stage,
+        bodyLengthM: 0.9,
+        diameterM: 0.11,
+        noseLengthM: 0.2,
+        finCount: 5,
+        finRootChordM: 0.24,
+        finTipChordM: 0.08,
+        finSweepM: 0.06,
+        finSpanM: 0.11,
+        finThicknessM: 0.004,
+      }
       : stage),
   });
   assert.equal(geometryTopology.stages[1].bodyLengthM, 0.9);
   assert.equal(geometryTopology.stages[1].diameterM, 0.11);
   assert.equal(geometryTopology.stages[1].noseLengthM, 0.2);
+  assert.equal(geometryTopology.stages[1].finCount, 5);
+  assert.equal(geometryTopology.stages[1].finRootChordM, 0.24);
+  assert.equal(geometryTopology.stages[1].finTipChordM, 0.08);
+  assert.equal(geometryTopology.stages[1].finSweepM, 0.06);
+  assert.equal(geometryTopology.stages[1].finSpanM, 0.11);
+  assert.equal(geometryTopology.stages[1].finThicknessM, 0.004);
+  assert.deepEqual(parseVehicleTopology(serializeVehicleTopology(geometryTopology)), geometryTopology);
+  assert.throws(() => validateVehicleTopology({
+    ...topology,
+    stages: topology.stages.map((stage) => stage.id === "upper-01" ? { ...stage, finCount: 1 } : stage),
+  }), /finCount/);
+  assert.throws(() => validateVehicleTopology({
+    ...topology,
+    stages: topology.stages.map((stage) => stage.id === "upper-01" ? { ...stage, finRootChordM: 0.01 } : stage),
+  }), /finRootChordM/);
+  assert.throws(() => validateVehicleTopology({
+    ...topology,
+    stages: topology.stages.map((stage) => stage.id === "sustainer" ? { ...stage, finCount: 4 } : stage),
+  }), /only supported for upper and booster/);
+  const payloadTopology = {
+    ...topology,
+    stages: [
+      ...topology.stages,
+      createStagePlan({ id: "payload-01", name: "Payload", role: "payload", attachment: "serial", parentStageId: "upper-01" }),
+    ],
+  };
+  assert.throws(() => validateVehicleTopology({
+    ...payloadTopology,
+    stages: payloadTopology.stages.map((stage) => stage.id === "payload-01" ? { ...stage, finSpanM: 0.08 } : stage),
+  }), /only supported for upper and booster/);
   assert.equal(validated.stages[2].thrustCantAngleDeg, 4.5);
   assert.equal(validated.stages[2].thrustCantAzimuthDeg, 90);
   const deltaVTopology = validateVehicleTopology({

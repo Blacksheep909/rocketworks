@@ -54,6 +54,9 @@ research, standards, and original code.
   safe component rehoming when a non-core stage is removed;
 - per-stage body-length, diameter, and nose-length overrides for generated
   upper-stage, booster, and payload preview geometry, with role-based defaults;
+- stage-local fin count, chord, sweep, span, and thickness overrides for upper
+  stages and boosters, propagated through mass properties, 2D/3D previews,
+  aerodynamic reference geometry, and CAD previews, with role-scaled defaults;
 - independent repeated-stage instance ignition, burnout, separation, and live
   mass-property diagnostics with logical-stage topology preserved for aero
   regimes;
