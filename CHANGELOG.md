@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an accessible recovery phase timeline to the vertical Flight inspector.
+  The display-only chart groups recorded ballistic, deployment-delay,
+  inflation, reefing, and inflated samples, marks the first command, and plots
+  the existing effective-area fraction without adding canopy, line, or
+  opening-shock dynamics.
+
 - Add an accessible altitude-dependent wind-profile plot to the Flight
   inspector. The chart uses the exact synthetic or user-authored ENU layers
   consumed by the environment provider, shows horizontal speed against AGL

@@ -43,6 +43,15 @@ sample. Detached-stage recovery plans carry their own interval so stage-local
 uncertainty variants can scale it without mutating the saved topology. A zero
 interval is an explicit instantaneous-area assumption.
 
+The Flight inspector includes a display-only recovery phase timeline for the
+vertical trace. It classifies each recorded sample as ballistic, deployment
+delay, inflating, reefing, or inflated from the deployment flag and the two
+recorded effective-area fractions. Adjacent samples are grouped into colored
+time spans, while the lower curve shows the recorded product
+`recoveryInflationFraction × recoveryReefingFraction`. The chart does not
+interpolate a new physical state, infer line or canopy mechanics, or change
+the solver result; it is an inspection aid for the existing telemetry.
+
 ## Discrete state
 
 For device identifier `id`, the recovery model uses two namespaced values:
@@ -161,6 +170,8 @@ The regression suite verifies:
 - deterministic scheduled, altitude, and failure helpers
 - duplicate/invalid device rejection and Mach-limit diagnostics
 - discrete-state persistence and invalid-value rejection in the 6-DOF kernel
+- recovery phase classification and deterministic timeline-span grouping for
+  the vertical trace visualization
 
 These are equation and integration checks, not canopy qualification.
 
@@ -210,5 +221,6 @@ reliability, and uncertainty propagation through physical partial-inflation
 states. The current uncertainty adapters already expose a bounded inflation-
 time scale for the smooth effective-area approximation; that factor is a
 scenario assumption, not evidence of fabric or hardware variability. The
-browser UI should continue to expose deployment phases, applicability warnings,
+browser timeline now exposes the configured deployment phases and effective-area
+telemetry; it should continue to pair those views with applicability warnings,
 impact-speed ranges, and failure scenarios rather than one nominal answer.

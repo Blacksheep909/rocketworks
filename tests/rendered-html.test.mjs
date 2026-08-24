@@ -532,6 +532,10 @@ test("shows a deterministic provenance-qualified launch environment", async () =
     new URL("../app/wind-profile-chart.tsx", import.meta.url),
     "utf8",
   );
+  const recoveryPhaseChart = await readFile(
+    new URL("../app/recovery-phase-chart.tsx", import.meta.url),
+    "utf8",
+  );
   const stylesheet = await readFile(
     new URL("../app/globals.css", import.meta.url),
     "utf8",
@@ -568,6 +572,14 @@ test("shows a deterministic provenance-qualified launch environment", async () =
   assert.match(windChart, /same mean ENU layers consumed/);
   assert.match(stylesheet, /\.wind-profile-chart/);
   assert.match(stylesheet, /\.wind-profile-chart-legend/);
+  assert.match(source, /RecoveryPhaseChart/);
+  assert.match(source, /recovery-phase-card/);
+  assert.match(recoveryPhaseChart, /Display-only timeline/);
+  assert.match(recoveryPhaseChart, /RECOVERY PHASE/);
+  assert.match(recoveryPhaseChart, /role="img"/);
+  assert.match(recoveryPhaseChart, /effective canopy area fraction/);
+  assert.match(stylesheet, /\.recovery-phase-chart/);
+  assert.match(stylesheet, /\.recovery-phase-note/);
   assert.match(source, /Pad pressure/);
   assert.match(source, /Pad temperature/);
   assert.match(source, /Air density @ 500 m/);

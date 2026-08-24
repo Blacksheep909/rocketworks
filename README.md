@@ -125,6 +125,10 @@ research, standards, and original code.
 - user-configurable recovery triggers (apogee, descending AGL altitude, or
   mission time) and reefing schedules shared by the vertical preview, landing
   descent, 6DOF recovery loads, trace telemetry, and portable inputs;
+- an accessible display-only recovery phase timeline in the vertical Flight
+  inspector, classifying recorded ballistic, delay, inflation, reefing, and
+  inflated samples while plotting the existing effective-area fraction without
+  inventing canopy or line dynamics;
 - optional relative-humidity coupling with explicit water-vapor, virtual-
   temperature, density, sound-speed, and Reynolds-number diagnostics;
 - configurable local-ENU wind azimuth (0° east, +90° north) shared by the

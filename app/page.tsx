@@ -7,6 +7,7 @@ import { LandingFootprintChart } from "./landing-footprint-chart.tsx";
 import { Rocket3DViewport } from "./rocket-3d-viewport.tsx";
 import { FlightTrajectoryViewport } from "./flight-trajectory-viewport.tsx";
 import { WindProfileChart } from "./wind-profile-chart.tsx";
+import { RecoveryPhaseChart } from "./recovery-phase-chart.tsx";
 import type { RocketPreviewComponentInstance } from "../lib/visualization/rocket-preview-3d.ts";
 import {
   createEngineeringReportMarkdown,
@@ -10080,6 +10081,22 @@ export default function Home() {
                   </ul>
                 )}
                 <small className="vertical-flight-convergence-model">{publicModelVersion(verticalConvergence.modelVersion)} · {verticalConvergence.validationStatus}</small>
+              </section>
+            )}
+            {result && resultIsCurrent && recoveryEnabled && (
+              <section className="recovery-phase-card" aria-labelledby="recovery-phase-title">
+                <div className="event-card-heading">
+                  <div>
+                    <strong id="recovery-phase-title">Recovery phase timeline</strong>
+                    <span>Recorded effective-area state from the vertical preview</span>
+                  </div>
+                  <span>{result.trace.length} trace samples</span>
+                </div>
+                <RecoveryPhaseChart trace={result.trace} recoveryEnabled={recoveryEnabled} />
+                <div className="recovery-phase-note">
+                  <span>DISPLAY-ONLY TELEMETRY</span>
+                  <p>Phases are classified from the recorded deployment flag, smoothstep inflation fraction, and optional reefing fraction. The curve does not add canopy, line, fabric, or opening-shock dynamics; use the model version and warnings above when interpreting this engineering preview.</p>
+                </div>
               </section>
             )}
             {activeStageCount > 0 && (
