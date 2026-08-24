@@ -124,6 +124,14 @@ export type VehicleStagePlan = Readonly<{
   repeatRadiusM: number;
   thrustCantAngleDeg: number;
   thrustCantAzimuthDeg: number;
+  /** Fixed nozzles per physical motor; omitted means one legacy nozzle. */
+  nozzleCount?: number;
+  /** Radial nozzle offset from the motor application point, metres. */
+  nozzleRadiusM?: number;
+  /** Outward nozzle cant relative to the stage thrust axis, degrees. */
+  nozzleCantAngleDeg?: number;
+  /** First nozzle azimuth in the body Y/Z plane, degrees. */
+  nozzleCantAzimuthDeg?: number;
   /** Optional strictly time-ordered commanded gimbal offsets shared by stage instances. */
   gimbalSchedule?: readonly VehicleStageGimbalPoint[];
   /** Optional first-order motor gimbal response time, in seconds. */
@@ -149,6 +157,13 @@ export type VehicleThrustAxis = Readonly<{
   x: number;
   y: number;
   z: number;
+}>;
+
+export type VehicleStageNozzleGeometry = Readonly<{
+  id: string;
+  thrustFraction: number;
+  thrustApplicationPointBodyM: VehicleThrustAxis;
+  thrustAxisBody: VehicleThrustAxis;
 }>;
 
 /**
@@ -207,6 +222,63 @@ export function stageThrustAxisWithGimbal(
   });
 }
 
+/**
+ * Expand the stage editor's bounded equal-share nozzle layout into fixed
+ * per-nozzle geometry. The helper is intentionally geometric: nozzle flow,
+ * manifold imbalance, plume interaction, and gimbal hardware remain outside
+ * this preview contract.
+ */
+export function stageNozzleGeometry(
+  stage: Pick<VehicleStagePlan, "repeatCount" | "thrustCantAngleDeg" | "thrustCantAzimuthDeg" | "nozzleCount" | "nozzleRadiusM" | "nozzleCantAngleDeg" | "nozzleCantAzimuthDeg">,
+  instanceIndex: number,
+  originBodyM: VehicleThrustAxis,
+): readonly VehicleStageNozzleGeometry[] {
+  const count = stage.nozzleCount ?? 1;
+  if (count <= 1) {
+    return [{
+      id: "nozzle-1",
+      thrustFraction: 1,
+      thrustApplicationPointBodyM: originBodyM,
+      thrustAxisBody: stageThrustAxisBody(stage, instanceIndex),
+    }];
+  }
+  const radiusM = stage.nozzleRadiusM ?? 0;
+  const cantAngleRad = ((stage.nozzleCantAngleDeg ?? 0) * Math.PI) / 180;
+  const instanceAzimuthRad = (2 * Math.PI * instanceIndex) / Math.max(stage.repeatCount, 1);
+  const baseAxis = stageThrustAxisBody(stage, instanceIndex);
+  const dot = (left: VehicleThrustAxis, right: VehicleThrustAxis) => left.x * right.x + left.y * right.y + left.z * right.z;
+  const normalize = (value: VehicleThrustAxis): VehicleThrustAxis => {
+    const length = Math.hypot(value.x, value.y, value.z);
+    if (!(length > 0)) return baseAxis;
+    return { x: value.x / length, y: value.y / length, z: value.z / length };
+  };
+  return Array.from({ length: count }, (_, nozzleIndex) => {
+    const azimuthRad = ((stage.nozzleCantAzimuthDeg ?? 0) * Math.PI) / 180 + instanceAzimuthRad + (2 * Math.PI * nozzleIndex) / count;
+    const radial = { x: 0, y: Math.cos(azimuthRad), z: Math.sin(azimuthRad) };
+    const transverse = {
+      x: radial.x - baseAxis.x * dot(radial, baseAxis),
+      y: radial.y - baseAxis.y * dot(radial, baseAxis),
+      z: radial.z - baseAxis.z * dot(radial, baseAxis),
+    };
+    const outward = normalize(transverse);
+    const axis = normalize({
+      x: baseAxis.x * Math.cos(cantAngleRad) + outward.x * Math.sin(cantAngleRad),
+      y: baseAxis.y * Math.cos(cantAngleRad) + outward.y * Math.sin(cantAngleRad),
+      z: baseAxis.z * Math.cos(cantAngleRad) + outward.z * Math.sin(cantAngleRad),
+    });
+    return {
+      id: `nozzle-${nozzleIndex + 1}`,
+      thrustFraction: 1 / count,
+      thrustApplicationPointBodyM: {
+        x: originBodyM.x + radial.x * radiusM,
+        y: originBodyM.y + radial.y * radiusM,
+        z: originBodyM.z + radial.z * radiusM,
+      },
+      thrustAxisBody: axis,
+    };
+  });
+}
+
 export type LocalVehicleTopology = Readonly<{
   schema: typeof LOCAL_VEHICLE_TOPOLOGY_SCHEMA_ID;
   schemaVersion: typeof LOCAL_VEHICLE_TOPOLOGY_SCHEMA_VERSION;
@@ -252,6 +324,31 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
   if (typeof thrustCantAzimuthDeg !== "number" || !Number.isFinite(thrustCantAzimuthDeg) || thrustCantAzimuthDeg < -180 || thrustCantAzimuthDeg > 180) {
     throw new Error(`Stage ${id} thrustCantAzimuthDeg must be a finite value from -180 through 180 degrees.`);
   }
+  const nozzleConfigPresent = [
+    stage.nozzleCount,
+    stage.nozzleRadiusM,
+    stage.nozzleCantAngleDeg,
+    stage.nozzleCantAzimuthDeg,
+  ].some((value) => value !== undefined);
+  const nozzleCount = (stage.nozzleCount ?? 1) as number;
+  if (!Number.isInteger(nozzleCount) || nozzleCount < 1 || nozzleCount > 16) {
+    throw new Error(`Stage ${id} nozzleCount must be an integer from 1 through 16.`);
+  }
+  const nozzleRadiusM = (stage.nozzleRadiusM ?? 0) as number;
+  if (typeof nozzleRadiusM !== "number" || !Number.isFinite(nozzleRadiusM) || nozzleRadiusM < 0 || nozzleRadiusM > 0.5) {
+    throw new Error(`Stage ${id} nozzleRadiusM must be a finite value from 0 through 0.5 m.`);
+  }
+  const nozzleCantAngleDeg = (stage.nozzleCantAngleDeg ?? 0) as number;
+  if (typeof nozzleCantAngleDeg !== "number" || !Number.isFinite(nozzleCantAngleDeg) || nozzleCantAngleDeg < 0 || nozzleCantAngleDeg > 15) {
+    throw new Error(`Stage ${id} nozzleCantAngleDeg must be a finite value from 0 through 15 degrees.`);
+  }
+  const nozzleCantAzimuthDeg = (stage.nozzleCantAzimuthDeg ?? 0) as number;
+  if (typeof nozzleCantAzimuthDeg !== "number" || !Number.isFinite(nozzleCantAzimuthDeg) || nozzleCantAzimuthDeg < -180 || nozzleCantAzimuthDeg > 180) {
+    throw new Error(`Stage ${id} nozzleCantAzimuthDeg must be a finite value from -180 through 180 degrees.`);
+  }
+  if (stage.role === "payload" && nozzleCount > 1) {
+    throw new Error(`Payload stage ${id} cannot configure motor nozzles.`);
+  }
   const rawGimbalSchedule = stage.gimbalSchedule;
   if (rawGimbalSchedule !== undefined && !Array.isArray(rawGimbalSchedule)) {
     throw new Error(`Stage ${id} gimbalSchedule must be an array.`);
@@ -280,6 +377,9 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
   if (stage.role === "payload" && gimbalSchedule && gimbalSchedule.length > 0) {
     throw new Error(`Payload stage ${id} cannot configure a motor gimbal schedule.`);
   }
+  if (nozzleCount > 1 && gimbalSchedule && gimbalSchedule.length > 0) {
+    throw new Error(`Stage ${id} multi-nozzle layouts cannot configure a motor gimbal schedule.`);
+  }
   const gimbalResponseTimeS = stage.gimbalResponseTimeS;
   if (gimbalResponseTimeS !== undefined) {
     if (typeof gimbalResponseTimeS !== "number" || !Number.isFinite(gimbalResponseTimeS) || gimbalResponseTimeS <= 0 || gimbalResponseTimeS > 10) {
@@ -290,6 +390,9 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     }
     if (stage.role === "payload") {
       throw new Error(`Payload stage ${id} cannot configure a gimbal response time.`);
+    }
+    if (nozzleCount > 1) {
+      throw new Error(`Stage ${id} multi-nozzle layouts cannot configure a gimbal response time.`);
     }
   }
   const rawThrottleSchedule = stage.throttleSchedule;
@@ -540,6 +643,9 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     repeatRadiusM: stage.repeatRadiusM,
     thrustCantAngleDeg,
     thrustCantAzimuthDeg,
+    ...(nozzleConfigPresent
+      ? { nozzleCount, nozzleRadiusM, nozzleCantAngleDeg, nozzleCantAzimuthDeg }
+      : {}),
     ...(gimbalSchedule && gimbalSchedule.length > 0 ? { gimbalSchedule } : {}),
     ...(gimbalResponseTimeS === undefined ? {} : { gimbalResponseTimeS }),
     ...(throttleSchedule && throttleSchedule.length > 0 ? { throttleSchedule } : {}),
@@ -723,6 +829,10 @@ export function createStagePlan(input: Readonly<{
   repeatRadiusM?: number;
   thrustCantAngleDeg?: number;
   thrustCantAzimuthDeg?: number;
+  nozzleCount?: number;
+  nozzleRadiusM?: number;
+  nozzleCantAngleDeg?: number;
+  nozzleCantAzimuthDeg?: number;
   gimbalSchedule?: readonly VehicleStageGimbalPoint[];
   gimbalResponseTimeS?: number;
   throttleSchedule?: readonly VehicleStageThrottlePoint[];
@@ -742,6 +852,10 @@ export function createStagePlan(input: Readonly<{
     repeatRadiusM: input.repeatRadiusM ?? 0,
     thrustCantAngleDeg: input.thrustCantAngleDeg ?? 0,
     thrustCantAzimuthDeg: input.thrustCantAzimuthDeg ?? 0,
+    ...(input.nozzleCount === undefined ? {} : { nozzleCount: input.nozzleCount }),
+    ...(input.nozzleRadiusM === undefined ? {} : { nozzleRadiusM: input.nozzleRadiusM }),
+    ...(input.nozzleCantAngleDeg === undefined ? {} : { nozzleCantAngleDeg: input.nozzleCantAngleDeg }),
+    ...(input.nozzleCantAzimuthDeg === undefined ? {} : { nozzleCantAzimuthDeg: input.nozzleCantAzimuthDeg }),
     ignitionDelayS: input.ignitionDelayS ?? 0,
     separationDelayS: input.separationDelayS ?? 0.1,
     separationDeltaVBodyMps: input.separationDeltaVBodyMps ?? 0,

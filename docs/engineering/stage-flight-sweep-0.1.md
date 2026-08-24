@@ -12,7 +12,7 @@ released-body branches used by the nominal preview.
 Model identity:
 
 - adapter: `rocketworks-stage-flight-sweep-0.1.0`
-- flight model: `kestrel-stage-flight-preview-0.46.0` (reported at runtime)
+- flight model: `kestrel-stage-flight-preview-0.47.0` (reported at runtime)
 - status: `mathematical-regression-tests-only`
 
 ## Sampling contract
@@ -56,4 +56,3 @@ silently dropped. The CSV and engineering-report exports retain those errors.
 - A row marked evaluated means only that the equations completed without an
   input/model exception. It is not experimental validation, certification,
   manufacturing approval, range clearance, or a flight-safety result.
-

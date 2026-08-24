@@ -10,7 +10,7 @@ an alternate flight kernel or copy an external simulator.
 Model identity:
 
 - adapter: `rocketworks-stage-flight-optimization-0.1.0`
-- flight model: `rocketworks-stage-flight-preview-0.46.0` (reported at runtime)
+- flight model: `kestrel-stage-flight-preview-0.47.0` (reported at runtime)
 - search model: `kestrel-design-optimization-0.1.0` (reported inside the result)
 - status: `mathematical-regression-tests-only`
 

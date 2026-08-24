@@ -29,7 +29,7 @@ This makes staging a topology change rather than a cosmetic event: a separated
 stage immediately stops contributing mass, inertia, propellant, or thrust to
 the retained vehicle.
 
-The current implementation is model version `kestrel-multi-stage-0.8.0`.
+The current implementation is model version `kestrel-multi-stage-0.9.0`.
 `RocketStage.instances` can describe physical copies of one logical stage.
 When present, each copy has its own structure, motors, burnout offset, and
 event state while `attachedStageIds` continues to expose the logical topology

@@ -1376,7 +1376,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stagePreview, /independentRetainedLoads/);
   assert.match(stagePreview, /velocityImpulseEvents/);
   assert.match(stagePreview, /duplicate world-gravity term/);
-  assert.match(stagePreview, /kestrel-stage-flight-preview-0\.46\.0/);
+  assert.match(stagePreview, /kestrel-stage-flight-preview-0\.47\.0/);
+  assert.match(topology, /nozzleCount/);
+  assert.match(page, /Multi-nozzle layout/);
   assert.match(stagePreview, /gimbalControlAuthority/);
   assert.match(page, /Gimbal control-authority envelope/);
   assert.match(page, /gimbalControlForce/);

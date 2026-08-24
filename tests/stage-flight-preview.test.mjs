@@ -350,7 +350,7 @@ test("stage-flight adapter forwards motor-local throttle schedules", () => {
     timeStepS: 0.05,
   });
 
-  assert.equal(result.stagingModelVersion, "kestrel-multi-stage-0.8.0");
+  assert.equal(result.stagingModelVersion, "kestrel-multi-stage-0.9.0");
   assert.ok(result.assumptions.some((assumption) => assumption.includes("throttle schedules")));
 });
 
@@ -397,7 +397,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.46.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.47.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);

@@ -65,6 +65,10 @@ research, standards, and original code.
   interpolation, per-instance radial basis mapping, optional first-order vector
   response, plus bounded throttle schedules with impulse-consistent depletion
   and explicit actuator-model limitations;
+- bounded fixed multi-nozzle motor layouts with equal-share thrust conservation,
+  per-nozzle force/moment traces, radial placement, and outward cant controls;
+  manifold, plume, actuator, thermal, and nozzle-failure behavior remain
+  explicitly outside the analytical preview;
 - a post-trace gimbal control-authority envelope that exposes conservative
   independent force, moment, angular-acceleration, coverage, and
   control-to-aerodynamic-moment diagnostics at the authored ±15° command

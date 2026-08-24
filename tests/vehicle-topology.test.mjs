@@ -13,6 +13,7 @@ import {
   serializeVehicleTopology,
   stageThrustAxisBody,
   stageThrustAxisWithGimbal,
+  stageNozzleGeometry,
   validateVehicleTopology,
 } from "../lib/project/vehicle-topology.ts";
 
@@ -358,6 +359,44 @@ test("gimbal schedules validate, round-trip, and follow radial thrust bases", ()
     }),
     /magnitude/,
   );
+});
+
+test("multi-nozzle stage geometry validates and expands equal-share layouts", () => {
+  const topology = {
+    ...createDefaultVehicleTopology(),
+    stages: [createStagePlan({
+      id: "sustainer",
+      name: "Sustainer",
+      role: "core",
+      attachment: "serial",
+      nozzleCount: 3,
+      nozzleRadiusM: 0.04,
+      nozzleCantAngleDeg: 4,
+      nozzleCantAzimuthDeg: 30,
+    })],
+  };
+  const validated = validateVehicleTopology(topology);
+  const stage = validated.stages[0];
+  assert.equal(stage.nozzleCount, 3);
+  assert.equal(stage.nozzleRadiusM, 0.04);
+  assert.deepEqual(parseVehicleTopology(serializeVehicleTopology(validated)), validated);
+  const geometry = stageNozzleGeometry(stage, 0, { x: 1, y: 0, z: 0 });
+  assert.equal(geometry.length, 3);
+  assert.equal(geometry.reduce((sum, nozzle) => sum + nozzle.thrustFraction, 0), 1);
+  assert.ok(Math.abs(Math.hypot(geometry[0].thrustAxisBody.x, geometry[0].thrustAxisBody.y, geometry[0].thrustAxisBody.z) - 1) < 1e-12);
+  assert.ok(Math.abs(Math.hypot(geometry[0].thrustApplicationPointBodyM.y, geometry[0].thrustApplicationPointBodyM.z) - 0.04) < 1e-12);
+  assert.throws(() => validateVehicleTopology({
+    ...topology,
+    stages: [{ ...stage, nozzleCount: 17 }],
+  }), /nozzleCount/);
+  assert.throws(() => validateVehicleTopology({
+    ...topology,
+    stages: [{ ...stage, nozzleRadiusM: 0.6 }],
+  }), /nozzleRadiusM/);
+  assert.throws(() => validateVehicleTopology({
+    ...topology,
+    stages: [{ ...stage, gimbalSchedule: [{ timeS: 0, pitchDeg: 0, yawDeg: 0 }] }],
+  }), /multi-nozzle layouts/);
 });
 
 test("detachable stages can carry a bounded recovery plan", () => {

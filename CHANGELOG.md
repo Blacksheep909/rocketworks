@@ -6,6 +6,17 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add bounded fixed multi-nozzle motor layouts to the staged preview. Each
+  nozzle carries an explicit equal-share force/moment contribution, preserving
+  the original motor curve and propellant bookkeeping while exposing radial
+  position and outward cant controls in the topology editor. Legacy single-
+  nozzle motors remain compatible; motor-level gimbal schedules are rejected
+  for multi-nozzle layouts because independent nozzle vectors are not inferred.
+  Manifold, plume, thermal, actuator, and nozzle-failure behavior remain
+  outside the analytical preview. The staged evaluator is now
+  `kestrel-multi-stage-0.9.0` and the browser adapter is
+  `kestrel-stage-flight-preview-0.47.0`.
+
 - Add a directed relative-body aerodynamic database contract. User-supplied
   configuration tables interpolate axial/lateral separation and Mach, retain
   provenance, uncertainty, applicability, and query-failure metadata, and

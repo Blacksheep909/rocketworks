@@ -14,7 +14,8 @@ from RocketWorks' propellant mass model into one body-frame force and moment for
 the rigid-body flight kernel. It supports centerline motors, pods, strap-on
 boosters, and canted multi-motor clusters using original configuration data.
 
-Each motor has exactly one mount with:
+The low-level clustered provider currently has exactly one resultant mount per
+motor with:
 
 - the matching motor identifier from the mass-state model
 - a fixed body-frame thrust application point
@@ -23,6 +24,11 @@ Each motor has exactly one mount with:
 
 Every mass-model motor must have one mount and no unknown or duplicate mount is
 accepted. This prevents silent omission or double application of thrust.
+
+The staged multi-stage evaluator now has a separate fixed multi-nozzle contract
+for engines that need several application points or axes. That branch is
+documented in `multi-nozzle-propulsion-0.1.md`; it does not change this
+provider's one-resultant-mount contract.
 
 ## Frames and equations
 
@@ -99,8 +105,8 @@ flight behavior.
   pressure thrust.
 - No plume interaction, base-pressure interaction, jet damping, or thrust
   augmentation is modeled.
-- Each configured motor has one resultant application point; multi-nozzle
-  engines need separate future nozzle-level representation.
+- This low-level provider accepts one resultant application point per motor;
+  use the staged fixed multi-nozzle branch when nozzle-level geometry is needed.
 - Mass properties, mount geometry, and thrust alignment require measurement and
   independent verification for a real vehicle.
 

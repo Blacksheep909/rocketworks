@@ -139,7 +139,7 @@ import {
 } from "./gimbal-control-authority.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.46.0";
+  "kestrel-stage-flight-preview-0.47.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 

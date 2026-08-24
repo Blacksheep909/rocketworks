@@ -37,7 +37,17 @@ import {
 } from "./six-dof.ts";
 import type { RecoveryCommandTrigger, RecoveryDevice } from "./recovery-system.ts";
 
-export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.8.0";
+export const MULTI_STAGE_MODEL_VERSION = "kestrel-multi-stage-0.9.0";
+
+/** A fixed nozzle inside one motor's thrust cluster. Shares are normalized by
+ * configuration, not inferred from thrust, so the total motor curve is
+ * conserved while lever arms and vector cancellation remain explicit. */
+export type MotorNozzle = Readonly<{
+  id: string;
+  thrustApplicationPointBodyM: Vector3;
+  thrustAxisBody: Vector3;
+  thrustFraction: number;
+}>;
 
 /** A motor-local body-frame thrust direction sample for deterministic gimbal interpolation. */
 export type MotorGimbalPoint = Readonly<{
@@ -66,6 +76,9 @@ export type MultiStageMotor = Readonly<{
   initialPropellantMassProperties: MassProperties;
   thrustApplicationPointBodyM: Vector3;
   thrustAxisBody?: Vector3;
+  /** Optional fixed multi-nozzle layout. When omitted, the legacy point/axis
+   * pair is treated as one nozzle carrying 100% of motor thrust. */
+  nozzles?: readonly MotorNozzle[];
   /** Optional strictly time-ordered motor-local thrust-axis schedule. */
   thrustAxisSchedule?: readonly MotorGimbalPoint[];
   /** Optional first-order gimbal response time for the commanded schedule. */
@@ -132,6 +145,17 @@ export type MultiStageMotorEvaluation = Readonly<{
   propellantMassRateKgS: number;
   depletionSource: "impulse-proportional" | "measured-mass-flow";
   throttleFraction: number;
+  thrustAxisBody: Vector3;
+  forceBodyN: Vector3;
+  momentBodyNm: Vector3;
+  nozzles: readonly MultiStageNozzleEvaluation[];
+}>;
+
+export type MultiStageNozzleEvaluation = Readonly<{
+  id: string;
+  thrustFraction: number;
+  thrustN: number;
+  thrustApplicationPointBodyM: Vector3;
   thrustAxisBody: Vector3;
   forceBodyN: Vector3;
   momentBodyNm: Vector3;
@@ -229,6 +253,7 @@ type PreparedMotor = MultiStageMotor & Readonly<{
   normalizedThrustAxisSchedule?: readonly MotorGimbalPoint[];
   normalizedGimbalResponseTimeS?: number;
   normalizedThrottleSchedule?: readonly MotorThrottlePoint[];
+  normalizedNozzles: readonly (MotorNozzle & Readonly<{ thrustAxisBody: Vector3 }>)[];
   totalImpulseNs: number;
 }>;
 
@@ -296,6 +321,58 @@ function normalizeThrustAxis(value: Vector3, label: string): Vector3 {
     throw new Error(`${label} must be a finite non-zero vector`);
   }
   return scaleVector(value, 1 / axisMagnitude);
+}
+
+const MAX_MOTOR_NOZZLES = 16;
+const NOZZLE_SHARE_TOLERANCE = 1e-9;
+
+function prepareNozzles(
+  motor: MultiStageMotor,
+  normalizedLegacyAxis: Vector3,
+): readonly (MotorNozzle & Readonly<{ thrustAxisBody: Vector3 }>)[] {
+  const configured = motor.nozzles;
+  if (configured === undefined) {
+    return [{
+      id: `${motor.id}-nozzle-1`,
+      thrustApplicationPointBodyM: motor.thrustApplicationPointBodyM,
+      thrustAxisBody: normalizedLegacyAxis,
+      thrustFraction: 1,
+    }];
+  }
+  if (!Array.isArray(configured) || configured.length === 0 || configured.length > MAX_MOTOR_NOZZLES) {
+    throw new Error(`motor ${motor.id} nozzles must contain 1 through ${MAX_MOTOR_NOZZLES} entries`);
+  }
+  if (configured.length > 1 && motor.thrustAxisSchedule !== undefined) {
+    throw new Error(`motor ${motor.id} multi-nozzle layouts cannot use a motor-level thrust-axis schedule; configure one fixed nozzle axis per nozzle`);
+  }
+  if (configured.length > 1 && motor.gimbalResponseTimeS !== undefined) {
+    throw new Error(`motor ${motor.id} multi-nozzle layouts cannot use a motor-level gimbal response time`);
+  }
+  const ids = new Set<string>();
+  let totalFraction = 0;
+  const nozzles = configured.map((nozzle, index) => {
+    validateIdentifier(nozzle.id, "nozzle");
+    if (ids.has(nozzle.id)) throw new Error(`motor ${motor.id} nozzle identifiers must be unique`);
+    ids.add(nozzle.id);
+    if (!finiteVector(nozzle.thrustApplicationPointBodyM)) {
+      throw new Error(`motor ${motor.id} nozzle ${nozzle.id} application point must be finite`);
+    }
+    if (!Number.isFinite(nozzle.thrustFraction) || nozzle.thrustFraction <= 0 || nozzle.thrustFraction > 1) {
+      throw new Error(`motor ${motor.id} nozzle ${nozzle.id} thrust fraction must be greater than 0 and at most 1`);
+    }
+    totalFraction += nozzle.thrustFraction;
+    return {
+      ...nozzle,
+      thrustAxisBody: normalizeThrustAxis(
+        nozzle.thrustAxisBody,
+        `motor ${motor.id} nozzle ${nozzle.id} thrust axis`,
+      ),
+    };
+  });
+  if (Math.abs(totalFraction - 1) > NOZZLE_SHARE_TOLERANCE) {
+    throw new Error(`motor ${motor.id} nozzle thrust fractions must sum to 1 (received ${totalFraction})`);
+  }
+  return nozzles;
 }
 
 function prepareThrustAxisSchedule(
@@ -923,6 +1000,7 @@ export function createMultiStageVehicleModel(input: Readonly<{
       }
       const axis = motor.thrustAxisBody ?? { x: -1, y: 0, z: 0 };
       const normalizedThrustAxisBody = normalizeThrustAxis(axis, `motor ${motor.id} thrust axis`);
+      const normalizedNozzles = prepareNozzles(motor, normalizedThrustAxisBody);
       const normalizedThrustAxisSchedule = prepareThrustAxisSchedule(
         motor.thrustAxisSchedule,
         `motor ${motor.id} thrust-axis schedule`,
@@ -957,6 +1035,7 @@ export function createMultiStageVehicleModel(input: Readonly<{
         ...(normalizedThrottleSchedule
           ? { normalizedThrottleSchedule }
           : {}),
+        normalizedNozzles,
         totalImpulseNs,
       };
     });
@@ -1069,6 +1148,11 @@ export function createMultiStageVehicleModel(input: Readonly<{
     ...stage.instances.flatMap((instance) => instance.motors),
   ]).filter((motor) => motor.normalizedThrottleSchedule);
   const hasThrottleSchedule = throttleMotors.length > 0;
+  const multiNozzleMotors = stages.flatMap((stage) => [
+    ...stage.motors,
+    ...stage.instances.flatMap((instance) => instance.motors),
+  ]).filter((motor) => motor.normalizedNozzles.length > 1);
+  const hasMultiNozzle = multiNozzleMotors.length > 0;
   const measuredSeparationStages = stages.filter((stage) =>
     stage.separationImpulseBodyNs !== undefined ||
     stage.instances.some((instance) => instance.separationImpulseBodyNs !== undefined),
@@ -1201,12 +1285,41 @@ export function createMultiStageVehicleModel(input: Readonly<{
                 ? (-motor.initialPropellantMassProperties.massKg * thrustN) /
                   motor.totalImpulseNs
                 : 0;
-          const thrustAxisBody = thrustAxisAtLocalTime(motor, localTimeS);
-          const forceBodyN = scaleVector(thrustAxisBody, thrustN);
-          const momentBodyNm = cross(
-            subtractVectors(motor.thrustApplicationPointBodyM, massProperties.centerOfMassM),
-            forceBodyN,
+          const scheduledThrustAxisBody = thrustAxisAtLocalTime(motor, localTimeS);
+          const nozzleEvaluations = motor.normalizedNozzles.map(
+            (nozzle): MultiStageNozzleEvaluation => {
+              const nozzleThrustN = thrustN * nozzle.thrustFraction;
+              const nozzleAxisBody = motor.normalizedNozzles.length === 1
+                ? scheduledThrustAxisBody
+                : nozzle.thrustAxisBody;
+              const nozzleForceBodyN = scaleVector(nozzleAxisBody, nozzleThrustN);
+              const nozzleMomentBodyNm = cross(
+                subtractVectors(nozzle.thrustApplicationPointBodyM, massProperties.centerOfMassM),
+                nozzleForceBodyN,
+              );
+              return {
+                id: nozzle.id,
+                thrustFraction: nozzle.thrustFraction,
+                thrustN: nozzleThrustN,
+                thrustApplicationPointBodyM: nozzle.thrustApplicationPointBodyM,
+                thrustAxisBody: nozzleAxisBody,
+                forceBodyN: nozzleForceBodyN,
+                momentBodyNm: nozzleMomentBodyNm,
+              };
+            },
           );
+          const forceBodyN = nozzleEvaluations.reduce(
+            (sum, nozzle) => addVectors(sum, nozzle.forceBodyN),
+            ZERO_VECTOR,
+          );
+          const momentBodyNm = nozzleEvaluations.reduce(
+            (sum, nozzle) => addVectors(sum, nozzle.momentBodyNm),
+            ZERO_VECTOR,
+          );
+          const forceMagnitudeN = magnitude(forceBodyN);
+          const thrustAxisBody = forceMagnitudeN > 1e-12
+            ? scaleVector(forceBodyN, 1 / forceMagnitudeN)
+            : scheduledThrustAxisBody;
           if (propellantMassRateKgS !== 0) {
             inertiaRateBodyKgM2PerS = addMatrices(
               inertiaRateBodyKgM2PerS,
@@ -1258,6 +1371,7 @@ export function createMultiStageVehicleModel(input: Readonly<{
             thrustAxisBody,
             forceBodyN,
             momentBodyNm,
+            nozzles: nozzleEvaluations,
           };
         },
       );
@@ -1592,6 +1706,11 @@ export function createMultiStageVehicleModel(input: Readonly<{
             "Motor throttle schedules linearly interpolate bounded 0–1 commands in motor-local time; delivered impulse and impulse-proportional propellant depletion include the commanded fraction",
           ]
         : []),
+      ...(hasMultiNozzle
+        ? [
+            "Each configured nozzle receives its declared positive thrust share; shares sum to one so the motor thrust curve and propellant bookkeeping are conserved while nozzle forces and moments are summed independently",
+          ]
+        : []),
       ...(hasMeasuredSeparationImpulse
         ? [
             "Measured separation impulses are converted to retained-body delta-v using the live post-separation mass at the event boundary",
@@ -1624,6 +1743,11 @@ export function createMultiStageVehicleModel(input: Readonly<{
       ...(hasThrottleSchedule
         ? [
             "Throttle schedules scale the supplied thrust curve only; burn timing, measured mass-flow histories, chamber pressure, mixture ratio, ignition transients, and engine thermal limits are not modeled, so reduced thrust can leave residual propellant at the scheduled burnout boundary.",
+          ]
+        : []),
+      ...(hasMultiNozzle
+        ? [
+            "Multi-nozzle layouts are fixed rigid geometry; nozzle flow coupling, plume interaction, manifold imbalance, gimbal hardware, thermal loads, and nozzle-level failure modes are not modeled.",
           ]
         : []),
       ...(hasMeasuredSeparationImpulse

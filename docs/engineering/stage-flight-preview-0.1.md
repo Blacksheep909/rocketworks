@@ -24,7 +24,17 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.46.0`.
+`kestrel-stage-flight-preview-0.47.0`.
+
+The staged adapter can also expand a topology stage's bounded fixed
+multi-nozzle layout into per-motor nozzle points and axes. Equal shares sum to
+the supplied motor curve, then each nozzle's body force and live-CG moment are
+added before the motor result is returned. This is a fixed geometry sensitivity
+branch; multi-nozzle motors cannot also use a motor-level gimbal schedule, and
+manifold loss, plume interaction, thermal loads, nozzle hardware, and individual
+nozzle failures remain outside the preview. See
+`docs/engineering/multi-nozzle-propulsion-0.1.md` for the contract and
+equations.
 
 Relation-based aerodynamics retain both the selected normal-force trend and
 the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions

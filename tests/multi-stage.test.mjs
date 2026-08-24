@@ -237,6 +237,68 @@ test("multiple motors support delayed ignition and off-axis moments", () => {
   assert.ok(result.netThrustMomentBodyNm.z > 0);
 });
 
+test("fixed multi-nozzle layouts conserve motor thrust and sum nozzle moments", () => {
+  const nozzleStage = stage("nozzle", 1, 1, {
+    nozzles: [
+      {
+        id: "left-nozzle",
+        thrustApplicationPointBodyM: { x: 1.1, y: 0.1, z: 0 },
+        thrustAxisBody: { x: -1, y: 0, z: 0 },
+        thrustFraction: 0.5,
+      },
+      {
+        id: "right-nozzle",
+        thrustApplicationPointBodyM: { x: 1.1, y: -0.1, z: 0 },
+        thrustAxisBody: { x: -1, y: 0, z: 0 },
+        thrustFraction: 0.5,
+      },
+    ],
+  });
+  const staging = createMultiStageVehicleModel({
+    retainedMassProperties: properties(1, 0),
+    stages: [nozzleStage],
+  });
+  const result = staging.evaluate(ignitedAtZero(0.5, "nozzle"));
+  const motorState = result.stages[0].motors[0];
+
+  close(motorState.thrustN, 5, 1e-15, "motor thrust curve");
+  close(motorState.nozzles[0].thrustN, 2.5, 1e-15, "left nozzle thrust share");
+  close(motorState.nozzles[1].thrustN, 2.5, 1e-15, "right nozzle thrust share");
+  close(result.netThrustForceBodyN.x, -5, 1e-15, "conserved net axial thrust");
+  close(result.netThrustMomentBodyNm.z, 0, 1e-15, "symmetric nozzle moment cancellation");
+  assert.equal(motorState.nozzles.length, 2);
+  assert.ok(staging.assumptions.some((assumption) => assumption.includes("nozzle")));
+  assert.ok(staging.warnings.some((warning) => warning.includes("Multi-nozzle")));
+});
+
+test("multi-nozzle share and gimbal contracts fail explicitly", () => {
+  assert.throws(
+    () => createMultiStageVehicleModel({
+      retainedMassProperties: properties(1, 0),
+      stages: [stage("bad-share", 1, 1, {
+        nozzles: [
+          { id: "a", thrustApplicationPointBodyM: { x: 1, y: 0, z: 0 }, thrustAxisBody: { x: -1, y: 0, z: 0 }, thrustFraction: 0.4 },
+          { id: "b", thrustApplicationPointBodyM: { x: 1, y: 0, z: 0 }, thrustAxisBody: { x: -1, y: 0, z: 0 }, thrustFraction: 0.4 },
+        ],
+      })],
+    }),
+    /must sum to 1/,
+  );
+  assert.throws(
+    () => createMultiStageVehicleModel({
+      retainedMassProperties: properties(1, 0),
+      stages: [stage("bad-gimbal", 1, 1, {
+        nozzles: [
+          { id: "a", thrustApplicationPointBodyM: { x: 1, y: 0.1, z: 0 }, thrustAxisBody: { x: -1, y: 0, z: 0 }, thrustFraction: 0.5 },
+          { id: "b", thrustApplicationPointBodyM: { x: 1, y: -0.1, z: 0 }, thrustAxisBody: { x: -1, y: 0, z: 0 }, thrustFraction: 0.5 },
+        ],
+        thrustAxisSchedule: [{ timeS: 0, axisBody: { x: -1, y: 0, z: 0 } }],
+      })],
+    }),
+    /multi-nozzle layouts cannot use/,
+  );
+});
+
 test("motor-local gimbal schedules interpolate thrust direction and moment", () => {
   const gimballedStage = stage("gimbal", 1, 1, {
     thrustAxisSchedule: [
