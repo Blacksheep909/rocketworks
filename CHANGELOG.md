@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Promote connector-group direct-shear review into the ranked engineering
+  design-review findings whenever transverse or radial demand is present. A
+  connector reserve warning can no longer be hidden behind an otherwise passing
+  axial stage-interface result; the optional channel remains non-blocking when
+  no transverse/radial demand is available.
+
 - Add an optional child-stage upstream connector-group direct-shear evidence
   screen beside the shell-section stage-interface proxy. Users can persist
   connector count, diameter, allowable shear, and an explicit group-efficiency

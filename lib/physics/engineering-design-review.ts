@@ -394,6 +394,43 @@ export function createEngineeringDesignReview(
         modelVersion: stageInterfaceLoads.modelVersion,
       }),
     );
+
+    if (stageInterfaceLoads.connectorStatus !== "not-assessed") {
+      const connectorRows = [
+        ...stageInterfaceLoads.interfaces
+          .filter((item) => item.transverseDemandN !== null && item.transverseDemandN > 0)
+          .map((item) => item.connectorCapacityStatus),
+        ...stageInterfaceLoads.parallelAudits
+          .filter((audit) => audit.radialDemandN !== null && audit.radialDemandN > 0)
+          .map((audit) => audit.connectorCapacityStatus),
+      ];
+      const connectorNeedsReview = connectorRows.filter((row) => row !== "pass").length;
+      const connectorStatus: EngineeringReviewFindingStatus =
+        stageInterfaceLoads.connectorStatus === "assessed" ? "pass" : "review";
+      findings.push(
+        makeFinding({
+          id: "structural-stage-interface-connectors",
+          category: "structural",
+          label: "Stage-interface connector direct shear",
+          status: connectorStatus,
+          severity: connectorStatus === "pass" ? "info" : "warning",
+          summary:
+            connectorStatus === "pass"
+              ? "Optional connector-group direct-shear screens pass the declared reserve threshold."
+              : `${connectorNeedsReview} connector-group direct-shear row${connectorNeedsReview === 1 ? "" : "s"} need review or evidence.`,
+          detail:
+            "This separate count × circular-area × allowable × efficiency screen is a direct single-shear proxy only; bearing, pull-through, preload, prying, eccentric group effects, bending, fatigue, and joint qualification remain outside scope.",
+          action:
+            connectorStatus === "pass"
+              ? "Review connector geometry, bearing, preload, eccentricity, and fatigue independently before relying on the proxy."
+              : "Supply or recheck upstream connector-group evidence and complete an independent joint qualification review.",
+          value: connectorNeedsReview,
+          threshold: 0,
+          unit: "connector rows needing review",
+          modelVersion: stageInterfaceLoads.modelVersion,
+        }),
+      );
+    }
   }
 
   if (input.stageMassRatio) {

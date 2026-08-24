@@ -476,6 +476,12 @@ test("stage interface load review keeps connector direct shear separate from she
   assert.equal(review.interfaces[0].connectorCapacityStatus, "review");
   assert.equal(review.connectorStatus, "review");
   assert.match(review.warnings.join(" "), /connector-group direct-shear/);
+  const designReview = createEngineeringDesignReview({ stageInterfaceLoads: review });
+  const connectorFinding = designReview.findings.find((candidate) => candidate.id === "structural-stage-interface-connectors");
+  assert.ok(connectorFinding);
+  assert.equal(connectorFinding.status, "review");
+  assert.match(connectorFinding.summary, /connector-group direct-shear/);
+  assert.equal(designReview.overallStatus, "review");
   assert.throws(
     () => createStageInterfaceLoadReview({
       stages: [
