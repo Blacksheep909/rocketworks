@@ -6,6 +6,13 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a versioned staged-flight optimization adapter and Flight workspace card.
+  The seeded constrained search evaluates the complete staged 6DOF preview,
+  offers nominal and eight-scenario robust Pareto screens, retains model and
+  failure assumptions, guards stale results, and maps only common global
+  thrust/drag/recovery controls when a recommendation is applied. This remains
+  an unvalidated design search, not reliability qualification or flight safety.
+
 - Add a coupled staged parameter-sweep adapter and Flight workspace card.
   Bounded one-variable rows now re-run the same staged 6DOF, launch-rail,
   event, recovery, and released-body branches as the nominal preview, retain

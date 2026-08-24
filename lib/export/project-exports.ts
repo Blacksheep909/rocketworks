@@ -13,6 +13,7 @@ import type { StageFlightComparisonResult } from "../physics/stage-flight-compar
 import type { PhysicsBenchmarkSuiteResult } from "../physics/benchmark-suite.ts";
 import type { StageFlightUncertaintyResult } from "../physics/stage-flight-uncertainty.ts";
 import type { StageFlightSweepResult } from "../physics/stage-flight-sweep.ts";
+import type { StageFlightOptimizationResult } from "../physics/stage-flight-optimization.ts";
 import type {
   ParameterSweepResult,
   UncertaintyAnalysisResult,
@@ -206,6 +207,7 @@ export type EngineeringReportInput = Readonly<{
   benchmarkSuite?: PhysicsBenchmarkSuiteResult | null;
   stageUncertainty?: StageFlightUncertaintyResult | null;
   stageSweep?: StageFlightSweepResult | null;
+  stageOptimization?: StageFlightOptimizationResult | null;
   uncertainty?: UncertaintyAnalysisResult | null;
   landing?: LandingDispersionResult | null;
   structural?: StructuralScreenResult | null;
@@ -3054,6 +3056,38 @@ export function createEngineeringReportMarkdown(
           ...input.stageSweep.warnings.map((warning) => `- **Sweep warning:** ${markdownText(warning)}`),
           "",
           "> This deterministic staged sweep is an analytical trade-study artifact. It is not validation, certification, a tolerance model, or a flight-safety assessment.",
+          "",
+        ]
+      : []),
+    ...(input.stageOptimization
+      ? [
+          "## Staged design optimization",
+          "",
+          `- Adapter: \`${markdownText(input.stageOptimization.adapterVersion)}\``,
+          `- Model: \`${markdownText(input.stageOptimization.modelVersion)}\``,
+          `- Validation status: \`${markdownText(input.stageOptimization.validationStatus)}\``,
+          `- Search mode: \`${input.stageOptimization.robustness ? "robust finite-sample screen" : "nominal"}\``,
+          `- Seed: \`${markdownText(input.stageOptimization.result.seed)}\``,
+          `- Evaluations: ${input.stageOptimization.result.evaluationCount}`,
+          `- Pareto candidates: ${input.stageOptimization.result.paretoFront.length}`,
+          `- Recommended candidate: ${input.stageOptimization.result.recommendedCandidateId === null ? "not available" : `\`${markdownText(input.stageOptimization.result.recommendedCandidateId)}\``}`,
+          "",
+          "| Candidate | Feasible | Variables | Peak altitude | Peak q | Final speed |",
+          "|---|---:|---|---:|---:|---:|",
+          ...input.stageOptimization.result.paretoFront.slice(0, 8).map((candidate) => {
+            const variables = Object.entries(candidate.variables)
+              .map(([key, value]) => `${key}=${formatNumber(value, 4)}`)
+              .join(", ");
+            const altitude = candidate.metrics.robustMaxAltitudeP05M ?? candidate.metrics.maxAltitudeAglM;
+            const maxQ = candidate.metrics.robustMaxDynamicPressureP95Pa ?? candidate.metrics.maxDynamicPressurePa;
+            const finalSpeed = candidate.metrics.robustFinalSpeedP95Mps ?? candidate.metrics.finalSpeedMps;
+            return `| ${markdownText(candidate.id)} | ${candidate.feasible ? "yes" : "no"} | ${markdownText(variables)} | ${formatNumber(altitude, 1)} m | ${formatNumber(maxQ, 1)} Pa | ${formatNumber(finalSpeed, 2)} m/s |`;
+          }),
+          "",
+          ...input.stageOptimization.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+          ...input.stageOptimization.warnings.map((warning) => `- **Optimization warning:** ${markdownText(warning)}`),
+          "",
+          "> Staged optimization is a bounded analytical search. It does not prove a global optimum, validate the model, qualify hardware, or establish a flight-safety limit.",
           "",
         ]
       : []),

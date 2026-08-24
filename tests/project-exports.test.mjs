@@ -1314,6 +1314,42 @@ test("engineering report leads with status and preserves calculations and limita
         finalSpeedMps: uncertainty.metrics.response,
       },
     },
+    stageOptimization: {
+      adapterVersion: "rocketworks-stage-flight-optimization-0.1.0",
+      modelVersion: "rocketworks-stage-flight-preview-0.46.0",
+      validationStatus: "mathematical-regression-tests-only",
+      robustness: null,
+      warnings: ["Optimizer fixture warning."],
+      assumptions: ["Optimizer fixture assumption."],
+      result: {
+        modelVersion: "kestrel-design-optimization-0.1.0",
+        validationStatus: "engineering-preview-unvalidated",
+        algorithm: "seeded-constrained-nondominated-evolution",
+        seed: "optimizer-report-seed",
+        populationSize: 8,
+        generations: 1,
+        evaluationCount: 16,
+        variables: [{ key: "thrustScale", label: "Delivered thrust", minimum: 0.8, maximum: 1.2 }],
+        objectives: [{ metricKey: "maxAltitudeAglM", label: "Peak altitude", direction: "maximize" }],
+        constraints: [],
+        candidates: [],
+        recommendedCandidateId: "candidate-000001",
+        paretoFront: [{
+          id: "candidate-000001",
+          evaluationIndex: 1,
+          variables: { thrustScale: 1.1 },
+          metrics: { maxAltitudeAglM: 310, maxDynamicPressurePa: 1600, finalSpeedMps: 7.5 },
+          constraints: [],
+          feasible: true,
+          normalizedConstraintViolation: 0,
+          paretoRank: 0,
+          crowdingDistance: Number.POSITIVE_INFINITY,
+          tradeoffScore: 1,
+        }],
+        assumptions: [],
+        warnings: [],
+      },
+    },
     uncertainty,
     structural,
     stageStructural,
@@ -1413,6 +1449,10 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /## Uncertainty analysis/);
   assert.match(report, /## Coupled 6DOF uncertainty/);
   assert.match(report, /kestrel-stage-flight-uncertainty-1.1.0/);
+  assert.match(report, /## Staged design optimization/);
+  assert.match(report, /rocketworks-stage-flight-optimization-0\.1\.0/);
+  assert.match(report, /optimizer-report-seed/);
+  assert.match(report, /Optimizer fixture warning/);
   assert.match(report, /## Coupled 6DOF preview/);
   assert.match(report, /### Staged run comparison/);
   assert.match(report, /rocketworks-stage-flight-comparison-0\.1\.0/);

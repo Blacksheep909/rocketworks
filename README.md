@@ -291,10 +291,12 @@ research, standards, and original code.
   section area, axial stress, Euler critical load, fin-root bending, and the
   preliminary fin-flutter equation, kept separate from experimental validation;
 - configurable seeded uncertainty analysis, sensitivity, nominal optimization,
-  and an opt-in finite-sample robust optimization screen with explicit
-  quantile and scenario-failure metrics; both the fast vertical model and the
-  complete staged 6DOF preview expose bounded deterministic one-variable
-  parameter sweeps with retained row failures and CSV/report metadata;
+  and opt-in finite-sample robust optimization screens with explicit quantile
+  and scenario-failure metrics; the fast vertical model and the complete
+  staged 6DOF preview both expose bounded deterministic one-variable sweeps,
+  while staged Flight adds a constraint-aware Pareto search over thrust, drag,
+  and recovery settings with mapped recommendation controls; all sweeps and
+  searches retain failures and CSV/report metadata;
 - accessible event timelines, trace charts, comparisons, engineering reports,
   flight/stage/sweep/uncertainty CSV, topology-aware DXF, multi-stage
   triangulated STL reference meshes, OpenSCAD, and a part-level manufacturing

@@ -76,6 +76,7 @@ import {
   simulateStageFlightPreview,
   makeConstantThrustCurve,
   optimizeVerticalFlightDesign,
+  optimizeStageFlightDesign,
   sweepVerticalFlight,
   sweepStageFlight,
   STAGE_FLIGHT_SWEEP_PARAMETER_DEFINITIONS,
@@ -132,6 +133,11 @@ import {
   type StageFlightSweepParameterKey,
   type StageFlightSweepParameterDefinition,
   type StageFlightSweepResult,
+  type StageFlightOptimizationResult,
+  type StageFlightOptimizationMetricKey,
+  type StageFlightOptimizationVariable,
+  type StageFlightOptimizationObjective,
+  type StageFlightOptimizationConstraint,
   type RocketStage,
   type StageAerodynamicRegime,
   type LaunchEnvironmentProvider,
@@ -346,6 +352,11 @@ type OptimizationPreview = Readonly<{
   mode: "nominal" | "robust";
 }>;
 
+type StageFlightOptimizationPreview = Readonly<{
+  result: StageFlightOptimizationResult;
+  mode: "nominal" | "robust";
+}>;
+
 type CommandAction = Readonly<{
   id: string;
   label: string;
@@ -505,6 +516,30 @@ function stageSweepParameterDefinition(
   if (!definition) throw new Error(`Unknown staged sweep parameter: ${key}`);
   return definition;
 }
+
+const DEFAULT_STAGE_OPTIMIZATION_VARIABLES: readonly StageFlightOptimizationVariable[] = [
+  { key: "thrustScale", label: "Delivered thrust", minimum: 0.8, maximum: 1.2, initial: 1 },
+  { key: "dragCoefficientScale", label: "Drag coefficient", minimum: 0.85, maximum: 1.15, initial: 1 },
+  { key: "recoveryAreaScale", label: "Recovery area", minimum: 0.7, maximum: 1.4, initial: 1 },
+  { key: "recoveryInflationTimeScale", label: "Recovery inflation time", minimum: 0.7, maximum: 1.5, initial: 1 },
+];
+
+const DEFAULT_STAGE_OPTIMIZATION_OBJECTIVES: readonly StageFlightOptimizationObjective[] = [
+  { metricKey: "maxAltitudeAglM", label: "Peak altitude", direction: "maximize", weight: 2 },
+  { metricKey: "maxDynamicPressurePa", label: "Peak dynamic pressure", direction: "minimize" },
+  { metricKey: "finalSpeedMps", label: "Final speed", direction: "minimize" },
+];
+
+const DEFAULT_STAGE_OPTIMIZATION_CONSTRAINTS: readonly StageFlightOptimizationConstraint[] = [
+  { metricKey: "converged", label: "Numerical convergence", relation: "greater-than-or-equal", limit: 0 },
+];
+
+const DEFAULT_STAGE_ROBUSTNESS_FACTORS = [
+  { key: "dryMassScale", label: "Dry mass", distribution: { kind: "uniform", minimum: 0.97, maximum: 1.03 } },
+  { key: "thrustScale", label: "Delivered thrust", distribution: { kind: "uniform", minimum: 0.95, maximum: 1.05 } },
+  { key: "dragCoefficientScale", label: "Drag coefficient", distribution: { kind: "uniform", minimum: 0.95, maximum: 1.05 } },
+  { key: "windScale", label: "Wind profile", distribution: { kind: "uniform", minimum: 0.8, maximum: 1.2 } },
+] as const;
 
 type MotorImportDraft = {
   id: string;
@@ -4878,6 +4913,11 @@ export default function Home() {
   const [stageSweepResult, setStageSweepResult] = useState<StageFlightSweepResult | null>(null);
   const [stageSweepFingerprint, setStageSweepFingerprint] = useState<string | null>(null);
   const [stageSweepError, setStageSweepError] = useState("");
+  const [stageOptimizing, setStageOptimizing] = useState(false);
+  const [stageOptimizationMode, setStageOptimizationMode] = useState<"nominal" | "robust">("nominal");
+  const [stageOptimization, setStageOptimization] = useState<StageFlightOptimizationPreview | null>(null);
+  const [stageOptimizationFingerprint, setStageOptimizationFingerprint] = useState<string | null>(null);
+  const [stageOptimizationError, setStageOptimizationError] = useState("");
   const [stageUncertainty, setStageUncertainty] = useState<StageFlightUncertaintyResult | null>(null);
   const [stageUncertaintyFingerprint, setStageUncertaintyFingerprint] = useState<string | null>(null);
   const [stageUncertaintyRunning, setStageUncertaintyRunning] = useState(false);
@@ -4971,6 +5011,10 @@ export default function Home() {
     stageSweepResult !== null &&
     stageFlightIsCurrent &&
     isSimulationFingerprintCurrent(stageSweepFingerprint, simulationFingerprint);
+  const stageOptimizationIsCurrent =
+    stageOptimization !== null &&
+    stageFlightIsCurrent &&
+    isSimulationFingerprintCurrent(stageOptimizationFingerprint, simulationFingerprint);
   const activeStageSweepDefinition = stageSweepParameterDefinition(stageSweepParameter);
   const stageRecoveryCommandEvent = stageFlightResult?.events.find(
     (event) => event.id.includes("recovery") || event.label.toLowerCase().includes("recovery"),
@@ -7933,6 +7977,27 @@ export default function Home() {
                   ),
                 }
               : null,
+            stageOptimization: stageOptimization
+              ? {
+                  adapterVersion: stageOptimization.result.adapterVersion,
+                  modelVersion: stageOptimization.result.modelVersion,
+                  validationStatus: stageOptimization.result.validationStatus,
+                  mode: stageOptimization.mode,
+                  current: stageOptimizationIsCurrent,
+                  seed: stageOptimization.result.result.seed,
+                  evaluationCount: stageOptimization.result.result.evaluationCount,
+                  recommendedCandidateId: stageOptimization.result.result.recommendedCandidateId,
+                  paretoFront: stageOptimization.result.result.paretoFront.map(
+                    (candidate) => ({
+                      id: candidate.id,
+                      variables: candidate.variables,
+                      metrics: candidate.metrics,
+                      constraints: candidate.constraints,
+                      tradeoffScore: candidate.tradeoffScore,
+                    }),
+                  ),
+                }
+              : null,
             landing: landingPrediction
               ? {
                   modelVersion: landingPrediction.modelVersion,
@@ -8181,6 +8246,7 @@ export default function Home() {
           benchmarkSuite: benchmarkResult,
           stageUncertainty: stageUncertaintyIsCurrent ? stageUncertainty : null,
           stageSweep: stageSweepIsCurrent ? stageSweepResult : null,
+          stageOptimization: stageOptimizationIsCurrent ? stageOptimization.result : null,
           uncertainty,
           landing: landingPrediction,
           structural: structuralScreen,
@@ -8313,6 +8379,9 @@ export default function Home() {
     setStageSweepResult(null);
     setStageSweepFingerprint(null);
     setStageSweepError("");
+    setStageOptimization(null);
+    setStageOptimizationFingerprint(null);
+    setStageOptimizationError("");
     setStageUncertainty(null);
     setStageUncertaintyFingerprint(null);
     setStageUncertaintyError("");
@@ -8762,6 +8831,140 @@ export default function Home() {
         setStageSweepRunning(false);
       }
     }, 30);
+  };
+  const runStageOptimization = (mode: "nominal" | "robust") => {
+    if (!stageFlightResult || !stageFlightIsCurrent) {
+      notify("Run the current coupled preview before optimizing staged inputs");
+      return;
+    }
+    setStageOptimizing(true);
+    setStageOptimizationMode(mode);
+    setStageOptimizationError("");
+    setView("flight");
+    const runFingerprint = simulationFingerprint;
+    window.setTimeout(() => {
+      try {
+        const baseInput = createStageFlightPreviewInputs({
+          topology: vehicleTopology,
+          assembly,
+          stageComponents: stageFlightComponents,
+          lengthM: length / 1000,
+          noseLengthM: noseLength / 1000,
+          diameterM: diameter / 1000,
+          motor: previewMotor,
+          userMotorRecords,
+          dragCoefficient,
+          environmentAt: previewEnvironment.at,
+          launchRailEnabled,
+          launchRailLengthM,
+          launchRailInclinationDeg,
+          launchRailAzimuthDeg,
+          launchRailFrictionAccelerationMps2,
+          launchRailTipOffPitchRateDegS,
+          launchRailTipOffYawRateDegS,
+          coupledMutualGravityEnabled,
+          coupledGravitySofteningRadiusM,
+          coupledContactEnabled,
+          coupledContactStiffnessNPerM,
+          coupledContactDampingNsPerM,
+          coupledContactMaximumNormalForceN,
+          coupledMultiBodyIncludeRetainedBody,
+          coupledMultiBodyRetainedBodyMode,
+          coupledSeparationPulseEnabled,
+          coupledSeparationPulseDeltaVMps,
+          coupledSeparationPulseStartOffsetS,
+          coupledSeparationPulseDurationS,
+          coupledSeparationPulseProfile,
+          coupledSeparationPulseAngularEnabled,
+          coupledSeparationPulseAngularDeltaRadS,
+          coupledRelativeAeroForceFeedbackEnabled,
+          releasedBodyDragModel,
+          relativeAeroInteractionEnabled,
+          relativeAeroWakeHalfAngleDeg,
+          relativeAeroWakeRecoveryDistanceBodyDiameters,
+          relativeAeroPeakVelocityDeficitFraction,
+          relativeAeroMaximumVelocityDeficitFraction,
+          separationContactStoppingDistanceM,
+          separationContactCoefficientOfRestitution,
+          normalForceModel,
+          inducedDragModel,
+          inducedDragFactor,
+          recoveryEnabled,
+          recoveryDelay,
+          recoveryInflationTime,
+          recoveryDeploymentTrigger,
+          recoveryDeploymentAltitudeM,
+          recoveryDeploymentTimeS,
+          recoveryDiameter,
+          recoveryReefingEnabled,
+          recoveryReefingDurationS,
+          recoveryReefingStartAreaFraction,
+          sixDofIntegrationMethod,
+          coupledIntegrationTimeStepS,
+          aerodynamicTable: selectedAerodynamicTable,
+          aerodynamicTableModels,
+        });
+        const nextResult = optimizeStageFlightDesign({
+          baseInput,
+          seed: mode === "robust" ? "rocketworks-stage-optimizer-robust-v1" : "rocketworks-stage-optimizer-v1",
+          populationSize: 8,
+          generations: 2,
+          variables: DEFAULT_STAGE_OPTIMIZATION_VARIABLES,
+          objectives: mode === "robust"
+            ? [
+                { metricKey: "robustMaxAltitudeP05M", label: "Robust altitude floor", direction: "maximize", weight: 2 },
+                { metricKey: "robustMaxDynamicPressureP95Pa", label: "Robust peak dynamic pressure", direction: "minimize" },
+                { metricKey: "robustFinalSpeedP95Mps", label: "Robust final speed", direction: "minimize" },
+              ]
+            : DEFAULT_STAGE_OPTIMIZATION_OBJECTIVES,
+          constraints: mode === "robust"
+            ? [
+                { metricKey: "robustFailureRate", label: "Scenario failure rate", relation: "less-than-or-equal", limit: 0.25 },
+              ]
+            : DEFAULT_STAGE_OPTIMIZATION_CONSTRAINTS,
+          ...(mode === "robust"
+            ? {
+                robustness: {
+                  sampleCount: 8,
+                  seed: "rocketworks-stage-scenarios-v1",
+                  factors: DEFAULT_STAGE_ROBUSTNESS_FACTORS,
+                },
+              }
+            : {}),
+        });
+        setStageOptimization({ result: nextResult, mode });
+        setStageOptimizationFingerprint(runFingerprint);
+        notify(mode === "robust" ? "Robust staged design tradeoffs ready" : "Staged design tradeoffs ready");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to optimize staged design";
+        setStageOptimizationError(message);
+        notify(message);
+      } finally {
+        setStageOptimizing(false);
+      }
+    }, 30);
+  };
+  const applyStageOptimizationRecommendation = () => {
+    if (!stageOptimization || !stageOptimizationIsCurrent) {
+      notify("Run the current staged optimization before applying a recommendation");
+      return;
+    }
+    const candidate = stageOptimization.result.result.paretoFront.find(
+      (item) => item.id === stageOptimization.result.result.recommendedCandidateId,
+    );
+    if (!candidate) {
+      notify("No feasible staged optimization recommendation is available");
+      return;
+    }
+    const variables = candidate.variables;
+    if (variables.thrustScale !== undefined) setThrust(thrust * variables.thrustScale);
+    if (variables.dragCoefficientScale !== undefined) setDragCoefficient(dragCoefficient * variables.dragCoefficientScale);
+    if (variables.recoveryAreaScale !== undefined) setRecoveryDiameter(recoveryDiameter * Math.sqrt(variables.recoveryAreaScale));
+    if (variables.recoveryInflationTimeScale !== undefined) setRecoveryInflationTime(recoveryInflationTime * variables.recoveryInflationTimeScale);
+    setStageOptimization(null);
+    setStageOptimizationFingerprint(null);
+    markChanged();
+    notify("Mapped staged recommendation applied; rerun the coupled preview to review it");
   };
   const changeSweepParameter = (parameterKey: VerticalFlightSweepParameterKey) => {
     const definition = sweepParameterDefinition(parameterKey);
@@ -10586,6 +10789,16 @@ export default function Home() {
                       onStepsChange={changeStageSweepSteps}
                       onRun={runStageSweep}
                       onExport={() => void exportArtifact("stage-sweep-csv")}
+                    />
+                    <StageFlightOptimizationCard
+                      result={stageOptimization}
+                      running={stageOptimizing}
+                      mode={stageOptimizationMode}
+                      error={stageOptimizationError}
+                      current={stageFlightIsCurrent}
+                      resultCurrent={stageOptimizationIsCurrent}
+                      onRun={runStageOptimization}
+                      onApply={applyStageOptimizationRecommendation}
                     />
                   </>
                 ) : (
@@ -13322,6 +13535,114 @@ function StageFlightSweepCard({
           <div className="sweep-disclaimer"><span>UNVALIDATED TRADE STUDY</span><p>{publicModelVersion(result.modelVersion)} · {result.result.parameterKey} varied independently through the coupled preview · {result.warnings[2]}</p></div>
         </>
       )}
+    </section>
+  );
+}
+
+function StageFlightOptimizationCard({
+  result,
+  running,
+  mode,
+  error,
+  current,
+  resultCurrent,
+  onRun,
+  onApply,
+}: {
+  result: StageFlightOptimizationPreview | null;
+  running: boolean;
+  mode: "nominal" | "robust";
+  error: string;
+  current: boolean;
+  resultCurrent: boolean;
+  onRun: (mode: "nominal" | "robust") => void;
+  onApply: () => void;
+}) {
+  const optimization = result?.result.result ?? null;
+  const recommendation = optimization?.paretoFront.find(
+    (candidate) => candidate.id === optimization.recommendedCandidateId,
+  ) ?? null;
+  const formatMetric = (candidate: typeof recommendation, key: StageFlightOptimizationMetricKey, decimals = 0) => {
+    const value = candidate?.metrics[key];
+    return typeof value === "number" && Number.isFinite(value) ? value.toFixed(decimals) : "—";
+  };
+  const formatVariables = (candidate: typeof recommendation) => {
+    if (!candidate) return "";
+    return Object.entries(candidate.variables)
+      .map(([key, value]) => `${STAGE_FLIGHT_SWEEP_PARAMETER_DEFINITIONS.find((definition) => definition.key === key)?.label ?? key} ${value.toFixed(2)}×`)
+      .join(" · ");
+  };
+  return (
+    <section className="optimization-card stage-flight-optimization-card" aria-labelledby="stage-flight-optimization-title">
+      <div className="event-card-heading">
+        <div>
+          <strong id="stage-flight-optimization-title">Staged design optimizer</strong>
+          <span>Seeded Pareto search across the complete coupled preview</span>
+        </div>
+        <span>{optimization ? `${optimization.paretoFront.length} Pareto candidates · ${result?.mode === "robust" ? "robust screen" : "nominal"}` : "Ready to search"}</span>
+      </div>
+      {!current && <div className="optimization-empty"><strong>Run the current coupled preview first</strong><p>The optimizer evaluates the same stage graph, rail, events, recovery, and released-body branches as the current trace.</p></div>}
+      {current && result && !resultCurrent && (
+        <div className="stale-result-banner stage-stale-result-banner" role="status">
+          <span>RERUN REQUIRED</span>
+          <div><strong>This staged search is from an earlier configuration</strong><p>Run the current coupled preview and search again before interpreting or applying a candidate.</p></div>
+        </div>
+      )}
+      {running ? (
+        <div className="optimization-loading" aria-live="polite">
+          <Skeleton height={92} borderRadius={5} />
+          <span>Evaluating {mode === "robust" ? "robust" : "nominal"} bounded staged candidates…</span>
+        </div>
+      ) : current && result && optimization && resultCurrent && recommendation ? (
+        <>
+          <div className="optimization-summary">
+            {result.mode === "robust" ? (
+              <>
+                <div><span>Robust altitude floor</span><strong>{formatMetric(recommendation, "robustMaxAltitudeP05M")} m P05</strong></div>
+                <div><span>Robust peak q</span><strong>{formatMetric(recommendation, "robustMaxDynamicPressureP95Pa")} Pa P95</strong></div>
+                <div><span>Robust final speed</span><strong>{formatMetric(recommendation, "robustFinalSpeedP95Mps", 1)} m/s P95</strong></div>
+              </>
+            ) : (
+              <>
+                <div><span>Compromise altitude</span><strong>{formatMetric(recommendation, "maxAltitudeAglM")} m</strong></div>
+                <div><span>Peak dynamic pressure</span><strong>{formatMetric(recommendation, "maxDynamicPressurePa")} Pa</strong></div>
+                <div><span>Final speed</span><strong>{formatMetric(recommendation, "finalSpeedMps", 1)} m/s</strong></div>
+              </>
+            )}
+            <div><span>Search effort</span><strong>{optimization.evaluationCount} runs</strong></div>
+          </div>
+          <div className="optimization-candidates" aria-label="Leading staged design candidates">
+            {optimization.paretoFront.slice(0, 3).map((candidate, index) => (
+              <div className={index === 0 ? "optimization-candidate recommended" : "optimization-candidate"} key={candidate.id}>
+                <span>{index === 0 ? "Compromise" : `Tradeoff ${index + 1}`}</span>
+                <strong>{formatMetric(candidate, result.mode === "robust" ? "robustMaxAltitudeP05M" : "maxAltitudeAglM")} m altitude</strong>
+                <small>{formatVariables(candidate)} · {result.mode === "robust" ? `${formatMetric(candidate, "robustMaxDynamicPressureP95Pa")} Pa P95 q` : `${formatMetric(candidate, "maxDynamicPressurePa")} Pa peak q`}</small>
+              </div>
+            ))}
+          </div>
+          <div className="optimization-actions">
+            <button type="button" onClick={onApply}>Apply mapped inputs</button>
+            <button type="button" onClick={() => onRun(result.mode)}>Run again</button>
+            {result.mode === "nominal" && <button type="button" onClick={() => onRun("robust")}>Try robust screen</button>}
+          </div>
+        </>
+      ) : current && result && resultCurrent ? (
+        <div className="optimization-empty"><strong>No feasible staged candidate found</strong><p>Review the numerical-convergence constraint or widen the bounded variables, then retry the search.</p><button type="button" onClick={() => onRun(result.mode)}>Retry search</button></div>
+      ) : current ? (
+        <div className="optimization-empty">
+          <strong>Explore coupled stage tradeoffs</strong>
+          <p>Search thrust, drag, and recovery settings without mutating the design. The robust screen repeats each candidate across eight seeded uncertainty scenarios.</p>
+          <div className="optimization-actions">
+            <button type="button" onClick={() => onRun("nominal")}>Find staged designs</button>
+            <button type="button" onClick={() => onRun("robust")}>Find robust staged designs</button>
+          </div>
+        </div>
+      ) : null}
+      {error && <p className="sweep-error" role="alert">{error}</p>}
+      <div className="optimization-disclaimer">
+        <span>UNVALIDATED SEARCH</span>
+        <p>{result?.result.robustness ? "Eight seeded uncertainty scenarios per candidate; finite-sample quantiles are a screening aid, not reliability qualification." : "The seeded constrained search cannot prove a global optimum and may exploit model error."} Mapped apply controls update global thrust, drag, and recovery inputs only; rerun the coupled preview after applying. Independently validate before manufacturing or flight.</p>
+      </div>
     </section>
   );
 }

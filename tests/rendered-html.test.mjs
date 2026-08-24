@@ -1436,6 +1436,23 @@ test("ships a bounded parameter-sweep workflow with inspectable exports", async 
   assert.match(stylesheet, /\.sweep-table/);
 });
 
+test("ships a staged nominal and robust optimization workflow", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const optimizer = await readFile(new URL("../lib/physics/stage-flight-optimization.ts", import.meta.url), "utf8");
+  const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(page, /Staged design optimizer/);
+  assert.match(page, /Find staged designs/);
+  assert.match(page, /Find robust staged designs/);
+  assert.match(page, /Apply mapped inputs/);
+  assert.match(page, /stageOptimizationIsCurrent/);
+  assert.match(page, /stageOptimization:/);
+  assert.match(optimizer, /optimizeStageFlightDesign/);
+  assert.match(optimizer, /STAGE_FLIGHT_OPTIMIZATION_ADAPTER_VERSION/);
+  assert.match(optimizer, /robustFailureRate/);
+  assert.match(optimizer, /flight-safety assessment/);
+  assert.match(stylesheet, /\.optimization-card/);
+});
+
 test("ships a local flight-run comparison workflow with stale-result guardrails", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const referenceStore = await readFile(new URL("../lib/project/simulation-reference.ts", import.meta.url), "utf8");
