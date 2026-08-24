@@ -48,6 +48,10 @@ export type UiCopyKey =
   | "exportDestinationDescription"
   | "browserDownloadDestination"
   | "saveDialogDestination"
+  | "browserDownloadWarningTitle"
+  | "browserDownloadWarningDescription"
+  | "switchToSaveDialog"
+  | "browserDownloadConfirm"
   | "keyboardAccess"
   | "close"
   | "accessibilityNote"
@@ -100,6 +104,10 @@ const ENGLISH_COPY: UiCopy = {
   exportDestinationDescription: "Choose Ask where to save to keep exports out of Downloads unless you select a folder. The automatic browser option sends every export to the browser's configured Downloads folder. If a save dialog is unavailable, RocketWorks asks before using that fallback.",
   browserDownloadDestination: "Automatic browser Downloads",
   saveDialogDestination: "Ask where to save (recommended)",
+  browserDownloadWarningTitle: "Automatic Downloads is enabled",
+  browserDownloadWarningDescription: "Each export will be placed in your browser's Downloads folder without asking. Switch to Ask where to save to choose a location for every artifact.",
+  switchToSaveDialog: "Switch to save dialog",
+  browserDownloadConfirm: "Automatic Downloads sends every RocketWorks export to your browser's Downloads folder. Continue?",
   keyboardAccess: "Keyboard access",
   close: "Close",
   accessibilityNote: "Engineering outputs remain subject to their stated model limits. A presentation preference cannot make an unvalidated estimate flight-safe.",
@@ -151,6 +159,10 @@ const SPANISH_COPY: UiCopy = {
   exportDestinationDescription: "Elige Preguntar dónde guardar para mantener las exportaciones fuera de Descargas hasta seleccionar una carpeta. La opción automática del navegador envía cada exportación a su carpeta Descargas configurada. Si no hay diálogo disponible, RocketWorks pregunta antes de usar ese recurso.",
   browserDownloadDestination: "Descargas automáticas del navegador",
   saveDialogDestination: "Preguntar dónde guardar (recomendado)",
+  browserDownloadWarningTitle: "Las descargas automáticas están activadas",
+  browserDownloadWarningDescription: "Cada exportación se colocará en la carpeta Descargas del navegador sin preguntar. Cambia a Preguntar dónde guardar para elegir una ubicación para cada artefacto.",
+  switchToSaveDialog: "Cambiar al diálogo de guardado",
+  browserDownloadConfirm: "Las descargas automáticas envían cada exportación de RocketWorks a la carpeta Descargas del navegador. ¿Continuar?",
   keyboardAccess: "Acceso por teclado",
   close: "Cerrar",
   accessibilityNote: "Los resultados de ingeniería siguen sujetos a sus límites de modelo declarados. Una preferencia visual no convierte una estimación no validada en segura para vuelo.",

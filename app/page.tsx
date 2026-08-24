@@ -8166,6 +8166,17 @@ export default function Home() {
       notify(error instanceof Error ? error.message : "Unable to export artifact");
     }
   };
+  const chooseExportDestination = (destination: UiExportDestination) => {
+    if (
+      destination === "browser-download" &&
+      exportDestination !== "browser-download" &&
+      typeof window !== "undefined" &&
+      !window.confirm(uiCopy.browserDownloadConfirm)
+    ) {
+      return;
+    }
+    setExportDestination(destination);
+  };
   const simulate = () => {
     const inputs = {
       mass,
@@ -11421,7 +11432,7 @@ export default function Home() {
               <select
                 id="export-destination"
                 value={exportDestination}
-                onChange={(event) => setExportDestination(event.target.value as UiExportDestination)}
+                onChange={(event) => chooseExportDestination(event.target.value as UiExportDestination)}
               >
                 <option value="browser-download">{uiCopy.browserDownloadDestination}</option>
                 <option value="save-dialog">{uiCopy.saveDialogDestination}</option>
@@ -12403,6 +12414,22 @@ export default function Home() {
                 ×
               </button>
             </div>
+            {exportDestination === "browser-download" && (
+              <div className="export-destination-warning" role="status">
+                <span>DOWNLOADS MODE</span>
+                <div>
+                  <strong>{uiCopy.browserDownloadWarningTitle}</strong>
+                  <p>{uiCopy.browserDownloadWarningDescription}</p>
+                </div>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setExportDestination("save-dialog")}
+                >
+                  {uiCopy.switchToSaveDialog}
+                </button>
+              </div>
+            )}
             <div className="export-grid">
               <button className="export-import-option" onClick={() => { void copyProjectShare(); }}>
                 <span className="export-extension">LINK</span>

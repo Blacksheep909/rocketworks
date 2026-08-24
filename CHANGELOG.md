@@ -24,7 +24,8 @@ flight-readiness claims.
 - Harden the default save-dialog export path. Browsers that cannot open a native
   picker now ask before falling back to Downloads, so unsupported in-app
   browsers no longer fill the folder silently. Automatic browser Downloads
-  remains available as an explicit preference.
+  remains available as an explicit, confirmed preference, and the artifact
+  center now surfaces a warning with a one-click return to the save dialog.
 
 - Add an opt-in finite-duration separation-force pulse to the shared released-
   body track. Constant and raised-cosine profiles use a reduced-mass

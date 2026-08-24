@@ -17,6 +17,12 @@ The browser's Export action now opens a keyboard-accessible artifact center.
 Escape or the close button dismisses it. Downloads are created in memory and
 initiated only after the user selects a format.
 
+The default export destination is **Ask where to save**. The optional
+**Automatic browser Downloads** preference is explicitly confirmed when it is
+enabled, and the artifact center displays a warning while it is active. Use
+**Switch to save dialog** there, or choose the save-dialog option in Display &
+accessibility, to keep exports out of Downloads unless a location is selected.
+
 The center offers inspectable project, simulation, evidence, and CAD formats
 plus a validated project-import path:
 

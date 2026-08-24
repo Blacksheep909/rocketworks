@@ -1704,6 +1704,19 @@ kbd {
   border-radius: 2px; color: #eeb577; font: 650 7px var(--font-geist-mono), monospace;
 }
 .export-warning p { margin: 0; }
+.export-destination-warning {
+  display: flex; align-items: center; gap: 11px; margin: 0 22px 14px;
+  padding: 10px 11px; border: 1px solid rgba(255,176,127,.38); border-radius: 4px;
+  background: rgba(255,176,127,.08);
+}
+.export-destination-warning > span {
+  flex: 0 0 auto; color: #ffb07f; font: 650 8px var(--font-geist-mono),monospace;
+  letter-spacing: .12em;
+}
+.export-destination-warning > div { min-width: 0; flex: 1; }
+.export-destination-warning strong { display: block; color: #ffe1cf; font-size: 9px; }
+.export-destination-warning p { margin: 4px 0 0; color: #c9a99b; font-size: 8px; line-height: 1.45; }
+.export-destination-warning .secondary-button { flex: 0 0 auto; min-height: 28px; padding: 0 9px; font-size: 8px; white-space: nowrap; }
 .history-dialog { width: min(660px,100%); }
 .project-console-dialog { width: min(760px,100%); }
 .project-console-overview {
@@ -2299,7 +2312,10 @@ kbd {
   .command-list { max-height: calc(100svh - 150px); }
   .export-grid { grid-template-columns: 1fr; padding: 14px; }
   .export-heading { padding: 18px 14px 15px; }
-  .export-warning { margin: 0 14px 14px; }
+  .export-warning, .export-destination-warning { margin-inline: 14px; }
+  .export-destination-warning { align-items: flex-start; flex-wrap: wrap; }
+  .export-destination-warning > div { flex-basis: calc(100% - 120px); }
+  .export-destination-warning .secondary-button { margin-left: auto; }
   .beginner-guide { grid-template-columns: 1fr; gap: 10px; padding: 14px; }
   .beginner-guide-actions { flex-wrap: wrap; }
   .beginner-guide-detail { grid-template-columns: 1fr; }

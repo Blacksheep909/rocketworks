@@ -630,6 +630,9 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(page, /getUiCopy/);
   assert.match(page, /ui-locale/);
   assert.match(page, /id="export-destination"/);
+  assert.match(page, /chooseExportDestination/);
+  assert.match(page, /export-destination-warning/);
+  assert.match(page, /browserDownloadWarningTitle/);
   assert.match(page, /save-dialog/);
   assert.match(browserArtifact, /showSaveFilePicker/);
   assert.match(page, /accessibilityTitle/);
@@ -671,6 +674,7 @@ test("ships an accessible interactive original 3D design viewport", async () => 
   assert.match(stylesheet, /.view-azimuth-rail/);
   assert.match(stylesheet, /.field-slider/);
   assert.match(stylesheet, /.accessibility-dialog/);
+  assert.match(stylesheet, /.export-destination-warning/);
   assert.match(stylesheet, /data-reduced-motion/);
   assert.match(stylesheet, /data-high-contrast/);
   assert.match(stylesheet, /.accessibility-language/);
