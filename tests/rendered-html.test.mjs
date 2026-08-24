@@ -528,6 +528,14 @@ test("shows a deterministic provenance-qualified launch environment", async () =
     new URL("../app/page.tsx", import.meta.url),
     "utf8",
   );
+  const windChart = await readFile(
+    new URL("../app/wind-profile-chart.tsx", import.meta.url),
+    "utf8",
+  );
+  const stylesheet = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
   assert.match(source, /createLaunchEnvironmentModel/);
   assert.match(source, /Flight environment/);
   assert.match(source, /arc54-weather-v1/);
@@ -552,6 +560,14 @@ test("shows a deterministic provenance-qualified launch environment", async () =
   assert.match(source, /windProfileLayerCount/);
   assert.match(source, /Mean-wind source/);
   assert.match(source, /user-wind-profile-v1/);
+  assert.match(source, /WindProfileChart/);
+  assert.match(source, /meanWindProfile \?\? \[\]/);
+  assert.match(windChart, /HORIZONTAL SPEED/);
+  assert.match(windChart, /ENU DIRECTION/);
+  assert.match(windChart, /role="img"/);
+  assert.match(windChart, /same mean ENU layers consumed/);
+  assert.match(stylesheet, /\.wind-profile-chart/);
+  assert.match(stylesheet, /\.wind-profile-chart-legend/);
   assert.match(source, /Pad pressure/);
   assert.match(source, /Pad temperature/);
   assert.match(source, /Air density @ 500 m/);

@@ -6,6 +6,7 @@ import "react-loading-skeleton/dist/skeleton.css";
 import { LandingFootprintChart } from "./landing-footprint-chart.tsx";
 import { Rocket3DViewport } from "./rocket-3d-viewport.tsx";
 import { FlightTrajectoryViewport } from "./flight-trajectory-viewport.tsx";
+import { WindProfileChart } from "./wind-profile-chart.tsx";
 import type { RocketPreviewComponentInstance } from "../lib/visualization/rocket-preview-3d.ts";
 import {
   createEngineeringReportMarkdown,
@@ -12087,6 +12088,7 @@ export default function Home() {
                   <button className="quiet-button" type="button" onClick={resetWindProfile}>Use synthetic</button>
                 )}
               </div>
+              <WindProfileChart layers={previewEnvironment.definition.meanWindProfile ?? []} />
               {windProfileLayers.length > 0 && (
                 <>
                   <div className="wind-profile-table-wrap">

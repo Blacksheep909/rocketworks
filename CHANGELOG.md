@@ -6,6 +6,12 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an accessible altitude-dependent wind-profile plot to the Flight
+  inspector. The chart uses the exact synthetic or user-authored ENU layers
+  consumed by the environment provider, shows horizontal speed against AGL
+  altitude with direction arrows, and remains display-only; it does not add
+  interpolation, turbulence, or weather-validation claims.
+
 - Add an explicit session-scoped project-folder export destination. Users can
   authorize one browser folder from Display & accessibility or the Artifact
   center and keep named exports together for the current session; the handle

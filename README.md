@@ -131,7 +131,8 @@ research, standards, and original code.
   altitude-dependent vertical, landing, and coupled 6DOF environment paths;
 - validated custom altitude-dependent mean-wind layers (up to 32 local-ENU
   points) with explicit user-supplied provenance, local persistence, share
-  links, landing/coupled propagation, and synthetic-profile fallback;
+  links, landing/coupled propagation, synthetic-profile fallback, and an
+  accessible speed/direction profile plot;
 - persisted turbulence RMS scaling and a weather replay seed, carried through
   local projects, share links, templates, landing scenarios, coupled
   environments, and engineering reports; the fast 1D vertical trace remains

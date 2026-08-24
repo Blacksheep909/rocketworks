@@ -140,6 +140,14 @@ components are already explicit. A user profile is not authenticated or
 experimentally validated, and it does not make a weather or range-safety
 prediction.
 
+The Flight inspector also renders the exact mean layers supplied to the
+environment provider as a display-only profile plot. The blue trace is
+horizontal wind speed versus AGL altitude; orange arrows show the local ENU
+direction at each authored layer. The plot does not interpolate extra samples,
+add turbulence, or change the environment state, and an empty/invalid layer
+set remains visibly unavailable rather than being replaced with a guessed
+weather profile.
+
 The browser exposes two persisted turbulence controls alongside the wind
 profile. `turbulenceScale` is a validated multiplier from `0` through `3` for
 the synthesized RMS envelope; `0` is an exact calm-turbulence case.
