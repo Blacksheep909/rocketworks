@@ -235,9 +235,9 @@ test("staged flight CSV preserves attached-stage topology and SI values", () => 
     { timeS: 1, altitudeAglM: 42.5, speedMps: 28.2, mach: 0.08, angleOfAttackRad: 0.02, sideslipRad: -0.01, dynamicPressurePa: 480, dragN: 2.5, recoveryDragN: 4.2, recoveryEffectiveAreaM2: 0.18, massKg: 0.8, thrustN: 18, axialAccelerationMps2: 17, transverseAccelerationMps2: 2.25, attachedStageIds: ["upper"] },
   ]);
   const rows = csv.trim().split("\r\n");
-  assert.equal(rows[0], "time_s,altitude_agl_m,speed_mps,mach,angle_of_attack_deg,sideslip_deg,center_of_pressure_x_m,center_of_mass_x_m,static_margin_calibers,normal_force_slope_per_rad,attitude_tilt_deg,angular_rate_deg_s,quaternion_w,quaternion_x,quaternion_y,quaternion_z,angular_velocity_x_rad_s,angular_velocity_y_rad_s,angular_velocity_z_rad_s,dynamic_pressure_pa,drag_n,aerodynamic_force_n,aerodynamic_moment_nm,aerodynamic_damping_moment_nm,direct_force_applied,direct_moment_applied,coefficient_basis,recovery_drag_n,recovery_effective_area_m2,mass_kg,thrust_n,axial_acceleration_mps2,transverse_acceleration_mps2,attached_stage_ids");
-  assert.equal(rows[1], "0,0,0,0,0,0,,,,,,,,,,,,,,0,0,0,0,0,false,false,,0,0,1.2,30,25,1.5,booster|upper");
-  assert.equal(rows[2], "1,42.5,28.2,0.08,1.1459155902616465,-0.5729577951308232,,,,,,,,,,,,,,480,2.5,0,0,0,false,false,,4.2,0.18,0.8,18,17,2.25,upper");
+  assert.equal(rows[0], "time_s,altitude_agl_m,speed_mps,mach,angle_of_attack_deg,sideslip_deg,center_of_pressure_x_m,center_of_mass_x_m,static_margin_calibers,normal_force_slope_per_rad,attitude_tilt_deg,angular_rate_deg_s,quaternion_w,quaternion_x,quaternion_y,quaternion_z,angular_velocity_x_rad_s,angular_velocity_y_rad_s,angular_velocity_z_rad_s,dynamic_pressure_pa,drag_n,aerodynamic_force_n,aerodynamic_moment_nm,aerodynamic_damping_moment_nm,direct_force_applied,direct_moment_applied,coefficient_basis,recovery_drag_n,recovery_effective_area_m2,mass_kg,thrust_n,axial_acceleration_mps2,transverse_acceleration_mps2,gimbal_control_force_n,gimbal_control_moment_nm,gimbal_control_angular_acceleration_rad_s2,gimbal_active_motor_count,gimbal_control_to_aerodynamic_moment_ratio,attached_stage_ids");
+  assert.equal(rows[1], "0,0,0,0,0,0,,,,,,,,,,,,,,0,0,0,0,0,false,false,,0,0,1.2,30,25,1.5,,,,,,booster|upper");
+  assert.equal(rows[2], "1,42.5,28.2,0.08,1.1459155902616465,-0.5729577951308232,,,,,,,,,,,,,,480,2.5,0,0,0,false,false,,4.2,0.18,0.8,18,17,2.25,,,,,,upper");
 });
 
 test("staged flight CSV preserves attitude and angular-rate state", () => {
@@ -970,6 +970,27 @@ test("engineering report leads with status and preserves calculations and limita
         warnings: ["Fixture serial-stack warning."],
       },
       forceBudget,
+      gimbalControlAuthority: {
+        modelVersion: "rocketworks-gimbal-control-authority-0.1.0",
+        validationStatus: "analytical-actuator-envelope",
+        status: "available",
+        sampleCount: 2,
+        activeGimbalSampleCount: 2,
+        activeGimbalCoverageFraction: 1,
+        maxDeflectionDeg: 15,
+        maximumConfiguredResponseTimeS: 0.15,
+        peakControlForceN: 12.5,
+        peakControlForceTimeS: 0.8,
+        peakControlMomentNm: 3.4,
+        peakControlMomentTimeS: 0.8,
+        peakControlAngularAccelerationRadS2: 17,
+        peakControlAngularAccelerationTimeS: 0.8,
+        minimumControlToAerodynamicMomentRatio: 1.2,
+        minimumControlToAerodynamicMomentRatioTimeS: 0.8,
+        samples: [],
+        assumptions: ["Fixture gimbal-authority assumption."],
+        warnings: ["Fixture gimbal-authority warning."],
+      },
       missionLossBudget: {
         modelVersion: "rocketworks-mission-loss-budget-0.1.0",
         validationStatus: "analytical-thrust-axis-projection",
@@ -1399,6 +1420,8 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Fixture mass-ratio warning/);
   assert.match(report, /### Force impulse budget/);
   assert.match(report, /rocketworks-stage-flight-force-budget-0.1.0/);
+  assert.match(report, /Gimbal control-authority envelope/);
+  assert.match(report, /rocketworks-gimbal-control-authority-0\.1\.0/);
   assert.match(report, /Drag \/ thrust velocity-equivalent ratio/);
   assert.match(report, /### Thrust-axis loss accounting/);
   assert.match(report, /rocketworks-mission-loss-budget-0.1.0/);

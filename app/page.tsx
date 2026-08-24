@@ -3467,7 +3467,10 @@ type StageFlightMetricKey =
   | "attitudeTilt"
   | "angularRate"
   | "mass"
-  | "thrust";
+  | "thrust"
+  | "gimbalControlForce"
+  | "gimbalControlMoment"
+  | "gimbalControlAngularAcceleration";
 
 type StageFlightMetricDefinition = Readonly<{
   key: StageFlightMetricKey;
@@ -3496,6 +3499,9 @@ const STAGE_FLIGHT_METRICS: readonly StageFlightMetricDefinition[] = [
   { key: "angularRate", label: "Angular rate", unit: "deg/s", color: "#c084fc" },
   { key: "mass", label: "Mass", unit: "kg", color: "#a5c7d8" },
   { key: "thrust", label: "Thrust", unit: "N", color: "#f4a340" },
+  { key: "gimbalControlForce", label: "Gimbal force envelope", unit: "N", color: "#67e8f9" },
+  { key: "gimbalControlMoment", label: "Gimbal moment envelope", unit: "N·m", color: "#22d3ee" },
+  { key: "gimbalControlAngularAcceleration", label: "Gimbal angular acceleration", unit: "rad/s²", color: "#a5f3fc" },
 ];
 
 function stageFlightMetricValue(
@@ -3520,6 +3526,9 @@ function stageFlightMetricValue(
   if (key === "attitudeTilt") return ((point.attitudeTiltRad ?? 0) * 180) / Math.PI;
   if (key === "angularRate") return ((point.angularRateRadS ?? 0) * 180) / Math.PI;
   if (key === "mass") return point.massKg;
+  if (key === "gimbalControlForce") return point.gimbalControlForceN ?? 0;
+  if (key === "gimbalControlMoment") return point.gimbalControlMomentNm ?? 0;
+  if (key === "gimbalControlAngularAcceleration") return point.gimbalControlAngularAccelerationRadS2 ?? 0;
   return point.thrustN;
 }
 
@@ -3532,6 +3541,9 @@ function stageFlightMetricUnavailable(
   if (key === "staticMargin") return point.staticMarginCalibers === null || point.staticMarginCalibers === undefined;
   if (key === "attitudeTilt") return point.attitudeTiltRad === null || point.attitudeTiltRad === undefined;
   if (key === "angularRate") return point.angularRateRadS === null || point.angularRateRadS === undefined;
+  if (key === "gimbalControlForce") return point.gimbalControlForceN === undefined;
+  if (key === "gimbalControlMoment") return point.gimbalControlMomentNm === undefined;
+  if (key === "gimbalControlAngularAcceleration") return point.gimbalControlAngularAccelerationRadS2 === undefined;
   return false;
 }
 
@@ -3544,6 +3556,7 @@ function formatStageFlightMetric(value: number, key: StageFlightMetricKey): stri
   if (key === "centerOfPressure" || key === "centerOfMass" || key === "staticMargin") return value.toFixed(3);
   if (key === "attitudeTilt" || key === "angularRate") return value.toFixed(2);
   if (key === "aerodynamicMoment" || key === "aerodynamicDampingMoment") return value.toFixed(3);
+  if (key === "gimbalControlMoment" || key === "gimbalControlAngularAcceleration") return value.toFixed(3);
   if (key === "thrust") return value.toFixed(1);
   if (key === "drag") return value.toFixed(1);
   return value.toFixed(1);
@@ -9757,6 +9770,28 @@ export default function Home() {
                       </div>
                       <p className="stage-vector-budget-note">{stageFlightResult.vectorBudget.warnings[0] ?? "World-frame vector accounting only; this is not a validated mission delta-v or flight-safety result."}</p>
                       <small className="stage-vector-budget-model">{publicModelVersion(stageFlightResult.vectorBudget.modelVersion)} / {stageFlightResult.vectorBudget.validationStatus}</small>
+                    </section>
+                    <section className={`gimbal-authority-card gimbal-authority-${stageFlightResult.gimbalControlAuthority.status}`} aria-labelledby="gimbal-authority-title">
+                      <div className="gimbal-authority-heading">
+                        <div>
+                          <span className="eyebrow">Attitude-control screen</span>
+                          <h4 id="gimbal-authority-title">Gimbal control-authority envelope</h4>
+                          <p>Bounds the independent transverse force, moment, and angular-acceleration effect of currently thrusting gimballed motors at ±15° command deflection. This is an analytical actuator envelope, not a controller, rate-limit, hardware, or flight-safety assessment.</p>
+                        </div>
+                        <span className={`uncertainty-status uncertainty-status-${stageFlightResult.gimbalControlAuthority.status}`}>
+                          {stageFlightResult.gimbalControlAuthority.status === "available" ? "ENVELOPE AVAILABLE" : stageFlightResult.gimbalControlAuthority.status === "watch" ? "COVERAGE WATCH" : "NOT ASSESSED"}
+                        </span>
+                      </div>
+                      <div className="gimbal-authority-grid">
+                        <div><span>Active gimbal coverage</span><strong>{(stageFlightResult.gimbalControlAuthority.activeGimbalCoverageFraction * 100).toFixed(1)}%</strong><small>{stageFlightResult.gimbalControlAuthority.activeGimbalSampleCount} / {stageFlightResult.gimbalControlAuthority.sampleCount} trace samples</small></div>
+                        <div><span>Peak control force</span><strong>{stageFlightResult.gimbalControlAuthority.peakControlForceN === null ? "Not assessed" : `${stageFlightResult.gimbalControlAuthority.peakControlForceN.toFixed(1)} N`}</strong><small>{stageFlightResult.gimbalControlAuthority.peakControlForceTimeS === null ? "no active sample" : `at ${stageFlightResult.gimbalControlAuthority.peakControlForceTimeS.toFixed(2)} s`}</small></div>
+                        <div><span>Peak control moment</span><strong>{stageFlightResult.gimbalControlAuthority.peakControlMomentNm === null ? "Not assessed" : `${stageFlightResult.gimbalControlAuthority.peakControlMomentNm.toFixed(2)} N·m`}</strong><small>{stageFlightResult.gimbalControlAuthority.peakControlMomentTimeS === null ? "no active sample" : `at ${stageFlightResult.gimbalControlAuthority.peakControlMomentTimeS.toFixed(2)} s`}</small></div>
+                        <div><span>Peak angular acceleration</span><strong>{stageFlightResult.gimbalControlAuthority.peakControlAngularAccelerationRadS2 === null ? "Not assessed" : `${stageFlightResult.gimbalControlAuthority.peakControlAngularAccelerationRadS2.toFixed(3)} rad/s²`}</strong><small>{stageFlightResult.gimbalControlAuthority.peakControlAngularAccelerationTimeS === null ? "I·α = τ" : `at ${stageFlightResult.gimbalControlAuthority.peakControlAngularAccelerationTimeS.toFixed(2)} s`}</small></div>
+                        <div><span>Minimum control / aero moment</span><strong>{stageFlightResult.gimbalControlAuthority.minimumControlToAerodynamicMomentRatio === null ? "Not assessed" : stageFlightResult.gimbalControlAuthority.minimumControlToAerodynamicMomentRatio.toFixed(3)}</strong><small>magnitude screen only</small></div>
+                        <div><span>Configured response time</span><strong>{stageFlightResult.gimbalControlAuthority.maximumConfiguredResponseTimeS === null ? "Not recorded" : `${stageFlightResult.gimbalControlAuthority.maximumConfiguredResponseTimeS.toFixed(2)} s`}</strong><small>context only; no rate model</small></div>
+                      </div>
+                      <p className="gimbal-authority-note">{stageFlightResult.gimbalControlAuthority.warnings[0] ?? "Independent per-motor corner bounds are summed conservatively; coordinated allocation is not modeled."}</p>
+                      <small className="gimbal-authority-model">{publicModelVersion(stageFlightResult.gimbalControlAuthority.modelVersion)} · {stageFlightResult.gimbalControlAuthority.validationStatus}</small>
                     </section>
                     <section className={`stage-loss-budget-card stage-loss-budget-${stageFlightResult.missionLossBudget.status}`} aria-labelledby="stage-loss-budget-title">
                       <div className="stage-loss-budget-heading">

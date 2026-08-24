@@ -327,7 +327,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.45.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.46.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);
@@ -349,6 +349,10 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
   assert.ok((result.forceBudget.thrustImpulseNs ?? 0) > 0);
   assert.ok((result.forceBudget.thrustVelocityEquivalentMps ?? 0) > 0);
   assert.ok(result.forceBudget.stages.some((stage) => stage.stageId === "booster"));
+  assert.equal(result.gimbalControlAuthority.status, "not-assessed");
+  assert.equal(result.gimbalControlAuthority.sampleCount, result.trace.length);
+  assert.match(result.gimbalControlAuthority.warnings[0], /No motor carries a configured gimbal schedule/);
+  assert.equal(result.trace[0].gimbalControlForceN, undefined);
   assert.ok(["assessed", "partial", "not-assessed"].includes(result.missionLossBudget.status));
   assert.equal(result.missionLossBudget.sampleCount, result.trace.length);
   assert.ok((result.missionLossBudget.thrustImpulseEquivalentMps ?? 0) > 0);
@@ -1465,6 +1469,34 @@ test("stage-flight adapter supports a single-stage coupled 6DOF preview", () => 
   assert.equal(result.events.length, 0);
   assert.equal(result.separatedBodies.length, 0);
   assert.ok(Number.isFinite(result.convergence.finalPositionDifferenceM));
+});
+
+test("stage-flight adapter exposes the configured gimbal control-authority envelope", () => {
+  const gimballedStage = {
+    ...stages[1],
+    motors: [{
+      ...stages[1].motors[0],
+      thrustAxisBody: { x: -1, y: 0, z: 0 },
+      thrustAxisSchedule: [{ timeS: 0, axisBody: { x: -1, y: 0, z: 0 } }],
+      gimbalResponseTimeS: 0.2,
+    }],
+  };
+  const result = simulateStageFlightPreview({
+    retainedMassProperties: properties(0.4, 0.2),
+    components: components.filter((component) => component.stageId === "upper"),
+    stages: [gimballedStage],
+    regimes: [regimes[1]],
+    initiallyIgnitedStageIds: ["upper"],
+    durationS: 2.5,
+    timeStepS: 0.05,
+    launchAltitudeM: 0,
+  });
+
+  assert.equal(result.gimbalControlAuthority.status, "available");
+  assert.equal(result.gimbalControlAuthority.maximumConfiguredResponseTimeS, 0.2);
+  assert.ok((result.gimbalControlAuthority.peakControlForceN ?? 0) > 0);
+  assert.ok((result.gimbalControlAuthority.peakControlMomentNm ?? 0) > 0);
+  assert.ok(result.trace.some((point) => (point.gimbalControlAngularAccelerationRadS2 ?? 0) > 0));
 });
 
 test("stage-flight adapter rejects unknown initial ignition stages", () => {

@@ -6,12 +6,20 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a bounded, post-trace gimbal control-authority envelope to staged
+  previews. The clean-room analyzer evaluates public thrust-vector and rigid-
+  body equations at the authored ±15° command corners, exposes conservative
+  per-motor force/moment/angular-acceleration bounds, coverage, response-time
+  context, trace plots, CSV/report fields, and explicit limitations. It does
+  not implement closed-loop guidance, rate limits, servo saturation, flexure,
+  plume/aero control derivatives, hardware validation, or flight-safety claims.
+
 - Extend the stage-interface review with an optional body-transverse load
   envelope derived from the authoritative 6-DOF net-force trace. Serial and
   parallel rows now retain transverse and resultant demand telemetry while
   keeping the declared shell-section capacity and factor of safety axial-only;
   old traces without the channel remain explicitly unavailable. The staged
-  preview model is versioned as `kestrel-stage-flight-preview-0.45.0`.
+  preview model is versioned as `kestrel-stage-flight-preview-0.46.0`.
 
 - Add an optional bounded angular separation pulse to the shared released-body
   solver and first-separation UI. A relative angular Δω target is converted

@@ -1063,6 +1063,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   const stagePreview = await readFile(new URL("../lib/physics/stage-flight-preview.ts", import.meta.url), "utf8");
   const stageInterfaceLoads = await readFile(new URL("../lib/physics/stage-interface-loads.ts", import.meta.url), "utf8");
   const stageForceBudget = await readFile(new URL("../lib/physics/stage-flight-force-budget.ts", import.meta.url), "utf8");
+  const gimbalAuthority = await readFile(new URL("../lib/physics/gimbal-control-authority.ts", import.meta.url), "utf8");
   const exportSource = await readFile(new URL("../lib/export/project-exports.ts", import.meta.url), "utf8");
   const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(page, /Stages, boosters & clusters/);
@@ -1328,7 +1329,10 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stagePreview, /independentRetainedLoads/);
   assert.match(stagePreview, /velocityImpulseEvents/);
   assert.match(stagePreview, /duplicate world-gravity term/);
-  assert.match(stagePreview, /kestrel-stage-flight-preview-0\.45\.0/);
+  assert.match(stagePreview, /kestrel-stage-flight-preview-0\.46\.0/);
+  assert.match(stagePreview, /gimbalControlAuthority/);
+  assert.match(page, /Gimbal control-authority envelope/);
+  assert.match(page, /gimbalControlForce/);
   assert.match(stagePreview, /relativeAeroForceFeedback/);
   assert.match(stagePreview, /interpolateStageTraceNonGravityForceWorldN/);
   assert.match(stagePreview, /attitudeDependentDrag/);
@@ -1344,6 +1348,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stageInterfaceLoads, /per-instance radial force/);
   assert.match(stageForceBudget, /analytical-trace-integral-only/);
   assert.match(stageForceBudget, /velocity-equivalent accounting/);
+  assert.match(gimbalAuthority, /GIMBAL_CONTROL_AUTHORITY_MODEL_VERSION/);
+  assert.match(gimbalAuthority, /I·α = τ/);
+  assert.match(stylesheet, /\.gimbal-authority-card/);
   assert.match(stylesheet, /\.stage-flight-model-options/);
   assert.match(stylesheet, /\.stage-flight-cluster-motor-peaks/);
   assert.match(stylesheet, /\.topology-stage/);

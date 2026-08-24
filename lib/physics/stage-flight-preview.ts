@@ -130,9 +130,14 @@ import {
   computeMissionDeltaVBridge,
   type MissionDeltaVBridgeResult,
 } from "./mission-delta-v-bridge.ts";
+import {
+  analyzeGimbalControlAuthority,
+  type GimbalControlAuthorityResult,
+  type GimbalControlAuthoritySampleInput,
+} from "./gimbal-control-authority.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.45.0";
+  "kestrel-stage-flight-preview-0.46.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -276,6 +281,16 @@ export type StageFlightTracePoint = Readonly<{
   axialAccelerationMps2: number;
   /** Magnitude of the net-force acceleration perpendicular to the nose in body +Y/+Z. */
   transverseAccelerationMps2?: number;
+  /** Conservative independent gimbal transverse-force envelope, in newtons. */
+  gimbalControlForceN?: number;
+  /** Conservative independent gimbal moment envelope, in N·m. */
+  gimbalControlMomentNm?: number;
+  /** Conservative independent gimbal angular-acceleration envelope, in rad/s². */
+  gimbalControlAngularAccelerationRadS2?: number;
+  /** Positive-thrust gimballed-motor count at this sample. */
+  gimbalActiveMotorCount?: number;
+  /** Control-moment magnitude divided by aerodynamic-moment magnitude when defined. */
+  gimbalControlToAerodynamicMomentRatio?: number | null;
   attachedStageIds: readonly string[];
 }>;
 
@@ -367,6 +382,7 @@ export type StageFlightPreviewResult = Readonly<{
   missionMassRatio: MissionMassRatioResult;
   forceBudget: StageFlightForceBudgetResult;
   vectorBudget: StageFlightVectorBudgetResult;
+  gimbalControlAuthority: GimbalControlAuthorityResult;
   missionLossBudget: MissionLossBudgetResult;
   missionDeltaVBridge: MissionDeltaVBridgeResult;
   separatedBodies: readonly SeparatedBodyTrajectory[];
@@ -799,6 +815,7 @@ type StageFlightRun = Readonly<{
   simulation: SixDofSimulationResult | null;
   rail: RailGuidedLaunchResult | null;
   trace: readonly StageFlightTracePoint[];
+  gimbalControlAuthority: GimbalControlAuthorityResult;
   events: readonly StageFlightEvent[];
   maxAltitudeAglM: number;
   maxSpeedMps: number;
@@ -1205,6 +1222,13 @@ export function simulateStageFlightPreview(
         .filter((timeS) => Number.isFinite(timeS) && timeS >= 0),
     ),
   ];
+  const sourceMotorsById = new Map<string, MultiStageMotor>();
+  for (const stage of input.stages) {
+    for (const motor of stage.motors) sourceMotorsById.set(motor.id, motor);
+    for (const instance of stage.instances ?? []) {
+      for (const motor of instance.motors) sourceMotorsById.set(motor.id, motor);
+    }
+  }
   const runAtTimeStep = (timeStepS: number): StageFlightRun => {
     const rail = input.launchRail
       ? simulateRailGuidedLaunch({
@@ -1235,7 +1259,8 @@ export function simulateStageFlightPreview(
           integration: input.integration,
         }));
     const simulationTrace = rail?.trace ?? simulation?.trace ?? [];
-    const trace = simulationTrace.map((state): StageFlightTracePoint => {
+    const authoritySampleInputs: GimbalControlAuthoritySampleInput[] = [];
+    const traceWithoutGimbalAuthority = simulationTrace.map((state): StageFlightTracePoint => {
       const evaluation = staging.evaluate(state);
       const loadEvaluation = loads.evaluate(state);
       const recoveryEvaluation = recovery?.evaluate(state);
@@ -1268,6 +1293,36 @@ export function simulateStageFlightPreview(
       const attitudeTiltRad = Math.acos(
         Math.min(1, Math.max(-1, dot(noseDirectionWorld, { x: 0, y: 0, z: 1 }))),
       );
+      const evaluatedMotors = evaluation.stages.flatMap((stageEvaluation) =>
+        stageEvaluation.instances.length > 0
+          ? stageEvaluation.instances.flatMap((instanceEvaluation) =>
+              instanceEvaluation.motors.map((motorEvaluation) => ({ motorEvaluation })),
+            )
+          : stageEvaluation.motors.map((motorEvaluation) => ({ motorEvaluation })),
+      );
+      authoritySampleInputs.push({
+        timeS: state.timeS,
+        massProperties: evaluation.massProperties,
+        motors: evaluatedMotors.flatMap(({ motorEvaluation }) => {
+          const sourceMotor = sourceMotorsById.get(motorEvaluation.id);
+          if (!sourceMotor) return [];
+          return [{
+            id: motorEvaluation.id,
+            name: motorEvaluation.name,
+            thrustN: motorEvaluation.thrustN,
+            thrustAxisBody: motorEvaluation.thrustAxisBody,
+            thrustApplicationPointBodyM: sourceMotor.thrustApplicationPointBodyM,
+            gimbalConfigured: Boolean(sourceMotor.thrustAxisSchedule?.length),
+            ...(sourceMotor.gimbalResponseTimeS === undefined
+              ? {}
+              : { responseTimeS: sourceMotor.gimbalResponseTimeS }),
+          }];
+        }),
+        aerodynamicMomentBodyNm: addVectors(
+          loadEvaluation.diagnostics.aerodynamicStaticMomentBodyNm,
+          loadEvaluation.diagnostics.aerodynamicDampingMomentBodyNm,
+        ),
+      });
       return {
         timeS: state.timeS,
         altitudeAglM: state.positionWorldM.z,
@@ -1318,6 +1373,22 @@ export function simulateStageFlightPreview(
         attachedStageIds: [...evaluation.attachedStageIds],
       };
     });
+    const gimbalControlAuthority = analyzeGimbalControlAuthority(authoritySampleInputs);
+    const trace = traceWithoutGimbalAuthority.map((point, index) => {
+      const authoritySample = gimbalControlAuthority.samples[index];
+      return {
+        ...point,
+        ...(authoritySample
+          ? {
+              gimbalControlForceN: authoritySample.controlForceN,
+              gimbalControlMomentNm: authoritySample.controlMomentNm,
+              gimbalControlAngularAccelerationRadS2: authoritySample.controlAngularAccelerationRadS2,
+              gimbalActiveMotorCount: authoritySample.gimballedMotorCount,
+              gimbalControlToAerodynamicMomentRatio: authoritySample.controlToAerodynamicMomentRatio,
+            }
+          : {}),
+      };
+    });
     const maxAltitudeAglM = trace.length > 0
       ? Math.max(...trace.map((point) => point.altitudeAglM))
       : 0;
@@ -1353,6 +1424,7 @@ export function simulateStageFlightPreview(
       simulation,
       rail,
       trace,
+      gimbalControlAuthority,
       events,
       maxAltitudeAglM,
       maxSpeedMps,
@@ -2070,6 +2142,7 @@ export function simulateStageFlightPreview(
     ...missionMassRatio.warnings,
     ...forceBudget.warnings,
     ...vectorBudget.warnings,
+    ...primaryRun.gimbalControlAuthority.warnings,
     ...missionLossBudget.warnings,
     ...missionDeltaVBridge.warnings,
     ...(configuredSeparationPulse !== undefined && resolvedSeparationMechanisms.every(
@@ -2146,6 +2219,7 @@ export function simulateStageFlightPreview(
     ...missionMassRatio.assumptions,
     ...forceBudget.assumptions,
     ...vectorBudget.assumptions,
+    ...primaryRun.gimbalControlAuthority.assumptions,
     ...missionLossBudget.assumptions,
     ...missionDeltaVBridge.assumptions,
     ...(recovery
@@ -2180,6 +2254,7 @@ export function simulateStageFlightPreview(
     missionMassRatio,
     forceBudget,
     vectorBudget,
+    gimbalControlAuthority: primaryRun.gimbalControlAuthority,
     missionLossBudget,
     missionDeltaVBridge,
     separatedBodies,

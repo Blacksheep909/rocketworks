@@ -519,6 +519,11 @@ export function createStageFlightTraceCsv(
     "thrust_n",
     "axial_acceleration_mps2",
     "transverse_acceleration_mps2",
+    "gimbal_control_force_n",
+    "gimbal_control_moment_nm",
+    "gimbal_control_angular_acceleration_rad_s2",
+    "gimbal_active_motor_count",
+    "gimbal_control_to_aerodynamic_moment_ratio",
     "attached_stage_ids",
   ];
   const rows = trace.map((point, index) => {
@@ -553,6 +558,11 @@ export function createStageFlightTraceCsv(
       point.thrustN,
       point.axialAccelerationMps2,
       point.transverseAccelerationMps2,
+      point.gimbalControlForceN,
+      point.gimbalControlMomentNm,
+      point.gimbalControlAngularAccelerationRadS2,
+      point.gimbalActiveMotorCount,
+      point.gimbalControlToAerodynamicMomentRatio,
     ];
     values.forEach((value, valueIndex) => {
       if (value !== null && value !== undefined) {
@@ -2592,6 +2602,29 @@ export function createEngineeringReportMarkdown(
                 ...input.stageFlight.vectorBudget.warnings.map((warning) => `- **Vector-budget warning:** ${markdownText(warning)}`),
                 "",
                 "> This is world-frame vector trace accounting. It is not a validated mission delta-v, loss budget, certification, or flight-safety result.",
+                "",
+              ]
+            : []),
+          ...(input.stageFlight.gimbalControlAuthority
+            ? [
+                "### Gimbal control-authority envelope",
+                "",
+                `| Diagnostic | Value |`,
+                `|---|---:|`,
+                `| Status | ${markdownText(input.stageFlight.gimbalControlAuthority.status)} |`,
+                `| Active gimbal coverage | ${formatNumber(input.stageFlight.gimbalControlAuthority.activeGimbalCoverageFraction * 100, 2)}% (${input.stageFlight.gimbalControlAuthority.activeGimbalSampleCount} / ${input.stageFlight.gimbalControlAuthority.sampleCount} samples) |`,
+                `| Command envelope | ±${formatNumber(input.stageFlight.gimbalControlAuthority.maxDeflectionDeg, 1)}° |`,
+                `| Peak control force | ${input.stageFlight.gimbalControlAuthority.peakControlForceN === null ? "not assessed" : `${formatNumber(input.stageFlight.gimbalControlAuthority.peakControlForceN, 2)} N at ${formatNumber(input.stageFlight.gimbalControlAuthority.peakControlForceTimeS ?? 0, 2)} s`} |`,
+                `| Peak control moment | ${input.stageFlight.gimbalControlAuthority.peakControlMomentNm === null ? "not assessed" : `${formatNumber(input.stageFlight.gimbalControlAuthority.peakControlMomentNm, 2)} N·m at ${formatNumber(input.stageFlight.gimbalControlAuthority.peakControlMomentTimeS ?? 0, 2)} s`} |`,
+                `| Peak angular acceleration envelope | ${input.stageFlight.gimbalControlAuthority.peakControlAngularAccelerationRadS2 === null ? "not assessed" : `${formatNumber(input.stageFlight.gimbalControlAuthority.peakControlAngularAccelerationRadS2, 3)} rad/s² at ${formatNumber(input.stageFlight.gimbalControlAuthority.peakControlAngularAccelerationTimeS ?? 0, 2)} s`} |`,
+                `| Minimum control / aero moment ratio | ${input.stageFlight.gimbalControlAuthority.minimumControlToAerodynamicMomentRatio === null ? "not assessed" : `${formatNumber(input.stageFlight.gimbalControlAuthority.minimumControlToAerodynamicMomentRatio, 3)} at ${formatNumber(input.stageFlight.gimbalControlAuthority.minimumControlToAerodynamicMomentRatioTimeS ?? 0, 2)} s`} |`,
+                `| Maximum configured response time | ${input.stageFlight.gimbalControlAuthority.maximumConfiguredResponseTimeS === null ? "not recorded" : `${formatNumber(input.stageFlight.gimbalControlAuthority.maximumConfiguredResponseTimeS, 3)} s`} |`,
+                `| Model | \`${markdownText(input.stageFlight.gimbalControlAuthority.modelVersion)}\` (${markdownText(input.stageFlight.gimbalControlAuthority.validationStatus)}) |`,
+                "",
+                ...input.stageFlight.gimbalControlAuthority.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+                ...input.stageFlight.gimbalControlAuthority.warnings.map((warning) => `- **Gimbal-authority warning:** ${markdownText(warning)}`),
+                "",
+                "> This is a conservative, independent actuator-effect envelope. It is not a closed-loop guidance result, rate-limit or servo-saturation model, structural assessment, controller-validity proof, or flight-safety evidence.",
                 "",
               ]
             : []),

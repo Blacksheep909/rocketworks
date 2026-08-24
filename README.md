@@ -65,6 +65,11 @@ research, standards, and original code.
   interpolation, per-instance radial basis mapping, optional first-order vector
   response, plus bounded throttle schedules with impulse-consistent depletion
   and explicit actuator-model limitations;
+- a post-trace gimbal control-authority envelope that exposes conservative
+  independent force, moment, angular-acceleration, coverage, and
+  control-to-aerodynamic-moment diagnostics at the authored ±15° command
+  bound; it is explicitly not a controller, hardware assessment, or
+  flight-safety result;
 - deterministic per-motor cluster-failure preview with retained failed-motor
   propellant and explicit imbalance warnings;
 - bounded retained-body separation delta-v controls with body/world-frame event

@@ -27,6 +27,7 @@ export * from "./rocket-loads.ts";
 export * from "./six-dof.ts";
 export * from "./stage-aware-aerodynamics.ts";
 export * from "./stage-flight-preview.ts";
+export * from "./gimbal-control-authority.ts";
 export * from "./stage-flight-comparison.ts";
 export * from "./stage-flight-force-budget.ts";
 export * from "./stage-flight-vector-budget.ts";
