@@ -327,7 +327,7 @@ test("stage-flight adapter couples staging, topology aerodynamics, and 6DOF even
     ],
   });
 
-  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.39.0");
+  assert.equal(result.modelVersion, "kestrel-stage-flight-preview-0.40.0");
   assert.equal(result.validationStatus, "mathematical-regression-tests-only");
   assert.equal(result.normalForceModel, "low-speed");
   assert.match(result.normalForceModelVersion, /normal-force-compressibility/);
@@ -503,10 +503,63 @@ test("stage-flight adapter optionally includes a replay-backed retained vehicle 
     (trajectory) => trajectory.id === "retained-vehicle",
   );
   assert.ok(independentRetained);
-  assert.equal(independentRetained.label, "Retained vehicle (independent mass + propulsion)");
+  assert.equal(independentRetained.label, "Retained vehicle (independent mass + fresh aero/recovery)");
   assert.ok(independentRetained.trace.every((point) => Number.isFinite(point.massKg)));
   assert.ok(independent.assumptions.some((assumption) => assumption.includes("clean-room staging mass/inertia")));
-  assert.ok(independent.assumptions.some((assumption) => assumption.includes("does not yet re-solve fresh retained-stage aerodynamics")));
+  assert.ok(independent.assumptions.some((assumption) => assumption.includes("active-topology aerodynamics, and recovery callbacks")));
+  assert.ok(independent.assumptions.some((assumption) => assumption.includes("omits the preliminary model's duplicate world-gravity term")));
+});
+
+test("independent retained mode evaluates fresh active-stage aero and recovery loads", () => {
+  const retainedInput = {
+    retainedMassProperties: properties(0.4, 0.2),
+    components,
+    stages,
+    regimes,
+    initiallyIgnitedStageIds: ["booster"],
+    durationS: 2.5,
+    timeStepS: 0.05,
+    launchAltitudeM: 0,
+    initialState: {
+      positionWorldM: { x: 0, y: 0, z: 100 },
+      velocityWorldMps: { x: 0, y: 0, z: 30 },
+    },
+    events: [createScheduledStageSeparationEvent({ stageId: "booster", timeS: 1 })],
+    coupledMultiBodyIncludeRetainedBody: true,
+    coupledMultiBodyRetainedBodyMode: "independent-mass-propulsion",
+  };
+  const baseline = simulateStageFlightPreview(retainedInput);
+  const lowDrag = simulateStageFlightPreview({
+    ...retainedInput,
+    regimes: regimes.map((regime) => ({ ...regime, dragCoefficient: regime.dragCoefficient * 0.1 })),
+  });
+  const recovered = simulateStageFlightPreview({
+    ...retainedInput,
+    recoveryDevices: [{
+      id: "retained-main",
+      name: "Retained main canopy",
+      dragCoefficient: 0.9,
+      referenceAreaM2: 0.8,
+      inflationTimeS: 0,
+    }],
+    events: [
+      createScheduledRecoveryDeploymentEvent({ deviceId: "retained-main", timeS: 0.2 }),
+      ...retainedInput.events,
+    ],
+  });
+  const retainedTrace = (result) => result.coupledMultiBodyFlight?.trajectories.find(
+    (trajectory) => trajectory.id === "retained-vehicle",
+  )?.trace ?? [];
+  const baselineTrace = retainedTrace(baseline);
+  const lowDragTrace = retainedTrace(lowDrag);
+  const recoveredTrace = retainedTrace(recovered);
+  assert.ok(baselineTrace.length > 1);
+  assert.ok(lowDragTrace.length > 1);
+  assert.ok(recoveredTrace.length > 1);
+  assert.ok(Math.abs(baselineTrace.at(-1).speedMps - lowDragTrace.at(-1).speedMps) > 1e-4);
+  assert.ok(Math.abs(recoveredTrace.at(-1).speedMps - baselineTrace.at(-1).speedMps) > 1e-4);
+  assert.ok(recovered.assumptions.some((assumption) => assumption.includes("recovery callbacks")));
+  assert.ok(recovered.assumptions.some((assumption) => assumption.includes("duplicate world-gravity term")));
 });
 
 test("stage-flight adapter forwards projected-area drag to the detached shared track", () => {

@@ -195,9 +195,11 @@ research, standards, and original code.
 - an opt-in retained-vehicle replay track in the shared released-body solver
   that seeds the retained rigid state at first separation and replays
   interpolated thrust, aerodynamic, and recovery translation loads from the
-  authoritative staged trace for contact/mutual-gravity diagnostics; retained
-  propellant flow, fresh aerodynamics, moments, and later mass-property changes
-  are intentionally not re-solved as an independent retained-stage model;
+  authoritative staged trace for contact/mutual-gravity diagnostics; an
+  explicit independent mode instead evaluates changing retained mass/inertia,
+  propulsion, active-topology aerodynamics, and recovery loads on the shared
+  grid while keeping later staging impulses and validated interference out of
+  scope;
 - an opt-in projected-area attitude-drag mode for released rigid bodies that
   blends caller-supplied axial and broadside CdA pairs, retains incidence and
   effective-area diagnostics on the shared trace;
@@ -420,10 +422,10 @@ validated stage-interface/load-transfer and
 mission-level mass-ratio loss models, and validated structural/aeroelastic benchmarks beyond the
 preliminary fin flutter screen. The optional retained replay track now provides
 an explicit shared-grid diagnostic, and the staged adapter now has an explicit
-API-only independent retained mass/propulsion handoff that evaluates changing
-mass/inertia and caller-supplied thrust after the first separation. A true
-independent retained-stage force, fresh aerodynamics, recovery, later-staging,
-relative-body database, and momentum-exchange solver remains future work.
+API-only independent retained handoff that evaluates changing mass/inertia,
+caller-supplied thrust, active-topology aerodynamics, and recovery loads after
+the first separation. Later staging impulses, separation mechanisms, relative-
+body databases, and a full momentum-exchange solver remain future work.
 Angular and direct force/moment coefficient
 volumes are now supported as explicit
 interpolation sources, and seeded event-factor dispersion now covers timing,

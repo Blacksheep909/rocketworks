@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.39.0`.
+`kestrel-stage-flight-preview-0.40.0`.
 
 Relation-based aerodynamics retain both the selected normal-force trend and
 the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions
@@ -57,6 +57,18 @@ recovery model version. A detachable stage may also carry an explicitly
 configured recovery device; that device is instantiated on the independent
 branch after separation and commanded at that branch's apogee. Retained
 vehicle settings are not copied into detached stages.
+
+The optional shared released-body retained track has two explicit modes. The
+default `trace-replay` mode interpolates translation loads from the authoritative
+staged run. The opt-in `independent-mass-propulsion` mode instead hands the
+retained body to the shared grid at the first separation and evaluates changing
+staging mass/inertia, propulsion, active-topology aerodynamic force/moment
+loads, and retained recovery force/moment loads at each substep. Gravity is
+supplied by the shared solver, so the preliminary load model's duplicate world
+gravity term is omitted from this callback. Later staging velocity impulses,
+separation mechanism dynamics, plume interaction, and validated stage-to-stage
+interference remain outside the branch; the result keeps those assumptions
+visible and remains an engineering preview.
 
 ## Event and state policy
 
@@ -427,23 +439,26 @@ engineering preview and must not be used for range-safety or flight approval.
 
 When `coupledMultiBodyIncludeRetainedBody` is enabled, the shared-grid track
 also seeds the retained vehicle at the first separation event. The seed keeps
-the staged event handoff attitude, angular rate, mass, and inertia, while a
-callback replays interpolated thrust, aerodynamic, and recovery translation
-forces from the authoritative staged trace. Shared gravity, optional mutual
-gravity, and optional spherical-envelope contact are evaluated by the coupled
-solver. This is a bounded replay diagnostic: retained-stage propellant flow,
-fresh aerodynamic loads, aerodynamic moments, separation mechanics, and later
-mass-property changes remain outside the independent retained-stage model. The
-default remains detached bodies only.
+the staged event handoff attitude, angular rate, mass, and inertia. In the
+default replay mode, a callback replays interpolated thrust, aerodynamic, and
+recovery translation forces from the authoritative staged trace. Shared
+gravity, optional mutual gravity, and optional spherical-envelope contact are
+evaluated by the coupled solver. This replay mode is a bounded diagnostic and
+does not re-solve retained-stage propellant flow, fresh aerodynamic loads,
+aerodynamic moments, separation mechanics, or later mass-property changes.
+The default remains detached bodies only.
 
-Callers that need a bounded propulsion/mass handoff can additionally select
+Callers that need a bounded independent handoff can additionally select
 `coupledMultiBodyRetainedBodyMode = "independent-mass-propulsion"`. The seed
-then calls the clean-room multi-stage `body` and `loads` providers at every
-shared-grid substep, so propellant-dependent mass/inertia and caller-supplied
-thrust are not frozen at separation. This mode intentionally does not claim a
-full retained-stage rerun: fresh aerodynamics, recovery loads, plume/contact
-interaction, separation mechanics, and later staging events remain outside the
-branch. `"trace-replay"` remains the compatibility default.
+then calls the clean-room multi-stage `body` provider and a fresh load callback
+at every shared-grid substep, so propellant-dependent mass/inertia,
+caller-supplied thrust, active-topology aerodynamic force/moment loads, and
+retained recovery force/moment loads are not frozen at separation. Gravity is
+supplied by the shared solver and is not duplicated in the callback. This mode
+still does not claim a full retained-stage rerun: later staging velocity
+impulses, separation mechanics, plume/contact interaction, and validated
+stage-to-stage interference remain outside the branch. `"trace-replay"`
+remains the compatibility default.
 
 If the retained payload/recovery allowance is made only from collinear point
 masses, the browser adapter adds a versioned compact-package shape inertia

@@ -46,9 +46,10 @@ as flight-safety, range-safety, or collision-certification data.
 The browser persists `coupledMultiBodyRetainedBodyMode` so a saved project and
 its simulation fingerprint cannot silently switch retained-body semantics.
 `"trace-replay"` remains the safe compatibility default. The independent mode
-is still an engineering-preview override: it evaluates staged mass/inertia and
-propulsion callbacks after the first separation event, but does not claim fresh
-aerodynamics, recovery, plume/contact interaction, or later-staging coverage.
+is still an engineering-preview override: it evaluates staged mass/inertia,
+propulsion, active-topology aerodynamic, and recovery callbacks after the first
+separation event, but does not claim later-staging impulses, separation
+mechanics, plume/contact interaction, or validated interference coverage.
 
 ## Clean-room boundary
 

@@ -1075,6 +1075,8 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Coupled dynamics preview/);
   assert.match(page, /6DOF ascent run/);
   assert.match(page, /Run staged preview/);
+  assert.match(page, /Independent mass \+ fresh aero\/recovery/);
+  assert.match(page, /active-topology aerodynamics/);
   assert.match(page, /Run 6DOF preview/);
   assert.match(page, /released-body-force-model/);
   assert.match(page, /released-body-drag-model/);
@@ -1083,7 +1085,7 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(page, /Include mutual point-mass gravity/);
   assert.match(page, /retained-body-coupled-track/);
   assert.match(page, /Include retained replay track/);
-  assert.match(page, /Independent mass \+ propulsion \(preview\)/);
+  assert.match(page, /Independent mass \+ fresh aero\/recovery \(preview\)/);
   assert.match(page, /coupledMultiBodyRetainedBodyMode/);
   assert.match(page, /Dynamic mass models/);
   assert.match(page, /coupledGravitySofteningRadiusM/);
@@ -1306,6 +1308,9 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
   assert.match(stagePreview, /coupledMultiBodyIncludeRetainedBody/);
   assert.match(stagePreview, /coupledMultiBodyRetainedBodyMode/);
   assert.match(stagePreview, /independent-mass-propulsion/);
+  assert.match(stagePreview, /independentRetainedLoads/);
+  assert.match(stagePreview, /duplicate world-gravity term/);
+  assert.match(stagePreview, /kestrel-stage-flight-preview-0\.40\.0/);
   assert.match(stagePreview, /relativeAeroForceFeedback/);
   assert.match(stagePreview, /interpolateStageTraceNonGravityForceWorldN/);
   assert.match(stagePreview, /attitudeDependentDrag/);

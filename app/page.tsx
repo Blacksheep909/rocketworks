@@ -9188,10 +9188,10 @@ export default function Home() {
                     >
                       <option value="detached-only">Detached bodies only (baseline)</option>
                       <option value="trace-replay">Include retained replay track</option>
-                      <option value="independent-mass-propulsion">Independent mass + propulsion (preview)</option>
+                      <option value="independent-mass-propulsion">Independent mass + fresh aero/recovery (preview)</option>
                     </select>
                     <small>{coupledMultiBodyRetainedBodyMode === "independent-mass-propulsion" && coupledMultiBodyIncludeRetainedBody
-                      ? "Hands the retained vehicle to the shared track at first separation, then evaluates changing staging mass/inertia and caller-supplied thrust. Fresh retained aerodynamics, recovery, plume/contact interaction, and later staging events remain outside this engineering preview."
+                      ? "Hands the retained vehicle to the shared track at first separation, then evaluates changing staging mass/inertia, caller-supplied thrust, active-topology aerodynamics, and recovery loads. Later staging impulses, plume/contact interaction, and validated interference remain outside this engineering preview."
                       : "Adds the retained vehicle at first separation using replayed staged translation loads, enabling shared contact and mutual-gravity diagnostics. It is not an independent retained-stage 6DOF solution."}</small>
                   </div>
                   <div className="field-group">
@@ -9815,7 +9815,7 @@ export default function Home() {
                                 <h5>{stageFlightResult.coupledMultiBodyFlight.trajectories.some((trajectory) => trajectory.id === "retained-vehicle") ? "Coupled retained + detached flight" : "Coupled detached-body flight"}</h5>
                                   <p>{stageFlightResult.coupledMultiBodyFlight.trajectories.some((trajectory) => trajectory.id === "retained-vehicle")
                                     ? coupledMultiBodyRetainedBodyMode === "independent-mass-propulsion"
-                                      ? "Runs the retained vehicle and released bodies together on one mission-time grid. The retained handoff evaluates changing staging mass/inertia and caller-supplied propulsion after first separation; fresh retained aerodynamics, recovery, plume/contact interaction, later staging events, and validated interference remain out of scope."
+                                    ? "Runs the retained vehicle and released bodies together on one mission-time grid. The retained handoff evaluates changing staging mass/inertia, caller-supplied propulsion, active-topology aerodynamics, and recovery loads after first separation; later staging impulses, plume/contact interaction, and validated interference remain out of scope."
                                       : "Runs the retained vehicle and released bodies together on one mission-time grid. The retained body replays authoritative staged translation loads while shared gravity, atmosphere, wind, mutual gravity, bounded envelope contact, and any explicitly enabled wake-feedback sensitivity are evaluated here; independent retained-stage aerodynamics and propellant flow remain out of scope."
                                     : "Runs every released body together on one mission-time grid with shared gravity, atmosphere, and wind queries. Bodies may opt into an explicit quaternion/inertia state, bounded spherical-envelope contact, and the analytical wake-feedback sensitivity; retained-vehicle contact, plume, and validated aerodynamic interference remain out of scope."}</p>
                               </div>
@@ -9825,7 +9825,7 @@ export default function Home() {
                             </div>
                             <div className="stage-coupled-multi-body-flight-grid">
                               <div><span>Propagated bodies</span><strong>{stageFlightResult.coupledMultiBodyFlight.trajectories.length}</strong><small>shared mission track</small></div>
-                              <div><span>Track composition</span><strong>{stageFlightResult.coupledMultiBodyFlight.trajectories.some((trajectory) => trajectory.id === "retained-vehicle") ? "Retained + detached" : "Detached only"}</strong><small>{stageFlightResult.coupledMultiBodyFlight.trajectories.some((trajectory) => trajectory.id === "retained-vehicle") ? (coupledMultiBodyRetainedBodyMode === "independent-mass-propulsion" ? "independent mass + propulsion" : "retained translation replay") : "backwards-compatible baseline"}</small></div>
+                              <div><span>Track composition</span><strong>{stageFlightResult.coupledMultiBodyFlight.trajectories.some((trajectory) => trajectory.id === "retained-vehicle") ? "Retained + detached" : "Detached only"}</strong><small>{stageFlightResult.coupledMultiBodyFlight.trajectories.some((trajectory) => trajectory.id === "retained-vehicle") ? (coupledMultiBodyRetainedBodyMode === "independent-mass-propulsion" ? "independent mass + fresh aero/recovery" : "retained translation replay") : "backwards-compatible baseline"}</small></div>
                               <div><span>Integration steps</span><strong>{stageFlightResult.coupledMultiBodyFlight.stepCount}</strong><small>{stageFlightResult.coupledMultiBodyFlight.timeStepS.toFixed(3)} s effective step</small></div>
                                <div><span>Minimum COM separation</span><strong>{stageFlightResult.coupledMultiBodyFlight.minimumDistanceM === null ? "Not assessed" : `${stageFlightResult.coupledMultiBodyFlight.minimumDistanceM.toFixed(2)} m`}</strong><small>{stageFlightResult.coupledMultiBodyFlight.closestPair ? `closest at ${stageFlightResult.coupledMultiBodyFlight.closestPair.timeS.toFixed(2)} s` : "no pairwise overlap"}</small></div>
                               <div><span>Rigid-body states</span><strong>{stageFlightResult.coupledMultiBodyFlight.rigidBodyCount}</strong><small>{stageFlightResult.coupledMultiBodyFlight.rigidBodyCount > 0 ? "attitude + angular-rate traces" : "point-mass translation"}</small></div>

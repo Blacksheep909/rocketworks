@@ -129,7 +129,7 @@ import {
 } from "./mission-delta-v-bridge.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.39.0";
+  "kestrel-stage-flight-preview-0.40.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -1023,6 +1023,25 @@ export function simulateStageFlightPreview(
   const combinedLoads = (state: RigidBodyState): RigidBodyLoads =>
     combineRigidBodyLoads(loads.loads(state), recovery?.loads(state) ?? {});
 
+  /**
+   * Compose fresh retained-stage loads for the independent shared-track mode.
+   * The coupled solver supplies gravity separately, so the preliminary model's
+   * world gravity term is intentionally omitted here. Propulsion, stage-aware
+   * aerodynamics, and recovery force/moment terms remain caller-supplied loads.
+   */
+  const independentRetainedLoads = (state: RigidBodyState): RigidBodyLoads => {
+    const stagedLoads = loads.evaluate(state).loads;
+    const recoveryLoads = recovery?.loads(state) ?? {};
+    return {
+      ...(stagedLoads.forceBodyN ? { forceBodyN: stagedLoads.forceBodyN } : {}),
+      ...(recoveryLoads.forceWorldN ? { forceWorldN: recoveryLoads.forceWorldN } : {}),
+      momentBodyNm: addVectors(
+        stagedLoads.momentBodyNm ?? ZERO_VECTOR,
+        recoveryLoads.momentBodyNm ?? ZERO_VECTOR,
+      ),
+    };
+  };
+
   const baseState = defaultInitialState(input);
   const initialState = initializeMultiStageState(
     baseState,
@@ -1435,10 +1454,14 @@ export function simulateStageFlightPreview(
     if (input.coupledMultiBodyIncludeRetainedBody && detachedStageMassEntries.length > 0) {
       if (retainedBodyCoupledSeed === null) {
         const retainedEnvelopeRadiusM = input.separationEnvelopeRadiiM?.["retained-vehicle"];
+        const retainedStateAt = (state: RigidBodyState): RigidBodyState => ({
+          ...event.stateAfter,
+          ...state,
+        });
         retainedBodyCoupledSeed = {
           id: "retained-vehicle",
           label: retainedBodyMode === "independent-mass-propulsion"
-            ? "Retained vehicle (independent mass + propulsion)"
+            ? "Retained vehicle (independent mass + fresh aero/recovery)"
             : "Retained vehicle (trace replay)",
           massKg: retainedMassPropertiesAfterSeparation.massKg,
           releaseTimeS: event.timeS,
@@ -1453,14 +1476,8 @@ export function simulateStageFlightPreview(
             inertiaBodyKgM2: retainedMassPropertiesAfterSeparation.inertiaAtCenterKgM2,
             ...(retainedBodyMode === "independent-mass-propulsion"
               ? {
-                  propertiesAt: (state: RigidBodyState) => staging.body({
-                    ...event.stateAfter,
-                    ...state,
-                  }),
-                  loads: (state: RigidBodyState): RigidBodyLoads => staging.loads({
-                    ...event.stateAfter,
-                    ...state,
-                  }),
+                  propertiesAt: (state: RigidBodyState) => staging.body(retainedStateAt(state)),
+                  loads: (state: RigidBodyState): RigidBodyLoads => independentRetainedLoads(retainedStateAt(state)),
                 }
               : retainedLoadTrace.length > 0
                 ? {
@@ -1476,8 +1493,9 @@ export function simulateStageFlightPreview(
         };
         if (retainedBodyMode === "independent-mass-propulsion") {
           retainedCoupledTrackAssumptions.push(
-            "The retained vehicle in the shared coupled track uses the first separation event as a state handoff, then evaluates the clean-room staging mass/inertia and propulsion callbacks at every shared-grid substep.",
-            "The independent retained mass/propulsion track does not yet re-solve fresh retained-stage aerodynamics, recovery loads, separation mechanism dynamics, plume interaction, or later staging events; those remain outside this bounded branch.",
+            "The retained vehicle in the shared coupled track uses the first separation event as a state handoff, then evaluates clean-room staging mass/inertia plus propulsion, active-topology aerodynamics, and recovery callbacks at every shared-grid substep.",
+            "The coupled solver supplies gravity and optional mutual/contact terms; the retained callback omits the preliminary model's duplicate world-gravity term while preserving body-frame propulsion/aero loads and recovery force/moment loads.",
+            "Later staging velocity impulses and separation-mechanism dynamics, plume interaction, and validated stage interference remain outside this bounded branch.",
           );
         } else if (retainedLoadTrace.length > 0) {
           retainedCoupledTrackAssumptions.push(

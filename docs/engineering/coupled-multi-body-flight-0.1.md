@@ -59,13 +59,17 @@ option is explicitly enabled.
 The staged adapter also accepts the explicit
 `coupledMultiBodyRetainedBodyMode = "independent-mass-propulsion"` opt-in. This
 keeps the first separation event as a state handoff, then evaluates the
-clean-room staging `body` and `loads` callbacks at every shared-grid substep.
-It therefore carries changing propellant mass/inertia and caller-supplied
-thrust into the shared track without replaying the authoritative force trace.
-It is intentionally bounded: fresh retained-stage aerodynamics, recovery loads,
-separation mechanism dynamics, plume interaction, and later staging events are
-not re-solved. `"trace-replay"` remains the default and existing projects are
-unchanged.
+clean-room staging `body` and fresh load callbacks at every shared-grid
+substep. It therefore carries changing propellant mass/inertia, caller-supplied
+thrust, active-topology aerodynamic force/moment loads, and retained recovery
+force/moment loads into the shared track without replaying the authoritative
+force trace. The preliminary model's world-gravity term is omitted from that
+callback because the shared solver supplies gravity (and optional mutual/contact
+terms) itself; body-frame propulsion/aero loads and recovery world/body loads
+remain additive. It is intentionally bounded: later staging velocity impulses,
+separation mechanism dynamics, plume interaction, and validated stage-to-stage
+interference are not re-solved. `"trace-replay"` remains the default and
+existing projects are unchanged.
 
 ## Equations and numerical method
 
