@@ -431,6 +431,38 @@ export function createEngineeringDesignReview(
         }),
       );
     }
+
+    if (stageInterfaceLoads.connectorEccentricStatus !== "not-assessed") {
+      const eccentricRows = stageInterfaceLoads.parallelAudits
+        .filter((audit) => audit.radialDemandN !== null && audit.radialDemandN > 0)
+        .map((audit) => audit.connectorEccentricCapacityStatus);
+      const eccentricNeedsReview = eccentricRows.filter((row) => row !== "pass").length;
+      const eccentricStatus: EngineeringReviewFindingStatus =
+        stageInterfaceLoads.connectorEccentricStatus === "assessed" ? "pass" : "review";
+      findings.push(
+        makeFinding({
+          id: "structural-stage-interface-connector-eccentricity",
+          category: "structural",
+          label: "Stage-interface connector eccentricity",
+          status: eccentricStatus,
+          severity: eccentricStatus === "pass" ? "info" : "warning",
+          summary:
+            eccentricStatus === "pass"
+              ? "Optional fastener-group eccentric screens pass the declared reserve threshold."
+              : `${eccentricNeedsReview} fastener-group eccentric row${eccentricNeedsReview === 1 ? "" : "s"} need review or geometry evidence.`,
+          detail:
+            "The bounded screen sums equal-share radial force and eccentric moment per fastener using the supplied group radius. It is a conservative direct-shear proxy and does not model bearing, pull-through, contact, prying, preload, bending, or fatigue.",
+          action:
+            eccentricStatus === "pass"
+              ? "Review the actual fastener layout, load direction, contact, preload, and fatigue independently before relying on this reserve."
+              : "Increase or verify the supplied group-radius/evidence basis and complete an independent eccentric-joint qualification review.",
+          value: eccentricNeedsReview,
+          threshold: 0,
+          unit: "eccentric rows needing review",
+          modelVersion: stageInterfaceLoads.modelVersion,
+        }),
+      );
+    }
   }
 
   if (input.stageMassRatio) {

@@ -30,11 +30,17 @@ RocketWorks includes a bounded stage-interface review for enabled topology edges
     demand, then compare it with the same explicitly separate shell-section
     shear proxy when the evidence exists.
 11. When a child stage supplies upstream connector evidence, compute a separate
-    direct single-shear capacity:
-    `V_connector = n · π(d/2)² · τ_allowable · η`, where `n` is connector count,
-    `d` is the supplied diameter, `τ_allowable` is the supplied allowable shear,
-    and `η` is the explicit group-efficiency reduction. This channel is never
-    merged into the shell-section or axial status.
+     direct single-shear capacity:
+     `V_connector = n · π(d/2)² · τ_allowable · η`, where `n` is connector count,
+     `d` is the supplied diameter, `τ_allowable` is the supplied allowable shear,
+     and `η` is the explicit group-efficiency reduction. This channel is never
+     merged into the shell-section or axial status.
+12. When a parallel child stage also supplies a positive fastener-group radius,
+    bound the per-fastener eccentric demand as
+    `V_i = V_radial/n + |M_e|/(n · R_group)` and report
+    `FoS_ecc = (π(d/2)² · τ_allowable · η) / V_i`. Direct and moment terms are
+    summed conservatively for arbitrary relative directions; the screen does
+    not solve contact, bearing, or joint deformation.
 
 The default load factor is 1.0. It is an explicit screening multiplier and is not a measured transient or certification factor. When a current staged-flight trace is supplied, the review filters each interface to samples where both stages remain attached and compares the largest body-axis acceleration with the peak-thrust baseline; the larger value is used for the demand.
 
@@ -58,7 +64,16 @@ Connector direct-shear status is reported separately with the same
 `pass`/`review`/`unavailable` values, and the result-level `connectorStatus`
 aggregates only positive transverse/radial demand channels. Connector evidence
 belongs to the child stage's upstream connector group; it is not inferred from
-the parent shell or material profile. Missing evidence remains unavailable.
+the parent shell or material profile. A positive transverse/radial demand with
+missing direct-shear evidence leaves the row unavailable and the aggregate in
+review; missing eccentric group-radius evidence keeps only the eccentric
+channel not assessed.
+
+Connector eccentricity status is reported separately as
+`connectorEccentricStatus`. It is only assessed for positive parallel radial
+demand when the child connector evidence includes `groupRadiusM`; leaving that
+field blank keeps eccentricity explicitly not assessed rather than upgrading
+the direct-shear result.
 
 Parallel force-scale rows use `screened`/`unavailable` status. `screened` means
 the equal-share arithmetic had the required topology and acceleration inputs;
@@ -68,13 +83,13 @@ The aggregate is `assessed` only when every interface passes. Any review or unav
 
 ## Deliberate limits
 
-The trace projection uses the unconstrained net force divided by instantaneous stack mass, projected onto the vehicle nose direction. The transverse channel is the magnitude of the same acceleration in body +Y/+Z, so it is only available for traces that carry the body attitude and full force vector. These are kinematic envelopes, not rail-reaction or joint-load reconstructions. The parallel audit assumes equal mass/thrust sharing across repeated instances and uses `F_r = T_i sin(theta)` and `M_e = F_r r` as local force/moment scales. The optional shell shear proxy uses the shell-section area and material allowable shear from both parent and child rows. The optional connector proxy uses only the supplied direct-shear fastener area and efficiency; it does not model bearing, pull-through, preload, prying, thread engagement, bonded joints, joint eccentricity/group effects, fatigue, local shell buckling, bending capacity, drag, rail contact/reaction, transient amplification, staging impulse, plume interaction, separation dynamics, or connector/radial joint qualification. The section, allowable, and connector fields are user-supplied screening evidence, not qualification data.
+The trace projection uses the unconstrained net force divided by instantaneous stack mass, projected onto the vehicle nose direction. The transverse channel is the magnitude of the same acceleration in body +Y/+Z, so it is only available for traces that carry the body attitude and full force vector. These are kinematic envelopes, not rail-reaction or joint-load reconstructions. The parallel audit assumes equal mass/thrust sharing across repeated instances and uses `F_r = T_i sin(theta)` and `M_e = F_r r` as local force/moment scales. The optional shell shear proxy uses the shell-section area and material allowable shear from both parent and child rows. The optional connector proxy uses only the supplied direct-shear fastener area and efficiency; the eccentric extension uses an equal-share bolt-circle radius and conservative direct-plus-moment superposition. Neither channel models bearing, pull-through, preload, prying, thread engagement, bonded joints, local shell buckling, bending capacity, drag, rail contact/reaction, transient amplification, staging impulse, plume interaction, separation dynamics, or connector/radial joint qualification. The section, allowable, and connector fields are user-supplied screening evidence, not qualification data.
 
 The result is an engineering triage surface. It is not structural certification, manufacturing release, range-safety evidence, flight-safety evidence, or experimental validation.
 
 ## Provenance
 
 - Implementation: `lib/physics/stage-interface-loads.ts`
-- Model version: `rocketworks-stage-interface-loads-0.6.0`
-- Validation status: `analytical-axial-transverse-radial-connector-load-path-proxy`
+- Model version: `rocketworks-stage-interface-loads-0.7.0`
+- Validation status: `analytical-axial-transverse-radial-connector-eccentricity-load-path-proxy`
 - Related public basis: Newton's second law (`F = m a`) and the project structural-screen section/allowable inputs. Public equations and standards are reference material only; no OpenRocket source, UI, assets, database, or simulation engine is used.

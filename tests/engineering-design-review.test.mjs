@@ -319,11 +319,12 @@ test("stage interface load review computes serial downstream demand and reserve"
     ],
   });
 
-  assert.equal(result.modelVersion, "rocketworks-stage-interface-loads-0.6.0");
-  assert.equal(result.validationStatus, "analytical-axial-transverse-radial-connector-load-path-proxy");
+  assert.equal(result.modelVersion, "rocketworks-stage-interface-loads-0.7.0");
+  assert.equal(result.validationStatus, "analytical-axial-transverse-radial-connector-eccentricity-load-path-proxy");
   assert.equal(result.overallStatus, "assessed");
   assert.equal(result.shearStatus, "not-assessed");
   assert.equal(result.connectorStatus, "not-assessed");
+  assert.equal(result.connectorEccentricStatus, "not-assessed");
   assert.deepEqual(result.counts, { pass: 1, review: 0, unavailable: 0 });
   assert.equal(result.totalStackMassKg, 1.7);
   assert.equal(result.interfaces.length, 1);
@@ -435,6 +436,7 @@ test("stage interface load review keeps transverse and radial shear reserve sepa
   assert.equal(audit.radialCapacityStatus, "review");
   assert.equal(parallel.shearStatus, "review");
   assert.equal(parallel.connectorStatus, "review");
+  assert.equal(parallel.connectorEccentricStatus, "not-assessed");
   assert.ok((audit.radialFactorOfSafety ?? 0) < 1);
 });
 
@@ -491,6 +493,70 @@ test("stage interface load review keeps connector direct shear separate from she
     }),
     /connector evidence count/,
   );
+});
+
+test("parallel connector evidence can assess conservative eccentric group reserve", () => {
+  const result = createStageInterfaceLoadReview({
+    trace: [{ timeS: 0, axialAccelerationMps2: 30, transverseAccelerationMps2: 4, attachedStageIds: ["core", "booster"] }],
+    stages: [
+      { id: "core", label: "Core", attachment: "serial", stageMassKg: 2, peakThrustN: 100 },
+      {
+        id: "booster",
+        label: "Booster",
+        parentStageId: "core",
+        attachment: "parallel",
+        stageMassKg: 1,
+        peakThrustN: 40,
+        repeatCount: 2,
+        repeatRadiusM: 0.2,
+        thrustCantAngleDeg: 5,
+        connectorEvidence: { count: 4, diameterM: 0.01, allowableShearPa: 1e6, efficiency: 0.8, groupRadiusM: 0.02 },
+      },
+    ],
+  });
+  const audit = result.parallelAudits[0];
+  assert.ok(audit);
+  const radialDemand = 2 + 20 * Math.sin(5 * Math.PI / 180);
+  const eccentricMoment = 20 * Math.sin(5 * Math.PI / 180) * 0.2;
+  const expectedFoS = (Math.PI * 0.005 ** 2 * 1e6 * 0.8) /
+    (radialDemand / 4 + Math.abs(eccentricMoment) / (4 * 0.02));
+  assert.ok(Math.abs((audit.radialDemandN ?? 0) - radialDemand) < 1e-12);
+  assert.ok(Math.abs((audit.perInstanceEccentricMomentNm ?? 0) - eccentricMoment) < 1e-12);
+  assert.ok(Math.abs((audit.connectorEccentricFactorOfSafety ?? 0) - expectedFoS) < 1e-12);
+  assert.equal(audit.connectorEccentricCapacityStatus, "pass");
+  assert.equal(result.connectorEccentricStatus, "assessed");
+
+  const review = createEngineeringDesignReview({ stageInterfaceLoads: result });
+  const finding = review.findings.find((candidate) => candidate.id === "structural-stage-interface-connectors");
+  assert.ok(finding);
+  assert.equal(finding.status, "pass");
+  const eccentricFinding = review.findings.find((candidate) => candidate.id === "structural-stage-interface-connector-eccentricity");
+  assert.ok(eccentricFinding);
+  assert.equal(eccentricFinding.status, "pass");
+
+  const lowRadiusResult = createStageInterfaceLoadReview({
+    trace: [{ timeS: 0, axialAccelerationMps2: 30, transverseAccelerationMps2: 4, attachedStageIds: ["core", "booster"] }],
+    stages: [
+      { id: "core", label: "Core", attachment: "serial", stageMassKg: 2, peakThrustN: 100 },
+      {
+        id: "booster",
+        label: "Booster",
+        parentStageId: "core",
+        attachment: "parallel",
+        stageMassKg: 1,
+        peakThrustN: 40,
+        repeatCount: 2,
+        repeatRadiusM: 0.2,
+        thrustCantAngleDeg: 5,
+        connectorEvidence: { count: 4, diameterM: 0.01, allowableShearPa: 1e6, efficiency: 0.8, groupRadiusM: 0.0001 },
+      },
+    ],
+  });
+  assert.equal(lowRadiusResult.connectorEccentricStatus, "review");
+  const lowRadiusReview = createEngineeringDesignReview({ stageInterfaceLoads: lowRadiusResult });
+  const lowRadiusFinding = lowRadiusReview.findings.find((candidate) => candidate.id === "structural-stage-interface-connector-eccentricity");
+  assert.ok(lowRadiusFinding);
+  assert.equal(lowRadiusFinding.status, "review");
 });
 
 test("stage interface load review keeps serial capacity unavailable while auditing parallel force scales", () => {

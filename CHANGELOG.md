@@ -6,6 +6,18 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add an optional equal-share fastener-group eccentricity screen for parallel
+  stage interfaces. A supplied bolt-circle radius combines radial force and
+  authored canted-thrust moment per fastener, reports a separate reserve/status
+  channel, and remains explicitly outside bearing, contact, preload, fatigue,
+  and joint qualification. The stage-interface model is versioned as
+  `rocketworks-stage-interface-loads-0.7.0`.
+
+- Extend the deterministic benchmark suite to 31 regression anchors with a
+  parallel connector-group eccentric-demand fixture. The benchmark remains
+  mathematical regression evidence only and does not validate a real joint or
+  flight-safety margin.
+
 - Promote connector-group direct-shear review into the ranked engineering
   design-review findings whenever transverse or radial demand is present. A
   connector reserve warning can no longer be hidden behind an otherwise passing

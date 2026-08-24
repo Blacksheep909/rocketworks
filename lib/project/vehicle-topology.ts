@@ -39,6 +39,8 @@ export type VehicleStageConnectorEvidence = Readonly<{
   diameterM: number;
   allowableShearPa: number;
   efficiency?: number;
+  /** Optional fastener-group bolt-circle radius for the parallel eccentric screen. */
+  groupRadiusM?: number;
 }>;
 
 /** Optional recovery hardware carried by a detachable stage. */
@@ -420,7 +422,16 @@ function validStage(value: unknown, index: number): VehicleStagePlan {
     if (typeof efficiency !== "number" || !Number.isFinite(efficiency) || efficiency <= 0 || efficiency > 1) {
       throw new Error(`Stage ${id} connectorEvidence efficiency must be greater than 0 and at most 1.`);
     }
-    connectorEvidence = { count, diameterM, allowableShearPa, efficiency };
+    if (evidence.groupRadiusM !== undefined && (typeof evidence.groupRadiusM !== "number" || !Number.isFinite(evidence.groupRadiusM) || evidence.groupRadiusM <= 0 || evidence.groupRadiusM > 0.5)) {
+      throw new Error(`Stage ${id} connectorEvidence groupRadiusM must be finite, positive, and at most 0.5 m when supplied.`);
+    }
+    connectorEvidence = {
+      count,
+      diameterM,
+      allowableShearPa,
+      efficiency,
+      ...(evidence.groupRadiusM === undefined ? {} : { groupRadiusM: evidence.groupRadiusM }),
+    };
   }
   const ignitionFailure = stage.ignitionFailure ?? false;
   if (typeof ignitionFailure !== "boolean") throw new Error(`Stage ${id} ignitionFailure must be boolean.`);

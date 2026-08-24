@@ -1,4 +1,4 @@
-# Deterministic physics benchmark suite 0.8
+# Deterministic physics benchmark suite 0.9
 
 Status: `mathematical-regression-tests-only`.
 
@@ -39,14 +39,18 @@ enough to run in CI.
 - a serial stage-interface connector-group direct-shear capacity and
   factor-of-safety anchor with explicit fastener count, diameter, allowable, and
   group-efficiency evidence kept separate from the shell-section proxy.
+- a parallel stage-interface connector-group eccentric reserve anchor using
+  equal-share radial demand, canted-thrust moment, and an explicit
+  fastener-group radius.
 
 Each case reports the observed value, public-reference expected value, absolute
 and relative error, and a declared tolerance. The suite currently contains
-twenty-nine cases because the atmosphere fixture checks pressure and density as
+thirty-one cases because the atmosphere fixture checks pressure and density as
 separate metrics, the 6DOF conservation checks are reported independently,
 and the structural/aeroelastic, stage-interface, serial mass-ratio, gimbal
-control-authority, transverse-shear, and connector direct-shear equations are
-checked against independent closed-form recomputations.
+control-authority, transverse-shear, connector direct-shear, and connector
+eccentricity equations are checked against independent closed-form
+recomputations.
 
 ## Interpretation
 

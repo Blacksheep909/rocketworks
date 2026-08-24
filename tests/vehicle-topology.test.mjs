@@ -227,7 +227,7 @@ test("connector evidence validates, persists, and is retained by stage duplicati
         role: "upper",
         attachment: "serial",
         parentStageId: "sustainer",
-        connectorEvidence: { count: 6, diameterM: 0.005, allowableShearPa: 80e6, efficiency: 0.65 },
+        connectorEvidence: { count: 6, diameterM: 0.005, allowableShearPa: 80e6, efficiency: 0.65, groupRadiusM: 0.02 },
       }),
     ],
   };
@@ -244,6 +244,10 @@ test("connector evidence validates, persists, and is retained by stage duplicati
     ...topology,
     stages: topology.stages.map((stage) => stage.id === "upper-01" ? { ...stage, connectorEvidence: { count: 6, diameterM: 0.005, allowableShearPa: 80e6, efficiency: 1.2 } } : stage),
   }), /connectorEvidence efficiency/);
+  assert.throws(() => validateVehicleTopology({
+    ...topology,
+    stages: topology.stages.map((stage) => stage.id === "upper-01" ? { ...stage, connectorEvidence: { count: 6, diameterM: 0.005, allowableShearPa: 80e6, groupRadiusM: 0.6 } } : stage),
+  }), /connectorEvidence groupRadiusM/);
 });
 
 test("gimbal schedules validate, round-trip, and follow radial thrust bases", () => {

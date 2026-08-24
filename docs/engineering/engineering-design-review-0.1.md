@@ -23,9 +23,10 @@ more validated than the underlying source result.
 - current coupled-stage runs expose world-frame vector-budget closure, with a
   residual review when recorded force and event contributions do not reconcile
   with the trace endpoint velocity;
-- optional stage-interface connector direct-shear evidence is promoted to its
-  own ranked finding when transverse or radial demand is present, while an
-  unconfigured connector channel remains optional rather than silently passing;
+- optional stage-interface connector direct-shear evidence and parallel
+  eccentric reserve are promoted to their own ranked findings when the
+  corresponding demand/evidence channels are present, while unconfigured
+  optional channels remain not-assessed rather than silently passing;
 - missing evidence is never silently converted into a pass.
 
 Findings are ranked deterministically so the highest-priority review item is

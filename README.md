@@ -270,7 +270,8 @@ research, standards, and original code.
   symmetric resultant; when parent/child shear evidence exists, it adds a
   separate shell-section transverse/radial shear proxy, and optional child-stage
   upstream connector-group direct-shear evidence using explicit count, diameter,
-  allowable, and efficiency fields without claiming joint qualification;
+  allowable, efficiency, and (for parallel stages) fastener-group radius fields
+  without claiming joint qualification;
 - a trace-level force impulse budget that integrates recorded thrust,
   aerodynamic drag, recovery drag, and force/mass velocity-equivalent signals
   by stage without mislabeling scalar accounting as vector delta-v;
@@ -320,7 +321,8 @@ research, standards, and original code.
   browser-local persistence, and explicit validation boundaries;
 - on-demand deterministic physics benchmarks for atmosphere, gravity,
   thrust-curve impulse, static aerodynamics, rigid-body 6DOF, bounded gimbal
-  control-authority, stage-interface shear and connector reserve, structural, and
+  control-authority, stage-interface shear, connector, and eccentric-group
+  reserve, structural, and
   preliminary aeroelastic regression fixtures;
 - benchmark evidence CSV and matching engineering-report section with model
   identity, fixture tolerances, assumptions, and explicit regression-only
@@ -454,8 +456,9 @@ relative-body separation databases, unsteady models, and validated
 stage-to-stage interference data remain future work. The stage-interface
 screen now carries a body-transverse trace envelope alongside its axial
 compression proxy and an explicitly separate shell-section shear proxy when
-material evidence exists; connector/radial capacity validation remains future
-work beyond the new optional direct-shear connector evidence screen. The new attached-flow screen is intentionally a conservative,
+  material evidence exists; full connector/radial capacity validation remains
+  future work beyond the new optional direct-shear and eccentric fastener-group
+  evidence screens. The new attached-flow screen is intentionally a conservative,
 non-propagating geometry diagnostic,
 not an aerodynamic correction.
 Longer-term work includes collaboration and cloud project storage plus native

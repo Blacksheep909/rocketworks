@@ -23,7 +23,7 @@ import { computeMissionMassRatio } from "./stage-mass-ratio.ts";
 import { analyzeGimbalControlAuthority } from "./gimbal-control-authority.ts";
 
 export const BENCHMARK_SUITE_MODEL_VERSION =
-  "kestrel-physics-benchmark-suite-0.8.0";
+  "kestrel-physics-benchmark-suite-0.9.0";
 export const BENCHMARK_SUITE_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -206,6 +206,48 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
   const benchmarkShearInterface = benchmarkShearInterfaceReview.interfaces[0];
   if (!benchmarkShearInterface || benchmarkShearInterface.transverseDemandN === null || benchmarkShearInterface.shearCapacityN === null || benchmarkShearInterface.transverseFactorOfSafety === null) {
     throw new Error("stage-interface shear benchmark fixture did not produce transverse reserve");
+  }
+  const benchmarkEccentricInterfaceReview = createStageInterfaceLoadReview({
+    retainedMassKg: 0.5,
+    trace: [
+      {
+        timeS: 0,
+        axialAccelerationMps2: 30,
+        transverseAccelerationMps2: 4,
+        attachedStageIds: ["benchmark-eccentric-core", "benchmark-eccentric-booster"],
+      },
+    ],
+    stages: [
+      {
+        id: "benchmark-eccentric-core",
+        label: "Benchmark eccentric core",
+        attachment: "serial",
+        stageMassKg: 2,
+        peakThrustN: 100,
+      },
+      {
+        id: "benchmark-eccentric-booster",
+        label: "Benchmark eccentric booster",
+        parentStageId: "benchmark-eccentric-core",
+        attachment: "parallel",
+        stageMassKg: 1,
+        peakThrustN: 40,
+        repeatCount: 2,
+        repeatRadiusM: 0.2,
+        thrustCantAngleDeg: 5,
+        connectorEvidence: {
+          count: 4,
+          diameterM: 0.01,
+          allowableShearPa: 1e6,
+          efficiency: 0.8,
+          groupRadiusM: 0.02,
+        },
+      },
+    ],
+  });
+  const benchmarkEccentricAudit = benchmarkEccentricInterfaceReview.parallelAudits[0];
+  if (!benchmarkEccentricAudit || benchmarkEccentricAudit.radialDemandN === null || benchmarkEccentricAudit.perInstanceEccentricMomentNm === null || benchmarkEccentricAudit.connectorEccentricFactorOfSafety === null) {
+    throw new Error("stage-interface eccentric benchmark fixture did not produce eccentric reserve");
   }
   const coneStability = computeStaticStability({
     centerOfMassXM: 0.2,
@@ -569,6 +611,28 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
       method: "connector-group direct-shear capacity divided by the trace-backed transverse demand anchor",
     }),
     compareCase({
+      id: "stage-interface-connector-eccentric-radial-demand",
+      label: "Parallel interface radial demand for connector eccentric screen",
+      metric: "radial demand",
+      unit: "N",
+      observed: benchmarkEccentricAudit.radialDemandN,
+      expected: (1 / 2) * 4 + (40 / 2) * Math.sin((5 * Math.PI) / 180),
+      tolerance: 1e-12,
+      method: "equal-share body-transverse demand plus per-instance canted-thrust radial force",
+    }),
+    compareCase({
+      id: "stage-interface-connector-eccentric-factor-of-safety",
+      label: "Parallel interface connector-group eccentric factor of safety",
+      metric: "eccentric connector factor of safety",
+      unit: "1",
+      observed: benchmarkEccentricAudit.connectorEccentricFactorOfSafety,
+      expected: (Math.PI * (0.01 / 2) ** 2 * 1e6 * 0.8) /
+        (( ((1 / 2) * 4 + (40 / 2) * Math.sin((5 * Math.PI) / 180)) / 4) +
+          Math.abs((40 / 2) * Math.sin((5 * Math.PI) / 180) * 0.2) / (4 * 0.02) ),
+      tolerance: 1e-12,
+      method: "per-fastener direct radial force plus conservative equal-share eccentric moment demand",
+    }),
+    compareCase({
       id: "mission-mass-ratio-booster",
       label: "Serial mission mass ratio for the first stage",
       metric: "attached mass ratio",
@@ -757,6 +821,7 @@ export function runPhysicsBenchmarkSuite(): PhysicsBenchmarkSuiteResult {
       "The suite uses fixed inputs and no user or manufacturer data.",
       "The stage-interface and serial mission-mass-ratio fixtures use independent two-stage SI stacks with explicit retained mass, section evidence, thrust, and propellant values.",
       "The connector direct-shear fixture uses four 10 mm fasteners, a 1 MPa allowable, and 0.8 group efficiency as an analytical regression anchor only; it does not qualify a real joint.",
+      "The eccentric connector fixture adds a 20 mm fastener-group radius to the same direct-shear evidence and combines equal-share radial force with canted-thrust moment; it is a bounded equation check, not joint qualification.",
       "Tolerance checks compare absolute error; relative error is reported for review.",
     ],
   };
