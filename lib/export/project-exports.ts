@@ -12,6 +12,7 @@ import type { CoupledMultiBodyFlightResult } from "../physics/coupled-multi-body
 import type { StageFlightComparisonResult } from "../physics/stage-flight-comparison.ts";
 import type { PhysicsBenchmarkSuiteResult } from "../physics/benchmark-suite.ts";
 import type { StageFlightUncertaintyResult } from "../physics/stage-flight-uncertainty.ts";
+import type { StageFlightSweepResult } from "../physics/stage-flight-sweep.ts";
 import type {
   ParameterSweepResult,
   UncertaintyAnalysisResult,
@@ -204,6 +205,7 @@ export type EngineeringReportInput = Readonly<{
   /** Optional deterministic regression evidence captured from the browser. */
   benchmarkSuite?: PhysicsBenchmarkSuiteResult | null;
   stageUncertainty?: StageFlightUncertaintyResult | null;
+  stageSweep?: StageFlightSweepResult | null;
   uncertainty?: UncertaintyAnalysisResult | null;
   landing?: LandingDispersionResult | null;
   structural?: StructuralScreenResult | null;
@@ -1009,6 +1011,35 @@ export function createParameterSweepCsv(
       .join(",");
   });
   return `${headers.join(",")}\r\n${rows.join("\r\n")}\r\n`;
+}
+
+/**
+ * Adds model/provenance metadata to the generic row-oriented sweep export
+ * for a coupled staged study. Rows keep the same stable columns as the
+ * vertical sweep so downstream spreadsheet tooling can compare both kinds.
+ */
+export function createStageFlightSweepCsv(
+  sweep: Readonly<StageFlightSweepResult>,
+): string {
+  if (!sweep.adapterVersion.trim() || !sweep.modelVersion.trim()) {
+    throw new Error("staged sweep model metadata cannot be empty");
+  }
+  if (!sweep.validationStatus.trim()) {
+    throw new Error("staged sweep validation status cannot be empty");
+  }
+  if (!sweep.parameterKey.trim()) {
+    throw new Error("staged sweep parameter key cannot be empty");
+  }
+  const metadata = [
+    ["# RocketWorks staged parameter sweep export", "1"],
+    ["# adapter_version", sweep.adapterVersion],
+    ["# model_version", sweep.modelVersion],
+    ["# validation_status", sweep.validationStatus],
+    ["# parameter_key", sweep.parameterKey],
+    ...sweep.warnings.map((warning) => ["# warning", warning]),
+    ...sweep.assumptions.map((assumption) => ["# assumption", assumption]),
+  ];
+  return `${metadata.map((row) => row.map(csvCell).join(",")).join("\r\n")}\r\n${createParameterSweepCsv(sweep.result)}`;
 }
 
 /**
@@ -3000,6 +3031,29 @@ export function createEngineeringReportMarkdown(
           ...input.stageUncertainty.convergence.warnings.map((warning) => `- ${markdownText(warning)}`),
           "",
           "> Coupled dispersion propagates bounded input assumptions (and any declared dependence model) through the staging and 6DOF adapter. It is not validation, certification, or a flight-safety assessment.",
+          "",
+        ]
+      : []),
+    ...(input.stageSweep
+      ? [
+          "## Coupled staged parameter sweep",
+          "",
+          `- Adapter: \`${markdownText(input.stageSweep.adapterVersion)}\``,
+          `- Model: \`${markdownText(input.stageSweep.modelVersion)}\``,
+          `- Validation status: \`${markdownText(input.stageSweep.validationStatus)}\``,
+          `- Parameter: \`${markdownText(input.stageSweep.parameterKey)}\``,
+          `- Evaluated rows: ${input.stageSweep.result.samples.length}`,
+          "",
+          "| Parameter value | Peak altitude | Peak q | Final speed | Events | Status |",
+          "|---:|---:|---:|---:|---:|---|",
+          ...input.stageSweep.result.samples.map((sample) =>
+            `| ${formatNumber(sample.value, 6)} | ${sample.outputs?.maxAltitudeAglM === undefined || sample.outputs?.maxAltitudeAglM === null ? "not assessed" : `${formatNumber(sample.outputs.maxAltitudeAglM, 1)} m`} | ${sample.outputs?.maxDynamicPressurePa === undefined || sample.outputs?.maxDynamicPressurePa === null ? "not assessed" : `${formatNumber(sample.outputs.maxDynamicPressurePa, 1)} Pa`} | ${sample.outputs?.finalSpeedMps === undefined || sample.outputs?.finalSpeedMps === null ? "not assessed" : `${formatNumber(sample.outputs.finalSpeedMps, 2)} m/s`} | ${sample.outputs?.eventCount === undefined || sample.outputs?.eventCount === null ? "not assessed" : sample.outputs.eventCount} | ${sample.error === null ? "evaluated" : markdownText(sample.error) } |`,
+          ),
+          "",
+          ...input.stageSweep.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+          ...input.stageSweep.warnings.map((warning) => `- **Sweep warning:** ${markdownText(warning)}`),
+          "",
+          "> This deterministic staged sweep is an analytical trade-study artifact. It is not validation, certification, a tolerance model, or a flight-safety assessment.",
           "",
         ]
       : []),

@@ -6,6 +6,13 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a coupled staged parameter-sweep adapter and Flight workspace card.
+  Bounded one-variable rows now re-run the same staged 6DOF, launch-rail,
+  event, recovery, and released-body branches as the nominal preview, retain
+  evaluator failures, expose peak-altitude/peak-q/final-speed tables, and
+  export model-labelled CSV/report artifacts. This is a deterministic trade
+  study, not a tolerance model, validation, or flight-safety result.
+
 - Add an optional equal-share fastener-group eccentricity screen for parallel
   stage interfaces. A supplied bolt-circle radius combines radial force and
   authored canted-thrust moment per fastener, reports a separate reserve/status

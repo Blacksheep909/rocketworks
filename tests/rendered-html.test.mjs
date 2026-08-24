@@ -1417,13 +1417,19 @@ test("ships an interactive multi-stage, booster, and radial-topology editor", as
 test("ships a bounded parameter-sweep workflow with inspectable exports", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const sweep = await readFile(new URL("../lib/physics/vertical-flight-sweep.ts", import.meta.url), "utf8");
+  const stagedSweep = await readFile(new URL("../lib/physics/stage-flight-sweep.ts", import.meta.url), "utf8");
   const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(page, /Parameter sweep/);
   assert.match(page, /Run sweep/);
   assert.match(page, /Rerun sweep/);
   assert.match(page, /createParameterSweepCsv/);
   assert.match(page, /verticalSweep: sweepResult/);
+  assert.match(page, /Coupled parameter sweep/);
+  assert.match(page, /createStageFlightSweepCsv/);
+  assert.match(page, /stageSweep: stageSweepIsCurrent/);
   assert.match(sweep, /sweepVerticalFlight/);
+  assert.match(stagedSweep, /sweepStageFlight/);
+  assert.match(stagedSweep, /complete staged preview/);
   assert.match(sweep, /flight-safety assessment/);
   assert.match(stylesheet, /\.sweep-card/);
   assert.match(stylesheet, /\.sweep-plot/);

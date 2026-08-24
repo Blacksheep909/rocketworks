@@ -12,6 +12,7 @@ import {
   createAerodynamicPolarCsv,
   createFlightTraceCsv,
   createParameterSweepCsv,
+  createStageFlightSweepCsv,
   createStageFlightTraceCsv,
   createCoupledMultiBodyTraceCsv,
   createStageFlightComparisonCsv,
@@ -76,6 +77,8 @@ import {
   makeConstantThrustCurve,
   optimizeVerticalFlightDesign,
   sweepVerticalFlight,
+  sweepStageFlight,
+  STAGE_FLIGHT_SWEEP_PARAMETER_DEFINITIONS,
   simulateRecoveryDescent,
   validateRecoveryReefingStages,
   estimateAscentWindDrift,
@@ -126,6 +129,9 @@ import {
   type RigidBodyIntegrationMethod,
   type VerticalFlightSweepParameterKey,
   type VerticalFlightSweepResult,
+  type StageFlightSweepParameterKey,
+  type StageFlightSweepParameterDefinition,
+  type StageFlightSweepResult,
   type RocketStage,
   type StageAerodynamicRegime,
   type LaunchEnvironmentProvider,
@@ -332,7 +338,7 @@ type ViewKey = "design" | "flight";
 type DesignViewKey = UiDesignView;
 type MaterialKey = "kraft" | "fiberglass" | "carbon" | "custom";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
-type ExportFormat = "project" | "vertical-review-json" | "staged-review-json" | "run-library-json" | "flight-csv" | "stage-flight-csv" | "stage-flight-comparison-csv" | "separated-body-csv" | "coupled-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "benchmark-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad" | "manufacturing-manifest";
+type ExportFormat = "project" | "vertical-review-json" | "staged-review-json" | "run-library-json" | "flight-csv" | "stage-flight-csv" | "stage-sweep-csv" | "stage-flight-comparison-csv" | "separated-body-csv" | "coupled-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "benchmark-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad" | "manufacturing-manifest";
 type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
@@ -489,6 +495,14 @@ function sweepParameterDefinition(
 ): SweepParameterDefinition {
   const definition = SWEEP_PARAMETER_DEFINITIONS.find((item) => item.key === key);
   if (!definition) throw new Error(`Unknown sweep parameter: ${key}`);
+  return definition;
+}
+
+function stageSweepParameterDefinition(
+  key: StageFlightSweepParameterKey,
+): StageFlightSweepParameterDefinition {
+  const definition = STAGE_FLIGHT_SWEEP_PARAMETER_DEFINITIONS.find((item) => item.key === key);
+  if (!definition) throw new Error(`Unknown staged sweep parameter: ${key}`);
   return definition;
 }
 
@@ -4856,6 +4870,14 @@ export default function Home() {
   const [selectedStageEventTimeS, setSelectedStageEventTimeS] = useState<number | null>(null);
   const [stageFlightRunning, setStageFlightRunning] = useState(false);
   const [stageFlightError, setStageFlightError] = useState("");
+  const [stageSweepParameter, setStageSweepParameter] = useState<StageFlightSweepParameterKey>("thrustScale");
+  const [stageSweepMinimum, setStageSweepMinimum] = useState(0.75);
+  const [stageSweepMaximum, setStageSweepMaximum] = useState(1.3);
+  const [stageSweepSteps, setStageSweepSteps] = useState(DEFAULT_SWEEP_STEPS);
+  const [stageSweepRunning, setStageSweepRunning] = useState(false);
+  const [stageSweepResult, setStageSweepResult] = useState<StageFlightSweepResult | null>(null);
+  const [stageSweepFingerprint, setStageSweepFingerprint] = useState<string | null>(null);
+  const [stageSweepError, setStageSweepError] = useState("");
   const [stageUncertainty, setStageUncertainty] = useState<StageFlightUncertaintyResult | null>(null);
   const [stageUncertaintyFingerprint, setStageUncertaintyFingerprint] = useState<string | null>(null);
   const [stageUncertaintyRunning, setStageUncertaintyRunning] = useState(false);
@@ -4945,6 +4967,11 @@ export default function Home() {
   const stageFlightIsCurrent =
     stageFlightResult !== null &&
     isSimulationFingerprintCurrent(stageFlightFingerprint, simulationFingerprint);
+  const stageSweepIsCurrent =
+    stageSweepResult !== null &&
+    stageFlightIsCurrent &&
+    isSimulationFingerprintCurrent(stageSweepFingerprint, simulationFingerprint);
+  const activeStageSweepDefinition = stageSweepParameterDefinition(stageSweepParameter);
   const stageRecoveryCommandEvent = stageFlightResult?.events.find(
     (event) => event.id.includes("recovery") || event.label.toLowerCase().includes("recovery"),
   ) ?? null;
@@ -7782,8 +7809,11 @@ export default function Home() {
       if (format === "run-library-json" && simulationRunLibrary.runs.length === 0) {
         throw new Error("Save at least one simulation run before exporting the run library.");
       }
-      if ((format === "stage-flight-csv" || format === "stage-flight-comparison-csv" || format === "separated-body-csv" || format === "coupled-body-csv" || format === "flight-path-geojson") && !stageFlightIsCurrent) {
+      if ((format === "stage-flight-csv" || format === "stage-sweep-csv" || format === "stage-flight-comparison-csv" || format === "separated-body-csv" || format === "coupled-body-csv" || format === "flight-path-geojson") && !stageFlightIsCurrent) {
         throw new Error("Rerun the coupled 6DOF preview before exporting its trace for this design.");
+      }
+      if (format === "stage-sweep-csv" && !stageSweepIsCurrent) {
+        throw new Error("Run the current coupled parameter sweep before exporting its rows.");
       }
       if (format === "staged-review-json" && !stageFlightIsCurrent) {
         throw new Error("Rerun the coupled 6DOF preview before exporting its portable review artifact.");
@@ -7856,6 +7886,7 @@ export default function Home() {
             verticalConvergence: verticalConvergenceIsCurrent ? verticalConvergence : null,
             stageFlight: stageFlightResult,
             verticalSweep: sweepResult,
+            stageSweep: stageSweepIsCurrent ? stageSweepResult : null,
             freshness: {
               modelVersion: SIMULATION_FRESHNESS_MODEL_VERSION,
               verticalFlight: resultIsCurrent ? "current" : "stale",
@@ -7867,6 +7898,11 @@ export default function Home() {
               stageFlight: stageFlightResult === null
                 ? "not-run"
                 : stageFlightIsCurrent
+                  ? "current"
+                  : "stale",
+              stageSweep: stageSweepResult === null
+                ? "not-run"
+                : stageSweepIsCurrent
                   ? "current"
                   : "stale",
             },
@@ -7970,6 +8006,13 @@ export default function Home() {
         filename = `${fileStem}-stage-flight-trace.csv`;
         mediaType = "text/csv;charset=utf-8";
         content = createStageFlightTraceCsv(stageFlightResult.trace);
+      } else if (format === "stage-sweep-csv") {
+        if (!stageSweepResult || !stageSweepIsCurrent) {
+          throw new Error("Run the current coupled parameter sweep before exporting its rows.");
+        }
+        filename = `${fileStem}-stage-parameter-sweep.csv`;
+        mediaType = "text/csv;charset=utf-8";
+        content = createStageFlightSweepCsv(stageSweepResult);
       } else if (format === "stage-flight-comparison-csv") {
         if (!stageFlightResult || !stageComparisonReference) {
           throw new Error("Run the staged preview and pin a reference before exporting its comparison.");
@@ -8137,6 +8180,7 @@ export default function Home() {
             : null,
           benchmarkSuite: benchmarkResult,
           stageUncertainty: stageUncertaintyIsCurrent ? stageUncertainty : null,
+          stageSweep: stageSweepIsCurrent ? stageSweepResult : null,
           uncertainty,
           landing: landingPrediction,
           structural: structuralScreen,
@@ -8266,6 +8310,9 @@ export default function Home() {
     }
     setStageFlightRunning(true);
     setStageFlightError("");
+    setStageSweepResult(null);
+    setStageSweepFingerprint(null);
+    setStageSweepError("");
     setStageUncertainty(null);
     setStageUncertaintyFingerprint(null);
     setStageUncertaintyError("");
@@ -8593,6 +8640,126 @@ export default function Home() {
         notify(message);
       } finally {
         setStageUncertaintyRunning(false);
+      }
+    }, 30);
+  };
+  const changeStageSweepParameter = (parameterKey: StageFlightSweepParameterKey) => {
+    const definition = stageSweepParameterDefinition(parameterKey);
+    setStageSweepParameter(parameterKey);
+    setStageSweepMinimum(definition.minimum);
+    setStageSweepMaximum(definition.maximum);
+    setStageSweepResult(null);
+    setStageSweepFingerprint(null);
+    setStageSweepError("");
+  };
+  const changeStageSweepMinimum = (value: number) => {
+    setStageSweepMinimum(value);
+    setStageSweepResult(null);
+    setStageSweepFingerprint(null);
+    setStageSweepError("");
+  };
+  const changeStageSweepMaximum = (value: number) => {
+    setStageSweepMaximum(value);
+    setStageSweepResult(null);
+    setStageSweepFingerprint(null);
+    setStageSweepError("");
+  };
+  const changeStageSweepSteps = (value: number) => {
+    setStageSweepSteps(value);
+    setStageSweepResult(null);
+    setStageSweepFingerprint(null);
+    setStageSweepError("");
+  };
+  const runStageSweep = () => {
+    if (!stageFlightResult || !stageFlightIsCurrent) {
+      notify("Run the current coupled preview before sweeping staged inputs");
+      return;
+    }
+    setStageSweepRunning(true);
+    setStageSweepError("");
+    setView("flight");
+    const runFingerprint = simulationFingerprint;
+    window.setTimeout(() => {
+      try {
+        if (!Number.isInteger(stageSweepSteps) || stageSweepSteps < 2 || stageSweepSteps > 25) {
+          throw new Error("Coupled sweep rows must be an integer from 2 through 25 in the browser preview.");
+        }
+        const baseInput = createStageFlightPreviewInputs({
+          topology: vehicleTopology,
+          assembly,
+          stageComponents: stageFlightComponents,
+          lengthM: length / 1000,
+          noseLengthM: noseLength / 1000,
+          diameterM: diameter / 1000,
+          motor: previewMotor,
+          userMotorRecords,
+          dragCoefficient,
+          environmentAt: previewEnvironment.at,
+          launchRailEnabled,
+          launchRailLengthM,
+          launchRailInclinationDeg,
+          launchRailAzimuthDeg,
+          launchRailFrictionAccelerationMps2,
+          launchRailTipOffPitchRateDegS,
+          launchRailTipOffYawRateDegS,
+          coupledMutualGravityEnabled,
+          coupledGravitySofteningRadiusM,
+          coupledContactEnabled,
+          coupledContactStiffnessNPerM,
+          coupledContactDampingNsPerM,
+          coupledContactMaximumNormalForceN,
+          coupledMultiBodyIncludeRetainedBody,
+          coupledMultiBodyRetainedBodyMode,
+          coupledSeparationPulseEnabled,
+          coupledSeparationPulseDeltaVMps,
+          coupledSeparationPulseStartOffsetS,
+          coupledSeparationPulseDurationS,
+          coupledSeparationPulseProfile,
+          coupledSeparationPulseAngularEnabled,
+          coupledSeparationPulseAngularDeltaRadS,
+          coupledRelativeAeroForceFeedbackEnabled,
+          releasedBodyDragModel,
+          relativeAeroInteractionEnabled,
+          relativeAeroWakeHalfAngleDeg,
+          relativeAeroWakeRecoveryDistanceBodyDiameters,
+          relativeAeroPeakVelocityDeficitFraction,
+          relativeAeroMaximumVelocityDeficitFraction,
+          separationContactStoppingDistanceM,
+          separationContactCoefficientOfRestitution,
+          normalForceModel,
+          inducedDragModel,
+          inducedDragFactor,
+          recoveryEnabled,
+          recoveryDelay,
+          recoveryInflationTime,
+          recoveryDeploymentTrigger,
+          recoveryDeploymentAltitudeM,
+          recoveryDeploymentTimeS,
+          recoveryDiameter,
+          recoveryReefingEnabled,
+          recoveryReefingDurationS,
+          recoveryReefingStartAreaFraction,
+          sixDofIntegrationMethod,
+          coupledIntegrationTimeStepS,
+          aerodynamicTable: selectedAerodynamicTable,
+          aerodynamicTableModels,
+        });
+        const nextResult = sweepStageFlight({
+          baseInput,
+          parameterKey: stageSweepParameter,
+          minimum: stageSweepMinimum,
+          maximum: stageSweepMaximum,
+          steps: stageSweepSteps,
+        });
+        setStageSweepResult(nextResult);
+        setStageSweepFingerprint(runFingerprint);
+        notify("Coupled parameter sweep complete");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to run the coupled parameter sweep";
+        setStageSweepError(message);
+        notify(message);
+      } finally {
+        setStageSweepRunning(false);
       }
     }, 30);
   };
@@ -10401,6 +10568,24 @@ export default function Home() {
                       resultCurrent={stageUncertaintyIsCurrent}
                       hasDirectForceMomentDatabase={Boolean(selectedAerodynamicTable?.forceMomentDatabaseAvailable)}
                       onRun={runStageUncertainty}
+                    />
+                    <StageFlightSweepCard
+                      parameter={stageSweepParameter}
+                      definition={activeStageSweepDefinition}
+                      minimum={stageSweepMinimum}
+                      maximum={stageSweepMaximum}
+                      steps={stageSweepSteps}
+                      running={stageSweepRunning}
+                      result={stageSweepResult}
+                      error={stageSweepError}
+                      current={stageFlightIsCurrent}
+                      resultCurrent={stageSweepIsCurrent}
+                      onParameterChange={changeStageSweepParameter}
+                      onMinimumChange={changeStageSweepMinimum}
+                      onMaximumChange={changeStageSweepMaximum}
+                      onStepsChange={changeStageSweepSteps}
+                      onRun={runStageSweep}
+                      onExport={() => void exportArtifact("stage-sweep-csv")}
                     />
                   </>
                 ) : (
@@ -12556,6 +12741,11 @@ export default function Home() {
                 <span><strong>Staged 6DOF trace</strong><small>Attached-stage topology, mass, thrust, altitude, and speed at each integration sample; convergence is retained in project JSON and the engineering report.</small></span>
                 <em>↓</em>
               </button>}
+              {stageSweepResult && stageSweepIsCurrent && <button onClick={() => exportArtifact("stage-sweep-csv")}>
+                <span className="export-extension">CSV</span>
+                <span><strong>Coupled parameter sweep</strong><small>Staged 6DOF trade-study rows with model metadata, assumptions, and retained evaluator errors.</small></span>
+                <em>↓</em>
+              </button>}
               {stageFlightResult && stageFlightIsCurrent && stageComparisonReference && <button onClick={() => exportArtifact("stage-flight-comparison-csv")}>
                 <span className="export-extension">CSV</span>
                 <span><strong>Staged run comparison</strong><small>Current-minus-reference deltas for coupled metrics, sampled events, released bodies, and exact run fingerprints.</small></span>
@@ -13016,6 +13206,121 @@ function ParameterSweepCard({
         </>
       ) : (
         <div className="sweep-empty"><strong>Inspect sensitivity before changing the design</strong><p>Run {steps || DEFAULT_SWEEP_STEPS} deterministic rows to see how {definition.label.toLowerCase()} moves apogee, peak dynamic pressure, and impact speed.</p></div>
+      )}
+    </section>
+  );
+}
+
+function StageFlightSweepCard({
+  parameter,
+  definition,
+  minimum,
+  maximum,
+  steps,
+  running,
+  result,
+  error,
+  current,
+  resultCurrent,
+  onParameterChange,
+  onMinimumChange,
+  onMaximumChange,
+  onStepsChange,
+  onRun,
+  onExport,
+}: {
+  parameter: StageFlightSweepParameterKey;
+  definition: StageFlightSweepParameterDefinition;
+  minimum: number;
+  maximum: number;
+  steps: number;
+  running: boolean;
+  result: StageFlightSweepResult | null;
+  error: string;
+  current: boolean;
+  resultCurrent: boolean;
+  onParameterChange: (value: StageFlightSweepParameterKey) => void;
+  onMinimumChange: (value: number) => void;
+  onMaximumChange: (value: number) => void;
+  onStepsChange: (value: number) => void;
+  onRun: () => void;
+  onExport: () => void;
+}) {
+  const samples = result?.result.samples ?? [];
+  const altitudeValues = samples
+    .map((sample) => sample.outputs?.maxAltitudeAglM)
+    .filter((value): value is number => typeof value === "number");
+  const maxQValues = samples
+    .map((sample) => sample.outputs?.maxDynamicPressurePa)
+    .filter((value): value is number => typeof value === "number");
+  const altitudeMinimum = altitudeValues.length > 0 ? Math.min(...altitudeValues) : null;
+  const altitudeMaximum = altitudeValues.length > 0 ? Math.max(...altitudeValues) : null;
+  const altitudeRange = altitudeMinimum !== null && altitudeMaximum !== null
+    ? Math.max(altitudeMaximum - altitudeMinimum, 1e-9)
+    : 1;
+  const maxQMinimum = maxQValues.length > 0 ? Math.min(...maxQValues) : null;
+  const maxQMaximum = maxQValues.length > 0 ? Math.max(...maxQValues) : null;
+  const successfulCount = samples.filter((sample) => sample.outputs !== null).length;
+  const format = (value: number | null | undefined, decimals = 1) =>
+    value === null || value === undefined ? "—" : value.toFixed(decimals);
+  return (
+    <section className="sweep-card stage-flight-sweep-card" aria-labelledby="stage-sweep-title">
+      <div className="event-card-heading">
+        <div>
+          <strong id="stage-sweep-title">Coupled parameter sweep</strong>
+          <span>One-variable trade study across staging, rail, events, and 6DOF</span>
+        </div>
+        <span>{result ? `${successfulCount} / ${samples.length} rows` : "Ready to run"}</span>
+      </div>
+      {!current && <div className="sweep-empty"><strong>Run the current coupled preview first</strong><p>The sweep reuses the complete staged input graph and will not run against an older trace.</p></div>}
+      {current && result && !resultCurrent && (
+        <div className="stale-result-banner stage-stale-result-banner" role="status">
+          <span>RERUN REQUIRED</span>
+          <div><strong>This staged sweep is from an earlier configuration</strong><p>Run the current coupled preview and sweep again before interpreting or exporting these rows.</p></div>
+        </div>
+      )}
+      <div className="sweep-controls">
+        <label>Variable
+          <select value={parameter} onChange={(event) => onParameterChange(event.target.value as StageFlightSweepParameterKey)} disabled={!current || running}>
+            {STAGE_FLIGHT_SWEEP_PARAMETER_DEFINITIONS.map((item) => <option value={item.key} key={item.key}>{item.label}</option>)}
+          </select>
+        </label>
+        <NumberField id="stage-sweep-minimum" label="From" value={minimum} unit={definition.unit} min={definition.minimum} max={definition.maximum} step={definition.step} slider onChange={(value) => onMinimumChange(typeof value === "number" ? value : Number(value))} />
+        <NumberField id="stage-sweep-maximum" label="To" value={maximum} unit={definition.unit} min={definition.minimum} max={definition.maximum} step={definition.step} slider onChange={(value) => onMaximumChange(typeof value === "number" ? value : Number(value))} />
+        <label>Rows
+          <input type="number" min={2} max={25} step={1} value={steps} disabled={!current || running} onChange={(event) => onStepsChange(Number(event.target.value))} />
+        </label>
+        <button className="primary-button" type="button" onClick={onRun} disabled={running || !current}>
+          {running ? "Sweeping…" : result ? "Rerun sweep" : "Run sweep"}
+        </button>
+        {result && resultCurrent && <button className="secondary-button" type="button" onClick={onExport} disabled={running}>Export CSV</button>}
+      </div>
+      {error && <p className="sweep-error" role="alert">{error}</p>}
+      {result && resultCurrent && (
+        <>
+          <div className="sweep-summary">
+            <div><span>Peak-altitude range</span><strong>{format(altitudeMinimum, 0)}–{format(altitudeMaximum, 0)} m</strong></div>
+            <div><span>Peak-q range</span><strong>{format(maxQMinimum, 0)}–{format(maxQMaximum, 0)} Pa</strong></div>
+            <div><span>Parameter</span><strong>{definition.label} · {definition.unit}</strong></div>
+          </div>
+          <div className="sweep-plot" aria-label={`${definition.label} staged sweep peak-altitude bars`}>
+            {samples.map((sample, index) => {
+              const altitude = sample.outputs?.maxAltitudeAglM;
+              const height = typeof altitude === "number" && altitudeMinimum !== null
+                ? Math.max(5, ((altitude - altitudeMinimum) / altitudeRange) * 90 + 10)
+                : 4;
+              return <div className={sample.error ? "sweep-bar failed" : "sweep-bar"} key={`${sample.value}-${index}`} title={`${sample.value.toFixed(definition.precision)} ${definition.unit} · ${format(altitude, 0)} m peak altitude`}><i style={{ height: `${height}%` }} /><span>{sample.value.toFixed(definition.precision)}</span></div>;
+            })}
+          </div>
+          <div className="sweep-table-wrap">
+            <table className="sweep-table">
+              <caption>Coupled staged sweep output rows</caption>
+              <thead><tr><th scope="col">{definition.label}</th><th scope="col">Peak altitude</th><th scope="col">Peak q</th><th scope="col">Final speed</th><th scope="col">Events</th><th scope="col">Status</th></tr></thead>
+              <tbody>{samples.map((sample, index) => <tr key={`${sample.value}-${index}`}><th scope="row">{sample.value.toFixed(definition.precision)} {definition.unit}</th><td>{format(sample.outputs?.maxAltitudeAglM, 0)} m</td><td>{format(sample.outputs?.maxDynamicPressurePa, 0)} Pa</td><td>{format(sample.outputs?.finalSpeedMps, 1)} m/s</td><td>{sample.outputs?.eventCount ?? "—"}</td><td className={sample.error ? "sweep-status failed" : "sweep-status"}>{sample.error ?? "evaluated"}</td></tr>)}</tbody>
+            </table>
+          </div>
+          <div className="sweep-disclaimer"><span>UNVALIDATED TRADE STUDY</span><p>{publicModelVersion(result.modelVersion)} · {result.result.parameterKey} varied independently through the coupled preview · {result.warnings[2]}</p></div>
+        </>
       )}
     </section>
   );

@@ -290,9 +290,11 @@ research, standards, and original code.
 - deterministic structural and aeroelastic benchmark anchors for thin-wall
   section area, axial stress, Euler critical load, fin-root bending, and the
   preliminary fin-flutter equation, kept separate from experimental validation;
-- configurable seeded uncertainty analysis, parameter sweeps, sensitivity,
-  nominal optimization, and an opt-in finite-sample robust optimization screen
-  with explicit quantile and scenario-failure metrics;
+- configurable seeded uncertainty analysis, sensitivity, nominal optimization,
+  and an opt-in finite-sample robust optimization screen with explicit
+  quantile and scenario-failure metrics; both the fast vertical model and the
+  complete staged 6DOF preview expose bounded deterministic one-variable
+  parameter sweeps with retained row failures and CSV/report metadata;
 - accessible event timelines, trace charts, comparisons, engineering reports,
   flight/stage/sweep/uncertainty CSV, topology-aware DXF, multi-stage
   triangulated STL reference meshes, OpenSCAD, and a part-level manufacturing

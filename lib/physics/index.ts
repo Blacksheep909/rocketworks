@@ -42,6 +42,7 @@ export * from "./vehicle-components.ts";
 export * from "./vertical-flight.ts";
 export * from "./vertical-flight-convergence.ts";
 export * from "./vertical-flight-sweep.ts";
+export * from "./stage-flight-sweep.ts";
 export * from "./uncertainty-analysis.ts";
 export * from "./vertical-flight-uncertainty.ts";
 export * from "./flight-data-comparison.ts";
