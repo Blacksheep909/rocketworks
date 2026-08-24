@@ -1799,6 +1799,7 @@ function createStageFlightPreviewInputs({
   coupledSeparationPulseAngularEnabled,
   coupledSeparationPulseAngularDeltaRadS,
   coupledRelativeAeroForceFeedbackEnabled,
+  relativeAeroDatabaseForceFeedbackEnabled,
   releasedBodyDragModel,
   relativeAeroInteractionEnabled,
   relativeAeroWakeHalfAngleDeg,
@@ -1860,6 +1861,7 @@ function createStageFlightPreviewInputs({
   coupledSeparationPulseAngularEnabled: boolean;
   coupledSeparationPulseAngularDeltaRadS: number;
   coupledRelativeAeroForceFeedbackEnabled: boolean;
+  relativeAeroDatabaseForceFeedbackEnabled: boolean;
   releasedBodyDragModel: ReleasedBodyDragModel;
   relativeAeroInteractionEnabled: boolean;
   relativeAeroWakeHalfAngleDeg: number;
@@ -2340,6 +2342,7 @@ function createStageFlightPreviewInputs({
     relativeAeroForceFeedback: coupledRelativeAeroForceFeedbackEnabled
       ? ({ ...relativeAeroInteraction, enabled: true } satisfies CoupledMultiBodyRelativeAeroOptions)
       : ({ enabled: false } satisfies CoupledMultiBodyRelativeAeroOptions),
+    relativeAeroDatabaseForceFeedbackEnabled,
     separationContactLoad: {
       stoppingDistanceM: separationContactStoppingDistanceM,
       coefficientOfRestitution: separationContactCoefficientOfRestitution,
@@ -4572,6 +4575,7 @@ export default function Home() {
   const [coupledSeparationPulseAngularEnabled, setCoupledSeparationPulseAngularEnabled] = useState(false);
   const [coupledSeparationPulseAngularDeltaRadS, setCoupledSeparationPulseAngularDeltaRadS] = useState(0.6);
   const [coupledRelativeAeroForceFeedbackEnabled, setCoupledRelativeAeroForceFeedbackEnabled] = useState(false);
+  const [relativeAeroDatabaseForceFeedbackEnabled, setRelativeAeroDatabaseForceFeedbackEnabled] = useState(false);
   const [releasedBodyDragModel, setReleasedBodyDragModel] = useState<ReleasedBodyDragModel>("isotropic-point");
   const [relativeAeroInteractionEnabled, setRelativeAeroInteractionEnabled] = useState(true);
   const [relativeAeroWakeHalfAngleDeg, setRelativeAeroWakeHalfAngleDeg] = useState(8);
@@ -4856,6 +4860,7 @@ export default function Home() {
       coupledSeparationPulseAngularEnabled,
       coupledSeparationPulseAngularDeltaRadS,
       coupledRelativeAeroForceFeedbackEnabled,
+      relativeAeroDatabaseForceFeedbackEnabled,
       releasedBodyDragModel,
       relativeAeroInteractionEnabled,
       relativeAeroWakeHalfAngleDeg,
@@ -4868,7 +4873,7 @@ export default function Home() {
       verticalIntegrationTimeStepS,
       coupledIntegrationTimeStepS,
     }),
-    [burnTime, coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledIntegrationTimeStepS, coupledMultiBodyIncludeRetainedBody, coupledMultiBodyRetainedBodyMode, coupledRelativeAeroForceFeedbackEnabled, coupledMutualGravityEnabled, coupledSeparationPulseAngularDeltaRadS, coupledSeparationPulseAngularEnabled, coupledSeparationPulseDeltaVMps, coupledSeparationPulseDurationS, coupledSeparationPulseEnabled, coupledSeparationPulseProfile, coupledSeparationPulseStartOffsetS, customMaterial, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, inducedDragFactor, inducedDragModel, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalForceModel, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, releasedBodyDragModel, relativeAeroInteractionEnabled, relativeAeroMaximumVelocityDeficitFraction, relativeAeroPeakVelocityDeficitFraction, relativeAeroWakeHalfAngleDeg, relativeAeroWakeRecoveryDistanceBodyDiameters, relativeHumidityPercent, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, verticalIntegrationTimeStepS, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
+    [burnTime, coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledIntegrationTimeStepS, coupledMultiBodyIncludeRetainedBody, coupledMultiBodyRetainedBodyMode, coupledRelativeAeroForceFeedbackEnabled, relativeAeroDatabaseForceFeedbackEnabled, coupledMutualGravityEnabled, coupledSeparationPulseAngularDeltaRadS, coupledSeparationPulseAngularEnabled, coupledSeparationPulseDeltaVMps, coupledSeparationPulseDurationS, coupledSeparationPulseEnabled, coupledSeparationPulseProfile, coupledSeparationPulseStartOffsetS, customMaterial, diameter, dragCoefficient, earthRotationEnabled, finCount, finRootChord, finSpan, finSweep, finThickness, finTipChord, inducedDragFactor, inducedDragModel, launchAltitude, launchLatitudeDeg, launchLongitudeDeg, launchRailAzimuthDeg, launchRailEnabled, launchRailFrictionAccelerationMps2, launchRailInclinationDeg, launchRailLengthM, launchRailTipOffPitchRateDegS, launchRailTipOffYawRateDegS, launchSiteName, length, material, normalForceModel, normalGravityEnabled, noseLength, noseProfile, payloadMass, recoveryDelay, recoveryDeploymentAltitudeM, recoveryDeploymentTimeS, recoveryDeploymentTrigger, recoveryDeploymentSuccessProbability, recoveryDiameter, recoveryEnabled, recoveryInflationTime, recoveryMass, recoveryReefingDurationS, recoveryReefingEnabled, recoveryReefingStartAreaFraction, releasedBodyDragModel, relativeAeroInteractionEnabled, relativeAeroMaximumVelocityDeficitFraction, relativeAeroPeakVelocityDeficitFraction, relativeAeroWakeHalfAngleDeg, relativeAeroWakeRecoveryDistanceBodyDiameters, relativeHumidityPercent, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, surfacePressureHpa, surfaceTemperatureC, terrainEastSlopePercent, terrainModel, terrainNorthSlopePercent, thrust, turbulenceScale, uncertaintyCorrelations, uncertaintySampleCount, uncertaintySeed, verticalIntegrationTimeStepS, weatherSeed, windAzimuthDeg, windProfileLayers, windSpeed],
   );
   const initialInputsRef = useRef(editableInputs);
   const currentHistoryFingerprint = namedProjectFingerprint(
@@ -5094,6 +5099,7 @@ export default function Home() {
           coupledMultiBodyIncludeRetainedBody,
           coupledMultiBodyRetainedBodyMode,
           coupledRelativeAeroForceFeedbackEnabled,
+          relativeAeroDatabaseForceFeedbackEnabled,
           releasedBodyDragModel,
           relativeAeroDatabaseId: selectedRelativeAeroDatabase?.id ?? "none",
           relativeAeroDatabaseBindingMode,
@@ -5109,7 +5115,7 @@ export default function Home() {
           },
         },
       }),
-    [coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledIntegrationTimeStepS, coupledMultiBodyIncludeRetainedBody, coupledMultiBodyRetainedBodyMode, coupledRelativeAeroForceFeedbackEnabled, coupledMutualGravityEnabled, editableInputs, previewMotor, relativeAeroDatabaseBindingMode, releasedBodyDragModel, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, selectedRelativeAeroDatabase, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, vehicleTopology, verticalIntegrationTimeStepS],
+    [coupledContactDampingNsPerM, coupledContactEnabled, coupledContactMaximumNormalForceN, coupledContactStiffnessNPerM, coupledGravitySofteningRadiusM, coupledIntegrationTimeStepS, coupledMultiBodyIncludeRetainedBody, coupledMultiBodyRetainedBodyMode, coupledRelativeAeroForceFeedbackEnabled, relativeAeroDatabaseForceFeedbackEnabled, coupledMutualGravityEnabled, editableInputs, previewMotor, relativeAeroDatabaseBindingMode, releasedBodyDragModel, selectedAerodynamicTableDefinition, selectedAerodynamicTableId, selectedMotorId, selectedRelativeAeroDatabase, separationContactCoefficientOfRestitution, separationContactStoppingDistanceM, sixDofIntegrationMethod, vehicleTopology, verticalIntegrationTimeStepS],
   );
   const previewEnvironment = useMemo(
     () => createPreviewEnvironment(launchAltitude, windSpeed, { siteName: launchSiteName, latitudeDeg: launchLatitudeDeg, longitudeDeg: launchLongitudeDeg, windAzimuthDeg, windProfileLayers, turbulenceScale, earthRotationEnabled, normalGravityEnabled, seed: weatherSeed, relativeHumidityPercent, surfacePressureHpa, surfaceTemperatureC }),
@@ -6005,6 +6011,7 @@ export default function Home() {
         setCoupledSeparationPulseAngularEnabled(inputs.coupledSeparationPulseAngularEnabled ?? false);
         setCoupledSeparationPulseAngularDeltaRadS(inputs.coupledSeparationPulseAngularDeltaRadS ?? 0.6);
         setCoupledRelativeAeroForceFeedbackEnabled(inputs.coupledRelativeAeroForceFeedbackEnabled ?? false);
+        setRelativeAeroDatabaseForceFeedbackEnabled(inputs.relativeAeroDatabaseForceFeedbackEnabled ?? false);
         setReleasedBodyDragModel(inputs.releasedBodyDragModel ?? "isotropic-point");
         setRelativeAeroInteractionEnabled(inputs.relativeAeroInteractionEnabled ?? true);
         setRelativeAeroWakeHalfAngleDeg(inputs.relativeAeroWakeHalfAngleDeg ?? 8);
@@ -6245,6 +6252,7 @@ export default function Home() {
         setCoupledSeparationPulseAngularEnabled(inputs.coupledSeparationPulseAngularEnabled ?? false);
         setCoupledSeparationPulseAngularDeltaRadS(inputs.coupledSeparationPulseAngularDeltaRadS ?? 0.6);
         setCoupledRelativeAeroForceFeedbackEnabled(inputs.coupledRelativeAeroForceFeedbackEnabled ?? false);
+        setRelativeAeroDatabaseForceFeedbackEnabled(inputs.relativeAeroDatabaseForceFeedbackEnabled ?? false);
         setReleasedBodyDragModel(inputs.releasedBodyDragModel ?? "isotropic-point");
         setRelativeAeroInteractionEnabled(inputs.relativeAeroInteractionEnabled ?? true);
         setRelativeAeroWakeHalfAngleDeg(inputs.relativeAeroWakeHalfAngleDeg ?? 8);
@@ -7106,6 +7114,7 @@ export default function Home() {
     setCoupledSeparationPulseAngularEnabled(inputs.coupledSeparationPulseAngularEnabled ?? false);
     setCoupledSeparationPulseAngularDeltaRadS(inputs.coupledSeparationPulseAngularDeltaRadS ?? 0.6);
     setCoupledRelativeAeroForceFeedbackEnabled(inputs.coupledRelativeAeroForceFeedbackEnabled ?? false);
+    setRelativeAeroDatabaseForceFeedbackEnabled(inputs.relativeAeroDatabaseForceFeedbackEnabled ?? false);
     setReleasedBodyDragModel(inputs.releasedBodyDragModel ?? "isotropic-point");
     setRelativeAeroInteractionEnabled(inputs.relativeAeroInteractionEnabled ?? true);
     setRelativeAeroWakeHalfAngleDeg(inputs.relativeAeroWakeHalfAngleDeg ?? 8);
@@ -7887,6 +7896,9 @@ export default function Home() {
     const nextMode = id === "none" ? "disabled" : bindingMode;
     setSelectedRelativeAeroDatabaseId(id);
     setRelativeAeroDatabaseBindingMode(nextMode);
+    if (id === "none" || nextMode === "disabled") {
+      setRelativeAeroDatabaseForceFeedbackEnabled(false);
+    }
     window.localStorage.setItem(LOCAL_RELATIVE_AERO_SELECTION_STORAGE_KEY, id);
     window.localStorage.setItem(LOCAL_RELATIVE_AERO_BINDING_MODE_STORAGE_KEY, nextMode);
     setStageFlightResult(null);
@@ -9020,6 +9032,7 @@ export default function Home() {
             coupledSeparationPulseAngularEnabled,
             coupledSeparationPulseAngularDeltaRadS,
             coupledRelativeAeroForceFeedbackEnabled,
+            relativeAeroDatabaseForceFeedbackEnabled,
             releasedBodyDragModel,
             relativeAeroInteractionEnabled,
             relativeAeroWakeHalfAngleDeg,
@@ -9107,6 +9120,7 @@ export default function Home() {
           coupledSeparationPulseAngularEnabled,
           coupledSeparationPulseAngularDeltaRadS,
           coupledRelativeAeroForceFeedbackEnabled,
+          relativeAeroDatabaseForceFeedbackEnabled,
           releasedBodyDragModel,
           relativeAeroInteractionEnabled,
           relativeAeroWakeHalfAngleDeg,
@@ -9387,6 +9401,7 @@ export default function Home() {
           coupledSeparationPulseAngularEnabled,
           coupledSeparationPulseAngularDeltaRadS,
           coupledRelativeAeroForceFeedbackEnabled,
+          relativeAeroDatabaseForceFeedbackEnabled,
           releasedBodyDragModel,
           relativeAeroInteractionEnabled,
           relativeAeroWakeHalfAngleDeg,
@@ -9480,6 +9495,7 @@ export default function Home() {
           coupledSeparationPulseAngularEnabled,
           coupledSeparationPulseAngularDeltaRadS,
           coupledRelativeAeroForceFeedbackEnabled,
+          relativeAeroDatabaseForceFeedbackEnabled,
           releasedBodyDragModel,
           relativeAeroInteractionEnabled,
           relativeAeroWakeHalfAngleDeg,
@@ -9603,6 +9619,7 @@ export default function Home() {
           coupledSeparationPulseAngularEnabled,
           coupledSeparationPulseAngularDeltaRadS,
           coupledRelativeAeroForceFeedbackEnabled,
+          relativeAeroDatabaseForceFeedbackEnabled,
           releasedBodyDragModel,
           relativeAeroInteractionEnabled,
           relativeAeroWakeHalfAngleDeg,
@@ -10650,6 +10667,24 @@ export default function Home() {
                     <small>{selectedRelativeAeroDatabase ? `Applies ${relativeAeroBindingModeDescription(relativeAeroDatabaseBindingMode)}. Post-trace deltas only.` : "Choose a local table in Relative-body data to enable directed-pair diagnostics."}</small>
                   </div>
                   <div className="field-group">
+                    <label htmlFor="relative-body-database-force-feedback-mode">Relative-body table force feedback</label>
+                    <select
+                      id="relative-body-database-force-feedback-mode"
+                      value={relativeAeroDatabaseForceFeedbackEnabled ? "enabled" : "disabled"}
+                      disabled={!selectedRelativeAeroDatabase || relativeAeroDatabaseBindingMode === "disabled"}
+                      onChange={(event) => {
+                        setRelativeAeroDatabaseForceFeedbackEnabled(event.target.value === "enabled");
+                        markChanged();
+                      }}
+                    >
+                      <option value="disabled">Disabled (diagnostic only)</option>
+                      <option value="enabled">Enabled (analytical sensitivity)</option>
+                    </select>
+                    <small>{selectedRelativeAeroDatabase && relativeAeroDatabaseBindingMode !== "disabled"
+                      ? "Applies the selected table's bounded qS force and optional qSL moment deltas to rigid-body targets in the shared coupled track. Source bodies receive no equal-and-opposite load; this is not CFD, validation, or flight-safety evidence."
+                      : "Select a relative-body table and directed binding policy before enabling force feedback."}</small>
+                  </div>
+                  <div className="field-group">
                     <label htmlFor="released-body-wake-feedback-mode">Coupled wake force feedback</label>
                     <select
                       id="released-body-wake-feedback-mode"
@@ -11292,6 +11327,13 @@ export default function Home() {
                               <small>{stageFlightResult.coupledMultiBodyFlight.relativeAeroForceFeedback.enabled
                                 ? `${stageFlightResult.coupledMultiBodyFlight.relativeAeroForceFeedback.exposedSampleCount} exposed samples · ${stageFlightResult.coupledMultiBodyFlight.relativeAeroForceFeedback.maximumObservedVelocityDeficitFraction === null ? "no overlap" : `${(stageFlightResult.coupledMultiBodyFlight.relativeAeroForceFeedback.maximumObservedVelocityDeficitFraction * 100).toFixed(1)}% max deficit`} · analytical sensitivity only`
                                 : "The shared-grid force path is unchanged; wake overlap remains a post-trace diagnostic."}</small>
+                            </div>
+                            <div className="stage-coupled-multi-body-flight-aero-summary">
+                              <span>Relative-body table force feedback</span>
+                              <strong>{stageFlightResult.coupledMultiBodyFlight.relativeAeroForceFeedback.databaseForceFeedback.enabled ? "Enabled" : "Disabled"}</strong>
+                              <small>{stageFlightResult.coupledMultiBodyFlight.relativeAeroForceFeedback.databaseForceFeedback.enabled
+                                ? `${stageFlightResult.coupledMultiBodyFlight.relativeAeroForceFeedback.databaseForceFeedback.bindingCount} directed binding(s) · ${stageFlightResult.coupledMultiBodyFlight.relativeAeroForceFeedback.databaseForceFeedback.appliedSampleCount} applied samples · ${stageFlightResult.coupledMultiBodyFlight.relativeAeroForceFeedback.databaseForceFeedback.maximumForceN === null ? "no force" : `${stageFlightResult.coupledMultiBodyFlight.relativeAeroForceFeedback.databaseForceFeedback.maximumForceN.toFixed(1)} N peak`} · ${stageFlightResult.coupledMultiBodyFlight.relativeAeroForceFeedback.databaseForceFeedback.maximumMomentNm === null ? "no moment" : `${stageFlightResult.coupledMultiBodyFlight.relativeAeroForceFeedback.databaseForceFeedback.maximumMomentNm.toFixed(1)} N·m peak`} · analytical target-load sensitivity only`
+                                : "Selected tables remain post-trace diagnostics; enable force feedback explicitly to perturb the shared track."}</small>
                             </div>
                             {stageFlightResult.coupledMultiBodyFlight.separationMechanisms.enabled && (
                               <div className="stage-coupled-multi-body-flight-aero-summary">

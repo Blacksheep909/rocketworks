@@ -491,7 +491,7 @@ test("opt-in wake feedback reduces eligible target flow and retains bounded prov
   });
   assert.equal(baseline.relativeAeroForceFeedback.enabled, false);
   assert.equal(feedback.relativeAeroForceFeedback.enabled, true);
-  assert.equal(feedback.relativeAeroForceFeedback.modelVersion, "rocketworks-coupled-multi-body-relative-aero-0.1.0");
+  assert.equal(feedback.relativeAeroForceFeedback.modelVersion, "rocketworks-coupled-multi-body-relative-aero-0.2.0");
   assert.ok(feedback.relativeAeroForceFeedback.exposedSampleCount > 0);
   assert.ok(feedback.relativeAeroForceFeedback.affectedBodyCount >= 1);
   assert.ok(feedback.relativeAeroForceFeedback.maximumObservedVelocityDeficitFraction > 0);
@@ -502,6 +502,184 @@ test("opt-in wake feedback reduces eligible target flow and retains bounded prov
   assert.equal(baseline.trajectories[1].trace[0].relativeAirSpeedMps, undefined);
   assert.ok(feedback.warnings.some((warning) => warning.includes("analytical sensitivity")));
   assert.ok(feedback.assumptions.some((assumption) => assumption.includes("strongest") && assumption.includes("wake")));
+});
+
+test("opt-in relative-body table feedback applies bounded target loads without source reaction", () => {
+  const table = {
+    id: "fixture-relative-load",
+    name: "Fixture relative load",
+    machPoints: [0, 1],
+    axialSeparationPointsBodyDiameters: [0, 10],
+    lateralSeparationPointsBodyDiameters: [0, 1],
+    axialForceCoefficientDelta: { values: [[[0.5, 0.5], [0.5, 0.5]], [[0.5, 0.5], [0.5, 0.5]]] },
+    normalForceCoefficientDelta: { values: [[[0.1, 0.1], [0.1, 0.1]], [[0.1, 0.1], [0.1, 0.1]]] },
+    sideForceCoefficientDelta: { values: [[[0, 0], [0, 0]], [[0, 0], [0, 0]]] },
+    rollMomentCoefficientDelta: { values: [[[0, 0], [0, 0]], [[0, 0], [0, 0]]] },
+    pitchMomentCoefficientDelta: { values: [[[0.2, 0.2], [0.2, 0.2]], [[0.2, 0.2], [0.2, 0.2]]] },
+    yawMomentCoefficientDelta: { values: [[[0, 0], [0, 0]], [[0, 0], [0, 0]]] },
+    referenceAreaM2: 0.02,
+    momentReferenceLengthM: 0.5,
+    outOfRangePolicy: "reject",
+    provenance: {
+      sourceName: "RocketWorks deterministic fixture",
+      sourceKind: "user-supplied",
+      dataVersion: "fixture-1",
+      licenseIdentifier: "CC0-1.0",
+      attribution: "test fixture",
+      validationStatus: "user-supplied-unvalidated",
+    },
+  };
+  const rigid = {
+    orientationBodyToWorld: { w: 1, x: 0, y: 0, z: 0 },
+    inertiaBodyKgM2: [
+      [0.02, 0, 0],
+      [0, 0.02, 0],
+      [0, 0, 0.02],
+    ],
+  };
+  const source = body({
+    id: "source",
+    releaseTimeS: 0,
+    releasePositionWorldM: { x: 0, y: 0, z: 100 },
+    releaseVelocityWorldMps: { x: 50, y: 0, z: 0 },
+    referenceAreaM2: 0.02,
+    dragCoefficient: 0.6,
+    rigidBody: rigid,
+  });
+  const target = body({
+    id: "target",
+    releaseTimeS: 0,
+    releasePositionWorldM: { x: 0.5, y: 0, z: 100 },
+    releaseVelocityWorldMps: { x: 50, y: 0, z: 0 },
+    referenceAreaM2: 0.02,
+    dragCoefficient: 0.6,
+    rigidBody: rigid,
+  });
+  const baseline = simulateCoupledMultiBodyFlight({
+    bodies: [source, target],
+    durationS: 0.2,
+    timeStepS: 0.05,
+  });
+  const feedback = simulateCoupledMultiBodyFlight({
+    bodies: [source, target],
+    durationS: 0.2,
+    timeStepS: 0.05,
+    relativeAeroForceFeedback: {
+      databaseForceFeedback: {
+        enabled: true,
+        bindings: [{ sourceBodyId: "source", targetBodyId: "target", database: table }],
+        maximumForceN: 12,
+        maximumMomentNm: 1,
+      },
+    },
+  });
+  const targetInitial = feedback.trajectories[1].trace[0];
+  const sourceInitial = feedback.trajectories[0].trace[0];
+  assert.equal(feedback.relativeAeroForceFeedback.databaseForceFeedback.enabled, true);
+  assert.equal(feedback.relativeAeroForceFeedback.databaseForceFeedback.bindingCount, 1);
+  assert.ok(feedback.relativeAeroForceFeedback.databaseForceFeedback.appliedSampleCount > 0);
+  assert.equal(feedback.relativeAeroForceFeedback.databaseForceFeedback.affectedBodyCount, 1);
+  assert.ok(feedback.relativeAeroForceFeedback.databaseForceFeedback.maximumForceN <= 12 + 1e-10);
+  assert.ok(feedback.relativeAeroForceFeedback.databaseForceFeedback.maximumMomentNm <= 1 + 1e-10);
+  assert.equal(targetInitial.relativeDatabaseBindingCount, 1);
+  assert.ok(targetInitial.relativeDatabaseForceN > 0);
+  assert.ok(targetInitial.relativeDatabaseMomentNm > 0);
+  assert.equal(sourceInitial.relativeDatabaseForceN, undefined);
+  assert.ok(feedback.trajectories[1].trace[1].accelerationWorldMps2.x > baseline.trajectories[1].trace[1].accelerationWorldMps2.x);
+  assert.ok(feedback.warnings.some((warning) => warning.includes("target-body delta")));
+  assert.ok(feedback.assumptions.some((assumption) => assumption.includes("q S")));
+
+  const rejected = simulateCoupledMultiBodyFlight({
+    bodies: [source, body({
+      id: "target",
+      releaseTimeS: 0,
+      releaseVelocityWorldMps: { x: 50, y: 0, z: 0 },
+      releasePositionWorldM: { x: 100, y: 0, z: 100 },
+      referenceAreaM2: 0.02,
+      dragCoefficient: 0.6,
+      rigidBody: rigid,
+    })],
+    durationS: 0.1,
+    timeStepS: 0.05,
+    relativeAeroForceFeedback: {
+      databaseForceFeedback: {
+        enabled: true,
+        bindings: [{ sourceBodyId: "source", targetBodyId: "target", database: table }],
+      },
+    },
+  });
+  assert.ok(rejected.relativeAeroForceFeedback.databaseForceFeedback.queryFailureCount > 0);
+  assert.equal(rejected.relativeAeroForceFeedback.databaseForceFeedback.appliedSampleCount, 0);
+  assert.ok(rejected.warnings.some((warning) => warning.includes("reject-policy")));
+});
+
+test("relative-body database feedback validates directed bindings and stays disabled by default", () => {
+  const table = {
+    id: "fixture-disabled",
+    name: "Fixture disabled",
+    machPoints: [0],
+    axialSeparationPointsBodyDiameters: [0],
+    lateralSeparationPointsBodyDiameters: [0],
+    axialForceCoefficientDelta: { values: [[[1]]] },
+    provenance: {
+      sourceName: "RocketWorks deterministic fixture",
+      sourceKind: "user-supplied",
+      dataVersion: "fixture-1",
+      licenseIdentifier: "CC0-1.0",
+      attribution: "test fixture",
+      validationStatus: "user-supplied-unvalidated",
+    },
+  };
+  const rigid = {
+    orientationBodyToWorld: { w: 1, x: 0, y: 0, z: 0 },
+    inertiaBodyKgM2: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+  };
+  const source = body({ id: "source", releaseTimeS: 0, rigidBody: rigid, referenceAreaM2: 0.02, dragCoefficient: 0.5 });
+  const target = body({ id: "target", releaseTimeS: 0, rigidBody: rigid, referenceAreaM2: 0.02, dragCoefficient: 0.5, releasePositionWorldM: { x: 0.1, y: 0, z: 100 } });
+  const disabled = simulateCoupledMultiBodyFlight({
+    bodies: [source, target],
+    durationS: 0.1,
+    timeStepS: 0.05,
+    relativeAeroForceFeedback: {
+      databaseForceFeedback: {
+        bindings: [{ sourceBodyId: "source", targetBodyId: "target", database: table }],
+      },
+    },
+  });
+  assert.equal(disabled.relativeAeroForceFeedback.databaseForceFeedback.enabled, false);
+  assert.equal(disabled.relativeAeroForceFeedback.databaseForceFeedback.appliedSampleCount, 0);
+  assert.equal(disabled.trajectories[1].trace[0].relativeDatabaseForceN, undefined);
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({
+      bodies: [source, target],
+      durationS: 0.1,
+      timeStepS: 0.05,
+      relativeAeroForceFeedback: {
+        databaseForceFeedback: {
+          enabled: true,
+          bindings: [
+            { sourceBodyId: "source", targetBodyId: "target", database: table },
+            { sourceBodyId: "source", targetBodyId: "target", database: table },
+          ],
+        },
+      },
+    }),
+    /duplicated/,
+  );
+  assert.throws(
+    () => simulateCoupledMultiBodyFlight({
+      bodies: [source, target],
+      durationS: 0.1,
+      timeStepS: 0.05,
+      relativeAeroForceFeedback: {
+        databaseForceFeedback: {
+          enabled: true,
+          bindings: [{ sourceBodyId: "source", targetBodyId: "missing", database: table }],
+        },
+      },
+    }),
+    /unknown body/,
+  );
 });
 
 test("wake feedback rejects unbounded geometry and deficit controls", () => {

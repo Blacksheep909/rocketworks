@@ -13,8 +13,11 @@ flight-readiness claims.
   and engineering report. Add a device-local library panel with strict JSON
   validation, stable-id upsert, explicit retained-to-detached, detached-to-
   retained, and all-directed-pairs binding policies, plus a disable control.
-  The database is diagnostic-only: it does not feed isolated-body loads, wake
-  feedback, or flight-safety decisions.
+  The database remains diagnostic-only by default, with a separate opt-in
+  bounded target-load sensitivity branch that can feed capped qS/qSL deltas to
+  rigid-body targets in the shared coupled track. It applies no equal-and-
+  opposite source reaction and is not CFD, validation, or flight-safety
+  evidence.
 
 - Add optional source-declared aerodynamic uncertainty correlation metadata.
   Table imports validate channel coverage, symmetry, coefficient bounds, and

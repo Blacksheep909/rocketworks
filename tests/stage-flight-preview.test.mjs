@@ -547,6 +547,9 @@ test("stage-flight adapter optionally includes a replay-backed retained vehicle 
       peakVelocityDeficitFraction: 0.35,
       maximumVelocityDeficitFraction: 0.6,
     },
+    relativeAeroDatabase: retainedToDetachedRelativeDatabase,
+    relativeAeroDatabaseBindingMode: "retained-to-detached",
+    relativeAeroDatabaseForceFeedbackEnabled: true,
     separationMechanisms: [{
       id: "preview-separation-pulse",
       retainedBodyId: "retained-vehicle",
@@ -574,6 +577,8 @@ test("stage-flight adapter optionally includes a replay-backed retained vehicle 
   assert.equal(replayed.separationContact?.bodies.length, 2);
   assert.equal(replayed.coupledMultiBodyFlight.relativeAeroForceFeedback.enabled, true);
   assert.equal(replayed.coupledMultiBodyFlight.relativeAeroForceFeedback.wakeHalfAngleDeg, 10);
+  assert.equal(replayed.coupledMultiBodyFlight.relativeAeroForceFeedback.databaseForceFeedback.enabled, true);
+  assert.equal(replayed.coupledMultiBodyFlight.relativeAeroForceFeedback.databaseForceFeedback.bindingCount, 1);
   assert.equal(replayed.coupledMultiBodyFlight.separationMechanisms.enabled, true);
   assert.equal(replayed.coupledMultiBodyFlight.separationMechanisms.configuredPulseCount, 1);
   assert.ok(replayed.assumptions.some((assumption) => assumption.includes("Wake feedback uses a finite expanding cone")));

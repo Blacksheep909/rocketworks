@@ -299,7 +299,7 @@ point-drag, projected-area, or detached-aero evaluator. Trace points retain the
 effective relative airspeed, strongest deficit fraction, and source count. The
 result records the normalized configuration, maximum observed deficit, exposed
 sample count, and affected-body count under
-`rocketworks-coupled-multi-body-relative-aero-0.1.0`.
+`rocketworks-coupled-multi-body-relative-aero-0.2.0`.
 
 The branch is an analytical sensitivity check only. It does not model wake
 roll-up, turbulence, viscous shielding, crossflow/attitude databases, plume
@@ -307,6 +307,40 @@ interaction, shock interaction, unsteady derivatives, or measured proximity
 forces and moments. CFD, wind-tunnel data, calibrated relative-body tables, and
 measured-flight comparison are required before using it for design release,
 operations, or flight/range-safety decisions.
+
+## Optional relative-body table force feedback
+
+The selected relative-body database can also be enabled as a separate,
+explicit sensitivity branch through `databaseForceFeedback.enabled`. The stage
+adapter expands the selected retained-to-detached, detached-to-retained, or
+all-directed-pairs policy into directed bindings and passes only bindings whose
+source and target are present in the shared track. A binding contributes loads
+to its target only when that target has a rigid-body state. Point-mass targets
+remain diagnostic-only; non-rigid targets are reported as skipped rather than
+silently upgraded.
+
+For a target sample, the source air-relative velocity supplies the local flow
+axis and the target air-relative speed supplies dynamic pressure. Interpolated
+body-axis force deltas are mapped with
+
+```text
+ΔF_body = q S_target (ΔC_A, ΔC_N, ΔC_S)
+ΔM_body = q S_target L (ΔC_l, ΔC_m, ΔC_n)
+```
+
+and rotated into the world frame for translation. The aggregate target force
+and body moment are capped by caller-visible bounds (default 10,000 N and
+2,500 N·m) before they enter the rigid-body derivative. A rejected or malformed
+query is counted and skipped for that sample; it does not abort the integrator.
+The force path intentionally does not apply an equal-and-opposite reaction to
+the source body, so it is not a momentum-conserving interference solver.
+
+The result and trace expose the database model/status, directed binding count,
+applicability and query-failure counts, skipped non-rigid bindings, peak force
+and moment, caps, and per-sample target loads. This branch is analytical
+sensitivity telemetry only: it is not CFD, a wind-tunnel correlation, a
+validated separation-load model, or flight/range-safety evidence. The default
+remains disabled and the post-trace diagnostic path is unchanged.
 
 For bodies with the rigid-body option, the state additionally follows
 

@@ -847,6 +847,21 @@ export function createCoupledMultiBodyTraceCsv(
     maximumObservedVelocityDeficitFraction: null,
     exposedSampleCount: 0,
     affectedBodyCount: 0,
+    databaseForceFeedback: {
+      modelVersion: "legacy-relative-aero-database",
+      validationStatus: "legacy-result",
+      enabled: false,
+      bindingCount: 0,
+      appliedSampleCount: 0,
+      affectedBodyCount: 0,
+      applicabilityCount: 0,
+      queryFailureCount: 0,
+      skippedBindingCount: 0,
+      maximumForceN: null,
+      maximumMomentNm: null,
+      maximumForceCapN: 0,
+      maximumMomentCapNm: 0,
+    },
   };
   const separationMechanisms = result.separationMechanisms ?? {
     modelVersion: "legacy-separation-mechanism",
@@ -878,6 +893,19 @@ export function createCoupledMultiBodyTraceCsv(
     ["# relative_aero_feedback_maximum_observed_deficit_fraction", relativeAeroForceFeedback.maximumObservedVelocityDeficitFraction],
     ["# relative_aero_feedback_exposed_sample_count", relativeAeroForceFeedback.exposedSampleCount],
     ["# relative_aero_feedback_affected_body_count", relativeAeroForceFeedback.affectedBodyCount],
+    ["# relative_aero_database_model_version", relativeAeroForceFeedback.databaseForceFeedback.modelVersion],
+    ["# relative_aero_database_validation_status", relativeAeroForceFeedback.databaseForceFeedback.validationStatus],
+    ["# relative_aero_database_force_feedback_enabled", relativeAeroForceFeedback.databaseForceFeedback.enabled],
+    ["# relative_aero_database_binding_count", relativeAeroForceFeedback.databaseForceFeedback.bindingCount],
+    ["# relative_aero_database_applied_sample_count", relativeAeroForceFeedback.databaseForceFeedback.appliedSampleCount],
+    ["# relative_aero_database_affected_body_count", relativeAeroForceFeedback.databaseForceFeedback.affectedBodyCount],
+    ["# relative_aero_database_applicability_count", relativeAeroForceFeedback.databaseForceFeedback.applicabilityCount],
+    ["# relative_aero_database_query_failure_count", relativeAeroForceFeedback.databaseForceFeedback.queryFailureCount],
+    ["# relative_aero_database_skipped_binding_count", relativeAeroForceFeedback.databaseForceFeedback.skippedBindingCount],
+    ["# relative_aero_database_maximum_force_n", relativeAeroForceFeedback.databaseForceFeedback.maximumForceN],
+    ["# relative_aero_database_maximum_moment_nm", relativeAeroForceFeedback.databaseForceFeedback.maximumMomentNm],
+    ["# relative_aero_database_force_cap_n", relativeAeroForceFeedback.databaseForceFeedback.maximumForceCapN],
+    ["# relative_aero_database_moment_cap_nm", relativeAeroForceFeedback.databaseForceFeedback.maximumMomentCapNm],
     ["# separation_model_version", separationMechanisms.modelVersion],
     ["# separation_validation_status", separationMechanisms.validationStatus],
     ["# separation_enabled", separationMechanisms.enabled],
@@ -925,6 +953,17 @@ export function createCoupledMultiBodyTraceCsv(
     "separation_moment_body_z_nm",
     "separation_moment_nm",
     "separation_mechanism_source_count",
+    "relative_database_force_world_x_n",
+    "relative_database_force_world_y_n",
+    "relative_database_force_world_z_n",
+    "relative_database_force_n",
+    "relative_database_moment_body_x_nm",
+    "relative_database_moment_body_y_nm",
+    "relative_database_moment_body_z_nm",
+    "relative_database_moment_nm",
+    "relative_database_binding_count",
+    "relative_database_applicability_count",
+    "relative_database_query_failure_count",
   ];
   const rows = result.trajectories.flatMap((trajectory) => trajectory.trace.map((point, index) => {
     const values: readonly (number | string | null | undefined)[] = [
@@ -964,6 +1003,17 @@ export function createCoupledMultiBodyTraceCsv(
       point.separationMomentBodyNm?.z,
       point.separationMomentNm,
       point.separationMechanismSourceCount,
+      point.relativeDatabaseForceWorldN?.x,
+      point.relativeDatabaseForceWorldN?.y,
+      point.relativeDatabaseForceWorldN?.z,
+      point.relativeDatabaseForceN,
+      point.relativeDatabaseMomentBodyNm?.x,
+      point.relativeDatabaseMomentBodyNm?.y,
+      point.relativeDatabaseMomentBodyNm?.z,
+      point.relativeDatabaseMomentNm,
+      point.relativeDatabaseBindingCount,
+      point.relativeDatabaseApplicabilityCount,
+      point.relativeDatabaseQueryFailureCount,
     ];
     values.forEach((value, valueIndex) => {
       if (typeof value === "number") assertFinite(value, `coupled trace row ${index + 1} column ${headers[valueIndex]}`);
@@ -2175,6 +2225,21 @@ export function createEngineeringReportMarkdown(
     .map((point) => point.angularRateRadS === undefined ? undefined : (point.angularRateRadS * 180) / Math.PI)
     .filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value));
   const coupledFlight = input.stageFlight?.coupledMultiBodyFlight;
+  const coupledDatabaseForceFeedback = coupledFlight?.relativeAeroForceFeedback?.databaseForceFeedback ?? {
+    modelVersion: "rocketworks-relative-aero-database-0.1.0",
+    validationStatus: "analytical-component-checks-only",
+    enabled: false,
+    bindingCount: 0,
+    appliedSampleCount: 0,
+    affectedBodyCount: 0,
+    applicabilityCount: 0,
+    queryFailureCount: 0,
+    skippedBindingCount: 0,
+    maximumForceN: null,
+    maximumMomentNm: null,
+    maximumForceCapN: 10_000,
+    maximumMomentCapNm: 2_500,
+  };
   const coupledAerodynamicBodyCount = coupledFlight
     ? (coupledFlight.aerodynamicBodyCount ?? coupledFlight.trajectories.filter((trajectory) => trajectory.aerodynamicBasis !== undefined).length)
     : 0;
@@ -2945,6 +3010,11 @@ export function createEngineeringReportMarkdown(
                 `| Released-body force model | ${input.stageFlight.coupledMultiBodyFlight.mutualGravity?.enabled ? `mutual point-mass gravity (softening ${formatNumber(input.stageFlight.coupledMultiBodyFlight.mutualGravity.softeningRadiusM, 6)} m)` : "shared environment only"} |`,
                 `| Envelope contact response | ${input.stageFlight.coupledMultiBodyFlight.contact?.enabled ? `enabled (${input.stageFlight.coupledMultiBodyFlight.contact.contactPairCount} pair(s), ${input.stageFlight.coupledMultiBodyFlight.contact.contactSampleCount} samples)` : "disabled / diagnostic screen only"} |`,
                 `| Coupled wake force feedback | ${input.stageFlight.coupledMultiBodyFlight.relativeAeroForceFeedback?.enabled ? `enabled (${input.stageFlight.coupledMultiBodyFlight.relativeAeroForceFeedback.exposedSampleCount} exposed samples, ${input.stageFlight.coupledMultiBodyFlight.relativeAeroForceFeedback.maximumObservedVelocityDeficitFraction === null ? "no observed overlap" : `${formatNumber(input.stageFlight.coupledMultiBodyFlight.relativeAeroForceFeedback.maximumObservedVelocityDeficitFraction * 100, 2)}% max deficit`})` : "disabled / post-trace only"} |`,
+                `| Relative-body table force feedback | ${coupledDatabaseForceFeedback.enabled ? `enabled (${coupledDatabaseForceFeedback.bindingCount} binding(s), ${coupledDatabaseForceFeedback.appliedSampleCount} applied samples)` : "disabled / post-trace only"} |`,
+                `| Relative-body table peak force / moment | ${coupledDatabaseForceFeedback.maximumForceN === null ? "not assessed" : `${formatNumber(coupledDatabaseForceFeedback.maximumForceN, 2)} N`} / ${coupledDatabaseForceFeedback.maximumMomentNm === null ? "not assessed" : `${formatNumber(coupledDatabaseForceFeedback.maximumMomentNm, 2)} N·m`} |`,
+                `| Relative-body table caps | ${formatNumber(coupledDatabaseForceFeedback.maximumForceCapN, 2)} N / ${formatNumber(coupledDatabaseForceFeedback.maximumMomentCapNm, 2)} N·m |`,
+                `| Relative-body table applicability / query failures | ${coupledDatabaseForceFeedback.applicabilityCount} / ${coupledDatabaseForceFeedback.queryFailureCount} |`,
+                "| Relative-body table boundary | Analytical sensitivity only; target load only, no source reaction, no CFD/validation/safety claim |",
                 ...(input.stageFlight.coupledMultiBodyFlight.relativeAeroForceFeedback?.enabled
                   ? [
                       `| Wake feedback model | \`${markdownText(input.stageFlight.coupledMultiBodyFlight.relativeAeroForceFeedback.modelVersion)}\` (${markdownText(input.stageFlight.coupledMultiBodyFlight.relativeAeroForceFeedback.validationStatus)}) |`,

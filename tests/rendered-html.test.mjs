@@ -1549,8 +1549,11 @@ test("ships a provenance-labeled relative-body aerodynamic database diagnostic",
   assert.match(page, /Use detached → retained/);
   assert.match(page, /Use all directed pairs/);
   assert.match(page, /relative-body-database-binding-mode/);
+  assert.match(page, /relative-body-database-force-feedback-mode/);
+  assert.match(page, /target-load sensitivity/);
   assert.match(page, /All directed pairs/);
   assert.match(stagePreview, /createRelativeAeroDatabaseBindings/);
+  assert.match(stagePreview, /databaseForceFeedback/);
   assert.match(stagePreview, /all-directed-pairs/);
   assert.match(database, /RELATIVE_AERO_DATABASE_MODEL_VERSION/);
   assert.match(database, /trilinear/);
@@ -1559,8 +1562,10 @@ test("ships a provenance-labeled relative-body aerodynamic database diagnostic",
   assert.match(libraryState, /LOCAL_RELATIVE_AERO_LIBRARY_SCHEMA_ID/);
   assert.match(libraryState, /parseLocalRelativeAeroLibrary/);
   assert.match(report, /Relative-body database pairs/);
+  assert.match(report, /Relative-body table force feedback/);
   assert.match(report, /Query failures/);
-  assert.match(docs, /force-coupled separation solver/);
+  assert.match(docs, /conservation-complete separation solver/);
+  assert.match(docs, /databaseForceFeedback/);
   assert.match(packageJson.scripts?.test ?? "", /tests\/relative-aero-database\.test\.mjs/);
 });
 

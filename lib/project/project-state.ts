@@ -154,6 +154,8 @@ export type EditableProjectInputs = Readonly<{
   coupledMultiBodyRetainedBodyMode?: "trace-replay" | "independent-mass-propulsion";
   /** Enables the bounded wake-deficit sensitivity branch in the shared coupled track. */
   coupledRelativeAeroForceFeedbackEnabled?: boolean;
+  /** Enables selected relative-body coefficient-table force feedback in the shared track. */
+  relativeAeroDatabaseForceFeedbackEnabled?: boolean;
   /** Aerodynamic contract used for released-body tracks in the coupled preview. */
   releasedBodyDragModel?: ReleasedBodyDragModel;
   /** Enables the post-trace released-body wake/relative-flow diagnostic. */
@@ -232,7 +234,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "customMaterial" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "coupledContactEnabled" | "coupledContactStiffnessNPerM" | "coupledContactDampingNsPerM" | "coupledContactMaximumNormalForceN" | "coupledMultiBodyIncludeRetainedBody" | "coupledMultiBodyRetainedBodyMode" | "coupledRelativeAeroForceFeedbackEnabled" | "releasedBodyDragModel" | "relativeAeroInteractionEnabled" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod" | "verticalIntegrationTimeStepS" | "coupledIntegrationTimeStepS" | "coupledSeparationPulseEnabled" | "coupledSeparationPulseDeltaVMps" | "coupledSeparationPulseStartOffsetS" | "coupledSeparationPulseDurationS" | "coupledSeparationPulseProfile" | "coupledSeparationPulseAngularEnabled" | "coupledSeparationPulseAngularDeltaRadS">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "customMaterial" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "coupledContactEnabled" | "coupledContactStiffnessNPerM" | "coupledContactDampingNsPerM" | "coupledContactMaximumNormalForceN" | "coupledMultiBodyIncludeRetainedBody" | "coupledMultiBodyRetainedBodyMode" | "coupledRelativeAeroForceFeedbackEnabled" | "relativeAeroDatabaseForceFeedbackEnabled" | "releasedBodyDragModel" | "relativeAeroInteractionEnabled" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod" | "verticalIntegrationTimeStepS" | "coupledIntegrationTimeStepS" | "coupledSeparationPulseEnabled" | "coupledSeparationPulseDeltaVMps" | "coupledSeparationPulseStartOffsetS" | "coupledSeparationPulseDurationS" | "coupledSeparationPulseProfile" | "coupledSeparationPulseAngularEnabled" | "coupledSeparationPulseAngularDeltaRadS">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -580,6 +582,13 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   ) {
     throw new Error("coupledRelativeAeroForceFeedbackEnabled must be boolean.");
   }
+  const relativeAeroDatabaseForceFeedbackEnabled = input.relativeAeroDatabaseForceFeedbackEnabled;
+  if (
+    relativeAeroDatabaseForceFeedbackEnabled !== undefined &&
+    typeof relativeAeroDatabaseForceFeedbackEnabled !== "boolean"
+  ) {
+    throw new Error("relativeAeroDatabaseForceFeedbackEnabled must be boolean.");
+  }
   const coupledSeparationPulseEnabled = input.coupledSeparationPulseEnabled;
   if (coupledSeparationPulseEnabled !== undefined && typeof coupledSeparationPulseEnabled !== "boolean") {
     throw new Error("coupledSeparationPulseEnabled must be boolean.");
@@ -798,6 +807,7 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
       ? {}
       : { coupledMultiBodyRetainedBodyMode }),
     ...(coupledRelativeAeroForceFeedbackEnabled === undefined ? {} : { coupledRelativeAeroForceFeedbackEnabled }),
+    ...(relativeAeroDatabaseForceFeedbackEnabled === undefined ? {} : { relativeAeroDatabaseForceFeedbackEnabled }),
     ...(coupledSeparationPulseEnabled === undefined ? {} : { coupledSeparationPulseEnabled }),
     ...(coupledSeparationPulseDeltaVMps === undefined ? {} : { coupledSeparationPulseDeltaVMps }),
     ...(coupledSeparationPulseStartOffsetS === undefined ? {} : { coupledSeparationPulseStartOffsetS }),
@@ -997,6 +1007,7 @@ export const PROJECT_INPUT_LABELS: Readonly<Record<keyof EditableProjectInputs, 
   coupledMultiBodyIncludeRetainedBody: "retained vehicle coupled replay track",
   coupledMultiBodyRetainedBodyMode: "retained vehicle coupled handoff model",
   coupledRelativeAeroForceFeedbackEnabled: "coupled wake force-feedback sensitivity",
+  relativeAeroDatabaseForceFeedbackEnabled: "relative-body table force-feedback sensitivity",
   coupledSeparationPulseEnabled: "first-separation force pulse",
   coupledSeparationPulseDeltaVMps: "first-separation relative delta-v",
   coupledSeparationPulseStartOffsetS: "first-separation pulse start offset",

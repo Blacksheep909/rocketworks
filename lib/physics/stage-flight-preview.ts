@@ -235,6 +235,8 @@ export type StageFlightPreviewInput = Readonly<{
   relativeAeroDatabase?: RelativeAeroDatabaseDefinition;
   /** Explicit binding policy for the selected relative-body table. */
   relativeAeroDatabaseBindingMode?: RelativeAeroDatabaseBindingMode;
+  /** Enables the selected relative-body table inside the shared coupled track. */
+  relativeAeroDatabaseForceFeedbackEnabled?: boolean;
   /** Optional bounded wake-deficit feedback for the shared coupled track. */
   relativeAeroForceFeedback?: CoupledMultiBodyRelativeAeroOptions;
   /** Optional finite-duration equal-and-opposite separation mechanisms for the shared track. */
@@ -1946,6 +1948,42 @@ export function simulateStageFlightPreview(
   let coupledMultiBodyFlight: CoupledMultiBodyFlightResult | null = null;
   if (coupledBodySeeds.length > 0) {
     try {
+      const selectedCoupledDatabaseBindings = input.relativeAeroDatabase &&
+        input.relativeAeroDatabaseForceFeedbackEnabled
+        ? (() => {
+            const availableBodyIds = new Set([
+              ...(retainedBodyCoupledSeed ? [retainedBodyCoupledSeed.id] : []),
+              ...coupledBodySeeds.map((body) => body.id),
+            ]);
+            return createRelativeAeroDatabaseBindings(
+              input.relativeAeroDatabaseBindingMode ?? "disabled",
+              input.relativeAeroDatabase,
+              coupledBodySeeds.map((body) => body.id),
+            ).filter((binding) =>
+              availableBodyIds.has(binding.sourceBodyId) && availableBodyIds.has(binding.targetBodyId),
+            );
+          })()
+        : [];
+      const databaseForceFeedbackEnabled = input.relativeAeroDatabaseForceFeedbackEnabled ??
+        input.relativeAeroForceFeedback?.databaseForceFeedback?.enabled ??
+        false;
+      const coupledRelativeAeroForceFeedback = input.relativeAeroForceFeedback ||
+        input.relativeAeroDatabaseForceFeedbackEnabled !== undefined
+        ? {
+            ...(input.relativeAeroForceFeedback ?? {}),
+            databaseForceFeedback: {
+              ...(input.relativeAeroForceFeedback?.databaseForceFeedback ?? {}),
+              enabled: databaseForceFeedbackEnabled,
+              ...(input.relativeAeroDatabase
+                ? {
+                    bindings: databaseForceFeedbackEnabled
+                      ? selectedCoupledDatabaseBindings
+                      : [],
+                  }
+                : {}),
+            },
+          }
+        : undefined;
       coupledMultiBodyFlight = simulateCoupledMultiBodyFlight({
         bodies: retainedBodyCoupledSeed
           ? [retainedBodyCoupledSeed, ...coupledBodySeeds]
@@ -1956,7 +1994,7 @@ export function simulateStageFlightPreview(
         environmentAt: input.environmentAt,
         mutualGravity: input.coupledMultiBodyGravity,
         contact: input.coupledMultiBodyContact,
-        relativeAeroForceFeedback: input.relativeAeroForceFeedback,
+        relativeAeroForceFeedback: coupledRelativeAeroForceFeedback,
         ...(retainedBodyVelocityImpulseEvents.length > 0
           ? { velocityImpulseEvents: retainedBodyVelocityImpulseEvents }
           : {}),

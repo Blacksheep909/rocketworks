@@ -296,6 +296,7 @@ test("project snapshots preserve coupled-flight contract settings and legacy def
     coupledSeparationPulseAngularEnabled: true,
     coupledSeparationPulseAngularDeltaRadS: 0.6,
     coupledRelativeAeroForceFeedbackEnabled: true,
+    relativeAeroDatabaseForceFeedbackEnabled: true,
     releasedBodyDragModel: "coefficient-table",
     relativeAeroInteractionEnabled: false,
     relativeAeroWakeHalfAngleDeg: 12,
@@ -323,6 +324,7 @@ test("project snapshots preserve coupled-flight contract settings and legacy def
   assert.equal(parsed.inputs.coupledSeparationPulseAngularEnabled, true);
   assert.equal(parsed.inputs.coupledSeparationPulseAngularDeltaRadS, 0.6);
   assert.equal(parsed.inputs.coupledRelativeAeroForceFeedbackEnabled, true);
+  assert.equal(parsed.inputs.relativeAeroDatabaseForceFeedbackEnabled, true);
   assert.equal(parsed.inputs.releasedBodyDragModel, "coefficient-table");
   assert.equal(parsed.inputs.relativeAeroInteractionEnabled, false);
   assert.equal(parsed.inputs.relativeAeroWakeHalfAngleDeg, 12);
@@ -346,6 +348,7 @@ test("project snapshots preserve coupled-flight contract settings and legacy def
   assert.equal(snapshot(2).inputs.coupledSeparationPulseEnabled, undefined);
   assert.equal(snapshot(2).inputs.coupledSeparationPulseAngularEnabled, undefined);
   assert.equal(snapshot(2).inputs.coupledRelativeAeroForceFeedbackEnabled, undefined);
+  assert.equal(snapshot(2).inputs.relativeAeroDatabaseForceFeedbackEnabled, undefined);
   assert.equal(snapshot(2).inputs.releasedBodyDragModel, undefined);
 });
 
@@ -365,6 +368,10 @@ test("project snapshots reject invalid coupled-flight contract settings", () => 
   assert.throws(
     () => snapshot(1, { coupledMultiBodyRetainedBodyMode: "unsupported" }),
     /coupledMultiBodyRetainedBodyMode must be/,
+  );
+  assert.throws(
+    () => snapshot(1, { relativeAeroDatabaseForceFeedbackEnabled: "yes" }),
+    /relativeAeroDatabaseForceFeedbackEnabled must be/,
   );
   assert.throws(
     () => snapshot(1, { coupledMultiBodyRetainedBodyMode: "independent-mass-propulsion" }),

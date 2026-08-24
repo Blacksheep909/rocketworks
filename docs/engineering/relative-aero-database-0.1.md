@@ -73,17 +73,33 @@ provenance.
 
 ## Flight integration boundary
 
-The current adapter runs this database after staged traces have already been
+The default adapter runs this database after staged traces have already been
 generated. It reports per-directed-pair sample coverage, query failures, and
 maximum dimensional force/moment deltas in the relative-flow inspector and
 engineering report. It never adds the deltas to the isolated-body load model,
 shared-grid wake feedback, retained vehicle, or detached branch.
 
-This boundary is intentional. A force-coupled separation solver must first
-define simultaneous retained/discarded-stage states, hardware event timing,
-relative attitude, plume state, uncertainty propagation, and conservation
-checks. Interpolating a table after the fact is not evidence that those loads
-are valid for a real vehicle.
+An explicit, opt-in `databaseForceFeedback` branch is available only inside the
+shared coupled track. The stage adapter expands the selected directed binding
+policy and filters it to bodies that are present in that track. Interpolated
+force and moment coefficients are converted with the target's available
+reference area and moment length, capped at the configured maximum force and
+moment, and applied to rigid-body targets only. Point-mass targets and missing
+rigid orientations remain diagnostic-only. A source body receives no
+equal-and-opposite reaction; the branch is therefore a bounded target-load
+sensitivity adapter rather than a conservation-complete interference solver.
+Reject-policy queries increment a per-sample failure counter and are skipped so
+unsupported table domains do not terminate the integrator. The result and
+trace retain binding, applicability, failure, skip, cap, and peak-load
+telemetry. The branch is disabled by default and never changes the independent
+detached 6DOF branches.
+
+This boundary is intentional. A conservation-complete separation solver must
+first define simultaneous retained/discarded-stage states, hardware event
+timing, relative attitude, plume state, uncertainty propagation, and reaction
+loads. The opt-in branch is only a bounded analytical sensitivity path;
+interpolating a table or applying its capped target load is not evidence that
+those loads are valid for a real vehicle.
 
 ## Provenance and limitations
 

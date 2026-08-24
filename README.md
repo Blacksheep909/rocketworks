@@ -184,7 +184,10 @@ research, standards, and original code.
   applicability, uncertainty, coverage, and dimensional force/moment scales in
   the Flight inspector and engineering report, with a device-local validated
   library and explicit retained-to-detached, detached-to-retained, or
-  all-directed-pairs binding workflow, and remains post-trace only;
+  all-directed-pairs binding workflow; diagnostics remain post-trace by
+  default, while an explicit bounded target-load sensitivity branch can feed
+  capped qS/qSL deltas to rigid bodies in the shared coupled track without
+  inferring a source reaction;
 - an opt-in coupled wake-feedback sensitivity branch that feeds the strongest
   overlapping source-wake velocity deficit into the shared-grid drag/aero
   evaluation, with persisted controls, per-sample provenance, CSV/report

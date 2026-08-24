@@ -377,6 +377,21 @@ force model: wake roll-up, turbulence, plume effects, crossflow databases,
 unsteady loads, CFD, wind-tunnel correlation, and flight safety remain outside
 the contract.
 
+The selected relative-body aerodynamic table has a separate
+`databaseForceFeedback` switch. When enabled, the stage adapter expands its
+directed binding policy and supplies interpolated qS force and optional qSL
+moment deltas to rigid-body targets in the shared track. The target area and
+moment length come from the target aerodynamic basis when available, with the
+table declaration as a fallback. Aggregate loads are capped (default 10,000 N
+and 2,500 N·m), unsupported reject-policy queries are counted and skipped, and
+point-mass or absent rigid targets remain diagnostic-only. No equal-and-opposite
+source load is inferred. Per-sample loads, applicability, failures, skipped
+bindings, caps, and peaks are exported so the sensitivity result is auditable.
+This branch is disabled by default and is analytical telemetry only—not CFD,
+a validated separation-load model, or flight-safety evidence. Wake roll-up,
+turbulence, plume effects, crossflow databases, and unsteady loads remain
+outside the contract.
+
 ### Detached-stage recovery triggers
 
 Each detachable stage may carry a recovery canopy with the same three command

@@ -47,6 +47,13 @@ import {
   type DetachedBodyAerodynamicBasis,
   type DetachedBodyAerodynamicResult,
 } from "./detached-body-aerodynamics.ts";
+import {
+  createRelativeAeroDatabase,
+  RELATIVE_AERO_DATABASE_MODEL_VERSION,
+  RELATIVE_AERO_DATABASE_STATUS,
+  type RelativeAeroDatabaseDefinition,
+  type RelativeAeroDatabaseModel,
+} from "./relative-aero-database.ts";
 
 /**
  * RocketWorks clean-room shared-grid propagator for released bodies.
@@ -71,7 +78,7 @@ export const COUPLED_MULTI_BODY_CONTACT_STATUS =
   "analytical-compliance-solver" as const;
 
 export const COUPLED_MULTI_BODY_RELATIVE_AERO_MODEL_VERSION =
-  "rocketworks-coupled-multi-body-relative-aero-0.1.0";
+  "rocketworks-coupled-multi-body-relative-aero-0.2.0";
 export const COUPLED_MULTI_BODY_RELATIVE_AERO_STATUS =
   "analytical-component-checks-only" as const;
 
@@ -115,6 +122,33 @@ export type CoupledMultiBodyRelativeAeroOptions = Readonly<{
   wakeRecoveryDistanceBodyDiameters?: number;
   peakVelocityDeficitFraction?: number;
   maximumVelocityDeficitFraction?: number;
+  /**
+   * Optional configuration-specific coefficient deltas applied as a bounded
+   * target-body load. This path is disabled by default and is deliberately
+   * separate from the post-trace relative-body database screen.
+   */
+  databaseForceFeedback?: CoupledMultiBodyRelativeAeroDatabaseForceFeedbackOptions;
+}>;
+
+/** A directed source/target binding for the opt-in shared-track table load. */
+export type CoupledMultiBodyRelativeAeroDatabaseBinding = Readonly<{
+  sourceBodyId: string;
+  targetBodyId: string;
+  database: RelativeAeroDatabaseDefinition;
+}>;
+
+/**
+ * Bounded force/moment feedback from a source-declared relative-body table.
+ * The source body is not given an equal-and-opposite load: these are
+ * configuration-specific target-body deltas, not a momentum-exchange model.
+ */
+export type CoupledMultiBodyRelativeAeroDatabaseForceFeedbackOptions = Readonly<{
+  enabled?: boolean;
+  bindings?: readonly CoupledMultiBodyRelativeAeroDatabaseBinding[];
+  /** Hard cap on the aggregate target force from all active bindings. */
+  maximumForceN?: number;
+  /** Hard cap on the aggregate target body moment from all active bindings. */
+  maximumMomentNm?: number;
 }>;
 
 export type CoupledMultiBodyIntegrationOptions = Readonly<{
@@ -283,6 +317,20 @@ export type CoupledMultiBodyTracePoint = Readonly<{
   separationMomentNm?: number;
   orientationBodyToWorld?: Quaternion;
   angularVelocityBodyRadS?: Vector3;
+  /** Bounded configuration-specific relative-body database force delta. */
+  relativeDatabaseForceWorldN?: Vector3;
+  /** Magnitude of the relative-body database force delta. */
+  relativeDatabaseForceN?: number;
+  /** Bounded body-frame moment delta from the relative-body database. */
+  relativeDatabaseMomentBodyNm?: Vector3;
+  /** Magnitude of the relative-body database moment delta. */
+  relativeDatabaseMomentNm?: number;
+  /** Number of active table bindings that returned a usable query. */
+  relativeDatabaseBindingCount?: number;
+  /** Number of table queries clamped with an unsupported applicability issue. */
+  relativeDatabaseApplicabilityCount?: number;
+  /** Number of reject-policy/out-of-range table queries skipped at this sample. */
+  relativeDatabaseQueryFailureCount?: number;
 }>;
 
 export type CoupledMultiBodyFlightTrajectory = Readonly<{
@@ -366,6 +414,21 @@ export type CoupledMultiBodyFlightResult = Readonly<{
     maximumObservedVelocityDeficitFraction: number | null;
     exposedSampleCount: number;
     affectedBodyCount: number;
+    databaseForceFeedback: Readonly<{
+      modelVersion: typeof RELATIVE_AERO_DATABASE_MODEL_VERSION;
+      validationStatus: typeof RELATIVE_AERO_DATABASE_STATUS;
+      enabled: boolean;
+      bindingCount: number;
+      appliedSampleCount: number;
+      affectedBodyCount: number;
+      applicabilityCount: number;
+      queryFailureCount: number;
+      skippedBindingCount: number;
+      maximumForceN: number | null;
+      maximumMomentNm: number | null;
+      maximumForceCapN: number;
+      maximumMomentCapNm: number;
+    }>;
   }>;
   /** Canonical world-frame vectors for the impulses applied during propagation. */
   appliedVelocityImpulseEvents: readonly CoupledMultiBodyAppliedVelocityImpulseEvent[];
@@ -438,6 +501,11 @@ type CoupledGroupDerivative = Readonly<{
   relativeAirVelocityWorldMps: readonly (Vector3 | null)[];
   relativeWakeDeficitFractions: readonly (number | null)[];
   relativeWakeSourceCounts: readonly number[];
+  relativeDatabaseForceWorldNs: readonly Vector3[];
+  relativeDatabaseMomentBodyNms: readonly Vector3[];
+  relativeDatabaseBindingCounts: readonly number[];
+  relativeDatabaseApplicabilityCounts: readonly number[];
+  relativeDatabaseQueryFailureCounts: readonly number[];
 }>;
 
 const ZERO_VECTOR: Vector3 = { x: 0, y: 0, z: 0 };
@@ -493,18 +561,51 @@ type NormalizedRelativeAeroForceFeedbackOptions = Readonly<{
   wakeRecoveryDistanceBodyDiameters: number;
   peakVelocityDeficitFraction: number;
   maximumVelocityDeficitFraction: number;
+  databaseForceFeedback: NormalizedRelativeAeroDatabaseForceFeedbackOptions;
+}>;
+
+type NormalizedRelativeAeroDatabaseForceFeedbackBinding = Readonly<{
+  sourceBodyId: string;
+  targetBodyId: string;
+  database: RelativeAeroDatabaseModel;
+}>;
+
+type NormalizedRelativeAeroDatabaseForceFeedbackOptions = Readonly<{
+  enabled: boolean;
+  bindings: readonly NormalizedRelativeAeroDatabaseForceFeedbackBinding[];
+  maximumForceN: number;
+  maximumMomentNm: number;
+  skippedBindingCount: number;
 }>;
 
 type RelativeAeroForceFeedbackEvaluation = Readonly<{
   relativeAirVelocityWorldMps: Vector3;
   maximumVelocityDeficitFraction: number;
   sourceCount: number;
+  databaseForceWorldN: Vector3;
+  databaseMomentBodyNm: Vector3;
+  databaseBindingCount: number;
+  databaseApplicabilityCount: number;
+  databaseQueryFailureCount: number;
+}>;
+
+type RelativeAeroDatabaseForceFeedbackEvaluation = Readonly<{
+  forceWorldN: Vector3;
+  momentBodyNm: Vector3;
+  bindingCount: number;
+  applicabilityCount: number;
+  queryFailureCount: number;
 }>;
 
 const DEFAULT_RELATIVE_AERO_WAKE_HALF_ANGLE_DEG = 8;
 const DEFAULT_RELATIVE_AERO_WAKE_RECOVERY_DISTANCE_BODY_DIAMETERS = 30;
 const DEFAULT_RELATIVE_AERO_PEAK_VELOCITY_DEFICIT_FRACTION = 0.5;
 const DEFAULT_RELATIVE_AERO_MAXIMUM_VELOCITY_DEFICIT_FRACTION = 0.7;
+const DEFAULT_RELATIVE_AERO_DATABASE_MAXIMUM_FORCE_N = 10_000;
+const DEFAULT_RELATIVE_AERO_DATABASE_MAXIMUM_MOMENT_NM = 2_500;
+const MAX_RELATIVE_AERO_DATABASE_BINDINGS = 256;
+const MAX_RELATIVE_AERO_DATABASE_FORCE_N = 1e8;
+const MAX_RELATIVE_AERO_DATABASE_MOMENT_NM = 1e8;
 const RELATIVE_AERO_FLOW_SPEED_EPSILON_MPS = 1e-8;
 
 function assertFiniteVector(value: Vector3, label: string): void {
@@ -617,6 +718,7 @@ function normalizeContactOptions(
 
 function normalizeRelativeAeroForceFeedbackOptions(
   options: CoupledMultiBodyRelativeAeroOptions | undefined,
+  bodies: readonly CoupledMultiBodyFlightBodyInput[],
 ): NormalizedRelativeAeroForceFeedbackOptions {
   const enabled = options?.enabled ?? false;
   if (typeof enabled !== "boolean") {
@@ -650,12 +752,78 @@ function normalizeRelativeAeroForceFeedbackOptions(
   if (peakVelocityDeficitFraction > maximumVelocityDeficitFraction) {
     throw new Error("coupled multi-body relative-aero peak deficit cannot exceed its maximum");
   }
+  const databaseOptions = options?.databaseForceFeedback;
+  const databaseEnabled = databaseOptions?.enabled ?? false;
+  if (typeof databaseEnabled !== "boolean") {
+    throw new Error("coupled multi-body relative-aero database feedback enabled flag must be boolean");
+  }
+  const maximumForceN = databaseOptions?.maximumForceN ?? DEFAULT_RELATIVE_AERO_DATABASE_MAXIMUM_FORCE_N;
+  const maximumMomentNm = databaseOptions?.maximumMomentNm ?? DEFAULT_RELATIVE_AERO_DATABASE_MAXIMUM_MOMENT_NM;
+  assertPositiveFinite(
+    maximumForceN,
+    "coupled multi-body relative-aero database maximum force",
+  );
+  assertPositiveFinite(
+    maximumMomentNm,
+    "coupled multi-body relative-aero database maximum moment",
+  );
+  if (maximumForceN > MAX_RELATIVE_AERO_DATABASE_FORCE_N) {
+    throw new Error("coupled multi-body relative-aero database maximum force cannot exceed 1e8 N");
+  }
+  if (maximumMomentNm > MAX_RELATIVE_AERO_DATABASE_MOMENT_NM) {
+    throw new Error("coupled multi-body relative-aero database maximum moment cannot exceed 1e8 N m");
+  }
+  const bodyIds = new Set(bodies.map((body) => body.id));
+  const bindingPairs = new Set<string>();
+  const bindings = (databaseOptions?.bindings ?? []).map((binding, index) => {
+    if (!binding || typeof binding !== "object") {
+      throw new Error(`coupled multi-body relative-aero database binding ${index} must be an object`);
+    }
+    if (!binding.sourceBodyId.trim() || !binding.targetBodyId.trim()) {
+      throw new Error(`coupled multi-body relative-aero database binding ${index} body ids cannot be empty`);
+    }
+    if (binding.sourceBodyId === binding.targetBodyId) {
+      throw new Error(`coupled multi-body relative-aero database binding ${index} must target a distinct body`);
+    }
+    if (!bodyIds.has(binding.sourceBodyId) || !bodyIds.has(binding.targetBodyId)) {
+      throw new Error(
+        `coupled multi-body relative-aero database binding ${index} references an unknown body`,
+      );
+    }
+    const pairKey = `${binding.sourceBodyId}\u0000${binding.targetBodyId}`;
+    if (bindingPairs.has(pairKey)) {
+      throw new Error(
+        `coupled multi-body relative-aero database binding ${binding.sourceBodyId} -> ${binding.targetBodyId} is duplicated`,
+      );
+    }
+    bindingPairs.add(pairKey);
+    return {
+      sourceBodyId: binding.sourceBodyId,
+      targetBodyId: binding.targetBodyId,
+      database: createRelativeAeroDatabase(binding.database),
+    };
+  });
+  if (bindings.length > MAX_RELATIVE_AERO_DATABASE_BINDINGS) {
+    throw new Error(
+      `coupled multi-body relative-aero database bindings cannot exceed ${MAX_RELATIVE_AERO_DATABASE_BINDINGS}`,
+    );
+  }
+  const rigidBodyIds = new Set(
+    bodies.filter((body) => body.rigidBody !== undefined).map((body) => body.id),
+  );
   return {
     enabled,
     wakeHalfAngleDeg,
     wakeRecoveryDistanceBodyDiameters,
     peakVelocityDeficitFraction,
     maximumVelocityDeficitFraction,
+    databaseForceFeedback: {
+      enabled: databaseEnabled,
+      bindings,
+      maximumForceN,
+      maximumMomentNm,
+      skippedBindingCount: bindings.filter((binding) => !rigidBodyIds.has(binding.targetBodyId)).length,
+    },
   };
 }
 
@@ -1133,6 +1301,146 @@ function hasAerodynamicLoadContract(body: CoupledMultiBodyFlightBodyInput): bool
   );
 }
 
+function capVectorMagnitude(value: Vector3, maximumMagnitude: number): Vector3 {
+  const valueMagnitude = magnitude(value);
+  if (!(valueMagnitude > maximumMagnitude) || valueMagnitude <= 0) return value;
+  return scaleVector(value, maximumMagnitude / valueMagnitude);
+}
+
+function databaseTargetReferenceAreaM2(
+  body: CoupledMultiBodyFlightBodyInput,
+  database: RelativeAeroDatabaseModel,
+): number | null {
+  const referenceAreaM2 = body.aerodynamicBasis?.referenceAreaM2
+    ?? (body.attitudeDependentDrag
+      ? Math.max(
+          body.attitudeDependentDrag.axialReferenceAreaM2,
+          body.attitudeDependentDrag.crossflowReferenceAreaM2,
+        )
+      : body.referenceAreaM2)
+    ?? database.referenceAreaM2
+    ?? null;
+  return referenceAreaM2 !== null && referenceAreaM2 > 0 ? referenceAreaM2 : null;
+}
+
+function evaluateRelativeAeroDatabaseForceFeedbackForBody(
+  targetIndex: number,
+  bodies: readonly CoupledMultiBodyFlightBodyInput[],
+  input: CoupledMultiBodyFlightInput,
+  state: CoupledGroupState,
+  options: NormalizedRelativeAeroDatabaseForceFeedbackOptions,
+): RelativeAeroDatabaseForceFeedbackEvaluation | null {
+  if (!options.enabled || !state.active[targetIndex] || options.bindings.length === 0) {
+    return null;
+  }
+  const targetBody = bodies[targetIndex]!;
+  const targetOrientation = state.orientationsBodyToWorld[targetIndex];
+  const targetBindings = options.bindings.filter(
+    (binding) => binding.targetBodyId === targetBody.id,
+  );
+  if (targetBindings.length === 0) return null;
+  if (!targetOrientation || !targetBody.rigidBody) {
+    // A body-frame coefficient delta cannot be applied to a point-mass target
+    // without inventing an attitude. The binding remains visible in the
+    // configuration summary but contributes no load here.
+    return {
+      forceWorldN: ZERO_VECTOR,
+      momentBodyNm: ZERO_VECTOR,
+      bindingCount: 0,
+      applicabilityCount: 0,
+      queryFailureCount: 0,
+    };
+  }
+  const targetPosition = state.positionsWorldM[targetIndex]!;
+  const targetVelocity = state.velocitiesWorldMps[targetIndex]!;
+  const targetEnvironment = environmentAt(input, state.timeS, targetPosition, targetVelocity);
+  const targetAirVelocity = subtractVectors(
+    targetVelocity,
+    targetEnvironment?.windWorldMps ?? ZERO_VECTOR,
+  );
+  const targetAirSpeedMps = magnitude(targetAirVelocity);
+  const targetAltitudeAslM =
+    targetEnvironment?.altitudeAslM ?? (input.launchAltitudeM ?? 0) + targetPosition.z;
+  const targetAtmosphere = targetEnvironment?.atmosphere ?? standardAtmosphere(targetAltitudeAslM);
+  const speedOfSoundMps = targetAtmosphere.speedOfSoundMps;
+  const targetMach = speedOfSoundMps > 0 ? targetAirSpeedMps / speedOfSoundMps : Number.NaN;
+  let forceBodyN = ZERO_VECTOR;
+  let momentBodyNm = ZERO_VECTOR;
+  let bindingCount = 0;
+  let applicabilityCount = 0;
+  let queryFailureCount = 0;
+  const bodyIndexes = new Map(bodies.map((body, index) => [body.id, index]));
+  for (const binding of targetBindings) {
+    const sourceIndex = bodyIndexes.get(binding.sourceBodyId);
+    if (sourceIndex === undefined || !state.active[sourceIndex]) continue;
+    const sourceBody = bodies[sourceIndex]!;
+    const sourceDiameterM = bodyWakeDiameterM(sourceBody);
+    if (sourceDiameterM === null || sourceDiameterM <= 0) continue;
+    const sourcePosition = state.positionsWorldM[sourceIndex]!;
+    const sourceVelocity = state.velocitiesWorldMps[sourceIndex]!;
+    const sourceEnvironment = environmentAt(input, state.timeS, sourcePosition, sourceVelocity);
+    const sourceAirVelocity = subtractVectors(
+      sourceVelocity,
+      sourceEnvironment?.windWorldMps ?? ZERO_VECTOR,
+    );
+    const sourceAirSpeedMps = magnitude(sourceAirVelocity);
+    if (sourceAirSpeedMps <= RELATIVE_AERO_FLOW_SPEED_EPSILON_MPS) continue;
+    const sourceFlowAxisWorld = scaleVector(sourceAirVelocity, 1 / sourceAirSpeedMps);
+    const separation = subtractVectors(targetPosition, sourcePosition);
+    const axialSeparationM = dot(separation, sourceFlowAxisWorld);
+    const lateralSeparationM = Math.sqrt(
+      Math.max(0, dot(separation, separation) - axialSeparationM ** 2),
+    );
+    const axialSeparationBodyDiameters = axialSeparationM / sourceDiameterM;
+    const lateralSeparationBodyDiameters = lateralSeparationM / sourceDiameterM;
+    let databaseEvaluation;
+    try {
+      databaseEvaluation = binding.database.evaluate({
+        mach: targetMach,
+        axialSeparationBodyDiameters,
+        lateralSeparationBodyDiameters,
+      });
+    } catch {
+      // A reject-policy table is allowed to decline a query during a long
+      // integration. Treat that cell as unavailable rather than aborting the
+      // whole trajectory, and retain the count for an explicit warning.
+      queryFailureCount += 1;
+      continue;
+    }
+    bindingCount += 1;
+    applicabilityCount += databaseEvaluation.applicability.length;
+    const referenceAreaM2 = databaseTargetReferenceAreaM2(targetBody, binding.database);
+    if (referenceAreaM2 === null || !Number.isFinite(targetAtmosphere.densityKgM3)) continue;
+    const dynamicPressureArea =
+      0.5 * targetAtmosphere.densityKgM3 * targetAirSpeedMps ** 2 * referenceAreaM2;
+    if (!Number.isFinite(dynamicPressureArea) || dynamicPressureArea <= 0) continue;
+    const coefficients = databaseEvaluation.coefficients;
+    forceBodyN = addVectors(forceBodyN, {
+      x: dynamicPressureArea * coefficients.axialForceCoefficientDelta,
+      y: dynamicPressureArea * (coefficients.normalForceCoefficientDelta ?? 0),
+      z: dynamicPressureArea * (coefficients.sideForceCoefficientDelta ?? 0),
+    });
+    if (binding.database.momentReferenceLengthM !== null) {
+      const momentScale = dynamicPressureArea * binding.database.momentReferenceLengthM;
+      momentBodyNm = addVectors(momentBodyNm, {
+        x: momentScale * (coefficients.rollMomentCoefficientDelta ?? 0),
+        y: momentScale * (coefficients.pitchMomentCoefficientDelta ?? 0),
+        z: momentScale * (coefficients.yawMomentCoefficientDelta ?? 0),
+      });
+    }
+  }
+  return {
+    forceWorldN: rotateBodyToWorld(
+      targetOrientation,
+      capVectorMagnitude(forceBodyN, options.maximumForceN),
+    ),
+    momentBodyNm: capVectorMagnitude(momentBodyNm, options.maximumMomentNm),
+    bindingCount,
+    applicabilityCount,
+    queryFailureCount,
+  };
+}
+
 function evaluateRelativeAeroForceFeedbackForBody(
   targetIndex: number,
   bodies: readonly CoupledMultiBodyFlightBodyInput[],
@@ -1140,10 +1448,19 @@ function evaluateRelativeAeroForceFeedbackForBody(
   state: CoupledGroupState,
   options: NormalizedRelativeAeroForceFeedbackOptions,
 ): RelativeAeroForceFeedbackEvaluation | null {
-  if (!options.enabled || !state.active[targetIndex] || !hasAerodynamicLoadContract(bodies[targetIndex]!)) {
+  if (!state.active[targetIndex]) {
     return null;
   }
   const targetBody = bodies[targetIndex]!;
+  const databaseEvaluation = evaluateRelativeAeroDatabaseForceFeedbackForBody(
+    targetIndex,
+    bodies,
+    input,
+    state,
+    options.databaseForceFeedback,
+  );
+  const wakeEnabled = options.enabled && hasAerodynamicLoadContract(targetBody);
+  if (!wakeEnabled && !databaseEvaluation) return null;
   const targetPosition = state.positionsWorldM[targetIndex]!;
   const targetVelocity = state.velocitiesWorldMps[targetIndex]!;
   const targetEnvironment = environmentAt(input, state.timeS, targetPosition, targetVelocity);
@@ -1157,7 +1474,7 @@ function evaluateRelativeAeroForceFeedbackForBody(
   let maximumVelocityDeficitFraction = 0;
   let sourceCount = 0;
   const wakeHalfAngleRad = (options.wakeHalfAngleDeg * Math.PI) / 180;
-  for (let sourceIndex = 0; sourceIndex < bodies.length; sourceIndex += 1) {
+  for (let sourceIndex = 0; wakeEnabled && sourceIndex < bodies.length; sourceIndex += 1) {
     if (sourceIndex === targetIndex || !state.active[sourceIndex]) continue;
     const sourceBody = bodies[sourceIndex]!;
     const sourceDiameterM = bodyWakeDiameterM(sourceBody);
@@ -1213,6 +1530,11 @@ function evaluateRelativeAeroForceFeedbackForBody(
     ),
     maximumVelocityDeficitFraction,
     sourceCount,
+    databaseForceWorldN: databaseEvaluation?.forceWorldN ?? ZERO_VECTOR,
+    databaseMomentBodyNm: databaseEvaluation?.momentBodyNm ?? ZERO_VECTOR,
+    databaseBindingCount: databaseEvaluation?.bindingCount ?? 0,
+    databaseApplicabilityCount: databaseEvaluation?.applicabilityCount ?? 0,
+    databaseQueryFailureCount: databaseEvaluation?.queryFailureCount ?? 0,
   };
 }
 
@@ -1637,6 +1959,11 @@ function coupledGroupDerivativeAt(
   const relativeAirVelocityWorldMps: (Vector3 | null)[] = [];
   const relativeWakeDeficitFractions: (number | null)[] = [];
   const relativeWakeSourceCounts: number[] = [];
+  const relativeDatabaseForceWorldNs: Vector3[] = [];
+  const relativeDatabaseMomentBodyNms: Vector3[] = [];
+  const relativeDatabaseBindingCounts: number[] = [];
+  const relativeDatabaseApplicabilityCounts: number[] = [];
+  const relativeDatabaseQueryFailureCounts: number[] = [];
   const contactEvaluation = evaluateCoupledContact(bodies, state, contact);
   const separationEvaluation = evaluateCoupledSeparationMechanisms(
     bodies,
@@ -1660,6 +1987,11 @@ function coupledGroupDerivativeAt(
       relativeAirVelocityWorldMps.push(null);
       relativeWakeDeficitFractions.push(null);
       relativeWakeSourceCounts.push(0);
+      relativeDatabaseForceWorldNs.push(ZERO_VECTOR);
+      relativeDatabaseMomentBodyNms.push(ZERO_VECTOR);
+      relativeDatabaseBindingCounts.push(0);
+      relativeDatabaseApplicabilityCounts.push(0);
+      relativeDatabaseQueryFailureCounts.push(0);
       continue;
     }
     const body = bodies[index]!;
@@ -1722,6 +2054,8 @@ function coupledGroupDerivativeAt(
       ),
       scaleVector(separationEvaluation.forcesWorldN[index]!, 1 / massKg),
     );
+    const databaseForceWorldN = relativeAeroEvaluation?.databaseForceWorldN ?? ZERO_VECTOR;
+    const databaseMomentBodyNm = relativeAeroEvaluation?.databaseMomentBodyNm ?? ZERO_VECTOR;
     let acceleration = baseAcceleration;
     let orientationRate: Quaternion | null = null;
     let angularVelocityRate: Vector3 | null = null;
@@ -1740,7 +2074,7 @@ function coupledGroupDerivativeAt(
       acceleration = scaleVector(
         addVectors(
           scaleVector(baseAcceleration, massKg),
-          externalForceWorldN,
+          addVectors(externalForceWorldN, databaseForceWorldN),
         ),
         1 / massKg,
       );
@@ -1755,8 +2089,11 @@ function coupledGroupDerivativeAt(
           ...loads,
           momentBodyNm: addVectors(
             addVectors(
-              loads.momentBodyNm ?? ZERO_VECTOR,
-              separationEvaluation.momentsBodyNm[index]!,
+              addVectors(
+                loads.momentBodyNm ?? ZERO_VECTOR,
+                separationEvaluation.momentsBodyNm[index]!,
+              ),
+              databaseMomentBodyNm,
             ),
             aerodynamic
               ? addVectors(
@@ -1786,6 +2123,11 @@ function coupledGroupDerivativeAt(
         : null,
     );
     relativeWakeSourceCounts.push(relativeAeroEvaluation?.sourceCount ?? 0);
+    relativeDatabaseForceWorldNs.push(databaseForceWorldN);
+    relativeDatabaseMomentBodyNms.push(databaseMomentBodyNm);
+    relativeDatabaseBindingCounts.push(relativeAeroEvaluation?.databaseBindingCount ?? 0);
+    relativeDatabaseApplicabilityCounts.push(relativeAeroEvaluation?.databaseApplicabilityCount ?? 0);
+    relativeDatabaseQueryFailureCounts.push(relativeAeroEvaluation?.databaseQueryFailureCount ?? 0);
   }
   return {
     positionRatesWorldMps,
@@ -1802,6 +2144,11 @@ function coupledGroupDerivativeAt(
     relativeAirVelocityWorldMps,
     relativeWakeDeficitFractions,
     relativeWakeSourceCounts,
+    relativeDatabaseForceWorldNs,
+    relativeDatabaseMomentBodyNms,
+    relativeDatabaseBindingCounts,
+    relativeDatabaseApplicabilityCounts,
+    relativeDatabaseQueryFailureCounts,
   };
 }
 
@@ -2367,6 +2714,13 @@ function tracePointWithAcceleration(
     deficitFraction: number | null;
     sourceCount: number;
   }>,
+  relativeDatabaseDiagnostics?: Readonly<{
+    forceWorldN: Vector3;
+    momentBodyNm: Vector3;
+    bindingCount: number;
+    applicabilityCount: number;
+    queryFailureCount: number;
+  }>,
 ): CoupledMultiBodyTracePoint {
   const aerodynamic = evaluateCoupledBodyAerodynamics(
     body,
@@ -2428,6 +2782,17 @@ function tracePointWithAcceleration(
             ? { relativeWakeDeficitFraction: relativeAeroDiagnostics.deficitFraction }
             : {}),
           relativeWakeSourceCount: relativeAeroDiagnostics.sourceCount,
+        }
+      : {}),
+    ...(relativeDatabaseDiagnostics
+      ? {
+          relativeDatabaseForceWorldN: relativeDatabaseDiagnostics.forceWorldN,
+          relativeDatabaseForceN: magnitude(relativeDatabaseDiagnostics.forceWorldN),
+          relativeDatabaseMomentBodyNm: relativeDatabaseDiagnostics.momentBodyNm,
+          relativeDatabaseMomentNm: magnitude(relativeDatabaseDiagnostics.momentBodyNm),
+          relativeDatabaseBindingCount: relativeDatabaseDiagnostics.bindingCount,
+          relativeDatabaseApplicabilityCount: relativeDatabaseDiagnostics.applicabilityCount,
+          relativeDatabaseQueryFailureCount: relativeDatabaseDiagnostics.queryFailureCount,
         }
       : {}),
     ...(contactDiagnostics
@@ -2698,6 +3063,19 @@ function propagateCoupledBodies(
               sourceCount: initialDerivative.relativeWakeSourceCounts[index]!,
             }
           : undefined,
+        (relativeAero.databaseForceFeedback.enabled && (
+          initialDerivative.relativeDatabaseBindingCounts[index]! > 0 ||
+          initialDerivative.relativeDatabaseApplicabilityCounts[index]! > 0 ||
+          initialDerivative.relativeDatabaseQueryFailureCounts[index]! > 0
+        ))
+          ? {
+              forceWorldN: initialDerivative.relativeDatabaseForceWorldNs[index]!,
+              momentBodyNm: initialDerivative.relativeDatabaseMomentBodyNms[index]!,
+              bindingCount: initialDerivative.relativeDatabaseBindingCounts[index]!,
+              applicabilityCount: initialDerivative.relativeDatabaseApplicabilityCounts[index]!,
+              queryFailureCount: initialDerivative.relativeDatabaseQueryFailureCounts[index]!,
+            }
+          : undefined,
       ));
       if (
         state.positionsWorldM[index].z <= 0 &&
@@ -2862,6 +3240,19 @@ function propagateCoupledBodies(
                     sourceCount: impactDerivative.relativeWakeSourceCounts[index]!,
                   }
                 : undefined,
+              (relativeAero.databaseForceFeedback.enabled && (
+                impactDerivative.relativeDatabaseBindingCounts[index]! > 0 ||
+                impactDerivative.relativeDatabaseApplicabilityCounts[index]! > 0 ||
+                impactDerivative.relativeDatabaseQueryFailureCounts[index]! > 0
+              ))
+                ? {
+                    forceWorldN: impactDerivative.relativeDatabaseForceWorldNs[index]!,
+                    momentBodyNm: impactDerivative.relativeDatabaseMomentBodyNms[index]!,
+                    bindingCount: impactDerivative.relativeDatabaseBindingCounts[index]!,
+                    applicabilityCount: impactDerivative.relativeDatabaseApplicabilityCounts[index]!,
+                    queryFailureCount: impactDerivative.relativeDatabaseQueryFailureCounts[index]!,
+                  }
+                : undefined,
             ),
           );
           impactTimes[index] = impactState.timeS;
@@ -2923,6 +3314,19 @@ function propagateCoupledBodies(
                 sourceCount: derivative.relativeWakeSourceCounts[index]!,
               }
             : undefined,
+          (relativeAero.databaseForceFeedback.enabled && (
+            derivative.relativeDatabaseBindingCounts[index]! > 0 ||
+            derivative.relativeDatabaseApplicabilityCounts[index]! > 0 ||
+            derivative.relativeDatabaseQueryFailureCounts[index]! > 0
+          ))
+            ? {
+                forceWorldN: derivative.relativeDatabaseForceWorldNs[index]!,
+                momentBodyNm: derivative.relativeDatabaseMomentBodyNms[index]!,
+                bindingCount: derivative.relativeDatabaseBindingCounts[index]!,
+                applicabilityCount: derivative.relativeDatabaseApplicabilityCounts[index]!,
+                queryFailureCount: derivative.relativeDatabaseQueryFailureCounts[index]!,
+              }
+            : undefined,
         ));
       }
     }
@@ -2982,7 +3386,6 @@ export function simulateCoupledMultiBodyFlight(
   };
   const mutualGravity = normalizeMutualGravityOptions(input.mutualGravity);
   const contact = normalizeContactOptions(input.contact);
-  const relativeAero = normalizeRelativeAeroForceFeedbackOptions(input.relativeAeroForceFeedback);
   const ids = new Set<string>();
   input.bodies.forEach((body) => {
     validateBody(body);
@@ -2992,6 +3395,10 @@ export function simulateCoupledMultiBodyFlight(
       throw new Error(`coupled-flight body ${body.id} releases after mission end`);
     }
   });
+  const relativeAero = normalizeRelativeAeroForceFeedbackOptions(
+    input.relativeAeroForceFeedback,
+    input.bodies,
+  );
   const velocityImpulseEvents = validateVelocityImpulseEvents(
     input.velocityImpulseEvents ?? [],
     input.bodies,
@@ -3026,6 +3433,7 @@ export function simulateCoupledMultiBodyFlight(
     mutualGravity.enabled ||
     contact.enabled ||
     relativeAero.enabled ||
+    relativeAero.databaseForceFeedback.enabled ||
     velocityImpulseEvents.length > 0 ||
     separationMechanisms.length > 0 ||
     rigidBodyCount > 0 ||
@@ -3070,6 +3478,7 @@ export function simulateCoupledMultiBodyFlight(
     mutualGravity.enabled ||
     contact.enabled ||
     relativeAero.enabled ||
+    relativeAero.databaseForceFeedback.enabled ||
     velocityImpulseEvents.length > 0 ||
     separationMechanisms.length > 0 ||
     rigidBodyCount > 0 ||
@@ -3140,6 +3549,37 @@ export function simulateCoupledMultiBodyFlight(
   const relativeAeroAffectedBodyCount = trajectories.filter((trajectory) =>
     trajectory.trace.some((point) => (point.relativeWakeSourceCount ?? 0) > 0),
   ).length;
+  const relativeDatabaseTraceSamples = trajectories.flatMap((trajectory) =>
+    trajectory.trace.filter((point) =>
+      (point.relativeDatabaseBindingCount ?? 0) > 0 ||
+      (point.relativeDatabaseApplicabilityCount ?? 0) > 0 ||
+      (point.relativeDatabaseQueryFailureCount ?? 0) > 0 ||
+      (point.relativeDatabaseForceN ?? 0) > 0 ||
+      (point.relativeDatabaseMomentNm ?? 0) > 0,
+    ),
+  );
+  const relativeDatabaseAppliedTraceSamples = relativeDatabaseTraceSamples.filter((point) =>
+    (point.relativeDatabaseForceN ?? 0) > 0 || (point.relativeDatabaseMomentNm ?? 0) > 0,
+  );
+  const relativeDatabaseMaximumForceN = relativeDatabaseTraceSamples.length > 0
+    ? Math.max(...relativeDatabaseTraceSamples.map((point) => point.relativeDatabaseForceN ?? 0))
+    : null;
+  const relativeDatabaseMaximumMomentNm = relativeDatabaseTraceSamples.length > 0
+    ? Math.max(...relativeDatabaseTraceSamples.map((point) => point.relativeDatabaseMomentNm ?? 0))
+    : null;
+  const relativeDatabaseAffectedBodyCount = trajectories.filter((trajectory) =>
+    trajectory.trace.some((point) =>
+      (point.relativeDatabaseForceN ?? 0) > 0 || (point.relativeDatabaseMomentNm ?? 0) > 0,
+    ),
+  ).length;
+  const relativeDatabaseApplicabilityCount = relativeDatabaseTraceSamples.reduce(
+    (total, point) => total + (point.relativeDatabaseApplicabilityCount ?? 0),
+    0,
+  );
+  const relativeDatabaseQueryFailureCount = relativeDatabaseTraceSamples.reduce(
+    (total, point) => total + (point.relativeDatabaseQueryFailureCount ?? 0),
+    0,
+  );
   const separationTraceSamples = trajectories.flatMap((trajectory) =>
     trajectory.trace.filter((point) => (point.separationMechanismSourceCount ?? 0) > 0),
   );
@@ -3196,6 +3636,18 @@ export function simulateCoupledMultiBodyFlight(
           ...(relativeAeroAffectedBodyCount === 0
             ? ["Wake feedback was enabled but no source/target overlap with usable aerodynamic geometry was sampled; no wake force adjustment was applied."]
             : []),
+        ]
+      : []),
+    ...(relativeAero.databaseForceFeedback.enabled
+      ? [
+          `The opt-in ${RELATIVE_AERO_DATABASE_MODEL_VERSION} force-feedback path evaluated ${relativeAero.databaseForceFeedback.bindings.length} directed binding${relativeAero.databaseForceFeedback.bindings.length === 1 ? "" : "s"}; ${relativeDatabaseAppliedTraceSamples.length} trace sample${relativeDatabaseAppliedTraceSamples.length === 1 ? "" : "s"} received a bounded target-body delta load.`,
+          "Relative-body table force and moment deltas are analytical sensitivity inputs only: they are applied to the target body, do not receive an equal-and-opposite source load, and are not CFD, wind-tunnel, flight-test, or flight-safety validation.",
+          `Aggregate target-body deltas were capped at ${relativeAero.databaseForceFeedback.maximumForceN.toFixed(3)} N and ${relativeAero.databaseForceFeedback.maximumMomentNm.toFixed(3)} N m; ${relativeDatabaseQueryFailureCount} reject-policy quer${relativeDatabaseQueryFailureCount === 1 ? "y was" : "ies were"} skipped and ${relativeAero.databaseForceFeedback.skippedBindingCount} binding${relativeAero.databaseForceFeedback.skippedBindingCount === 1 ? "" : "s"} targeted a non-rigid body.`,
+          ...(relativeAero.databaseForceFeedback.bindings.length === 0
+            ? ["Database force feedback was enabled without any directed table bindings; no relative-body database load was applied."]
+            : relativeDatabaseAppliedTraceSamples.length === 0
+              ? ["Database force feedback was enabled but no usable target-body table load was sampled; inspect applicability and query-failure telemetry before interpreting the trajectory."]
+              : []),
         ]
       : []),
     "An optional earthRotationAccelerationWorldMps2 field from the environment provider is added to each body's shared acceleration; the provider remains responsible for its provenance and validation status.",
@@ -3297,6 +3749,13 @@ export function simulateCoupledMultiBodyFlight(
           "When several source wakes overlap, only the strongest candidate velocity-deficit vector is applied to keep the feedback bounded; the target's existing aerodynamic or point-drag model then evaluates the adjusted relative flow. Wake roll-up, turbulence, plume effects, crossflow database calibration, and unsteady derivatives are not modeled.",
         ]
       : []),
+    ...(relativeAero.databaseForceFeedback.enabled
+      ? [
+          "A relative-body table query uses target Mach and source-flow-aligned axial/lateral separation normalized by the source equivalent diameter. Body-axis force deltas are rotated with the target rigid-body attitude and scaled by q S; optional body-axis moment deltas use the table's moment reference length.",
+          "Only rigid-body targets receive table loads so the solver never invents a point-mass body frame. Missing source diameter, zero source flow, missing target area, zero dynamic pressure, and rejected out-of-range queries contribute no load; applicability and failure counts remain traceable.",
+          `The aggregate target load caps are ${relativeAero.databaseForceFeedback.maximumForceN.toFixed(3)} N and ${relativeAero.databaseForceFeedback.maximumMomentNm.toFixed(3)} N m. Multiple directed bindings sum on the target before those caps; the source body is intentionally unchanged because these configuration-specific coefficient deltas do not model momentum exchange.`,
+        ]
+      : []),
     ...(integrationMethod === "adaptive-rk4-step-doubling"
       ? [
           "Adaptive step-doubling compares one full RK4 step with two half RK4 steps over each shared-grid interval; refined states are accepted only when the scaled component error is at most one.",
@@ -3344,6 +3803,25 @@ export function simulateCoupledMultiBodyFlight(
       maximumObservedVelocityDeficitFraction: relativeAeroMaximumObservedVelocityDeficitFraction,
       exposedSampleCount: relativeAeroTraceSamples.length,
       affectedBodyCount: relativeAeroAffectedBodyCount,
+      databaseForceFeedback: {
+        modelVersion: RELATIVE_AERO_DATABASE_MODEL_VERSION,
+        validationStatus: RELATIVE_AERO_DATABASE_STATUS,
+        enabled: relativeAero.databaseForceFeedback.enabled,
+        bindingCount: relativeAero.databaseForceFeedback.enabled
+          ? relativeAero.databaseForceFeedback.bindings.length
+          : 0,
+        appliedSampleCount: relativeDatabaseAppliedTraceSamples.length,
+        affectedBodyCount: relativeDatabaseAffectedBodyCount,
+        applicabilityCount: relativeDatabaseApplicabilityCount,
+        queryFailureCount: relativeDatabaseQueryFailureCount,
+        skippedBindingCount: relativeAero.databaseForceFeedback.enabled
+          ? relativeAero.databaseForceFeedback.skippedBindingCount
+          : 0,
+        maximumForceN: relativeDatabaseMaximumForceN,
+        maximumMomentNm: relativeDatabaseMaximumMomentNm,
+        maximumForceCapN: relativeAero.databaseForceFeedback.maximumForceN,
+        maximumMomentCapNm: relativeAero.databaseForceFeedback.maximumMomentNm,
+      },
     },
     appliedVelocityImpulseEvents: propagation.appliedVelocityImpulseEvents,
     separationMechanisms: {

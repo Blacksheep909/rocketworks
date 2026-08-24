@@ -362,6 +362,9 @@ test("shared coupled-body CSV preserves contact settings and per-sample diagnost
   assert.match(csv, /# contact_enabled,true/);
   assert.match(csv, /# contact_pair_count,1/);
   assert.match(csv, /# relative_aero_feedback_enabled,false/);
+  assert.match(csv, /# relative_aero_database_force_feedback_enabled,false/);
+  assert.match(csv, /relative_database_force_world_x_n/);
+  assert.match(csv, /relative_database_force_n/);
   assert.match(csv, /# separation_enabled,false/);
   assert.match(csv, /# separation_maximum_torque_nm,/);
   assert.match(csv, /contact_force_world_x_n/);
@@ -1542,6 +1545,7 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /Booster pair/);
   assert.match(report, /Fixture geometry omitted/);
   assert.match(report, /### Shared-grid coupled detached-body flight/);
+  assert.match(report, /Relative-body table force feedback/);
   assert.match(report, /Attitude-dependent drag bodies \| 0 \/ 1/);
   assert.match(report, /Static aerodynamic-load bodies \| 1 \/ 1/);
   assert.match(report, /Incidence diagnostic samples \| 1/);
