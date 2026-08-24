@@ -6,6 +6,7 @@ import type { NormalForceModelKind } from "../physics/normal-force-compressibili
 import type { InducedDragModelKind } from "../physics/induced-drag.ts";
 import type { RigidBodyIntegrationMethod } from "../physics/six-dof.ts";
 import type { ReleasedBodyDragModel } from "../physics/stage-flight-preview.ts";
+import type { StageFlightSeparationPulseProfile } from "../physics/stage-flight-preview.ts";
 import {
   DEFAULT_CUSTOM_MATERIAL_PROFILE,
   validateCustomMaterialProfile,
@@ -174,6 +175,16 @@ export type EditableProjectInputs = Readonly<{
   verticalIntegrationTimeStepS?: number;
   /** Base step for the coupled 6DOF preview, in seconds. */
   coupledIntegrationTimeStepS?: number;
+  /** Enables the bounded first-separation retained-to-detached pulse preview. */
+  coupledSeparationPulseEnabled?: boolean;
+  /** Relative separation delta-v magnitude along the retained +X body axis, in m/s. */
+  coupledSeparationPulseDeltaVMps?: number;
+  /** Seconds after first separation before the pulse starts. */
+  coupledSeparationPulseStartOffsetS?: number;
+  /** Finite force-pulse duration in seconds. */
+  coupledSeparationPulseDurationS?: number;
+  /** Shape used by the first-separation force pulse. */
+  coupledSeparationPulseProfile?: StageFlightSeparationPulseProfile;
 }>;
 
 export type ProjectSourceSelections = Readonly<{
@@ -210,7 +221,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "customMaterial" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "coupledContactEnabled" | "coupledContactStiffnessNPerM" | "coupledContactDampingNsPerM" | "coupledContactMaximumNormalForceN" | "coupledMultiBodyIncludeRetainedBody" | "coupledMultiBodyRetainedBodyMode" | "coupledRelativeAeroForceFeedbackEnabled" | "releasedBodyDragModel" | "relativeAeroInteractionEnabled" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod" | "verticalIntegrationTimeStepS" | "coupledIntegrationTimeStepS">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "customMaterial" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "coupledContactEnabled" | "coupledContactStiffnessNPerM" | "coupledContactDampingNsPerM" | "coupledContactMaximumNormalForceN" | "coupledMultiBodyIncludeRetainedBody" | "coupledMultiBodyRetainedBodyMode" | "coupledRelativeAeroForceFeedbackEnabled" | "releasedBodyDragModel" | "relativeAeroInteractionEnabled" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod" | "verticalIntegrationTimeStepS" | "coupledIntegrationTimeStepS" | "coupledSeparationPulseEnabled" | "coupledSeparationPulseDeltaVMps" | "coupledSeparationPulseStartOffsetS" | "coupledSeparationPulseDurationS" | "coupledSeparationPulseProfile">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -538,6 +549,62 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   ) {
     throw new Error("coupledRelativeAeroForceFeedbackEnabled must be boolean.");
   }
+  const coupledSeparationPulseEnabled = input.coupledSeparationPulseEnabled;
+  if (coupledSeparationPulseEnabled !== undefined && typeof coupledSeparationPulseEnabled !== "boolean") {
+    throw new Error("coupledSeparationPulseEnabled must be boolean.");
+  }
+  const validateOptionalPulseNumber = (
+    candidate: unknown,
+    label: string,
+    minimum: number,
+    maximum: number,
+  ): number | undefined => {
+    if (candidate === undefined) return undefined;
+    if (typeof candidate !== "number" || !Number.isFinite(candidate) || candidate < minimum || candidate > maximum) {
+      throw new Error(`${label} must be a finite number from ${minimum} through ${maximum}.`);
+    }
+    return candidate;
+  };
+  const coupledSeparationPulseDeltaVMps = validateOptionalPulseNumber(
+    input.coupledSeparationPulseDeltaVMps,
+    "coupledSeparationPulseDeltaVMps",
+    0,
+    25,
+  );
+  const coupledSeparationPulseStartOffsetS = validateOptionalPulseNumber(
+    input.coupledSeparationPulseStartOffsetS,
+    "coupledSeparationPulseStartOffsetS",
+    0,
+    60,
+  );
+  const coupledSeparationPulseDurationS = validateOptionalPulseNumber(
+    input.coupledSeparationPulseDurationS,
+    "coupledSeparationPulseDurationS",
+    0.005,
+    30,
+  );
+  const coupledSeparationPulseProfile = input.coupledSeparationPulseProfile;
+  if (
+    coupledSeparationPulseProfile !== undefined &&
+    coupledSeparationPulseProfile !== "constant" &&
+    coupledSeparationPulseProfile !== "raised-cosine"
+  ) {
+    throw new Error("coupledSeparationPulseProfile must be constant or raised-cosine.");
+  }
+  if (coupledSeparationPulseEnabled === true) {
+    if (coupledMultiBodyIncludeRetainedBody !== true) {
+      throw new Error("coupledSeparationPulseEnabled requires coupledMultiBodyIncludeRetainedBody to be true.");
+    }
+    if (coupledSeparationPulseDeltaVMps === undefined || coupledSeparationPulseDeltaVMps <= 0) {
+      throw new Error("coupledSeparationPulseDeltaVMps must be positive when the first-separation pulse is enabled.");
+    }
+    if (coupledSeparationPulseStartOffsetS === undefined) {
+      throw new Error("coupledSeparationPulseStartOffsetS is required when the first-separation pulse is enabled.");
+    }
+    if (coupledSeparationPulseDurationS === undefined) {
+      throw new Error("coupledSeparationPulseDurationS is required when the first-separation pulse is enabled.");
+    }
+  }
   const coupledContactStiffnessNPerM = input.coupledContactStiffnessNPerM;
   if (
     coupledContactStiffnessNPerM !== undefined &&
@@ -676,6 +743,11 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
       ? {}
       : { coupledMultiBodyRetainedBodyMode }),
     ...(coupledRelativeAeroForceFeedbackEnabled === undefined ? {} : { coupledRelativeAeroForceFeedbackEnabled }),
+    ...(coupledSeparationPulseEnabled === undefined ? {} : { coupledSeparationPulseEnabled }),
+    ...(coupledSeparationPulseDeltaVMps === undefined ? {} : { coupledSeparationPulseDeltaVMps }),
+    ...(coupledSeparationPulseStartOffsetS === undefined ? {} : { coupledSeparationPulseStartOffsetS }),
+    ...(coupledSeparationPulseDurationS === undefined ? {} : { coupledSeparationPulseDurationS }),
+    ...(coupledSeparationPulseProfile === undefined ? {} : { coupledSeparationPulseProfile }),
     ...(releasedBodyDragModel === undefined ? {} : { releasedBodyDragModel }),
     relativeAeroInteractionEnabled,
     relativeAeroWakeHalfAngleDeg: validated.relativeAeroWakeHalfAngleDeg,
@@ -864,6 +936,11 @@ export const PROJECT_INPUT_LABELS: Readonly<Record<keyof EditableProjectInputs, 
   coupledMultiBodyIncludeRetainedBody: "retained vehicle coupled replay track",
   coupledMultiBodyRetainedBodyMode: "retained vehicle coupled handoff model",
   coupledRelativeAeroForceFeedbackEnabled: "coupled wake force-feedback sensitivity",
+  coupledSeparationPulseEnabled: "first-separation force pulse",
+  coupledSeparationPulseDeltaVMps: "first-separation relative delta-v",
+  coupledSeparationPulseStartOffsetS: "first-separation pulse start offset",
+  coupledSeparationPulseDurationS: "first-separation pulse duration",
+  coupledSeparationPulseProfile: "first-separation pulse profile",
   releasedBodyDragModel: "released-body aerodynamic mode",
   relativeAeroInteractionEnabled: "released-body wake interaction screen",
   relativeAeroWakeHalfAngleDeg: "wake half-angle",

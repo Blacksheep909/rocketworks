@@ -24,7 +24,7 @@ sets at every sample, event topology before and after each transition, warnings,
 and assumptions. A caller cannot mistake a successful integration for physical
 validation because the result status remains
 `mathematical-regression-tests-only`. The composition model version is
-`kestrel-stage-flight-preview-0.42.0`.
+`kestrel-stage-flight-preview-0.43.0`.
 
 Relation-based aerodynamics retain both the selected normal-force trend and
 the optional induced-drag polar (`C_D,i = k C_N^2`) plus their model versions
@@ -72,6 +72,19 @@ to the shared track as bounded equal-and-opposite translational forces, while
 pyrotechnic/spring timing, plume interaction, and validated stage-to-stage
 interference remain outside the branch. The result
 keeps those assumptions visible and remains an engineering preview.
+
+The browser's compact `coupledSeparationPulse` control is a bounded adapter
+around that generic mechanism contract. When enabled, it requires the retained
+shared track, finds the first authoritative event that detaches a stage, and
+targets the first detached physical instance from that event. The configured
+relative delta-v is expressed along the retained vehicle's +X body axis; the
+pulse starts at the event time plus `startOffsetS`, uses the selected constant
+or raised-cosine profile, and remains subject to the shared solver's finite
+window validation. If no compatible retained/detached handoff is available,
+the adapter emits a warning and does not synthesize a force. The control is a
+centre-force momentum-closure sensitivity study, not a model of a spring,
+pyrotechnic cartridge, joint compliance, plume, structural flex, or angular
+impulse.
 
 ## Event and state policy
 

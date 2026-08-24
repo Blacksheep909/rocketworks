@@ -202,6 +202,10 @@ research, standards, and original code.
   optional bounded separation-force pulse can be forwarded to that track while
   mechanism hardware, plume interaction, and validated interference remain out
   of scope;
+- accessible first-separation pulse controls with bounded Δv, start-offset,
+  duration sliders, constant/raised-cosine profile selection, automatic
+  retained-track handoff, persisted project settings, and traceable force
+  diagnostics; this remains a centre-force analytical sensitivity study;
 - an opt-in projected-area attitude-drag mode for released rigid bodies that
   blends caller-supplied axial and broadside CdA pairs, retains incidence and
   effective-area diagnostics on the shared trace;

@@ -103,6 +103,7 @@ import {
   type CoupledMultiBodyRelativeAeroOptions,
   type CoupledMultiBodyVelocityImpulseEvent,
   type CoupledMultiBodySeparationForcePulse,
+  type CoupledMultiBodySeparationForcePulseProfile,
   type CoupledMultiBodyFlightResult,
 } from "./coupled-multi-body-flight.ts";
 import type { AttitudeDependentDragGeometry } from "./attitude-dependent-drag.ts";
@@ -131,7 +132,7 @@ import {
 } from "./mission-delta-v-bridge.ts";
 
 export const STAGE_FLIGHT_PREVIEW_MODEL_VERSION =
-  "kestrel-stage-flight-preview-0.42.0";
+  "kestrel-stage-flight-preview-0.43.0";
 export const STAGE_FLIGHT_PREVIEW_STATUS =
   "mathematical-regression-tests-only" as const;
 
@@ -145,6 +146,23 @@ export type ReleasedBodyDragModel =
 export type RetainedBodyCoupledTrackMode =
   | "trace-replay"
   | "independent-mass-propulsion";
+
+/** User-facing pulse profile for the bounded first-separation mechanism preview. */
+export type StageFlightSeparationPulseProfile = CoupledMultiBodySeparationForcePulseProfile;
+
+/**
+ * High-level browser configuration for one first-separation translational
+ * force pulse. The vector is expressed along the retained vehicle's +X body
+ * axis and is synthesized against the first detached stage instance. This is
+ * intentionally smaller than the generic solver contract so the UI cannot
+ * accidentally target an unknown body or introduce an unbounded mechanism.
+ */
+export type StageFlightSeparationPulseConfiguration = Readonly<{
+  relativeDeltaVBodyMps: Vector3;
+  startOffsetS: number;
+  durationS: number;
+  profile?: StageFlightSeparationPulseProfile;
+}>;
 
 export type StageFlightPreviewInput = Readonly<{
   retainedMassProperties: MassProperties;
@@ -201,6 +219,8 @@ export type StageFlightPreviewInput = Readonly<{
   relativeAeroForceFeedback?: CoupledMultiBodyRelativeAeroOptions;
   /** Optional finite-duration equal-and-opposite separation mechanisms for the shared track. */
   separationMechanisms?: readonly CoupledMultiBodySeparationForcePulse[];
+  /** Optional bounded pulse synthesized after the first staged separation. */
+  coupledSeparationPulse?: StageFlightSeparationPulseConfiguration;
   launchRail?: LaunchRailConfig;
   launchRailMaximumSteps?: number;
   additionalWarnings?: readonly string[];
@@ -941,6 +961,41 @@ export function simulateStageFlightPreview(
   ) {
     throw new Error("coupled multi-body retained-body mode must be trace-replay or independent-mass-propulsion");
   }
+  const configuredSeparationPulse = input.coupledSeparationPulse;
+  if (configuredSeparationPulse !== undefined) {
+    if (input.coupledMultiBodyIncludeRetainedBody !== true) {
+      throw new Error("coupledSeparationPulse requires coupledMultiBodyIncludeRetainedBody to be true");
+    }
+    finiteVector(
+      configuredSeparationPulse.relativeDeltaVBodyMps,
+      "coupledSeparationPulse.relativeDeltaVBodyMps",
+    );
+    const deltaVMagnitude = magnitude(configuredSeparationPulse.relativeDeltaVBodyMps);
+    if (!Number.isFinite(deltaVMagnitude) || deltaVMagnitude <= 0 || deltaVMagnitude > 25) {
+      throw new Error("coupledSeparationPulse.relativeDeltaVBodyMps magnitude must be greater than 0 and at most 25 m/s");
+    }
+    if (
+      !Number.isFinite(configuredSeparationPulse.startOffsetS) ||
+      configuredSeparationPulse.startOffsetS < 0 ||
+      configuredSeparationPulse.startOffsetS > 60
+    ) {
+      throw new Error("coupledSeparationPulse.startOffsetS must be finite from 0 through 60 s");
+    }
+    if (
+      !Number.isFinite(configuredSeparationPulse.durationS) ||
+      configuredSeparationPulse.durationS <= 0 ||
+      configuredSeparationPulse.durationS > 30
+    ) {
+      throw new Error("coupledSeparationPulse.durationS must be finite, positive, and at most 30 s");
+    }
+    if (
+      configuredSeparationPulse.profile !== undefined &&
+      configuredSeparationPulse.profile !== "constant" &&
+      configuredSeparationPulse.profile !== "raised-cosine"
+    ) {
+      throw new Error("coupledSeparationPulse.profile must be constant or raised-cosine");
+    }
+  }
   if (input.components.length === 0) throw new Error("stage-flight preview requires geometry components");
   const initiallyIgnitedStageIds = uniqueStrings(
     input.initiallyIgnitedStageIds,
@@ -1383,6 +1438,8 @@ export function simulateStageFlightPreview(
   let retainedBodyCoupledSeed: CoupledMultiBodyFlightBodyInput | null = null;
   let retainedBodyStagingHandoffs: RigidBodyState[] = [];
   const retainedBodyVelocityImpulseEvents: CoupledMultiBodyVelocityImpulseEvent[] = [];
+  let firstSeparationTimeS: number | null = null;
+  let firstDetachedBodyId: string | null = null;
   let retainedBodyLaterSeparationAssumptionAdded = false;
   const retainedCoupledTrackAssumptions: string[] = [];
   const separatedBodyWarnings: string[] = [];
@@ -1424,6 +1481,11 @@ export function simulateStageFlightPreview(
         )
       : undefined;
     if (detachedStageMassEntries.length > 0) {
+      if (firstSeparationTimeS === null) {
+        firstSeparationTimeS = event.timeS;
+        const firstDetachedEntry = detachedStageMassEntries[0]!;
+        firstDetachedBodyId = `${firstDetachedEntry.stageId}/${firstDetachedEntry.instanceId}`;
+      }
       const separationInput = {
         eventId: event.id,
         releaseState: event.stateBefore,
@@ -1710,6 +1772,33 @@ export function simulateStageFlightPreview(
       }
     }
   }
+  const resolvedSeparationMechanisms: CoupledMultiBodySeparationForcePulse[] = [
+    ...(input.separationMechanisms ?? []),
+  ];
+  if (configuredSeparationPulse !== undefined) {
+    const firstDetachedBodyAvailable = firstDetachedBodyId !== null &&
+      coupledBodySeeds.some((body) => body.id === firstDetachedBodyId);
+    if (
+      firstSeparationTimeS !== null &&
+      firstDetachedBodyId !== null &&
+      retainedBodyCoupledSeed !== null &&
+      firstDetachedBodyAvailable
+    ) {
+      resolvedSeparationMechanisms.push({
+        id: "browser-first-separation-pulse",
+        retainedBodyId: "retained-vehicle",
+        detachedBodyId: firstDetachedBodyId,
+        startTimeS: firstSeparationTimeS + configuredSeparationPulse.startOffsetS,
+        durationS: configuredSeparationPulse.durationS,
+        relativeDeltaVBodyMps: configuredSeparationPulse.relativeDeltaVBodyMps,
+        profile: configuredSeparationPulse.profile ?? "raised-cosine",
+      });
+    } else {
+      separatedBodyWarnings.push(
+        "The configured first-separation pulse was not synthesized because the first detached body did not produce a retained shared-track seed.",
+      );
+    }
+  }
   let coupledMultiBodyFlight: CoupledMultiBodyFlightResult | null = null;
   if (coupledBodySeeds.length > 0) {
     try {
@@ -1727,8 +1816,8 @@ export function simulateStageFlightPreview(
         ...(retainedBodyVelocityImpulseEvents.length > 0
           ? { velocityImpulseEvents: retainedBodyVelocityImpulseEvents }
           : {}),
-        ...(input.separationMechanisms && input.separationMechanisms.length > 0
-          ? { separationMechanisms: input.separationMechanisms }
+        ...(resolvedSeparationMechanisms.length > 0
+          ? { separationMechanisms: resolvedSeparationMechanisms }
           : {}),
         integration: input.integration,
       });
@@ -1958,6 +2047,11 @@ export function simulateStageFlightPreview(
     ...vectorBudget.warnings,
     ...missionLossBudget.warnings,
     ...missionDeltaVBridge.warnings,
+    ...(configuredSeparationPulse !== undefined && resolvedSeparationMechanisms.every(
+      (mechanism) => mechanism.id !== "browser-first-separation-pulse",
+    )
+      ? ["The configured first-separation pulse was requested but no compatible first separation handoff was available."]
+      : []),
   ];
   const assumptions = [
     ...(input.additionalAssumptions ?? []),
@@ -1995,6 +2089,13 @@ export function simulateStageFlightPreview(
       ? [
           "The shared-grid detached-body track applies event-level velocity corrections only when the associated impulse allocator is balanced; the independent detached 6DOF branches remain on their baseline release states.",
           ...retainedCoupledTrackAssumptions,
+          ...(resolvedSeparationMechanisms.some(
+            (mechanism) => mechanism.id === "browser-first-separation-pulse",
+          )
+            ? [
+                "The browser first-separation pulse is synthesized against the first detached stage instance, begins at the first authoritative separation time plus the configured offset, and applies along the retained vehicle's +X body axis. It is a reduced-mass equal-and-opposite translational force preview; springs, pyrotechnic timing, plume interaction, structural flex, angular impulse, and hardware validation remain outside the model.",
+              ]
+            : []),
           ...(coupledMultiBodyFlight.contact.enabled
             ? [
                 ...(retainedBodyCoupledSeed

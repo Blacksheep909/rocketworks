@@ -14,6 +14,13 @@ flight-readiness claims.
   momentum, joint compliance, angular impulse, and flight-safety validation stay
   outside the analytical preview.
 
+- Add persisted first-separation pulse controls to the browser stage card. The
+  bounded Δv, start-offset, duration, and profile sliders synthesize a pulse
+  against the first detached physical instance and automatically include the
+  retained shared track. The result card reports configured/active samples and
+  peak force while keeping mechanism hardware, structural flex, angular
+  impulse, and flight-safety claims out of scope.
+
 - Add an opt-in coupled wake-feedback sensitivity branch. The shared-grid
   solver now applies the strongest overlapping finite-cone velocity-deficit
   proxy to eligible point-drag/projected-area/detached-aero loads, retains
