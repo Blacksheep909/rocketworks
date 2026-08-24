@@ -90,6 +90,8 @@ import {
   compareFlightDataToStageTrace,
   createFlightDataComparisonCsv,
   parseFlightDataCsv,
+  parseRelativeAeroCalibrationCsv,
+  createRelativeAeroCalibrationCsv,
   runPhysicsBenchmarkSuite,
   analyzeVerticalFlightConvergence,
   createEngineeringDesignReview,
@@ -143,6 +145,13 @@ import {
   type StageFlightCalibrationVariable,
   type StageFlightCalibrationObjective,
   type StageFlightCalibrationConstraint,
+  calibrateRelativeAeroInteraction,
+  type RelativeAeroCalibrationResult,
+  type RelativeAeroCalibrationVariable,
+  type RelativeAeroCalibrationObjective,
+  type RelativeAeroCalibrationConstraint,
+  type RelativeAeroCalibrationEvidence,
+  type RelativeAeroInteractionBody,
   type RocketStage,
   type StageAerodynamicRegime,
   type LaunchEnvironmentProvider,
@@ -349,7 +358,7 @@ type ViewKey = "design" | "flight";
 type DesignViewKey = UiDesignView;
 type MaterialKey = "kraft" | "fiberglass" | "carbon" | "custom";
 type FlightDataPersistenceState = "none" | "saved" | "restored" | "session-only";
-type ExportFormat = "project" | "vertical-review-json" | "staged-review-json" | "run-library-json" | "flight-csv" | "stage-flight-csv" | "stage-sweep-csv" | "stage-flight-comparison-csv" | "separated-body-csv" | "coupled-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "benchmark-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad" | "manufacturing-manifest";
+type ExportFormat = "project" | "vertical-review-json" | "staged-review-json" | "run-library-json" | "flight-csv" | "stage-flight-csv" | "stage-sweep-csv" | "stage-flight-comparison-csv" | "relative-aero-calibration-csv" | "separated-body-csv" | "coupled-body-csv" | "flight-path-geojson" | "sweep-csv" | "uncertainty-csv" | "benchmark-csv" | "aero-polar-csv" | "report" | "dxf" | "stl" | "openscad" | "manufacturing-manifest";
 type OptimizationPreview = Readonly<{
   result: DesignOptimizationResult;
   baseThrustN: number;
@@ -364,6 +373,10 @@ type StageFlightOptimizationPreview = Readonly<{
 
 type StageFlightCalibrationPreview = Readonly<{
   result: StageFlightCalibrationResult;
+}>;
+
+type RelativeAeroCalibrationPreview = Readonly<{
+  result: RelativeAeroCalibrationResult;
 }>;
 
 type CommandAction = Readonly<{
@@ -556,6 +569,24 @@ const DEFAULT_STAGE_CALIBRATION_OBJECTIVES: readonly StageFlightCalibrationObjec
 const DEFAULT_STAGE_CALIBRATION_CONSTRAINTS: readonly StageFlightCalibrationConstraint[] = [
   { metricKey: "matchedSampleFraction", label: "Measured coverage", relation: "greater-than-or-equal", limit: 0.8 },
   { metricKey: "simulationFailure", label: "Simulation failures", relation: "less-than-or-equal", limit: 0 },
+];
+
+const DEFAULT_RELATIVE_AERO_CALIBRATION_VARIABLES: readonly RelativeAeroCalibrationVariable[] = [
+  { key: "wakeHalfAngleDeg", label: "Wake half-angle", minimum: 2, maximum: 18, initial: 8 },
+  { key: "wakeRecoveryDistanceBodyDiameters", label: "Wake recovery distance", minimum: 10, maximum: 80, initial: 30 },
+  { key: "peakVelocityDeficitFraction", label: "Peak velocity deficit", minimum: 0.1, maximum: 0.65, initial: 0.5 },
+  { key: "maximumVelocityDeficitFraction", label: "Maximum velocity deficit", minimum: 0.2, maximum: 0.9, initial: 0.7 },
+];
+
+const DEFAULT_RELATIVE_AERO_CALIBRATION_OBJECTIVES: readonly RelativeAeroCalibrationObjective[] = [
+  { metricKey: "weightedResidualRmse", label: "Weighted residual RMSE", direction: "minimize", weight: 2 },
+  { metricKey: "peakVelocityDeficitRmse", label: "Peak deficit RMSE", direction: "minimize" },
+  { metricKey: "exposureCoverageRmse", label: "Exposure coverage RMSE", direction: "minimize" },
+];
+
+const DEFAULT_RELATIVE_AERO_CALIBRATION_CONSTRAINTS: readonly RelativeAeroCalibrationConstraint[] = [
+  { metricKey: "matchedObservationFraction", label: "Evidence coverage", relation: "greater-than-or-equal", limit: 1 },
+  { metricKey: "simulationFailure", label: "Calibration failures", relation: "less-than-or-equal", limit: 0 },
 ];
 
 const DEFAULT_STAGE_ROBUSTNESS_FACTORS = [
@@ -4171,6 +4202,58 @@ function AerodynamicPolarChart({ model }: { model: AerodynamicCoefficientTableMo
   );
 }
 
+function createRelativeAeroCalibrationBodies(
+  result: StageFlightPreviewResult,
+): RelativeAeroInteractionBody[] {
+  const retainedTrace = result.trace.map((point) => ({
+    timeS: point.timeS,
+    // The staged summary trace retains altitude and velocity, not lateral
+    // position. Keep this calibration adapter explicit about that bounded
+    // vertical reconstruction rather than inventing a horizontal track.
+    positionWorldM: { x: 0, y: 0, z: point.altitudeAglM },
+    velocityWorldMps: point.velocityWorldMps,
+  }));
+  const retainedBody: RelativeAeroInteractionBody = {
+    id: "retained-vehicle",
+    label: "Retained vehicle",
+    releaseTimeS: retainedTrace[0]?.timeS ?? 0,
+    trace: retainedTrace,
+  };
+  const coupledBodies = result.coupledMultiBodyFlight?.trajectories ?? [];
+  if (coupledBodies.length > 0) {
+    return [
+      ...(coupledBodies.some((body) => body.id === "retained-vehicle") ? [] : [retainedBody]),
+      ...coupledBodies.map((body) => ({
+        id: body.id,
+        label: body.label,
+        releaseTimeS: body.releaseTimeS,
+        referenceAreaM2: body.referenceAreaM2,
+        envelopeRadiusM: body.envelopeRadiusM,
+        trace: body.trace.map((point) => ({
+          timeS: point.timeS,
+          positionWorldM: point.positionWorldM,
+          velocityWorldMps: point.velocityWorldMps,
+        })),
+      })),
+    ];
+  }
+  return [
+    retainedBody,
+    ...result.separatedBodies.map((body, index) => ({
+      id: `${body.stageId}/${body.instanceId ?? `logical-${index + 1}`}`,
+      label: body.instanceId ? `${body.stageName} / ${body.instanceId}` : body.stageName,
+      releaseTimeS: body.releaseTimeS,
+      referenceAreaM2: body.referenceAreaM2,
+      envelopeRadiusM: body.envelopeRadiusM,
+      trace: body.trace.map((point) => ({
+        timeS: point.timeS,
+        positionWorldM: point.positionWorldM,
+        velocityWorldMps: point.velocityWorldMps,
+      })),
+    })),
+  ];
+}
+
 function AerodynamicTableInspector({ table }: { table: AerodynamicCoefficientTableDefinition }) {
   const availableSurfaces = AERODYNAMIC_INSPECTOR_SURFACES.filter(
     (definition) => definition.read(table) !== undefined,
@@ -4921,6 +5004,12 @@ export default function Home() {
   const [stageCalibration, setStageCalibration] = useState<StageFlightCalibrationPreview | null>(null);
   const [stageCalibrationFingerprint, setStageCalibrationFingerprint] = useState<string | null>(null);
   const [stageCalibrationError, setStageCalibrationError] = useState("");
+  const [relativeAeroEvidence, setRelativeAeroEvidence] = useState<RelativeAeroCalibrationEvidence | null>(null);
+  const [relativeAeroEvidenceError, setRelativeAeroEvidenceError] = useState("");
+  const [relativeAeroCalibrationRunning, setRelativeAeroCalibrationRunning] = useState(false);
+  const [relativeAeroCalibration, setRelativeAeroCalibration] = useState<RelativeAeroCalibrationPreview | null>(null);
+  const [relativeAeroCalibrationFingerprint, setRelativeAeroCalibrationFingerprint] = useState<string | null>(null);
+  const [relativeAeroCalibrationError, setRelativeAeroCalibrationError] = useState("");
   const [stageFlightResult, setStageFlightResult] =
     useState<StageFlightPreviewResult | null>(null);
   const [stageFlightFingerprint, setStageFlightFingerprint] = useState<string | null>(
@@ -5055,6 +5144,21 @@ export default function Home() {
     flightDataTraceSource === "coupled-6dof" &&
     stageCalibrationInputFingerprint !== null &&
     stageCalibrationFingerprint === stageCalibrationInputFingerprint;
+  const relativeAeroCalibrationBodies = useMemo(
+    () => stageFlightResult ? createRelativeAeroCalibrationBodies(stageFlightResult) : [],
+    [stageFlightResult],
+  );
+  const relativeAeroCalibrationInputFingerprint = useMemo(
+    () => relativeAeroEvidence
+      ? JSON.stringify([simulationFingerprint, relativeAeroEvidence])
+      : null,
+    [relativeAeroEvidence, simulationFingerprint],
+  );
+  const relativeAeroCalibrationIsCurrent =
+    relativeAeroCalibration !== null &&
+    stageFlightIsCurrent &&
+    relativeAeroCalibrationInputFingerprint !== null &&
+    relativeAeroCalibrationFingerprint === relativeAeroCalibrationInputFingerprint;
   const activeStageSweepDefinition = stageSweepParameterDefinition(stageSweepParameter);
   const stageRecoveryCommandEvent = stageFlightResult?.events.find(
     (event) => event.id.includes("recovery") || event.label.toLowerCase().includes("recovery"),
@@ -6503,6 +6607,34 @@ export default function Home() {
     setStageCalibration(null);
     setStageCalibrationFingerprint(null);
     setStageCalibrationError("");
+    setRelativeAeroCalibration(null);
+    setRelativeAeroCalibrationFingerprint(null);
+    setRelativeAeroCalibrationError("");
+  };
+  const invalidateRelativeAeroCalibration = () => {
+    setRelativeAeroCalibration(null);
+    setRelativeAeroCalibrationFingerprint(null);
+    setRelativeAeroCalibrationError("");
+  };
+  const importRelativeAeroEvidence = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    try {
+      const evidence = parseRelativeAeroCalibrationCsv(await file.text(), file.name);
+      setRelativeAeroEvidence(evidence);
+      invalidateRelativeAeroCalibration();
+      setRelativeAeroEvidenceError("");
+      notify(`Loaded ${evidence.observations.length} relative-flow evidence pair${evidence.observations.length === 1 ? "" : "s"}`);
+    } catch (error) {
+      setRelativeAeroEvidenceError(error instanceof Error ? error.message : "Unable to import relative-flow evidence CSV.");
+    }
+  };
+  const clearRelativeAeroEvidence = () => {
+    setRelativeAeroEvidence(null);
+    setRelativeAeroEvidenceError("");
+    invalidateRelativeAeroCalibration();
+    notify("Relative-flow evidence cleared");
   };
   const importFlightData = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
@@ -6568,6 +6700,9 @@ export default function Home() {
     setStageCalibration(null);
     setStageCalibrationFingerprint(null);
     setStageCalibrationError("");
+    setRelativeAeroCalibration(null);
+    setRelativeAeroCalibrationFingerprint(null);
+    setRelativeAeroCalibrationError("");
     setSelectedFlightEventTimeS(null);
     setSelectedStageEventTimeS(null);
     setStageFlightError("");
@@ -8070,6 +8205,28 @@ export default function Home() {
                   ),
                 }
               : null,
+            relativeAeroCalibration: relativeAeroCalibration
+              ? {
+                  adapterVersion: relativeAeroCalibration.result.adapterVersion,
+                  modelVersion: relativeAeroCalibration.result.modelVersion,
+                  validationStatus: relativeAeroCalibration.result.validationStatus,
+                  sourceName: relativeAeroCalibration.result.sourceName,
+                  observationCount: relativeAeroCalibration.result.observationCount,
+                  current: relativeAeroCalibrationIsCurrent,
+                  seed: relativeAeroCalibration.result.result.seed,
+                  evaluationCount: relativeAeroCalibration.result.result.evaluationCount,
+                  recommendedCandidateId: relativeAeroCalibration.result.result.recommendedCandidateId,
+                  paretoFront: relativeAeroCalibration.result.result.paretoFront.map(
+                    (candidate) => ({
+                      id: candidate.id,
+                      variables: candidate.variables,
+                      metrics: candidate.metrics,
+                      constraints: candidate.constraints,
+                      tradeoffScore: candidate.tradeoffScore,
+                    }),
+                  ),
+                }
+              : null,
             landing: landingPrediction
               ? {
                   modelVersion: landingPrediction.modelVersion,
@@ -8150,6 +8307,13 @@ export default function Home() {
         filename = `${fileStem}-stage-parameter-sweep.csv`;
         mediaType = "text/csv;charset=utf-8";
         content = createStageFlightSweepCsv(stageSweepResult);
+      } else if (format === "relative-aero-calibration-csv") {
+        if (!relativeAeroCalibration || !relativeAeroCalibrationIsCurrent) {
+          throw new Error("Run the current relative-flow evidence calibration before exporting its Pareto rows.");
+        }
+        filename = `${fileStem}-relative-aero-calibration.csv`;
+        mediaType = "text/csv;charset=utf-8";
+        content = createRelativeAeroCalibrationCsv(relativeAeroCalibration.result);
       } else if (format === "stage-flight-comparison-csv") {
         if (!stageFlightResult || !stageComparisonReference) {
           throw new Error("Run the staged preview and pin a reference before exporting its comparison.");
@@ -8320,6 +8484,7 @@ export default function Home() {
           stageSweep: stageSweepIsCurrent ? stageSweepResult : null,
           stageOptimization: stageOptimizationIsCurrent ? stageOptimization.result : null,
           stageCalibration: stageCalibrationIsCurrent ? stageCalibration.result : null,
+          relativeAeroCalibration: relativeAeroCalibrationIsCurrent ? relativeAeroCalibration.result : null,
           uncertainty,
           landing: landingPrediction,
           structural: structuralScreen,
@@ -9142,6 +9307,77 @@ export default function Home() {
     setStageCalibrationFingerprint(null);
     markChanged();
     notify("Mapped telemetry calibration applied; rerun the coupled preview to review it");
+  };
+  const runRelativeAeroCalibration = () => {
+    if (!stageFlightResult || !stageFlightIsCurrent) {
+      notify("Run the current coupled preview before calibrating relative-flow evidence");
+      return;
+    }
+    if (!relativeAeroEvidence) {
+      notify("Import a relative-flow evidence CSV before starting calibration");
+      return;
+    }
+    if (relativeAeroCalibrationBodies.length < 2) {
+      notify("The current staged preview does not contain two released-body traces for relative-flow calibration");
+      return;
+    }
+    setRelativeAeroCalibrationRunning(true);
+    setRelativeAeroCalibrationError("");
+    setView("flight");
+    const inputFingerprint = relativeAeroCalibrationInputFingerprint;
+    window.setTimeout(() => {
+      try {
+        if (!inputFingerprint) throw new Error("Relative-flow evidence is not ready for calibration");
+        const nextResult = calibrateRelativeAeroInteraction({
+          bodies: relativeAeroCalibrationBodies,
+          environmentAt: previewEnvironment.at,
+          options: {
+            enabled: true,
+            wakeHalfAngleDeg: relativeAeroWakeHalfAngleDeg,
+            wakeRecoveryDistanceBodyDiameters: relativeAeroWakeRecoveryDistanceBodyDiameters,
+            peakVelocityDeficitFraction: relativeAeroPeakVelocityDeficitFraction,
+            maximumVelocityDeficitFraction: relativeAeroMaximumVelocityDeficitFraction,
+          },
+          evidence: relativeAeroEvidence,
+          seed: "rocketworks-relative-aero-calibration-v1",
+          populationSize: 8,
+          generations: 1,
+          variables: DEFAULT_RELATIVE_AERO_CALIBRATION_VARIABLES,
+          objectives: DEFAULT_RELATIVE_AERO_CALIBRATION_OBJECTIVES,
+          constraints: DEFAULT_RELATIVE_AERO_CALIBRATION_CONSTRAINTS,
+        });
+        setRelativeAeroCalibration({ result: nextResult });
+        setRelativeAeroCalibrationFingerprint(inputFingerprint);
+        notify("Relative-flow evidence calibration complete");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to calibrate relative-flow evidence";
+        setRelativeAeroCalibrationError(message);
+        notify(message);
+      } finally {
+        setRelativeAeroCalibrationRunning(false);
+      }
+    }, 30);
+  };
+  const applyRelativeAeroCalibrationRecommendation = () => {
+    if (!relativeAeroCalibration || !relativeAeroCalibrationIsCurrent) {
+      notify("Run the current relative-flow calibration before applying a recommendation");
+      return;
+    }
+    const candidate = relativeAeroCalibration.result.result.paretoFront.find(
+      (item) => item.id === relativeAeroCalibration.result.result.recommendedCandidateId,
+    );
+    if (!candidate) {
+      notify("No feasible relative-flow calibration recommendation is available");
+      return;
+    }
+    if (candidate.variables.wakeHalfAngleDeg !== undefined) setRelativeAeroWakeHalfAngleDeg(candidate.variables.wakeHalfAngleDeg);
+    if (candidate.variables.wakeRecoveryDistanceBodyDiameters !== undefined) setRelativeAeroWakeRecoveryDistanceBodyDiameters(candidate.variables.wakeRecoveryDistanceBodyDiameters);
+    if (candidate.variables.peakVelocityDeficitFraction !== undefined) setRelativeAeroPeakVelocityDeficitFraction(candidate.variables.peakVelocityDeficitFraction);
+    if (candidate.variables.maximumVelocityDeficitFraction !== undefined) setRelativeAeroMaximumVelocityDeficitFraction(candidate.variables.maximumVelocityDeficitFraction);
+    setRelativeAeroCalibration(null);
+    setRelativeAeroCalibrationFingerprint(null);
+    markChanged();
+    notify("Mapped relative-flow recommendation applied; rerun the coupled preview to review it");
   };
   const applyStageOptimizationRecommendation = () => {
     if (!stageOptimization || !stageOptimizationIsCurrent) {
@@ -10998,6 +11234,21 @@ export default function Home() {
                       resultCurrent={stageOptimizationIsCurrent}
                       onRun={runStageOptimization}
                       onApply={applyStageOptimizationRecommendation}
+                    />
+                    <RelativeAeroCalibrationCard
+                      result={relativeAeroCalibration}
+                      running={relativeAeroCalibrationRunning}
+                      error={relativeAeroCalibrationError}
+                      evidence={relativeAeroEvidence}
+                      evidenceError={relativeAeroEvidenceError}
+                      current={stageFlightIsCurrent}
+                      resultCurrent={relativeAeroCalibrationIsCurrent}
+                      bodyIds={relativeAeroCalibrationBodies.map((body) => body.id)}
+                      onImport={importRelativeAeroEvidence}
+                      onClear={clearRelativeAeroEvidence}
+                      onRun={runRelativeAeroCalibration}
+                      onApply={applyRelativeAeroCalibrationRecommendation}
+                      onExport={() => void exportArtifact("relative-aero-calibration-csv")}
                     />
                   </>
                 ) : (
@@ -13169,6 +13420,11 @@ export default function Home() {
                 <span><strong>Coupled parameter sweep</strong><small>Staged 6DOF trade-study rows with model metadata, assumptions, and retained evaluator errors.</small></span>
                 <em>↓</em>
               </button>}
+              {relativeAeroCalibration && relativeAeroCalibrationIsCurrent && <button onClick={() => exportArtifact("relative-aero-calibration-csv")}>
+                <span className="export-extension">CSV</span>
+                <span><strong>Relative-flow calibration</strong><small>Pair-level wake-proxy fit with evidence coverage, residual metrics, seed, and explicit unvalidated limits.</small></span>
+                <em>↓</em>
+              </button>}
               {stageFlightResult && stageFlightIsCurrent && stageComparisonReference && <button onClick={() => exportArtifact("stage-flight-comparison-csv")}>
                 <span className="export-extension">CSV</span>
                 <span><strong>Staged run comparison</strong><small>Current-minus-reference deltas for coupled metrics, sampled events, released bodies, and exact run fingerprints.</small></span>
@@ -13936,6 +14192,128 @@ function StageFlightCalibrationCard({
       )}
       {error && <p className="sweep-error" role="alert">{error}</p>}
       <div className="optimization-disclaimer"><span>UNVALIDATED CALIBRATION</span><p>{result?.result.warnings[0] ?? "Imported telemetry, model assumptions, and coverage determine the residual; agreement is not validation."}</p></div>
+    </section>
+  );
+}
+
+function RelativeAeroCalibrationCard({
+  result,
+  running,
+  error,
+  evidence,
+  evidenceError,
+  current,
+  resultCurrent,
+  bodyIds,
+  onImport,
+  onClear,
+  onRun,
+  onApply,
+  onExport,
+}: {
+  result: RelativeAeroCalibrationPreview | null;
+  running: boolean;
+  error: string;
+  evidence: RelativeAeroCalibrationEvidence | null;
+  evidenceError: string;
+  current: boolean;
+  resultCurrent: boolean;
+  bodyIds: readonly string[];
+  onImport: (event: ChangeEvent<HTMLInputElement>) => void;
+  onClear: () => void;
+  onRun: () => void;
+  onApply: () => void;
+  onExport: () => void;
+}) {
+  const optimization = result?.result.result ?? null;
+  const recommendation = optimization?.paretoFront.find(
+    (candidate) => candidate.id === optimization.recommendedCandidateId,
+  ) ?? null;
+  const variableLabels: Readonly<Record<string, string>> = {
+    wakeHalfAngleDeg: "Wake half-angle",
+    wakeRecoveryDistanceBodyDiameters: "Recovery distance",
+    peakVelocityDeficitFraction: "Peak deficit",
+    maximumVelocityDeficitFraction: "Maximum deficit",
+  };
+  const formatMetric = (candidate: typeof recommendation, key: string, decimals = 3) => {
+    const value = candidate?.metrics[key];
+    return typeof value === "number" && Number.isFinite(value) ? value.toFixed(decimals) : "—";
+  };
+  const formatVariable = (key: string, value: number) => {
+    if (key === "wakeHalfAngleDeg") return `${value.toFixed(1)}°`;
+    if (key === "wakeRecoveryDistanceBodyDiameters") return `${value.toFixed(1)} body Ø`;
+    return `${(value * 100).toFixed(1)}%`;
+  };
+  const formatVariables = (candidate: typeof recommendation) => {
+    if (!candidate) return "";
+    return Object.entries(candidate.variables)
+      .map(([key, value]) => `${variableLabels[key] ?? key} ${formatVariable(key, value)}`)
+      .join(" · ");
+  };
+  return (
+    <section className="optimization-card relative-aero-calibration-card" aria-labelledby="relative-aero-calibration-title">
+      <div className="event-card-heading">
+        <div>
+          <strong id="relative-aero-calibration-title">Relative-flow evidence calibration</strong>
+          <span>Bounded pair-level fit against imported wake or CFD evidence</span>
+        </div>
+        <div className="flight-data-actions">
+          <label className="flight-data-import-button">
+            <input type="file" accept=".csv,text/csv" onChange={onImport} />
+            {evidence ? "Replace evidence CSV" : "Import evidence CSV"}
+          </label>
+          {evidence && <button type="button" className="flight-data-clear" onClick={onClear}>Clear</button>}
+          {result && resultCurrent && <button type="button" onClick={onExport}>Export CSV</button>}
+        </div>
+      </div>
+      {evidenceError && <p className="sweep-error" role="alert">{evidenceError}</p>}
+      {error && <p className="sweep-error" role="alert">{error}</p>}
+      {evidence && (
+        <div className="flight-data-meta">
+          <span><strong>{evidence.sourceName}</strong> · {evidence.observations.length} evidence pair{evidence.observations.length === 1 ? "" : "s"}</span>
+          <span>{bodyIds.length} staged body trace{bodyIds.length === 1 ? "" : "s"} available</span>
+        </div>
+      )}
+      {!evidence ? (
+        <div className="optimization-empty">
+          <strong>Import pair-level evidence first</strong>
+          <p>Use a strict SI CSV with <code>source_body_id</code>, <code>target_body_id</code>, and at least one of <code>exposure_coverage_fraction</code>, <code>peak_velocity_deficit_fraction</code>, or <code>maximum_estimated_dynamic_pressure_delta_pa</code>.</p>
+        </div>
+      ) : !current ? (
+        <div className="optimization-empty"><strong>Run the current coupled preview first</strong><p>Calibration reuses the staged released-body traces and will not fit against an older result.</p></div>
+      ) : bodyIds.length < 2 ? (
+        <div className="optimization-empty"><strong>Two staged body traces are required</strong><p>Run a preview with a retained vehicle and at least one released body before comparing directed wake pairs.</p></div>
+      ) : result && !resultCurrent ? (
+        <div className="stale-result-banner stage-stale-result-banner" role="status"><span>RERUN REQUIRED</span><div><strong>This calibration is from an earlier evidence or design state</strong><p>Rerun after changing the staged preview, environment, or imported evidence before interpreting or exporting the fit.</p></div></div>
+      ) : running ? (
+        <div className="optimization-loading" aria-live="polite"><Skeleton height={92} borderRadius={5} /><span>Evaluating bounded wake-proxy candidates…</span></div>
+      ) : optimization && resultCurrent && recommendation ? (
+        <>
+          <div className="optimization-summary">
+            <div><span>Weighted residual</span><strong>{formatMetric(recommendation, "weightedResidualRmse")} σ</strong></div>
+            <div><span>Exposure RMSE</span><strong>{formatMetric(recommendation, "exposureCoverageRmse")} σ</strong></div>
+            <div><span>Deficit RMSE</span><strong>{formatMetric(recommendation, "peakVelocityDeficitRmse")} σ</strong></div>
+            <div><span>Evidence matched</span><strong>{(Number(recommendation.metrics.matchedObservationFraction ?? 0) * 100).toFixed(0)}%</strong></div>
+          </div>
+          <div className="optimization-candidates" aria-label="Leading relative-flow calibration candidates">
+            {optimization.paretoFront.slice(0, 3).map((candidate, index) => (
+              <div className={index === 0 ? "optimization-candidate recommended" : "optimization-candidate"} key={candidate.id}>
+                <span>{index === 0 ? "Recommendation" : `Tradeoff ${index + 1}`}</span>
+                <strong>{formatMetric(candidate, "weightedResidualRmse")} σ residual</strong>
+                <small>{formatVariables(candidate)} · {(Number(candidate.metrics.matchedObservationFraction ?? 0) * 100).toFixed(0)}% matched</small>
+              </div>
+            ))}
+          </div>
+          <div className="optimization-actions">
+            <button type="button" onClick={onApply}>Apply mapped inputs</button>
+            <button type="button" onClick={onRun}>Run again</button>
+          </div>
+          <p className="flight-data-note">Mapped recommendation: {formatVariables(recommendation)}. This fit measures agreement with the supplied source only; it does not validate wind-tunnel or CFD data, add forces or moments, or establish flight safety.</p>
+        </>
+      ) : (
+        <div className="optimization-empty"><strong>Fit the wake-proxy factors to this evidence</strong><p>The bounded seeded study varies wake half-angle, recovery distance, and deficit limits without feeding the result back into the trajectory.</p><button type="button" onClick={onRun}>Run calibration</button></div>
+      )}
+      <div className="optimization-disclaimer"><span>UNVALIDATED CALIBRATION</span><p>{result?.result.warnings[0] ?? "Pair coverage, body IDs, and measured channels determine the residual; agreement is diagnostic only."} No CFD, wind-tunnel, force/moment, contact, or flight-safety claim is made.</p></div>
     </section>
   );
 }

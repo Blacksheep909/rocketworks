@@ -178,6 +178,11 @@ research, standards, and original code.
   evaluation, with persisted controls, per-sample provenance, CSV/report
   export, and explicit analytical-only / no-CFD limits; the default force path
   remains unchanged;
+- a strict pair-level relative-flow evidence importer and seeded calibration
+  study for wake half-angle, recovery distance, and bounded deficit factors;
+  aggregate coverage, deficit, dynamic-pressure, matched-observation, and
+  candidate-failure metrics remain visible, and calibrated agreement never
+  becomes a flight-load or safety claim;
 - an instantaneous separation impulse audit that checks mass-ratio linear
   momentum balance and exposes unmodeled first-order angular impulse before
   detached-body propagation;

@@ -1395,6 +1395,60 @@ test("engineering report leads with status and preserves calculations and limita
         warnings: [],
       },
     },
+    relativeAeroCalibration: {
+      adapterVersion: "rocketworks-relative-aero-calibration-0.1.0",
+      modelVersion: "rocketworks-relative-aero-interaction-0.2.0",
+      validationStatus: "engineering-preview-unvalidated",
+      sourceName: "wake-fixture.csv",
+      observationCount: 1,
+      warnings: ["Relative-flow calibration fixture warning."],
+      assumptions: ["Relative-flow calibration fixture assumption."],
+      result: {
+        modelVersion: "kestrel-design-optimization-0.1.0",
+        validationStatus: "engineering-preview-unvalidated",
+        algorithm: "seeded-constrained-nondominated-evolution",
+        seed: "relative-aero-report-seed",
+        populationSize: 8,
+        generations: 1,
+        evaluationCount: 16,
+        variables: [
+          { key: "wakeHalfAngleDeg", label: "Wake half-angle", minimum: 2, maximum: 18 },
+          { key: "wakeRecoveryDistanceBodyDiameters", label: "Wake recovery distance", minimum: 10, maximum: 80 },
+          { key: "peakVelocityDeficitFraction", label: "Peak velocity deficit", minimum: 0.1, maximum: 0.65 },
+          { key: "maximumVelocityDeficitFraction", label: "Maximum velocity deficit", minimum: 0.2, maximum: 0.9 },
+        ],
+        objectives: [{ metricKey: "weightedResidualRmse", label: "Weighted residual RMSE", direction: "minimize" }],
+        constraints: [],
+        candidates: [],
+        recommendedCandidateId: "candidate-000003",
+        paretoFront: [{
+          id: "candidate-000003",
+          evaluationIndex: 3,
+          variables: {
+            wakeHalfAngleDeg: 8.5,
+            wakeRecoveryDistanceBodyDiameters: 31,
+            peakVelocityDeficitFraction: 0.48,
+            maximumVelocityDeficitFraction: 0.72,
+          },
+          metrics: {
+            weightedResidualRmse: 0.31,
+            exposureCoverageRmse: 0.2,
+            peakVelocityDeficitRmse: 0.4,
+            dynamicPressureDeltaRmse: 0.1,
+            matchedObservationFraction: 1,
+            simulationFailure: 0,
+          },
+          constraints: [],
+          feasible: true,
+          normalizedConstraintViolation: 0,
+          paretoRank: 0,
+          crowdingDistance: Number.POSITIVE_INFINITY,
+          tradeoffScore: 1,
+        }],
+        assumptions: [],
+        warnings: [],
+      },
+    },
     uncertainty,
     structural,
     stageStructural,
@@ -1465,6 +1519,10 @@ test("engineering report leads with status and preserves calculations and limita
   assert.match(report, /telemetry-fixture\.csv/);
   assert.match(report, /Weighted residual/);
   assert.match(report, /does not establish sensor accuracy/);
+  assert.match(report, /## Relative-flow evidence calibration/);
+  assert.match(report, /wake-fixture\.csv/);
+  assert.match(report, /rocketworks-relative-aero-calibration-0\.1\.0/);
+  assert.match(report, /does not validate CFD, wind-tunnel data/);
   assert.match(report, /### Serial-stack mass-ratio preview/);
   assert.match(report, /Excluded topology stages \| booster/);
   assert.match(report, /## Preliminary structural screen/);

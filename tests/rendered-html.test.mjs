@@ -1468,6 +1468,23 @@ test("ships a bounded staged telemetry calibration workflow", async () => {
   assert.match(stylesheet, /\.optimization-card/);
 });
 
+test("ships a pair-level relative-flow evidence calibration workflow", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const calibration = await readFile(new URL("../lib/physics/relative-aero-calibration.ts", import.meta.url), "utf8");
+  const stylesheet = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.match(page, /Relative-flow evidence calibration/);
+  assert.match(page, /parseRelativeAeroCalibrationCsv/);
+  assert.match(page, /createRelativeAeroCalibrationCsv/);
+  assert.match(page, /relativeAeroCalibrationIsCurrent/);
+  assert.match(page, /UNVALIDATED CALIBRATION/);
+  assert.match(calibration, /RELATIVE_AERO_CALIBRATION_ADAPTER_VERSION/);
+  assert.match(calibration, /simulationFailure/);
+  assert.match(calibration, /does not establish|does not add forces/);
+  assert.match(packageJson.scripts?.test ?? "", /tests\/relative-aero-calibration\.test\.mjs/);
+  assert.match(stylesheet, /\.optimization-card/);
+});
+
 test("ships a local flight-run comparison workflow with stale-result guardrails", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const referenceStore = await readFile(new URL("../lib/project/simulation-reference.ts", import.meta.url), "utf8");

@@ -19,6 +19,7 @@ export * from "./separation-envelope.ts";
 export * from "./separation-contact.ts";
 export * from "./separation-contact-load.ts";
 export * from "./relative-aero-interaction.ts";
+export * from "./relative-aero-calibration.ts";
 export * from "./attached-aero-interference.ts";
 export * from "./attitude-dependent-drag.ts";
 export * from "./detached-body-aerodynamics.ts";

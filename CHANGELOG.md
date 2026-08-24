@@ -6,6 +6,14 @@ flight-readiness claims.
 
 ## [Unreleased]
 
+- Add a strict pair-level relative-flow evidence importer and bounded wake-
+  proxy calibration study. Flight can compare directed source/target body
+  observations for exposure coverage, velocity deficit, and dynamic-pressure
+  reduction, retain matched/failure metrics, export deterministic Pareto rows,
+  and map only the four declared wake settings. This remains an unvalidated
+  diagnostic; it does not add forces or moments, validate CFD or wind-tunnel
+  data, or establish stage-separation or flight safety.
+
 - Add a versioned staged-flight optimization adapter and Flight workspace card.
   The seeded constrained search evaluates the complete staged 6DOF preview,
   offers nominal and eight-scenario robust Pareto screens, retains model and

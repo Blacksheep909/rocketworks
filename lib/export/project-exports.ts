@@ -15,6 +15,7 @@ import type { StageFlightUncertaintyResult } from "../physics/stage-flight-uncer
 import type { StageFlightSweepResult } from "../physics/stage-flight-sweep.ts";
 import type { StageFlightOptimizationResult } from "../physics/stage-flight-optimization.ts";
 import type { StageFlightCalibrationResult } from "../physics/stage-flight-calibration.ts";
+import type { RelativeAeroCalibrationResult } from "../physics/relative-aero-calibration.ts";
 import type {
   ParameterSweepResult,
   UncertaintyAnalysisResult,
@@ -210,6 +211,7 @@ export type EngineeringReportInput = Readonly<{
   stageSweep?: StageFlightSweepResult | null;
   stageOptimization?: StageFlightOptimizationResult | null;
   stageCalibration?: StageFlightCalibrationResult | null;
+  relativeAeroCalibration?: RelativeAeroCalibrationResult | null;
   uncertainty?: UncertaintyAnalysisResult | null;
   landing?: LandingDispersionResult | null;
   structural?: StructuralScreenResult | null;
@@ -3120,6 +3122,36 @@ export function createEngineeringReportMarkdown(
           ...input.stageCalibration.warnings.map((warning) => `- **Calibration warning:** ${markdownText(warning)}`),
           "",
           "> Telemetry calibration is residual minimization against one supplied log. It does not establish sensor accuracy, model validity, causal parameter truth, certification, or flight-safety evidence.",
+          "",
+        ]
+      : []),
+    ...(input.relativeAeroCalibration
+      ? [
+          "## Relative-flow evidence calibration",
+          "",
+          `- Adapter: \`${markdownText(input.relativeAeroCalibration.adapterVersion)}\``,
+          `- Model: \`${markdownText(input.relativeAeroCalibration.modelVersion)}\``,
+          `- Validation status: \`${markdownText(input.relativeAeroCalibration.validationStatus)}\``,
+          `- Evidence source: ${markdownText(input.relativeAeroCalibration.sourceName)}`,
+          `- Directed pair observations: ${input.relativeAeroCalibration.observationCount}`,
+          `- Seed: \`${markdownText(input.relativeAeroCalibration.result.seed)}\``,
+          `- Evaluations: ${input.relativeAeroCalibration.result.evaluationCount}`,
+          `- Pareto candidates: ${input.relativeAeroCalibration.result.paretoFront.length}`,
+          `- Recommended candidate: ${input.relativeAeroCalibration.result.recommendedCandidateId === null ? "not available" : `\`${markdownText(input.relativeAeroCalibration.result.recommendedCandidateId)}\``}`,
+          "",
+          "| Candidate | Feasible | Variables | Weighted residual | Exposure RMSE | Deficit RMSE | Matched observations |",
+          "|---|---:|---|---:|---:|---:|---:|",
+          ...input.relativeAeroCalibration.result.paretoFront.slice(0, 8).map((candidate) => {
+            const variables = Object.entries(candidate.variables)
+              .map(([key, value]) => `${key}=${formatNumber(value, 4)}`)
+              .join(", ");
+            return `| ${markdownText(candidate.id)} | ${candidate.feasible ? "yes" : "no"} | ${markdownText(variables)} | ${formatNumber(candidate.metrics.weightedResidualRmse, 4)} | ${formatNumber(candidate.metrics.exposureCoverageRmse, 4)} | ${formatNumber(candidate.metrics.peakVelocityDeficitRmse, 4)} | ${formatNumber(candidate.metrics.matchedObservationFraction * 100, 1)}% |`;
+          }),
+          "",
+          ...input.relativeAeroCalibration.assumptions.map((assumption) => `- ${markdownText(assumption)}`),
+          ...input.relativeAeroCalibration.warnings.map((warning) => `- **Relative-flow calibration warning:** ${markdownText(warning)}`),
+          "",
+          "> Relative-flow calibration is agreement minimization against aggregate pair observations. It does not validate CFD, wind-tunnel data, stage-separation loads, structural response, or flight safety.",
           "",
         ]
       : []),
