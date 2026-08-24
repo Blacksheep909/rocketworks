@@ -65,7 +65,7 @@ test("UI preference serialization keeps the schema envelope explicit", () => {
     reducedMotion: false,
     highContrast: false,
     locale: "en",
-    exportDestination: "browser-download",
+    exportDestination: "save-dialog",
   });
 });
 
@@ -100,7 +100,7 @@ test("UI preferences migrate the v2 accessibility record with an English locale"
   });
 });
 
-test("UI preferences migrate the v3 locale record without enabling save dialogs", () => {
+test("UI preferences migrate the v3 locale record to the safe save-dialog default", () => {
   const restored = parseUiPreferences(JSON.stringify({
     schemaId: UI_PREFERENCES_SCHEMA_ID,
     schemaVersion: 3,
@@ -116,6 +116,25 @@ test("UI preferences migrate the v3 locale record without enabling save dialogs"
     reducedMotion: true,
     highContrast: true,
     locale: "es",
+  });
+});
+
+test("UI preferences migrate the v4 Downloads default to the safe save-dialog default", () => {
+  const restored = parseUiPreferences(JSON.stringify({
+    schemaId: UI_PREFERENCES_SCHEMA_ID,
+    schemaVersion: 4,
+    designView: "2d",
+    designAzimuthDeg: 12,
+    reducedMotion: true,
+    highContrast: true,
+    locale: "en",
+    exportDestination: "browser-download",
+  }));
+  assert.deepEqual(restored, {
+    ...createDefaultUiPreferences(),
+    designAzimuthDeg: 12,
+    reducedMotion: true,
+    highContrast: true,
   });
 });
 

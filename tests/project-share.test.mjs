@@ -117,6 +117,8 @@ test("project share links carry the coupled-flight contract without embedding lo
       ...inputs,
       coupledMutualGravityEnabled: true,
       coupledGravitySofteningRadiusM: 0.04,
+      coupledMultiBodyIncludeRetainedBody: true,
+      coupledMultiBodyRetainedBodyMode: "independent-mass-propulsion",
       releasedBodyDragModel: "coefficient-table",
       separationContactStoppingDistanceM: 0.02,
       separationContactCoefficientOfRestitution: 0.2,
@@ -129,6 +131,7 @@ test("project share links carry the coupled-flight contract without embedding lo
   const restored = decodeProjectShare(hash);
   assert.equal(restored.editableInputs.coupledMutualGravityEnabled, true);
   assert.equal(restored.editableInputs.coupledGravitySofteningRadiusM, 0.04);
+  assert.equal(restored.editableInputs.coupledMultiBodyRetainedBodyMode, "independent-mass-propulsion");
   assert.equal(restored.editableInputs.releasedBodyDragModel, "coefficient-table");
   assert.equal(restored.editableInputs.separationContactStoppingDistanceM, 0.02);
   assert.equal(restored.editableInputs.separationContactCoefficientOfRestitution, 0.2);

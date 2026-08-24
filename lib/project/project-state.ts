@@ -148,6 +148,8 @@ export type EditableProjectInputs = Readonly<{
   coupledContactMaximumNormalForceN?: number;
   /** Includes a replay-backed retained vehicle in the shared coupled track. */
   coupledMultiBodyIncludeRetainedBody?: boolean;
+  /** Handoff model used when the retained vehicle is included in the shared track. */
+  coupledMultiBodyRetainedBodyMode?: "trace-replay" | "independent-mass-propulsion";
   /** Enables the bounded wake-deficit sensitivity branch in the shared coupled track. */
   coupledRelativeAeroForceFeedbackEnabled?: boolean;
   /** Aerodynamic contract used for released-body tracks in the coupled preview. */
@@ -208,7 +210,7 @@ export type LocalProjectHistory = Readonly<{
   entries: ReadonlyArray<ProjectHistoryEntry>;
 }>;
 
-const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "customMaterial" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "coupledContactEnabled" | "coupledContactStiffnessNPerM" | "coupledContactDampingNsPerM" | "coupledContactMaximumNormalForceN" | "coupledMultiBodyIncludeRetainedBody" | "coupledRelativeAeroForceFeedbackEnabled" | "releasedBodyDragModel" | "relativeAeroInteractionEnabled" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod" | "verticalIntegrationTimeStepS" | "coupledIntegrationTimeStepS">, readonly [number, number]>> = {
+const numericRanges: Readonly<Record<keyof Omit<EditableProjectInputs, "material" | "customMaterial" | "noseProfile" | "launchSiteName" | "terrainModel" | "windProfileLayers" | "recoveryEnabled" | "recoveryDeploymentTrigger" | "launchRailEnabled" | "recoveryReefingEnabled" | "earthRotationEnabled" | "normalGravityEnabled" | "normalForceModel" | "inducedDragModel" | "inducedDragFactor" | "uncertaintySeed" | "weatherSeed" | "uncertaintyCorrelations" | "coupledMutualGravityEnabled" | "coupledGravitySofteningRadiusM" | "coupledContactEnabled" | "coupledContactStiffnessNPerM" | "coupledContactDampingNsPerM" | "coupledContactMaximumNormalForceN" | "coupledMultiBodyIncludeRetainedBody" | "coupledMultiBodyRetainedBodyMode" | "coupledRelativeAeroForceFeedbackEnabled" | "releasedBodyDragModel" | "relativeAeroInteractionEnabled" | "separationContactStoppingDistanceM" | "separationContactCoefficientOfRestitution" | "sixDofIntegrationMethod" | "verticalIntegrationTimeStepS" | "coupledIntegrationTimeStepS">, readonly [number, number]>> = {
   lengthMm: [200, 1600],
   diameterMm: [20, 200],
   noseLengthMm: [40, 600],
@@ -514,6 +516,21 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
   ) {
     throw new Error("coupledMultiBodyIncludeRetainedBody must be boolean.");
   }
+  const coupledMultiBodyRetainedBodyMode = input.coupledMultiBodyRetainedBodyMode === undefined
+    ? "trace-replay"
+    : input.coupledMultiBodyRetainedBodyMode;
+  if (
+    coupledMultiBodyRetainedBodyMode !== "trace-replay" &&
+    coupledMultiBodyRetainedBodyMode !== "independent-mass-propulsion"
+  ) {
+    throw new Error("coupledMultiBodyRetainedBodyMode must be trace-replay or independent-mass-propulsion.");
+  }
+  if (
+    coupledMultiBodyRetainedBodyMode === "independent-mass-propulsion" &&
+    coupledMultiBodyIncludeRetainedBody !== true
+  ) {
+    throw new Error("independent-mass-propulsion requires coupledMultiBodyIncludeRetainedBody to be true.");
+  }
   const coupledRelativeAeroForceFeedbackEnabled = input.coupledRelativeAeroForceFeedbackEnabled;
   if (
     coupledRelativeAeroForceFeedbackEnabled !== undefined &&
@@ -655,6 +672,9 @@ export function validateEditableProjectInputs(value: unknown): EditableProjectIn
     ...(coupledContactDampingNsPerM === undefined ? {} : { coupledContactDampingNsPerM }),
     ...(coupledContactMaximumNormalForceN === undefined ? {} : { coupledContactMaximumNormalForceN }),
     ...(coupledMultiBodyIncludeRetainedBody === undefined ? {} : { coupledMultiBodyIncludeRetainedBody }),
+    ...(input.coupledMultiBodyRetainedBodyMode === undefined
+      ? {}
+      : { coupledMultiBodyRetainedBodyMode }),
     ...(coupledRelativeAeroForceFeedbackEnabled === undefined ? {} : { coupledRelativeAeroForceFeedbackEnabled }),
     ...(releasedBodyDragModel === undefined ? {} : { releasedBodyDragModel }),
     relativeAeroInteractionEnabled,
@@ -842,6 +862,7 @@ export const PROJECT_INPUT_LABELS: Readonly<Record<keyof EditableProjectInputs, 
   coupledContactDampingNsPerM: "contact closing-speed damping",
   coupledContactMaximumNormalForceN: "contact normal-force cap",
   coupledMultiBodyIncludeRetainedBody: "retained vehicle coupled replay track",
+  coupledMultiBodyRetainedBodyMode: "retained vehicle coupled handoff model",
   coupledRelativeAeroForceFeedbackEnabled: "coupled wake force-feedback sensitivity",
   releasedBodyDragModel: "released-body aerodynamic mode",
   relativeAeroInteractionEnabled: "released-body wake interaction screen",

@@ -7,9 +7,10 @@
  */
 
 export const UI_PREFERENCES_SCHEMA_ID = "rocketworks-ui-preferences";
-export const UI_PREFERENCES_SCHEMA_VERSION = 4;
-export const UI_PREFERENCES_STORAGE_KEY = "rocketworks-ui-preferences-v4";
+export const UI_PREFERENCES_SCHEMA_VERSION = 5;
+export const UI_PREFERENCES_STORAGE_KEY = "rocketworks-ui-preferences-v5";
 export const UI_PREFERENCES_LEGACY_STORAGE_KEYS = [
+  "rocketworks-ui-preferences-v4",
   "rocketworks-ui-preferences-v3",
   "rocketworks-ui-preferences-v2",
   "rocketworks-ui-preferences-v1",
@@ -41,7 +42,7 @@ export function createDefaultUiPreferences(): UiPreferences {
     reducedMotion: false,
     highContrast: false,
     locale: "en",
-    exportDestination: "browser-download",
+    exportDestination: "save-dialog",
   };
 }
 
@@ -86,7 +87,7 @@ export function parseUiPreferences(serialized: string): UiPreferences {
   }
   if (!isRecord(value)) throw new Error("UI preferences must be an object");
   if (value.schemaId !== UI_PREFERENCES_SCHEMA_ID) throw new Error("unsupported UI preferences schema");
-  if (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3 && value.schemaVersion !== UI_PREFERENCES_SCHEMA_VERSION) {
+  if (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3 && value.schemaVersion !== 4 && value.schemaVersion !== UI_PREFERENCES_SCHEMA_VERSION) {
     throw new Error("unsupported UI preferences version");
   }
   if (typeof value.designView !== "string" || !DESIGN_VIEWS.includes(value.designView as UiDesignView)) {
@@ -102,7 +103,7 @@ export function parseUiPreferences(serialized: string): UiPreferences {
     : "en";
   const exportDestination = value.schemaVersion === UI_PREFERENCES_SCHEMA_VERSION
     ? value.exportDestination
-    : "browser-download";
+    : "save-dialog";
   if (typeof reducedMotion !== "boolean") {
     throw new Error("UI preferences reduced-motion setting must be a boolean");
   }

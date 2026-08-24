@@ -30,13 +30,13 @@ export type SaveArtifactResult = "saved" | "cancelled" | "unsupported";
 export function readExportDestinationPreference(
   storage?: Pick<Storage, "getItem"> | null,
 ): UiExportDestination {
-  if (typeof window === "undefined" && storage === undefined) return "browser-download";
+  if (typeof window === "undefined" && storage === undefined) return "save-dialog";
   try {
     const source = storage ?? (typeof window === "undefined" ? null : window.localStorage);
     const serialized = source?.getItem(UI_PREFERENCES_STORAGE_KEY);
-    return serialized ? parseUiPreferences(serialized).exportDestination : "browser-download";
+    return serialized ? parseUiPreferences(serialized).exportDestination : "save-dialog";
   } catch {
-    return "browser-download";
+    return "save-dialog";
   }
 }
 

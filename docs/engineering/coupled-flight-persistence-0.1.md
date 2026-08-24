@@ -20,6 +20,9 @@ The schema accepts the following additive fields:
   loads, or live coefficient-table loads for released bodies;
 - `coupledMultiBodyIncludeRetainedBody` opts the staged adapter into a
   replay-backed retained-vehicle rigid seed in the shared coupled track;
+- `coupledMultiBodyRetainedBodyMode` selects the compatibility `trace-replay`
+  handoff or the explicit `independent-mass-propulsion` engineering-preview
+  handoff; the latter is valid only when the retained vehicle is included;
 - `coupledRelativeAeroForceFeedbackEnabled` opts the shared track into the
   bounded strongest-source wake-deficit sensitivity branch; its geometry and
   deficit controls reuse the persisted relative-flow settings;
@@ -40,13 +43,12 @@ The fields are configuration provenance, not validation evidence. The coupled
 simulation remains an analytical engineering preview and must not be treated
 as flight-safety, range-safety, or collision-certification data.
 
-The API-only `coupledMultiBodyRetainedBodyMode =
-"independent-mass-propulsion"` branch is deliberately not persisted by the
-browser schema yet. It is an explicit research/engineering-preview override
-that evaluates the staged mass/inertia and propulsion callbacks after the first
-separation event; `"trace-replay"` remains the persisted compatibility path
-until the independent branch has broader aerodynamics, recovery, and later
-staging coverage.
+The browser persists `coupledMultiBodyRetainedBodyMode` so a saved project and
+its simulation fingerprint cannot silently switch retained-body semantics.
+`"trace-replay"` remains the safe compatibility default. The independent mode
+is still an engineering-preview override: it evaluates staged mass/inertia and
+propulsion callbacks after the first separation event, but does not claim fresh
+aerodynamics, recovery, plume/contact interaction, or later-staging coverage.
 
 ## Clean-room boundary
 
